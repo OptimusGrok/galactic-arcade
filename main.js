@@ -5,6 +5,8 @@ import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
+import { buildStrikeCabinet, startStrikeDemo, tickStrikeDemo } from './strikecab.js';
+import { buildGhostCabinet, startGhostDemo, tickGhostDemo } from './ghostcab.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 
 const MOBILE = matchMedia('(pointer:coarse)').matches || /Android|iPhone|iPad/i.test(navigator.userAgent);
@@ -192,7 +194,9 @@ function makeCabinet(accent) {
 }
 
 const cabinets = [], blockers = [];
-const ROW = [-8, -4, 0, 4, 8], WALL_GAP = 0.45, PLINTH = 1.45;
+// rows on the north and west walls are slid away from the north-west corner, which holds the STRIKE cabinet
+const ROWS = [[-5, -1.5, 2, 5.5, 9], [-9, -5.5, -2, 1.5, 5], [-8, -4, 0, 4, 8], [-8, -4, 0, 4, 8]];
+const WALL_GAP = 0.45, PLINTH = 1.45;
 const plinthMat = new THREE.MeshStandardMaterial({ color: 0x0b0812, roughness: 0.4, metalness: 0.4 });
 const wallNames = ['north', 'west', 'south', 'east'];
 for (let w = 0; w < 4; w++) {
@@ -201,12 +205,13 @@ for (let w = 0; w < 4; w++) {
   const inward = new THREE.Vector3(s, 0, c);
   const rotY = Math.atan2(-inward.z, inward.x);
   // plinth with neon lip (like the reference)
-  const plinth = new THREE.Mesh(new THREE.BoxGeometry(19, 0.09, PLINTH), plinthMat);
-  plinth.position.copy(toWorld(0, PLINTH / 2)).setY(0.045); plinth.rotation.y = a; room.add(plinth);
-  const lip = new THREE.Mesh(barGeo(toWorld(-9.5, PLINTH).setY(0.09), toWorld(9.5, PLINTH).setY(0.09), 0.035), neon(C.pink, 3.5)); room.add(lip);
-  const lip2 = new THREE.Mesh(barGeo(toWorld(-9.5, PLINTH + 0.02).setY(0.012), toWorld(9.5, PLINTH + 0.02).setY(0.012), 0.02), neon(C.mag, 2)); room.add(lip2);
-  const pc = toWorld(0, PLINTH / 2);
-  blockers.push({ minX: pc.x - (Math.abs(c) * 9.5 + Math.abs(s) * PLINTH / 2), maxX: pc.x + (Math.abs(c) * 9.5 + Math.abs(s) * PLINTH / 2), minZ: pc.z - (Math.abs(s) * 9.5 + Math.abs(c) * PLINTH / 2), maxZ: pc.z + (Math.abs(s) * 9.5 + Math.abs(c) * PLINTH / 2), kind: 'plinth' });
+  const ROW = ROWS[w], uc = (ROW[0] + ROW[4]) / 2, hl = (ROW[4] - ROW[0]) / 2 + 1.5;
+  const plinth = new THREE.Mesh(new THREE.BoxGeometry(hl * 2, 0.09, PLINTH), plinthMat);
+  plinth.position.copy(toWorld(uc, PLINTH / 2)).setY(0.045); plinth.rotation.y = a; room.add(plinth);
+  const lip = new THREE.Mesh(barGeo(toWorld(uc - hl, PLINTH).setY(0.09), toWorld(uc + hl, PLINTH).setY(0.09), 0.035), neon(C.pink, 3.5)); room.add(lip);
+  const lip2 = new THREE.Mesh(barGeo(toWorld(uc - hl, PLINTH + 0.02).setY(0.012), toWorld(uc + hl, PLINTH + 0.02).setY(0.012), 0.02), neon(C.mag, 2)); room.add(lip2);
+  const pc = toWorld(uc, PLINTH / 2);
+  blockers.push({ minX: pc.x - (Math.abs(c) * hl + Math.abs(s) * PLINTH / 2), maxX: pc.x + (Math.abs(c) * hl + Math.abs(s) * PLINTH / 2), minZ: pc.z - (Math.abs(s) * hl + Math.abs(c) * PLINTH / 2), maxZ: pc.z + (Math.abs(s) * hl + Math.abs(c) * PLINTH / 2), kind: 'plinth' });
   ROW.forEach((u, i) => {
     const accent = (w * 5 + i) % 7 === 3 ? C.cyan : (w * 5 + i) % 5 === 2 ? C.purple : C.pink;
     const cab = makeCabinet(accent);
@@ -218,6 +223,27 @@ for (let w = 0; w < 4; w++) {
     blockers.push({ minX: b.min.x, maxX: b.max.x, minZ: b.min.z, maxZ: b.max.z, kind: 'cabinet' });
   });
 }
+
+// ---------- STRIKE corner cabinet (north-west corner, angled 45° to face the centre) ----------
+const strikeCab = buildStrikeCabinet(), ghostCab = buildGhostCabinet();
+const featured = [];
+{
+  const inward = new THREE.Vector3(1, 0, 1).normalize(), tangent = new THREE.Vector3(1, 0, -1).normalize(), corner = new THREE.Vector3(-9.7, 0, -9.7);
+  // side by side, both facing the room centre, 1.25 m apart so both sides stay visible and the monkey fits between
+  for (const [cab, off, name] of [[strikeCab, 0.85, 'strike'], [ghostCab, -0.85, 'ghost']]) {
+    const centre = corner.clone().addScaledVector(tangent, off);
+    cab.position.copy(centre).addScaledVector(inward, -0.52); cab.rotation.y = Math.atan2(-inward.z, inward.x);
+    Object.assign(cab.userData, { front: cab.position.clone().addScaledVector(inward, 1.42), facing: inward.clone().negate(), inward, centre });
+    room.add(cab); featured.push(cab);
+    blockers.push({ kind: 'obb', name, ox: cab.position.x, oz: cab.position.z, ang: cab.rotation.y, x0: -0.02, x1: 1.06, hz: 0.43, h: 2.1 });
+  }
+  // soft warm showcase spot from the ceiling so the cabinet art reads in the dark corner (a light, not neon)
+  const spot = new THREE.SpotLight(0xffe6d8, 30, 10, 0.62, 0.7, 1.4); spot.name = 'cornerSpot';
+  spot.position.copy(corner).addScaledVector(inward, 2.6).setY(5.4); spot.target.position.copy(corner).setY(1.0);
+  room.add(spot, spot.target);
+}
+const playables = [...cabinets, ...featured];
+const obbs = blockers.filter(b => b.kind === 'obb');
 
 // ---------- the monkey ----------
 const tieDye = canvasTex(512, 512, (g, w, h) => {
@@ -349,8 +375,8 @@ addEventListener('mousemove', e => {
   if (!mouseDrag) return; look(e.clientX - mouseDrag.x, e.clientY - mouseDrag.y); mouseDrag = { x: e.clientX, y: e.clientY };
 });
 cv.addEventListener('dblclick', () => { if (!MOBILE) cv.requestPointerLock?.(); });
-cv.addEventListener('wheel', e => { st.dist = THREE.MathUtils.clamp(st.dist + e.deltaY * 0.004, 1.6, 10); e.preventDefault(); }, { passive: false });
-function look(dx, dy) { st.yaw -= dx * 0.005; st.pitch = THREE.MathUtils.clamp(st.pitch + dy * 0.004, -0.6, 1.25); }
+cv.addEventListener('wheel', e => { st.lookT = st.t; st.dist = THREE.MathUtils.clamp(st.dist + e.deltaY * 0.004, 1.6, 10); e.preventDefault(); }, { passive: false });
+function look(dx, dy) { st.lookT = st.t; st.yaw -= dx * 0.005; st.pitch = THREE.MathUtils.clamp(st.pitch + dy * 0.004, -0.6, 1.25); }
 // touch: left half = floating joystick, right half = look
 const joyEl = document.getElementById('joy'), knob = document.getElementById('knob');
 const touches = {};
@@ -406,6 +432,18 @@ const R = 0.3, LIM = HALF - 0.35;
 function collide(p) {
   p.x = THREE.MathUtils.clamp(p.x, -LIM, LIM); p.z = THREE.MathUtils.clamp(p.z, -LIM, LIM);
   for (const b of blockers) {
+    if (b.kind === 'obb') { // to local (x along cabinet depth, z across)
+      const c = Math.cos(b.ang), sn = Math.sin(b.ang), rx = p.x - b.ox, rz = p.z - b.oz;
+      const lx = c * rx - sn * rz, lz = sn * rx + c * rz;
+      const qx = THREE.MathUtils.clamp(lx, b.x0, b.x1), qz = THREE.MathUtils.clamp(lz, -b.hz, b.hz);
+      let dx = lx - qx, dz = lz - qz, d2 = dx * dx + dz * dz, nx = lx, nz = lz;
+      if (d2 < R * R) {
+        if (d2 > 1e-8) { const d = Math.sqrt(d2); nx = qx + dx / d * R; nz = qz + dz / d * R; }
+        else { const o = [lx - b.x0, b.x1 - lx, lz + b.hz, b.hz - lz], m = Math.min(...o); if (m === o[0]) nx = b.x0 - R; else if (m === o[1]) nx = b.x1 + R; else if (m === o[2]) nz = -b.hz - R; else nz = b.hz + R; }
+        p.x = b.ox + c * nx + sn * nz; p.z = b.oz - sn * nx + c * nz;
+      }
+      continue;
+    }
     const cx = THREE.MathUtils.clamp(p.x, b.minX, b.maxX), cz = THREE.MathUtils.clamp(p.z, b.minZ, b.maxZ);
     const dx = p.x - cx, dz = p.z - cz, d2 = dx * dx + dz * dz;
     if (d2 < R * R) {
@@ -416,6 +454,35 @@ function collide(p) {
       }
     }
   }
+}
+// furthest clear distance along dir from the target (walls with margin, and the STRIKE cabinet's box)
+const _cp = new THREE.Vector3();
+function camPush(q) { // keep the camera inside the walls and outside the STRIKE cabinet (continuous push-out, no ray snapping)
+  const m = HALF - 0.3; q.x = THREE.MathUtils.clamp(q.x, -m, m); q.z = THREE.MathUtils.clamp(q.z, -m, m);
+  for (const b of obbs) {
+  if (q.y > b.h + 0.2) continue;
+  const c = Math.cos(b.ang), sn = Math.sin(b.ang), rx = q.x - b.ox, rz = q.z - b.oz; let lx = c * rx - sn * rz, lz = sn * rx + c * rz;
+  const x0 = b.x0 - 0.2, x1 = b.x1 + 0.2, hz = b.hz + 0.2;
+  if (lx > x0 && lx < x1 && Math.abs(lz) < hz) {
+    const o = [lx - x0, x1 - lx, lz + hz, hz - lz], mn = Math.min(...o);
+    if (mn === o[1]) lx = x1; else if (mn === o[0]) lx = x0; else if (mn === o[2]) lz = -hz; else lz = hz;
+    q.x = b.ox + c * lx + sn * lz; q.z = b.oz - sn * lx + c * lz;
+    q.x = THREE.MathUtils.clamp(q.x, -m, m); q.z = THREE.MathUtils.clamp(q.z, -m, m);
+  }
+  }
+  return q;
+}
+// when the monkey walks up to the STRIKE cabinet, ease the camera round to a three-quarter view (unless the player is steering the camera)
+function showcase(dt) {
+  let u = null, d = 1e9, dx = 0, dz = 0;
+  for (const c of featured) { const ex = monkey.position.x - c.userData.front.x, ez = monkey.position.z - c.userData.front.z, ed = Math.hypot(ex, ez); if (ed < d) { d = ed; u = c.userData; dx = ex; dz = ez; } }
+  st.showK = (st.showK || 0) + (((d < 2.8) && st.t - (st.lookT ?? -9) > 1.6 ? 1 : 0) - (st.showK || 0)) * (1 - Math.exp(-dt * 2.5));
+  if (st.showK < 0.01) return;
+  const base = Math.atan2(u.inward.x, u.inward.z); // camera offset direction that looks straight at the front
+  const side = Math.sign((dx * u.inward.z - dz * u.inward.x) || 1); // which side of the cabinet the monkey is on
+  const wantYaw = base + side * 0.62; let dy = Math.atan2(Math.sin(wantYaw - st.yaw), Math.cos(wantYaw - st.yaw));
+  const k = (1 - Math.exp(-dt * 1.6)) * st.showK;
+  st.yaw += dy * k; st.pitch += (0.22 - st.pitch) * k; st.dist += (3.4 - st.dist) * k;
 }
 const tmp = new THREE.Vector3(), camTarget = new THREE.Vector3(), camPos = new THREE.Vector3();
 let nearCab = null;
@@ -439,7 +506,7 @@ function step(dt) {
   monkey.rotation.y = st.face;
   // nearest cabinet the monkey faces → play animation
   nearCab = null;
-  for (const c of cabinets) {
+  for (const c of playables) {
     const f = c.userData.front, dx = c.position.x - monkey.position.x, dz = c.position.z - monkey.position.z;
     if (Math.hypot(monkey.position.x - f.x, monkey.position.z - f.z) < 0.9) { const dd = Math.hypot(dx, dz); if ((Math.sin(st.face) * dx + Math.cos(st.face) * dz) / dd > 0.75) nearCab = c; }
   }
@@ -455,10 +522,14 @@ function step(dt) {
     monkey.visible = false;
   } else {
     monkey.visible = true;
-    camPos.set(Math.sin(st.yaw) * Math.cos(st.pitch), Math.sin(st.pitch), Math.cos(st.yaw) * Math.cos(st.pitch)).multiplyScalar(st.dist).add(camTarget);
-    camPos.x = THREE.MathUtils.clamp(camPos.x, -HALF + 0.3, HALF - 0.3); camPos.z = THREE.MathUtils.clamp(camPos.z, -HALF + 0.3, HALF - 0.3);
+    showcase(dt);
+    const dir = tmp.set(Math.sin(st.yaw) * Math.cos(st.pitch), Math.sin(st.pitch), Math.cos(st.yaw) * Math.cos(st.pitch));
+    camPos.copy(dir).multiplyScalar(st.dist).add(camTarget);
+    camPush(camPos);
     camPos.y = THREE.MathUtils.clamp(camPos.y, 0.25, H - 1.2);
-    camera.position.copy(camPos); camera.lookAt(camTarget);
+    if (!st.camInit || camPos.distanceTo(camera.position) > 6) { camera.position.copy(camPos); st.camInit = true; }   // first frame / teleport
+    else camera.position.lerp(camPos, 1 - Math.exp(-dt * 14));
+    camPush(camera.position); camera.lookAt(camTarget);
   }
 }
 function animateMonkey(dt) {
@@ -487,12 +558,22 @@ function animateMonkey(dt) {
 }
 
 // ---------- loop + adaptive quality ----------
+const demo = startStrikeDemo(strikeCab), ghostDemo = startGhostDemo(ghostCab), _v = new THREE.Vector3();
+const _frus = new THREE.Frustum(), _pm = new THREE.Matrix4(), _sph = new THREE.Sphere();
 const stats = { frames: 0, cpu: 0, cpuAvg: 0, gapAvg: 16, quality: dpr };
 let last = performance.now(), slow = 0, fast = 0;
 function frame(now) {
   const gap = Math.min(100, now - last); last = now;
   const t0 = performance.now();
   step(Math.min(gap / 1000, 0.05));
+  { // run each cabinet screen only when that cabinet is near and in view
+    _frus.setFromProjectionMatrix(_pm.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse));
+    const vis = c => { const sc = c.userData.centre; return (_frus.intersectsSphere(_sph.set(_v.copy(sc).setY(1.2), 1.4)) && camera.position.distanceTo(sc) < 18) || !!window.__forceDemo; };
+    const dts = Math.min(gap / 1000, 0.1);
+    tickStrikeDemo(demo, dts, vis(strikeCab)); tickGhostDemo(ghostDemo, dts, vis(ghostCab));
+    strikeCab.userData.glow.intensity = demo.running ? 1.2 + Math.sin(now * 0.013) * 0.08 + Math.sin(now * 0.031) * 0.06 : 0.6;
+    ghostCab.userData.glow.intensity = ghostDemo.running ? 1.1 + Math.sin(now * 0.017) * 0.08 : 0.5;
+  }
   composer.render();
   const cpu = performance.now() - t0;
   stats.frames++; stats.cpu = cpu; stats.cpuAvg += (cpu - stats.cpuAvg) * 0.05; stats.gapAvg += (gap - stats.gapAvg) * 0.05;
@@ -506,4 +587,4 @@ function frame(now) {
 requestAnimationFrame(frame);
 
 // hooks for tests / future art work
-window.__arcade = { THREE, scene, camera, renderer, monkey, cabinets, blockers, st, stats, step, keys, get nearCab() { return nearCab; }, setArt: (i, part, tex, glow) => cabinets[i].userData.setArt(part, tex, glow) };
+window.__arcade = { THREE, scene, camera, renderer, monkey, cabinets, strikeCab, ghostCab, featured, demo, ghostDemo, playables, blockers, st, stats, step, keys, get nearCab() { return nearCab; }, setArt: (i, part, tex, glow) => cabinets[i].userData.setArt(part, tex, glow) };

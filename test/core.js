@@ -16,7 +16,7 @@ const { open } = require('./lib');
     A.st.vel.set(0, 0, 0); A.monkey.position.set(11, 0, 11); A.keys.KeyD = true; A.keys.KeyS = true; for (let i = 0; i < 300; i++) A.step(1 / 60); A.keys.KeyD = false; A.keys.KeyS = false;
     const corner = [A.monkey.position.x, A.monkey.position.z];
     // stand at a cabinet facing it → play
-    A.st.vel.set(0, 0, 0); A.monkey.position.set(0, 0, -9.6); A.keys.KeyW = true; for (let i = 0; i < 60; i++) A.step(1 / 60); A.keys.KeyW = false; for (let i = 0; i < 90; i++) A.step(1 / 60);
+    A.st.vel.set(0, 0, 0); A.monkey.position.set(2, 0, -9.6); A.keys.KeyW = true; for (let i = 0; i < 60; i++) A.step(1 / 60); A.keys.KeyW = false; for (let i = 0; i < 90; i++) A.step(1 / 60);
     return { z1, zWall, xE, corner, play: A.st.play, near: A.nearCab && A.nearCab.name }; });
   console.log(JSON.stringify(mv));
   chk(mv.z1 < -1.5, 'W moves forward (z ' + mv.z1.toFixed(2) + ')');

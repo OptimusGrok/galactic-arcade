@@ -7,10 +7,12 @@ async function open(opts = {}) {
   const srv = await serve();
   const browser = await chromium.launch({ executablePath: '/home/box/.cache/ms-playwright/chromium-1248/chrome-linux64/chrome', args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] });
   const ctx = await browser.newContext(opts.phone ? { viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true } : { viewport: { width: opts.w || 1280, height: opts.h || 720 } });
-  const page = await ctx.newPage(); const errors = [];
+  const page = await ctx.newPage(); const errors = [], requests = [];
+  ctx.on('request', r => requests.push(r.url()));
+  await ctx.route(/supabase/i, r => r.abort());
   page.on('pageerror', e => errors.push(String(e))); page.on('console', m => { if (m.type() === 'error') errors.push(m.text()); });
   await page.goto(`http://localhost:${srv.address().port}/index.html`);
   await page.waitForFunction(() => window.__arcade && window.__arcade.stats.frames > 3, null, { timeout: 60000 });
-  return { page, errors, close: async () => { await browser.close(); srv.close(); } };
+  return { page, errors, requests, close: async () => { await browser.close(); srv.close(); } };
 }
 module.exports = { open };
