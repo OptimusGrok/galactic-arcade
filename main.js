@@ -194,8 +194,12 @@ function makeCabinet(accent) {
 }
 
 const cabinets = [], blockers = [];
-// rows on the north and west walls are slid away from the north-west corner, which holds the STRIKE cabinet
-const ROWS = [[-5, -1.5, 2, 5.5, 9], [-9, -5.5, -2, 1.5, 5], [-8, -4, 0, 4, 8], [-8, -4, 0, 4, 8]];
+// every wall: 5 evenly spaced slots. The north-west corner ends of the north and west rows hold STRIKE and GHOST 256
+const ROWS = [[-8, -4, 0, 4, 8], [-8, -4, 0, 4, 8], [-8, -4, 0, 4, 8], [-8, -4, 0, 4, 8]];
+const strikeCab = buildStrikeCabinet(), ghostCab = buildGhostCabinet();
+const FEATURED = { '0:0': [strikeCab, 'strike'], '1:4': [ghostCab, 'ghost'] }; // north row corner end (x=-8), west row corner end (z=-8)
+const FSCALE = 2.0 / 2.08; // match the blank cabinets' 2.0 m height
+const featured = [];
 const WALL_GAP = 0.45, PLINTH = 1.45;
 const plinthMat = new THREE.MeshStandardMaterial({ color: 0x0b0812, roughness: 0.4, metalness: 0.4 });
 const wallNames = ['north', 'west', 'south', 'east'];
@@ -213,6 +217,19 @@ for (let w = 0; w < 4; w++) {
   const pc = toWorld(uc, PLINTH / 2);
   blockers.push({ minX: pc.x - (Math.abs(c) * hl + Math.abs(s) * PLINTH / 2), maxX: pc.x + (Math.abs(c) * hl + Math.abs(s) * PLINTH / 2), minZ: pc.z - (Math.abs(s) * hl + Math.abs(c) * PLINTH / 2), maxZ: pc.z + (Math.abs(s) * hl + Math.abs(c) * PLINTH / 2), kind: 'plinth' });
   ROW.forEach((u, i) => {
+    const F = FEATURED[w + ':' + i];
+    if (F) { // featured cabinet replaces the blank in this slot: same wall offset, platform height and facing
+      const [cab, name] = F;
+      cab.scale.setScalar(FSCALE); cab.position.copy(toWorld(u, WALL_GAP)).setY(0.09); cab.rotation.y = rotY;
+      cab.userData.wall = wallNames[w]; cab.userData.index = i;
+      Object.assign(cab.userData, { front: toWorld(u, WALL_GAP + 1.42 * FSCALE), facing: inward.clone().negate(), inward: inward.clone(), centre: toWorld(u, WALL_GAP + 0.5) });
+      room.add(cab); featured.push(cab);
+      blockers.push({ kind: 'obb', name, ox: cab.position.x, oz: cab.position.z, ang: rotY, x0: -0.02, x1: 1.06 * FSCALE, hz: 0.43 * FSCALE, h: 2.0 });
+      // soft warm ceiling spot so the art reads (a light, not neon)
+      const spot = new THREE.SpotLight(0xffe6d8, 22, 9, 0.45, 0.7, 1.4); spot.name = name + 'Spot';
+      spot.position.copy(toWorld(u, WALL_GAP + 2.6)).setY(5.4); spot.target.position.copy(toWorld(u, WALL_GAP + 0.4)).setY(1.0); room.add(spot, spot.target);
+      return;
+    }
     const accent = (w * 5 + i) % 7 === 3 ? C.cyan : (w * 5 + i) % 5 === 2 ? C.purple : C.pink;
     const cab = makeCabinet(accent);
     cab.position.copy(toWorld(u, WALL_GAP)).setY(0.09); cab.rotation.y = rotY;
@@ -224,24 +241,6 @@ for (let w = 0; w < 4; w++) {
   });
 }
 
-// ---------- STRIKE corner cabinet (north-west corner, angled 45° to face the centre) ----------
-const strikeCab = buildStrikeCabinet(), ghostCab = buildGhostCabinet();
-const featured = [];
-{
-  const inward = new THREE.Vector3(1, 0, 1).normalize(), tangent = new THREE.Vector3(1, 0, -1).normalize(), corner = new THREE.Vector3(-9.7, 0, -9.7);
-  // side by side, both facing the room centre, 1.25 m apart so both sides stay visible and the monkey fits between
-  for (const [cab, off, name] of [[strikeCab, 0.85, 'strike'], [ghostCab, -0.85, 'ghost']]) {
-    const centre = corner.clone().addScaledVector(tangent, off);
-    cab.position.copy(centre).addScaledVector(inward, -0.52); cab.rotation.y = Math.atan2(-inward.z, inward.x);
-    Object.assign(cab.userData, { front: cab.position.clone().addScaledVector(inward, 1.42), facing: inward.clone().negate(), inward, centre });
-    room.add(cab); featured.push(cab);
-    blockers.push({ kind: 'obb', name, ox: cab.position.x, oz: cab.position.z, ang: cab.rotation.y, x0: -0.02, x1: 1.06, hz: 0.43, h: 2.1 });
-  }
-  // soft warm showcase spot from the ceiling so the cabinet art reads in the dark corner (a light, not neon)
-  const spot = new THREE.SpotLight(0xffe6d8, 30, 10, 0.62, 0.7, 1.4); spot.name = 'cornerSpot';
-  spot.position.copy(corner).addScaledVector(inward, 2.6).setY(5.4); spot.target.position.copy(corner).setY(1.0);
-  room.add(spot, spot.target);
-}
 const playables = [...cabinets, ...featured];
 const obbs = blockers.filter(b => b.kind === 'obb');
 

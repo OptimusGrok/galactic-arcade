@@ -2,8 +2,8 @@ const { open } = require('./lib');
 (async () => {
   const { page, errors, close } = await open(); let ok = true; const chk = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); if (!c) ok = false; };
   const cab = await page.evaluate(() => { const A = window.__arcade; const by = {}; let screens = 0, art = 0;
-    for (const c of A.cabinets) { by[c.userData.wall] = (by[c.userData.wall] || 0) + 1; const s = c.getObjectByName('screen'); if (s && !s.material.map) screens++; if (c.getObjectByName('marquee') && c.getObjectByName('sidePanelL') && c.getObjectByName('sidePanelR')) art++; }
-    return { n: A.cabinets.length, by, screens, art }; });
+    for (const c of A.playables) { by[c.userData.wall] = (by[c.userData.wall] || 0) + 1; const s = c.getObjectByName('screen'); if (s && !s.material.map) screens++; if (c.getObjectByName('marquee') && c.getObjectByName('sidePanelL') && c.getObjectByName('sidePanelR')) art++; }
+    return { n: A.playables.length, by, screens, art }; });
   chk(cab.n === 20, 'cabinets=' + cab.n); chk(Object.values(cab.by).every(v => v === 5) && Object.keys(cab.by).length === 4, 'per wall ' + JSON.stringify(cab.by));
   chk(cab.screens === 20, 'blank screen meshes ' + cab.screens); chk(cab.art === 20, 'marquee+side panels ' + cab.art);
   // deterministic movement: stop RAF effects by stepping manually
@@ -16,7 +16,7 @@ const { open } = require('./lib');
     A.st.vel.set(0, 0, 0); A.monkey.position.set(11, 0, 11); A.keys.KeyD = true; A.keys.KeyS = true; for (let i = 0; i < 300; i++) A.step(1 / 60); A.keys.KeyD = false; A.keys.KeyS = false;
     const corner = [A.monkey.position.x, A.monkey.position.z];
     // stand at a cabinet facing it → play
-    A.st.vel.set(0, 0, 0); A.monkey.position.set(2, 0, -9.6); A.keys.KeyW = true; for (let i = 0; i < 60; i++) A.step(1 / 60); A.keys.KeyW = false; for (let i = 0; i < 90; i++) A.step(1 / 60);
+    A.st.vel.set(0, 0, 0); A.monkey.position.set(0, 0, -9.6); A.keys.KeyW = true; for (let i = 0; i < 60; i++) A.step(1 / 60); A.keys.KeyW = false; for (let i = 0; i < 90; i++) A.step(1 / 60);
     return { z1, zWall, xE, corner, play: A.st.play, near: A.nearCab && A.nearCab.name }; });
   console.log(JSON.stringify(mv));
   chk(mv.z1 < -1.5, 'W moves forward (z ' + mv.z1.toFixed(2) + ')');
