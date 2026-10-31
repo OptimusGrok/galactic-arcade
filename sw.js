@@ -1,0 +1,8 @@
+const CACHE='neon-arcade-v1';
+const ASSETS=['./','index.html','main.js','manifest.webmanifest','icons/icon-192.png','icons/icon-512.png','icons/icon-maskable-512.png','icons/apple-touch-icon.png',
+'vendor/three.module.js','vendor/addons/objects/Reflector.js','vendor/addons/postprocessing/EffectComposer.js','vendor/addons/postprocessing/RenderPass.js','vendor/addons/postprocessing/UnrealBloomPass.js','vendor/addons/postprocessing/OutputPass.js','vendor/addons/postprocessing/Pass.js','vendor/addons/postprocessing/ShaderPass.js','vendor/addons/postprocessing/MaskPass.js','vendor/addons/shaders/CopyShader.js','vendor/addons/shaders/LuminosityHighPassShader.js','vendor/addons/shaders/OutputShader.js','vendor/addons/utils/BufferGeometryUtils.js'];
+self.addEventListener('install',e=>{e.waitUntil(caches.open(CACHE).then(c=>c.addAll(ASSETS)).then(()=>self.skipWaiting()));});
+self.addEventListener('activate',e=>{e.waitUntil(caches.keys().then(ks=>Promise.all(ks.filter(k=>k!==CACHE).map(k=>caches.delete(k)))).then(()=>self.clients.claim()));});
+// network-first so updates show up, cache fallback for offline
+self.addEventListener('fetch',e=>{const r=e.request;if(r.method!=='GET'||new URL(r.url).origin!==location.origin)return;
+  e.respondWith(fetch(r).then(res=>{const cp=res.clone();caches.open(CACHE).then(c=>c.put(r,cp));return res;}).catch(()=>caches.match(r,{ignoreSearch:true}).then(m=>m||caches.match('index.html'))));});

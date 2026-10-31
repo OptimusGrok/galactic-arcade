@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<title>Neon Arcade</title>
+<meta name="theme-color" content="#07040c">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<style>
+html,body{margin:0;height:100%;background:#07040c;overflow:hidden;touch-action:none;-webkit-user-select:none;user-select:none}
+canvas{display:block;width:100vw;height:100vh;height:100dvh;outline:none}
+#ui{position:fixed;top:max(8px,env(safe-area-inset-top));right:max(8px,env(safe-area-inset-right));display:flex;gap:6px;z-index:5}
+#ui button{width:30px;height:30px;border-radius:7px;border:1px solid #ff2bd666;background:#0a0612aa;color:#ff8ce8;font:600 13px system-ui;padding:0;opacity:.55}
+#ui button:active{opacity:1}
+#joy{position:fixed;width:110px;height:110px;margin:-55px 0 0 -55px;border-radius:50%;border:2px solid #ff2bd688;background:radial-gradient(#ff2bd622,#0000 70%);display:none;pointer-events:none;z-index:4}
+#knob{position:absolute;left:35px;top:35px;width:40px;height:40px;border-radius:50%;background:#ff2bd6aa;box-shadow:0 0 14px #ff2bd6}
+</style>
+<script type="importmap">{"imports":{"three":"./vendor/three.module.js","three/addons/":"./vendor/addons/"}}</script>
+</head><body>
+<div id="ui"><button id="bView" title="First / third person (V)">V</button><button id="bFs" title="Fullscreen">⛶</button></div>
+<div id="joy"><div id="knob"></div></div>
+<script type="module" src="main.js"></script>
+<script>if('serviceWorker' in navigator&&location.protocol!=='file:')addEventListener('load',()=>navigator.serviceWorker.register('sw.js').catch(()=>{}));</script>
+</body></html>

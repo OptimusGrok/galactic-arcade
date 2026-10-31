@@ -1,0 +1,21 @@
+const { open } = require('./lib');
+(async () => {
+  const { page, errors, close } = await open({ phone: true }); let ok = true; const chk = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); if (!c) ok = false; };
+  await page.evaluate(() => { const A = window.__arcade; A.monkey.position.set(0, 0, 0); A.st.yaw = 0; });
+  const cdp = await page.context().newCDPSession(page);
+  const tp = (type, pts) => cdp.send('Input.dispatchTouchEvent', { type, touchPoints: pts });
+  await tp('touchStart', [{ x: 100, y: 600, id: 1 }]);
+  await tp('touchMove', [{ x: 100, y: 540, id: 1 }]);
+  const vis = await page.evaluate(() => getComputedStyle(document.getElementById('joy')).display);
+  await page.waitForTimeout(2500);
+  const z = await page.evaluate(() => window.__arcade.monkey.position.z);
+  await tp('touchEnd', []);
+  const y0 = await page.evaluate(() => window.__arcade.st.yaw);
+  await tp('touchStart', [{ x: 300, y: 400, id: 2 }]); await tp('touchMove', [{ x: 250, y: 400, id: 2 }]); await tp('touchEnd', []);
+  const y1 = await page.evaluate(() => window.__arcade.st.yaw);
+  chk(vis === 'block', 'joystick shows on left touch'); chk(z < -0.5, 'joystick up moves monkey forward z=' + z.toFixed(2)); chk(y1 > y0, 'right-half drag turns camera ' + (y1 - y0).toFixed(2));
+  const s = await page.evaluate(() => { const r = window.__arcade.renderer.info.render; return { ...window.__arcade.stats, calls: r.calls }; });
+  console.log('phone frame stats', JSON.stringify(s));
+  chk(errors.length === 0, 'no page errors ' + errors.join('|'));
+  await close(); process.exit(ok ? 0 : 1);
+})();
