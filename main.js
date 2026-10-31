@@ -7,6 +7,7 @@ import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js'
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { buildStrikeCabinet, startStrikeDemo, tickStrikeDemo } from './strikecab.js';
 import { buildGhostCabinet, startGhostDemo, tickGhostDemo } from './ghostcab.js';
+import { buildBerserkerCabinet } from './berserkcab.js';
 import { setupPlay } from './play.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 
@@ -198,7 +199,8 @@ const cabinets = [], blockers = [];
 // every wall: 5 evenly spaced slots. The north-west corner ends of the north and west rows hold STRIKE and GHOST 256
 const ROWS = [[-8, -4, 0, 4, 8], [-8, -4, 0, 4, 8], [-8, -4, 0, 4, 8], [-8, -4, 0, 4, 8]];
 const strikeCab = buildStrikeCabinet(), ghostCab = buildGhostCabinet();
-const FEATURED = { '0:0': [strikeCab, 'strike'], '1:4': [ghostCab, 'ghost'] }; // north row corner end (x=-8), west row corner end (z=-8)
+const berserkerCab = buildBerserkerCabinet();
+const FEATURED = { '0:0': [strikeCab, 'strike'], '0:1': [berserkerCab, 'berserker'], '1:4': [ghostCab, 'ghost'] }; // north row corner end (x=-8), west row corner end (z=-8)
 const FSCALE = 2.0 / 2.08; // match the blank cabinets' 2.0 m height
 const featured = [];
 const WALL_GAP = 0.45, PLINTH = 1.45;
@@ -564,7 +566,7 @@ const stats = { frames: 0, cpu: 0, cpuAvg: 0, gapAvg: 16, quality: dpr };
 let last = performance.now(), slow = 0, fast = 0;
 let paused = false, rafOn = true;
 function frame(now) {
-  const gap = Math.min(100, now - last); last = now;
+  const gap = Math.max(0, Math.min(100, now - last)); last = now;   // rAF time can be a hair before a resume timestamp
   if (paused) { rafOn = false; return; }   // full-screen game running: arcade render loop stopped
   const t0 = performance.now();
   if (!play.update(Math.min(gap / 1000, 0.05), nearCab)) step(Math.min(gap / 1000, 0.05)); else stepClock(Math.min(gap / 1000, 0.05));
@@ -587,8 +589,8 @@ function frame(now) {
   requestAnimationFrame(frame);
 }
 function stepClock(dt) { st.t += dt; }
-const play = setupPlay({ camera, monkey, strikeCab, st, pause(on) { paused = on; if (!on && !rafOn) { rafOn = true; last = performance.now(); requestAnimationFrame(frame); } } });
+const play = setupPlay({ camera, monkey, strikeCab, ghostCab, st, pause(on) { paused = on; if (!on && !rafOn) { rafOn = true; last = performance.now(); requestAnimationFrame(frame); } } });
 requestAnimationFrame(frame);
 
 // hooks for tests / future art work
-window.__arcade = { play, get paused() { return paused; }, THREE, scene, camera, renderer, monkey, cabinets, strikeCab, ghostCab, featured, demo, ghostDemo, playables, blockers, st, stats, step, keys, get nearCab() { return nearCab; }, setArt: (i, part, tex, glow) => cabinets[i].userData.setArt(part, tex, glow) };
+window.__arcade = { berserkerCab, play, get paused() { return paused; }, THREE, scene, camera, renderer, monkey, cabinets, strikeCab, ghostCab, featured, demo, ghostDemo, playables, blockers, st, stats, step, keys, get nearCab() { return nearCab; }, setArt: (i, part, tex, glow) => cabinets[i].userData.setArt(part, tex, glow) };

@@ -7,5 +7,7 @@ s = s.replace('<button id="bInstall">INSTALL APP</button>', '')
 s = s.replace("'serviceWorker' in navigator", "false")
 assert "url: 'https://kfupqtafhaflzaoqtenf.supabase.co'" in s
 s = s.replace('<head>', '<head>' + open('tools_play_guard.html').read(), 1)
+tk = '<script>' + open('tools_ticket_art.js').read() + '\n' + open('tools_strike_tickets.js').read() + '</script>'
+assert s.count('</body></html>') == 1; s = s.replace('</body></html>', tk + '</body></html>')
 open('strike-play/index.html', 'w').write(s)
 print('ok', len(s))

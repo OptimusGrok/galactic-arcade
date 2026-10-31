@@ -5,7 +5,7 @@ const { open } = require('./lib');
     for (const c of A.playables) { by[c.userData.wall] = (by[c.userData.wall] || 0) + 1; const s = c.getObjectByName('screen'); if (s && !s.material.map) screens++; if (c.getObjectByName('marquee') && c.getObjectByName('sidePanelL') && c.getObjectByName('sidePanelR')) art++; }
     return { n: A.playables.length, by, screens, art }; });
   chk(cab.n === 20, 'cabinets=' + cab.n); chk(Object.values(cab.by).every(v => v === 5) && Object.keys(cab.by).length === 4, 'per wall ' + JSON.stringify(cab.by));
-  chk(cab.screens === 20, 'blank screen meshes ' + cab.screens); chk(cab.art === 20, 'marquee+side panels ' + cab.art);
+  chk(cab.screens === 19, 'screen meshes without a texture map (19; BERSERKER shows COMING SOON) ' + cab.screens); chk(cab.art === 20, 'marquee+side panels ' + cab.art);
   // deterministic movement: stop RAF effects by stepping manually
   const mv = await page.evaluate(() => { const A = window.__arcade; window.__noAdapt = 1; A.monkey.position.set(0, 0, 0); A.st.yaw = 0; A.st.vel.set(0, 0, 0);
     A.keys.KeyW = true; for (let i = 0; i < 60; i++) A.step(1 / 60); A.keys.KeyW = false; const z1 = A.monkey.position.z;

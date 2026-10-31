@@ -30,12 +30,16 @@ canvas{display:block;width:100vw;height:100vh;height:100dvh;outline:none}
 #game.on{opacity:1}
 #bExit{position:fixed;top:calc(max(10px,env(safe-area-inset-top)) + 54px);left:max(8px,env(safe-area-inset-left));z-index:21;width:38px;height:38px;border-radius:50%;border:1px solid #fff5;background:#000a;color:#fff;font:700 18px system-ui;display:none;cursor:pointer}
 #over{position:fixed;inset:0;z-index:22;display:none;align-items:center;justify-content:center;font:900 clamp(34px,8vw,64px) 'Courier New',monospace;color:#ff3b3b;text-shadow:0 0 14px #ff2050;background:#0008;letter-spacing:.1em}
+#tix{position:fixed;top:max(8px,env(safe-area-inset-top));left:max(8px,env(safe-area-inset-left));z-index:23;font:700 13px 'Courier New',monospace;color:#ffe08a;background:#0a0612cc;border:1px solid #ffb00066;border-radius:8px;padding:5px 9px;letter-spacing:.08em;text-shadow:0 0 6px #ffb000;pointer-events:none}
+#tix.ingame{top:calc(max(10px,env(safe-area-inset-top)) + 100px);opacity:.85}
+.tpop{position:fixed;z-index:24;font:900 18px 'Courier New',monospace;color:#ffe08a;text-shadow:0 0 8px #ffb000,0 0 2px #000;pointer-events:none;animation:tpop 1.4s ease-out forwards}
+@keyframes tpop{0%{transform:translateY(6px) scale(.7);opacity:0}15%{transform:translateY(0) scale(1.15);opacity:1}70%{opacity:1}100%{transform:translateY(-34px) scale(1);opacity:0}}
 </style>
 <script type="importmap">{"imports":{"three":"./vendor/three.module.js","three/addons/":"./vendor/addons/"}}</script>
 </head><body>
 <div id="ui"><button id="bView" title="First / third person (V)">V</button><button id="bFs" title="Fullscreen">⛶</button></div>
 <div id="playUI"><button id="bPlay">PLAY</button><div id="credit">CREDIT 1</div><div id="hint">ENTER / E / SPACE</div></div>
-<button id="bExit" title="Exit (Esc)">✕</button><div id="over">GAME OVER</div>
+<button id="bExit" title="Exit (Esc)">✕</button><div id="tix">🎟 0</div><div id="over">GAME OVER</div>
 <div id="joy"><div id="knob"></div></div>
 <script type="module" src="main.js"></script>
 <script>if('serviceWorker' in navigator&&location.protocol!=='file:')addEventListener('load',()=>navigator.serviceWorker.register('sw.js').catch(()=>{}));</script>
