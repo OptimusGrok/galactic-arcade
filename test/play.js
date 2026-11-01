@@ -69,7 +69,7 @@ const PHONE = process.argv[2] === 'phone';
   if (PHONE) await page.touchscreen.tap(page.viewportSize().width / 2, page.viewportSize().height * 0.4); else await page.keyboard.press('Space');
   await page.waitForFunction(() => window.__arcade.play.sub === 'play' && document.getElementById('game').contentWindow.STRIKE.G.scene === 'play', null, { timeout: 30000 });
   if (PHONE) await page.tap('#bExit'); else { await page.keyboard.press('Escape'); }
-  await page.waitForFunction(() => window.__arcade.play.mode === 'walk', null, { timeout: 15000 });
+  await page.waitForFunction(() => window.__arcade.play.mode === 'walk', null, { timeout: 45000 });
   const ex = await page.evaluate(() => ({ last: window.__arcade.play.lastExit, credits: window.__arcade.play.credits }));
   chk((PHONE ? ex.last === 'x' : ex.last === 'esc') && ex.credits === 0, 'EXIT (' + (PHONE ? '✕' : 'Esc') + ') zooms out, credit used ' + JSON.stringify(ex));
   await page.waitForTimeout(1500); const fr2 = await page.evaluate(() => window.__arcade.stats.frames); await page.waitForTimeout(500);

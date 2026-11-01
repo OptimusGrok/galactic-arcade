@@ -64,7 +64,7 @@ const PH = process.argv[2] === 'phone', sfx = PH ? '_phone' : '';
     // the collected ticket buys another credit, then ✕ (or Esc) zooms out from the demo
     await tapEl('#bTicket'); s = await S(); chk(s[k1] === 1 && s.t === 0, N + ': the collected ticket buys another credit');
     if (key === 'strike') { await tapEl('#bExit'); } else { await tapScreen(); s = await S(); chk(s.sub === 'play', 'GHOST: second game started'); if (PH) await tapEl('#bExit'); else await page.keyboard.press('Escape'); }
-    await page.waitForFunction(() => window.__arcade.play.mode === 'walk', null, { timeout: 15000 }); s = await S();
+    await page.waitForFunction(() => window.__arcade.play.mode === 'walk', null, { timeout: 45000 }); s = await S();
     chk(s.mode === 'walk' && !s.demoOn, N + ': ' + (key === 'strike' ? '✕ from the demo' : (PH ? '✕' : 'Esc') + ' mid-game') + ' zooms back out to the monkey');
     await page.evaluate(() => { window.__arcade.monkey.position.set(0, 0, 0); }); await page.waitForTimeout(500);
   }

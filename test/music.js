@@ -37,7 +37,7 @@ const PH = process.argv[2] === 'phone', sfx = PH ? '_phone' : '';
   await tapEl('#bExit'); await page.waitForFunction(() => window.__arcade.play.mode === 'walk', null, { timeout: 15000 }).catch(() => {}); await at(4); await page.waitForTimeout(2000);
   m = await M(); chk(m.target > 0.3, 'resumes after leaving the cabinet');
   // home -> start screen fades out; MUSIC off in Options
-  await tapEl('#bHome'); await tapEl('#homeYes'); await page.waitForTimeout(1500); m = await M(); chk(m.target === 0 && m.gain < 0.15, 'start screen fades it out');
+  await tapEl('#bOpt'); await tapEl('#opTitle'); await tapEl('#homeYes'); await page.waitForTimeout(1500); m = await M(); chk(m.target === 0 && m.gain < 0.15, 'start screen fades it out');
   await tapEl('#stOpt'); await tapEl('#musBtn'); m = await M();
   chk(!m.on && (await ev(() => localStorage.getItem('neonarcade.music'))) === '0' && (await ev(() => document.getElementById('musSt').textContent)) === 'OFF', 'Options MUSIC: OFF saved');
   await page.screenshot({ path: `shots/options_music${sfx}.png` });

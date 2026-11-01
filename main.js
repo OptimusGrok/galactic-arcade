@@ -12,6 +12,7 @@ import { buildMonkeyCabinet } from './monkeycab.js';
 import { setupPlay } from './play.js';
 import { setupShield } from './shield.js';
 import { setupKiosk } from './kiosk.js';
+import { setupOpts } from './opts.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 
 const MOBILE = matchMedia('(pointer:coarse)').matches || /Android|iPhone|iPad/i.test(navigator.userAgent);
@@ -741,6 +742,7 @@ function stepClock(dt) { st.t += dt; }
 const play = setupPlay({ camera, monkey, strikeCab, ghostCab, berserkerCab, monkeyCab, st, pause(on) { paused = on; if (!on && !rafOn) { rafOn = true; last = performance.now(); requestAnimationFrame(frame); } } });
 shield = setupShield({ scene, play, st, monkey, HALF, DOOR_W, DOOR_H });
 kiosk = setupKiosk({ room, camera, monkey, st, play, blockers });
+const opts = setupOpts({ play, kiosk, shield, st, monkey, setFloor, getFloor: () => floorMode, HALF, Z2 });
 requestAnimationFrame(frame);
 
 // hooks for tests / future art work

@@ -87,7 +87,7 @@ export function setupKiosk({ room, camera, monkey, st, play, blockers }) {
   const bUse = $('bUse'), kv = $('kview'), cash = $('cash'), bPick = $('bPick');
   const K_ = window.__kiosk = { K, C, get pending() { return pending; }, mode: 'walk', near: false, buys: 0, pocketed: 0, dispK: 0, refill, offers: OFFERS };
   function showCash() { refill(); const left = C.at + DAY - now(); cash.innerHTML = '<b>$' + C.bal + '</b>' + (C.bal < 5 ? '<small>+$' + (5 - C.bal) + ' in ' + Math.floor(left / 36e5) + 'h ' + String(Math.floor(left % 36e5 / 6e4)).padStart(2, '0') + 'm</small>' : ''); }
-  K_.showCash = showCash; K_.addCash = d => { C.bal = d === 0 ? 5 : Math.max(0, C.bal + d); saveC(); showCash(); drawFace(); renderView(); };
+  K_.showCash = showCash; K_.setState = o => { C.bal = o.bal; C.at = o.at; saveC(); pending = o.pending || 0; saveP(); count = null; K_.dispK = pending ? 1 : 0; setStrip(K_.dispK); showCash(); drawFace(); }; K_.addCash = d => { C.bal = d === 0 ? 5 : Math.max(0, C.bal + d); saveC(); showCash(); drawFace(); renderView(); };
   function renderView() { kv.querySelectorAll('.kOff').forEach((b, i) => { b.classList.toggle('dis', C.bal < OFFERS[i][0]); b.classList.toggle('sel', S.sel === i); });
     $('kInfo').textContent = S.msg || (S.entry ? 'ENTER $' + S.entry + '  ·  # TO BUY' : 'CASH $' + C.bal + (pending ? '  ·  ' + pending + ' 🎟 TO DISPENSE' : '')); }
   function buy(i) { const [d, t] = OFFERS[i]; if (C.bal < d) { S.msg = 'NOT ENOUGH CASH'; kv.classList.remove('shake'); void kv.offsetWidth; kv.classList.add('shake'); renderView(); drawFace(); return false; }
@@ -104,7 +104,7 @@ export function setupKiosk({ room, camera, monkey, st, play, blockers }) {
   kv.querySelectorAll('.kOff').forEach((b, i) => b.addEventListener('click', e => { sw(e); buy(i); }));
   kv.querySelectorAll('.kKey').forEach(b => b.addEventListener('click', e => { sw(e); key(b.dataset.k); }));
   $('kX').addEventListener('click', e => { sw(e); close(); });
-  addEventListener('keydown', e => { if (document.getElementById('start')) return;
+  addEventListener('keydown', e => { if (document.getElementById('start') || window.__optsOpen) return;
     if (K_.mode === 'view') { e.stopImmediatePropagation(); if (e.code === 'Escape') close(); else if (/^Digit\d$|^Numpad\d$/.test(e.code)) key(e.code.slice(-1)); else if (e.key === '#' || e.key === '*') key(e.key); else if (e.code === 'Enter' || e.code === 'NumpadEnter') key('#'); return; }
     if (K_.mode === 'walk' && K_.near && !e.repeat && /^(KeyE|Enter|Space)$/.test(e.code)) { e.stopImmediatePropagation(); if (K_.dispK >= 1 && pending) pickUp(); else open(); } }, true);
   // ---------- view / camera ----------

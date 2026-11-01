@@ -189,7 +189,7 @@ export function setupPlay(A) {
     V.total++; V.got++; try { localStorage.setItem(VKEY, String(V.total)); } catch (e) {} showVix(); ticketSound(); setTimeout(ticketSound, 180);
     const d = document.createElement('div'); d.className = 'vpop'; const c = document.createElement('canvas'); d.appendChild(c); const t = document.createElement('div'); t.textContent = 'VIKING TICKET!'; d.appendChild(t);
     vikingArt(c, Math.round(Math.min(innerWidth * 0.6, 300))); document.body.appendChild(d); setTimeout(() => d.remove(), 3200); return true; }
-  window.__neonViking = vikingAward; P.vikingAward = vikingAward; P.viking = V;
+  window.__neonViking = vikingAward; P.vikingAward = vikingAward; P.viking = V; P.showVix = () => showVix(); P.refresh = () => refresh();
   vixEl.addEventListener('pointerdown', swallow); vixEl.addEventListener('touchstart', swallow, { passive: true });
   vixEl.addEventListener('click', e => { swallow(e); openView('viking'); });
   showVix();
@@ -209,7 +209,7 @@ export function setupPlay(A) {
   const goHome = () => { homeAsk(false); P.homes = (P.homes || 0) + 1; if (P.mode === 'game') { exit('home'); P.t = 1; } try { if (TV.open) closeView(); } catch (e) {}
     try { for (const c in A.keys) A.keys[c] = false; } catch (e) {} if (window.__startUI && window.__startUI.show) window.__startUI.show(); };
   P.home = { ask: homeAsk, go: goHome };
-  for (const [id, fn] of [['bHome', () => homeAsk(true)], ['homeYes', goHome], ['homeNo', () => homeAsk(false)]]) {
+  for (const [id, fn] of [['homeYes', goHome], ['homeNo', () => homeAsk(false)]]) {
     const b = document.getElementById(id); b.addEventListener('pointerdown', swallow); b.addEventListener('touchstart', swallow, { passive: true }); b.addEventListener('click', e => { swallow(e); fn(); }); }
   homeQ.addEventListener('pointerdown', swallow); homeQ.addEventListener('click', e => { if (e.target === homeQ) homeAsk(false); });
   ['pointerdown', 'touchstart'].forEach(t => demoUI.addEventListener(t, e => e.stopPropagation(), { passive: true }));

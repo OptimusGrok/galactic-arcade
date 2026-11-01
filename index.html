@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en"><head>
+<script src="mute.js"></script>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <title>Neon Arcade</title>
@@ -29,6 +30,18 @@ canvas{display:block;width:100vw;height:100vh;height:100dvh;outline:none}
 #kPad{display:grid;grid-template-columns:repeat(6,1fr);gap:6px}.kKey{min-height:44px;font:700 20px Arial;border-radius:8px;border:none;background:#c3c7cf;color:#1a1a1a}
 #kInfo{text-align:center;color:#9fd6ff;min-height:1.2em}
 body.ingame #cash{display:none}
+#bOpt{opacity:.9!important;display:flex;align-items:center;justify-content:center}#bOpt canvas{width:24px;height:24px}
+#gOpt{position:fixed;inset:0;z-index:40;display:none;align-items:center;justify-content:center;background:#05020acc;font-family:'Courier New',monospace}
+#gOpt.on{display:flex}.opBox{width:min(94vw,440px);max-height:92vh;overflow:auto;padding:14px;border-radius:16px;border:3px solid #ff2bd6;background:linear-gradient(#1a0a24f4,#0a0612f4);box-shadow:0 0 24px #ff2bd677;display:flex;flex-direction:column;gap:10px;color:#fff}
+.opHd{display:flex;align-items:center;gap:10px}.opHd canvas{width:40px;height:40px}.opHd b{flex:1;font:900 22px 'Courier New',monospace;letter-spacing:.14em;color:#ff8ce8;text-shadow:0 0 8px #ff2bd6}
+#opX{width:44px;height:44px;border-radius:50%;border:2px solid #ff3cf0aa;background:#120208;color:#ffd0fa;font:700 20px sans-serif}
+.opB{min-height:52px;font:900 17px 'Courier New',monospace;letter-spacing:.08em;border-radius:10px;border:2px solid #2f6cff;background:#0c1424;color:#fff}.opB.sel{border-color:#ffd98a;color:#ffd98a}
+.opSub{font:700 14px 'Courier New',monospace;color:#9fd6ff;letter-spacing:.12em;margin-top:4px;display:flex;flex-direction:column}.opSub small{color:#ffb000;font-size:12px;letter-spacing:.04em}
+.opSl{display:flex;gap:6px;align-items:center;padding:6px;border-radius:10px;border:1px solid #ffffff22;background:#ffffff08}.opSl.full{border-color:#3cff7a55}
+.opSi{flex:1;display:flex;flex-direction:column;min-width:0}.opSi b{font-size:14px;color:#ffd98a}.opSs{font:12px/1.3 system-ui;color:#cfe}
+.opSm{min-width:56px;min-height:44px;border-radius:8px;border:2px solid #3cff7a;background:#081a10;color:#fff;font:700 13px 'Courier New',monospace}.opSm.ld{border-color:#2f9bff;background:#08121f}.opSm.dl{min-width:40px;border-color:#ff3b3b55;background:#1a0606}.opSm:disabled{opacity:.3}
+#opQ{position:fixed;inset:0;display:none;align-items:center;justify-content:center;background:#000a;z-index:41}#opQ.on{display:flex}
+.opQb{width:min(86vw,340px);padding:18px;border-radius:14px;border:3px solid #ffb000;background:#140c02f4;text-align:center;color:#fff;display:flex;flex-direction:column;gap:10px}#opQt{font:900 20px 'Courier New',monospace;color:#ffd98a}#opQn{font:13px system-ui;color:#cfe}.opQr{display:flex;gap:10px}.opQr .opB{flex:1}
 #ui button:active{opacity:1}
 body.ingame #ui{top:calc(max(10px,env(safe-area-inset-top)) + 58px)}
 #homeQ{position:fixed;inset:0;z-index:90;display:none;align-items:center;justify-content:center;background:#05010cb0}
@@ -224,7 +237,7 @@ body.ingame #ui{top:calc(max(10px,env(safe-area-inset-top)) + 58px)}
   on();
 })();
 </script>
-<div id="ui"><button id="bView" title="First / third person (V)">V</button><button id="bFs" title="Fullscreen">⛶</button><button id="bHome" title="Back to start screen">⌂</button></div>
+<div id="ui"><button id="bView" title="First / third person (V)">V</button><button id="bFs" title="Fullscreen">⛶</button><button id="bOpt" title="Options"><canvas></canvas></button></div>
 <div id="homeQ" aria-hidden="true"><div id="homeP"><div id="homeT">BACK TO START SCREEN?</div><div id="homeN"></div><div id="homeB"><button class="stB" id="homeYes">YES</button><button class="stB" id="homeNo">NO</button></div></div></div>
 <div id="playUI"><button id="bPlay">PLAY</button><div id="credit">CREDIT 1</div><div id="hint">ENTER / E / SPACE</div></div>
 <div id="demoUI"><div id="dTag">DEMO</div><div id="dInsert">INSERT CREDIT</div><div id="dCredit">CREDIT 0</div><div id="dCost" style="display:none"></div><button id="bTicket">INSERT TICKET · 1 🎟</button></div><button id="bExit" title="Exit (Esc)">✕</button><div id="tix" role="button" tabindex="0" title="Show ticket"><canvas id="tixIco"></canvas><span id="tixN">0</span></div><div id="vix" role="button" tabindex="0" title="Show Viking ticket" style="display:none"><canvas id="vixIco"></canvas><span id="vixN">0</span></div><div id="tview" aria-hidden="true"><button id="tvX" title="Close (Esc)">✕</button><div id="tvWrap"><canvas id="tvCv"></canvas><div id="tvShine"></div></div><div id="tvCount">🎟 0 TICKETS</div><div id="tvHint">TAP OR ESC TO CLOSE</div></div><div id="over">GAME OVER</div>

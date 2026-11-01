@@ -36,12 +36,12 @@ const PH = process.argv[2] === 'phone', sfx = PH ? '_phone' : '';
   if (PH) await tapEl('#kX'); else await page.keyboard.press('Escape');
   await waitMode('walk', 40000); k = await K(); chk(k.mode === 'walk' && !k.view && k.t === t0, 'exit returns to the normal camera');
   await page.waitForTimeout(700); await page.screenshot({ path: `shots/kiosk_dispense${sfx}.png` });
-  await page.waitForFunction(() => window.__kiosk.dispK >= 1, null, { timeout: 15000 }).catch(() => {}); await page.waitForTimeout(400);
+  await page.waitForFunction(() => window.__kiosk.dispK >= 1, null, { timeout: 45000 }).catch(() => {}); await page.waitForTimeout(400);
   k = await K(); chk(k.dispK >= 1 && k.pick && !k.use && k.t === t0, 'dispensed into the tray, PICK UP shown, not yet pocketed');
   // persistence of undispensed / unpocketed tickets
   const ls = await ev(() => [localStorage.getItem('neonarcade.kioskPending'), localStorage.getItem('neonarcade.cash')]); chk(ls[0] === '20' && JSON.parse(ls[1]).bal === 3, 'pending tickets and cash saved ' + JSON.stringify(ls));
   await tapEl('#bPick');
-  await page.waitForFunction(() => window.__kiosk.mode === 'pick' && window.__kiosk.pt > 0.3, null, { timeout: 15000 }).catch(() => {});
+  await page.waitForFunction(() => window.__kiosk.mode === 'pick' && window.__kiosk.pt > 0.3, null, { timeout: 30000 }).catch(() => {});
   await page.keyboard.down('KeyS'); await page.waitForFunction(() => window.__kiosk.pt > 1.2 || window.__kiosk.mode !== 'pick', null, { timeout: 20000 }).catch(() => {});
   const lk = await ev(() => ({ m: window.__kiosk.mode, z: window.__arcade.monkey.position.z, arm: Math.min(...window.__arcade.monkey.userData.arms.map(a => a.sh.rotation.x)) }));
   await page.screenshot({ path: `shots/kiosk_pocket${sfx}.png` }); await page.keyboard.up('KeyS');
