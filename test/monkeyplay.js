@@ -29,7 +29,7 @@ const PHONE = process.argv[2] === 'phone';
     const bm = await page.evaluate(() => document.getElementById('game').contentWindow.__demo.bench(120));
     const dirs = ['f', 'l', 'r', 'b'].filter(k => bm.moves[k] > 0).length, t1 = await page.evaluate(() => localStorage.getItem('neonarcade.tickets'));
     chk(dirs >= 3 && bm.moves.l > 5 && bm.moves.r > 5, 'DEMO AI moves forward / left / right / back ' + JSON.stringify(bm.moves));
-    chk(bm.deaths <= 3 && bm.rowsGained >= 100, 'DEMO AI survives: 120 s sim, ' + bm.deaths + ' deaths, ' + bm.rowsGained + ' rows, best ' + bm.best);
+    chk(bm.deaths <= 3 && bm.rowsGained >= 100, 'ULTRA DEMO AI survives: 120 s sim, ' + bm.deaths + ' deaths, ' + bm.rowsGained + ' rows, best ' + bm.best);
     chk(t0 === t1, 'DEMO never touches neonarcade.tickets'); }
   // blocked at 0 credits / 0 tickets
   const n0 = (await H.state()).need; await page.evaluate(() => window.__arcade.play.tryPlay()); await page.waitForTimeout(300); await H.insert();
