@@ -14,6 +14,13 @@ for h, pat in [('tickets:kill', r'function kill\(e\)'), ('tickets:waves', r'func
                ('demo:startWave', r'function startWave\(\)'), ('demo:saveBest', r'function saveBest\('), ('demo:recordWin', r'function recordWin\('), ('demo:autoBuild', r'autoBuild\(\)\{'),
                ('demo:fitCam', r'function fitCam\('), ('demo:AU', r'setMuted,isMuted'), ('advance:noAdvance', r'window\.__noAdvance'), ('hold:G', r'const G=\{state:')]:
     require(s, N, h, pat)
+# ---- arcade stage order (Dave): stage 1 The Castle, stage 2 Lava Cave, stage 3 River Village (original: Lava Cave, Castle, River Village) ----
+LV = "const LEVEL=(()=>{try{const m=location.search.match(/[?&]level=(\\w+)/);if(m&&(m[1]==='2'||m[1]==='castle'))return 1;if(m&&(m[1]==='3'||m[1]==='village'))return 3;}catch(e){}return 2;})();"
+names = re.findall(r'data-l="(\d)" role="radio"><b>Level \d</b><span>([^<]+)', s)
+if names != [('1', 'Lava Cave'), ('2', 'The Castle'), ('3', 'River Village')]: fail(N, 'stages:list', f'original stage list changed shape: {names}')
+require(s, N, 'stages:last', r"if\(LEVEL!==3\)\{nextLevel\(\);return;\}gameOver\(true\)")   # river (LEVEL 3) is the final stage in both orders
+require(s, N, 'stages:nextLevel', r'function nextLevel\(\)\{G\.state=.won.')
+s = inject(s, N, 'stages:LEVEL', LV, "const ARC_STAGES=[1,2,3],ARC_NAMES=['The Castle','Lava Cave','River Village'];const ARC_STAGE=(()=>{try{const m=location.search.match(/[?&]stage=([123])/);if(m)return +m[1];}catch(e){}return 1;})();const LEVEL=ARC_STAGES[ARC_STAGE-1];   // arcade order: castle, cave, river")
 # own storage keys, isolated from the standalone game
 keys = sorted(set(re.findall(r"'(cs\.\w+|orcattack\.\w+)'", s)))
 if keys != ['cs.best', 'cs.muted', 'orcattack.best', 'orcattack.progress']: fail(N, 'storage keys', f'unexpected keys {keys}')
@@ -27,7 +34,7 @@ s = s[:j] + '\n' + open('tools_orc_arcade.js').read() + '\nwindow.__TK=1;\n' + s
 g = open('tools_play_guard.html').read().replace("||x.origin==='https://kfupqtafhaflzaoqtenf.supabase.co'", "")
 assert 'supabase' not in g
 s = s.replace('<head>', '<head>' + g, 1)
-verify(s, N, ['window.__TK', 'window.__demo', 'TicketArt', "TicketArt.collect('orc')", 'arcade_orc_best', 'window.__orc'])
+verify(s, N, ['window.__TK', 'window.__demo', 'TicketArt', "TicketArt.collect('orc')", 'arcade_orc_best', 'window.__orc', 'ARC_STAGE', 'arcade_orc_run'])
 os.makedirs('orc-play', exist_ok=True)
 open('orc-play/index.html', 'w').write(s)
 print('ok', len(s))

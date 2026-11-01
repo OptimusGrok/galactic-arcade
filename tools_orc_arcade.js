@@ -44,5 +44,17 @@
   function hideTitle() { document.getElementById('title').classList.add('hidden'); document.getElementById('over').classList.add('hidden'); document.body.classList.remove('menu'); }
   D.start = function () { D.on = true; window.__DEMO = true; D.runs++; document.body.classList.add('demo'); if (pm === null) pm = AU.isMuted(); AU.setMuted(true); hideTitle(); begin(false); G.speed = 2; fitCam(true); };
   D.stop = function () { D.on = false; window.__DEMO = false; document.body.classList.remove('demo'); if (pm !== null) { AU.setMuted(pm); pm = null; } };
-  window.__orc = { start: function () { D.stop(); hideTitle(); TK.got = 0; document.getElementById('tkN').textContent = '0'; AU.resume(); begin(false); G.speed = 1; fitCam(true); } };
+  // ---- stages in arcade order: 1 The Castle -> 2 Lava Cave -> 3 River Village, one credit covers the whole run ----
+  // LEVEL is fixed per page load, so moving stage reloads this frame with ?stage=N; the run (and its ticket count) rides in sessionStorage.
+  var RUN = 'arcade_orc_run';
+  function go(o, stage, bonus) { try { sessionStorage.setItem(RUN, JSON.stringify(o)); } catch (e) {} window.__orcAdv = 1; location.search = '?stage=' + stage + (bonus ? '&bonus=' + bonus : ''); }
+  function realStart(got, bonus) { D.stop(); hideTitle(); TK.got = got || 0; document.getElementById('tkN').textContent = String(TK.got); AU.resume(); begin(false); if (bonus) { G.gold += bonus; ui(); } G.speed = 1; fitCam(true);
+    banner('Stage ' + ARC_STAGE + ': ' + ARC_NAMES[ARC_STAGE - 1], bonus ? 'Carry-over bonus +' + bonus + ' gold' : ''); }
+  var _nl = nextLevel; nextLevel = function () { _nl(); if (window.__DEMO || ARC_STAGE >= 3) return; var nx = ARC_STAGE + 1;
+    banner('Stage ' + ARC_STAGE + ' complete! ' + starStr(starsFor(G.lives)), 'Stage ' + nx + ': ' + ARC_NAMES[nx - 1] + ' · +' + G.bonus + ' bonus gold'); window.__orcAdv = 1;
+    var b = G.bonus, got = TK.got; setTimeout(function () { go({ run: 1, got: got }, nx, b); }, 2000); };
+  var _ds = D.start; D.start = function () { if (ARC_STAGE !== 1) { D.on = true; window.__DEMO = true; go({ demo: 1 }, 1); return; } _ds(); };   // the attract demo always plays stage 1
+  window.__orc = { stage: ARC_STAGE, names: ARC_NAMES, start: function () { if (ARC_STAGE !== 1) { D.on = false; window.__DEMO = false; go({ run: 1, got: 0 }, 1); return; } realStart(0, 0); } };
+  var pend = null; try { pend = JSON.parse(sessionStorage.getItem(RUN) || 'null'); sessionStorage.removeItem(RUN); } catch (e) {}
+  if (pend) setTimeout(function () { if (pend.demo) D.start(); else if (pend.run) realStart(pend.got, urlBonus()); }, 0);
 })();

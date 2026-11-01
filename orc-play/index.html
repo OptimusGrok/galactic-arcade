@@ -355,7 +355,7 @@ let seed=1337;function rnd(){seed=(seed*16807)%2147483647;return (seed-1)/214748
 function softTex(){const c=document.createElement('canvas');c.width=c.height=64;const x=c.getContext('2d');const g=x.createRadialGradient(32,32,0,32,32,32);g.addColorStop(0,'rgba(255,255,255,1)');g.addColorStop(0.4,'rgba(255,255,255,.6)');g.addColorStop(1,'rgba(255,255,255,0)');x.fillStyle=g;x.fillRect(0,0,64,64);return new THREE.CanvasTexture(c);}
 const SOFT=softTex();
 // ---------- level select: Level 1 = lava cave (default, internal LEVEL 2), Level 2 = castle (?level=2 or ?level=castle, internal LEVEL 1) ----------
-const LEVEL=(()=>{try{const m=location.search.match(/[?&]level=(\w+)/);if(m&&(m[1]==='2'||m[1]==='castle'))return 1;if(m&&(m[1]==='3'||m[1]==='village'))return 3;}catch(e){}return 2;})();
+const ARC_STAGES=[1,2,3],ARC_NAMES=['The Castle','Lava Cave','River Village'];const ARC_STAGE=(()=>{try{const m=location.search.match(/[?&]stage=([123])/);if(m)return +m[1];}catch(e){}return 1;})();const LEVEL=ARC_STAGES[ARC_STAGE-1];   // arcade order: castle, cave, river
 const LOCKED=t=>LEVEL===2&&t==='wizard'&&!(typeof G!=='undefined'&&G.unlocked);
 // ---------- path ----------
 const PATHPTS=LEVEL===3?[[-50,-18],[-24,-18],[-14,-14],[-14,6],[-6,12],[6,12],[12,5],[22,5],[27,11],[27,46]]:LEVEL===2?[[-18,-36],[-18,8],[-12,14],[12,14],[18,8],[18,-36]]:[[-49,-11],[-14,-11],[-14,6],[-4,6],[-4,-8],[8,-8],[8,10],[16,10],[16,0],[21.6,0]];
@@ -1424,7 +1424,19 @@ $('bClearYes').onclick=()=>{AU.play('click');clearProg();$('clearQ').style.displ
   function hideTitle() { document.getElementById('title').classList.add('hidden'); document.getElementById('over').classList.add('hidden'); document.body.classList.remove('menu'); }
   D.start = function () { D.on = true; window.__DEMO = true; D.runs++; document.body.classList.add('demo'); if (pm === null) pm = AU.isMuted(); AU.setMuted(true); hideTitle(); begin(false); G.speed = 2; fitCam(true); };
   D.stop = function () { D.on = false; window.__DEMO = false; document.body.classList.remove('demo'); if (pm !== null) { AU.setMuted(pm); pm = null; } };
-  window.__orc = { start: function () { D.stop(); hideTitle(); TK.got = 0; document.getElementById('tkN').textContent = '0'; AU.resume(); begin(false); G.speed = 1; fitCam(true); } };
+  // ---- stages in arcade order: 1 The Castle -> 2 Lava Cave -> 3 River Village, one credit covers the whole run ----
+  // LEVEL is fixed per page load, so moving stage reloads this frame with ?stage=N; the run (and its ticket count) rides in sessionStorage.
+  var RUN = 'arcade_orc_run';
+  function go(o, stage, bonus) { try { sessionStorage.setItem(RUN, JSON.stringify(o)); } catch (e) {} window.__orcAdv = 1; location.search = '?stage=' + stage + (bonus ? '&bonus=' + bonus : ''); }
+  function realStart(got, bonus) { D.stop(); hideTitle(); TK.got = got || 0; document.getElementById('tkN').textContent = String(TK.got); AU.resume(); begin(false); if (bonus) { G.gold += bonus; ui(); } G.speed = 1; fitCam(true);
+    banner('Stage ' + ARC_STAGE + ': ' + ARC_NAMES[ARC_STAGE - 1], bonus ? 'Carry-over bonus +' + bonus + ' gold' : ''); }
+  var _nl = nextLevel; nextLevel = function () { _nl(); if (window.__DEMO || ARC_STAGE >= 3) return; var nx = ARC_STAGE + 1;
+    banner('Stage ' + ARC_STAGE + ' complete! ' + starStr(starsFor(G.lives)), 'Stage ' + nx + ': ' + ARC_NAMES[nx - 1] + ' · +' + G.bonus + ' bonus gold'); window.__orcAdv = 1;
+    var b = G.bonus, got = TK.got; setTimeout(function () { go({ run: 1, got: got }, nx, b); }, 2000); };
+  var _ds = D.start; D.start = function () { if (ARC_STAGE !== 1) { D.on = true; window.__DEMO = true; go({ demo: 1 }, 1); return; } _ds(); };   // the attract demo always plays stage 1
+  window.__orc = { stage: ARC_STAGE, names: ARC_NAMES, start: function () { if (ARC_STAGE !== 1) { D.on = false; window.__DEMO = false; go({ run: 1, got: 0 }, 1); return; } realStart(0, 0); } };
+  var pend = null; try { pend = JSON.parse(sessionStorage.getItem(RUN) || 'null'); sessionStorage.removeItem(RUN); } catch (e) {}
+  if (pend) setTimeout(function () { if (pend.demo) D.start(); else if (pend.run) realStart(pend.got, urlBonus()); }, 0);
 })();
 
 window.__TK=1;
