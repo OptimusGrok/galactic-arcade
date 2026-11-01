@@ -637,7 +637,7 @@ function update(dt){P.time+=dt;rageUpd(dt);hpdUpd(dt);odinUpd(dt);
  P.blocking=false;
  if(m>.15&&P.atkT<=0)P.face=Math.atan2(my,mx);
  if(edge('A',K.KeyJ||BT.A))attack(false);if(edge('T',K.KeyL||BT.T))thor();if(edge('R',K.KeyB||BT.R))rageOn();if(edge('O',K.KeyO||BT.O))odinOn();
- const dPress=edge('D',K.Space||BT.D);if(dPress&&P.dashCd>0&&!(P.rage>0)){const b=$('bD');b.classList.remove('nope');void b.offsetWidth;b.classList.add('nope')}if(dPress&&(P.dashCd<=0||P.rage>0)){P.dashT=.18;P.dashMax=3*(1-Math.min(.3,P.b.swift*.08));P.dashCd=P.rage>0?0:P.dashMax;P.dashA=tgt&&dist(P,tgt)>5?ang(P,tgt):m>.15?Math.atan2(my,mx):P.face;S.dash()}
+ const dPress=edge('D',K.Space||BT.D);if(dPress&&P.dashCd>0&&!(P.rage>0)){const b=$('bD');b.classList.remove('nope');void b.offsetWidth;b.classList.add('nope')}if(dPress&&(P.dashCd<=0||P.rage>0)){P.dashT=P.rage>0?.36:.18;P.dashMax=3*(1-Math.min(.3,P.b.swift*.08));P.dashCd=P.rage>0?0:P.dashMax;P.dashA=tgt&&dist(P,tgt)>5?ang(P,tgt):m>.15?Math.atan2(my,mx):P.face;S.dash()}
  if(m<.15&&P.atkT<=0){const n=nearest();if(n&&dist(n,P)<90)P.face=ang(P,n)}
  wwUpd(dt);
  {const n=nearest();if((K.KeyJ||BT.A)&&P.atkCd<=0)attack(false);
