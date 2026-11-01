@@ -329,7 +329,7 @@ const room2 = new THREE.Group(); room2.name = 'room2'; room2.position.set(0, 0, 
 // ---------- room 1 floor option: neon reflective (default) or cream character carpet (Options > FLOOR) ----------
 const FLOOR_KEY = 'neonarcade.floor';
 const carpetTex = new THREE.TextureLoader().load('tex/carpet.webp');
-carpetTex.colorSpace = THREE.SRGBColorSpace; carpetTex.wrapS = carpetTex.wrapT = THREE.MirroredRepeatWrapping;   // mirrored repeat: no tiling seams
+carpetTex.colorSpace = THREE.SRGBColorSpace; carpetTex.wrapS = carpetTex.wrapT = THREE.RepeatWrapping;   // seamless tile (edge-cut figures removed): plain repeat, never mirrored (mirroring put copies head to head)
 carpetTex.repeat.set(3, 3); carpetTex.anisotropy = renderer.capabilities.getMaxAnisotropy();
 const carpet = new THREE.Mesh(new THREE.PlaneGeometry(HALF * 2, HALF * 2), new THREE.MeshStandardMaterial({
   map: carpetTex, color: 0xe8ded0, roughness: 1, metalness: 0, emissive: 0xfff0dc, emissiveMap: carpetTex, emissiveIntensity: 0.3 }));   // matte; a little self-light keeps cream warm under the neon

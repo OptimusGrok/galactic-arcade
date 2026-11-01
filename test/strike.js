@@ -11,7 +11,7 @@ const { open } = require('./lib');
   chk(Math.abs(info.rot - info.nrot) < 1e-6 && Math.abs(info.rot + Math.PI / 2) < 1e-6, 'faces straight into the room like the row (not 45deg) ' + info.rot.toFixed(3));
   chk(['screen', 'marquee', 'sidePanelL', 'sidePanelR', 'bezel', 'controlPanel', 'joystick', 'btnFIRE', 'btnBOMB', 'btnHYPER', 'btn1P', 'btn2P', 'coinDoor', 'tMolding', 'screenGlow'].every(n => info.names.includes(n)), 'all parts present');
   chk(info.neon === 0, 'no neon (MeshBasic) meshes on STRIKE cabinet');
-  chk(info.blank === 16, '16 blank cabinets (doorway in the middle north slot) + 3 featured (STRIKE, BERSERKER, GHOST 256)');
+  chk(info.blank === 15, '15 blank cabinets (doorway in the middle north slot) + 4 featured (STRIKE, BERSERKER, MONKEY CROSSING, GHOST 256) ' + info.blank);
   // walk up to it: camera showcase + texture changes
   await page.evaluate(() => { const A = window.__arcade; window.__noAdapt = 1; const f = A.strikeCab.userData.front; A.monkey.position.set(f.x + 1.5, 0, f.z + 1.5); A.st.yaw = Math.PI; A.st.lookT = -99; });
   const hash = () => page.evaluate(() => { const cv = window.__arcade.demo.w.document.getElementById('c'), g = cv.getContext('2d'), d = g.getImageData(0, 0, cv.width, cv.height).data; let h = 0; for (let i = 0; i < d.length; i += 97) h = (h * 31 + d[i]) >>> 0; return { h, frames: window.__arcade.demo.frames, st: window.__arcade.demo.SK.state() }; });
