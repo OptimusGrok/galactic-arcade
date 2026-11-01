@@ -9,6 +9,7 @@ import { buildStrikeCabinet, startStrikeDemo, tickStrikeDemo } from './strikecab
 import { buildGhostCabinet, startGhostDemo, tickGhostDemo } from './ghostcab.js';
 import { buildBerserkerCabinet } from './berserkcab.js';
 import { buildMonkeyCabinet } from './monkeycab.js';
+import { setupSpaceWindow } from './spacewin.js';
 import { buildOrcCabinet } from './orccab.js';
 import { setupPlay } from './play.js';
 import { setupShield } from './shield.js';
@@ -99,12 +100,13 @@ for (let i = 0; i < 4; i++) { const g = room.getObjectByName('wall' + i).geometr
   for (let k = 0; k < P.count; k++) U.setXY(k, (P.getX(k) + HALF) / (2 * HALF), (P.getY(k) + H / 2) / H); U.needsUpdate = true; }
 // ---------- room 1 walls option: current (default) or Viking rune panels (Options > WALLS) ----------
 const WALLS_KEY = 'neonarcade.walls';
-let wallsMode = 'current', vikTex = null, wallBands = [];
+let wallsMode = 'current', vikTex = null, wallBands = [], spaceWin = null;
 function setWalls(mode) {
   wallsMode = mode === 'viking' ? 'viking' : 'current'; const v = wallsMode === 'viking';
-  if (v && !vikTex) { vikTex = new THREE.TextureLoader().load('tex/viking_walls.jpg'); vikTex.colorSpace = THREE.SRGBColorSpace; vikTex.wrapS = THREE.RepeatWrapping; vikTex.wrapT = THREE.ClampToEdgeWrapping;
+  if (v && !vikTex) { vikTex = new THREE.TextureLoader().load('tex/viking_walls.jpg', () => spaceWin && spaceWin.dirty()); vikTex.colorSpace = THREE.SRGBColorSpace; vikTex.wrapS = THREE.RepeatWrapping; vikTex.wrapT = THREE.ClampToEdgeWrapping;
     vikTex.repeat.set(+(2 * HALF / (H * 928 / 576)).toFixed(3), 1); vikTex.anisotropy = renderer.capabilities.getMaxAnisotropy(); }   // one repeat = wall height
   wallMat.map = v ? vikTex : wallTex; wallMat.color.setHex(v ? 0x8a7a70 : 0x2a1840); wallMat.roughness = v ? 0.95 : 0.85; wallMat.emissiveMap = v ? vikTex : null; wallMat.emissive.setHex(v ? 0xffffff : 0x000000); wallMat.emissiveIntensity = v ? 1.6 : 1; wallBands.forEach(m => { m.visible = !v; }); wallMat.needsUpdate = true;   // a little dark so the neon pops
+  if (spaceWin) spaceWin.dirty();
   try { localStorage.setItem(WALLS_KEY, wallsMode); } catch (e) {}
   return wallsMode;
 }
@@ -155,7 +157,7 @@ for (const hx of hexes) {
   shaft.position.set(hx.x, (H - 1) / 2, hx.z); shaft.rotation.y = Math.PI / 6; shaft.name = 'lightShaft'; room.add(shaft);
 }
 // wall neon: ceiling edge strips + soffit ledge above the cabinet rows
-const edge = [], edgeLedge = [], edgeAmber = [], edgeCyan = [];
+const edge = [], edgeLedge = [], edgeAmber = [], edgeCyan = [], bandsNoEast = [[], [], []], ledges = [];
 for (let i = 0; i < 4; i++) {
   const a = i * Math.PI / 2, s = Math.sin(a), c = Math.cos(a);
   const P = (u, y, d) => new THREE.Vector3(-s * (HALF - d) + c * u, y, -c * (HALF - d) - s * u);
@@ -163,9 +165,10 @@ for (let i = 0; i < 4; i++) {
   edgeLedge.push(barGeo(P(-10.2, 3.12, 1.64), P(10.2, 3.12, 1.64), 0.07));
   edgeAmber.push(barGeo(P(-10.2, 3.64, 1.64), P(10.2, 3.64, 1.64), 0.05));
   edgeCyan.push(barGeo(P(-HALF, 6.2, 0.05), P(HALF, 6.2, 0.05), 0.045));
+  if (i !== 3) [edgeLedge, edgeAmber, edgeCyan].forEach((L, k) => bandsNoEast[k].push(L[L.length - 1]));   // room 1's east wall becomes the space window
   // ledge body
   const ledge = new THREE.Mesh(new THREE.BoxGeometry(20.4, 0.5, 1.6), new THREE.MeshStandardMaterial({ color: 0x140c20, roughness: 0.7 }));
-  ledge.position.copy(P(0, 3.38, 0.8)); ledge.rotation.y = a; room.add(ledge);
+  ledge.position.copy(P(0, 3.38, 0.8)); ledge.rotation.y = a; ledge.name = 'ledge' + i; ledges.push(ledge); room.add(ledge);
 }
 room.add(new THREE.Mesh(mergeGeometries(edge), neon(C.pink, 3)));
 wallBands = [new THREE.Mesh(mergeGeometries(edgeLedge), neon(C.pink, 3)), new THREE.Mesh(mergeGeometries(edgeAmber), neon(C.amber, 2.2)), new THREE.Mesh(mergeGeometries(edgeCyan), neon(C.cyan, 1.8))];
@@ -253,7 +256,7 @@ function makeCabinet(accent) {
   return g;
 }
 
-const cabinets = [], blockers = [], slots = [], spots = [];
+const cabinets = [], blockers = [], slots = [], spots = [], eastGhostCabs = [];
 // every wall: 5 evenly spaced slots. The north-west corner ends of the north and west rows hold STRIKE and GHOST 256
 const ROWS = [[-8, -4, 0, 4, 8], [-8, -4, 0, 4, 8], [-8, -4, 0, 4, 8], [-8, -4, 0, 4, 8]];
 const strikeCab = buildStrikeCabinet(), ghostCab = buildGhostCabinet();
@@ -276,13 +279,13 @@ for (let w = 0; w < 4; w++) {
   for (const [u0, u1] of runs) {
     const um = (u0 + u1) / 2, hh = (u1 - u0) / 2;
     const plinth = new THREE.Mesh(new THREE.BoxGeometry(hh * 2, 0.09, PLINTH), plinthMat);
-    plinth.position.copy(toWorld(um, PLINTH / 2)).setY(0.045); plinth.rotation.y = a; room.add(plinth);
+    plinth.position.copy(toWorld(um, PLINTH / 2)).setY(0.045); plinth.rotation.y = a; plinth.name = 'plinth_' + wallNames[w]; room.add(plinth);
     const lipG = [barGeo(toWorld(u0, PLINTH).setY(0.09), toWorld(u1, PLINTH).setY(0.09), 0.035)];
     if (w === 0) lipG.push(barGeo(toWorld(u0 < 0 ? u1 : u0, PLINTH).setY(0.09), toWorld(u0 < 0 ? u1 : u0, 0).setY(0.09), 0.035)); // return along the door edge
-    room.add(new THREE.Mesh(mergeGeometries(lipG), neon(C.pink, 3.5)));
-    const lip2 = new THREE.Mesh(barGeo(toWorld(u0, PLINTH + 0.02).setY(0.012), toWorld(u1, PLINTH + 0.02).setY(0.012), 0.02), neon(C.mag, 2)); room.add(lip2);
+    { const lp = new THREE.Mesh(mergeGeometries(lipG), neon(C.pink, 3.5)); lp.name = 'plinthLip_' + wallNames[w]; room.add(lp); }
+    const lip2 = new THREE.Mesh(barGeo(toWorld(u0, PLINTH + 0.02).setY(0.012), toWorld(u1, PLINTH + 0.02).setY(0.012), 0.02), neon(C.mag, 2)); lip2.name = 'plinthLip2_' + wallNames[w]; room.add(lip2);
     const pc = toWorld(um, PLINTH / 2);
-    blockers.push({ minX: pc.x - (Math.abs(c) * hh + Math.abs(s) * PLINTH / 2), maxX: pc.x + (Math.abs(c) * hh + Math.abs(s) * PLINTH / 2), minZ: pc.z - (Math.abs(s) * hh + Math.abs(c) * PLINTH / 2), maxZ: pc.z + (Math.abs(s) * hh + Math.abs(c) * PLINTH / 2), kind: 'plinth' });
+    blockers.push({ minX: pc.x - (Math.abs(c) * hh + Math.abs(s) * PLINTH / 2), maxX: pc.x + (Math.abs(c) * hh + Math.abs(s) * PLINTH / 2), minZ: pc.z - (Math.abs(s) * hh + Math.abs(c) * PLINTH / 2), maxZ: pc.z + (Math.abs(s) * hh + Math.abs(c) * PLINTH / 2), kind: 'plinth', wall: wallNames[w] });
   }
   ROW.forEach((u, i) => {
     if (w === 0 && i === 2) return; // removed: the doorway to the hallway is here
@@ -303,6 +306,7 @@ for (let w = 0; w < 4; w++) {
     const accent = (w * 5 + i) % 7 === 3 ? C.cyan : (w * 5 + i) % 5 === 2 ? C.purple : C.pink;
     const cab = makeCabinet(accent);
     cab.position.copy(toWorld(u, WALL_GAP)).setY(0.09); cab.rotation.y = rotY;
+    if (w === 3) { cab.userData.wall = 'east'; eastGhostCabs.push(cab); return; }   // room 1's east wall is the space window: no blank cabinets (kept only to shape room 2's cloned neon)
     cab.name = `cabinet_${wallNames[w]}_${i}`; cab.userData.wall = wallNames[w]; cab.userData.index = i;
     cab.userData.front = toWorld(u, WALL_GAP + 1.0); cab.userData.facing = inward.clone().negate();
     room.add(cab); cabinets.push(cab);
@@ -314,7 +318,7 @@ for (let w = 0; w < 4; w++) {
 
 
 // ---------- room 1: pink neon tube tight along the base of all 4 walls, outlining every cabinet against the wall (up the back edge, over the top, down) and framing the doorway ----------
-{
+function wallTubeGeo(cabList, flatEast) {
   const D = 0.04, T = 0.035, Y0 = 0.03, YP = 0.09 + 0.03, RISE = 0.06, segs = [];
   const PU = (ROWS[0][4] - ROWS[0][0]) / 2 + 1.5;   // plinth half-length along each wall
   for (let w = 0; w < 4; w++) {
@@ -323,13 +327,13 @@ for (let w = 0; w < 4; w++) {
     const toU = v => c * v.x - s * v.z;
     // cabinet silhouettes on this wall (u range + top)
     const outl = [];
-    for (const cab of [...cabinets, ...featured]) { if (cab.userData.wall !== wallNames[w]) continue; cab.updateMatrixWorld(true);
+    for (const cab of cabList) { if (cab.userData.wall !== wallNames[w]) continue; cab.updateMatrixWorld(true);
       const b = new THREE.Box3().setFromObject(cab), us = [toU(b.min), toU(b.max), toU(new THREE.Vector3(b.min.x, 0, b.max.z)), toU(new THREE.Vector3(b.max.x, 0, b.min.z))];
       outl.push([Math.min(...us) - RISE, Math.max(...us) + RISE, b.max.y + RISE]); }
     outl.sort((p, q) => p[0] - q[0]);
     // floor run broken into pieces: corners, plinth ends (step up onto the plinth), cabinets (go round), doorway (frame)
     const E = HALF - D, door = w === 0 ? [-DOOR_W / 2 - 0.05, DOOR_W / 2 + 0.05] : null;
-    const yAt = u => Math.abs(u) < PU ? YP : Y0;
+    const yAt = u => !(flatEast && w === 3) && Math.abs(u) < PU ? YP : Y0;
     let pts = [], cur = -E; const flush = () => { for (let i = 0; i + 1 < pts.length; i++) segs.push(barGeo(pts[i], pts[i + 1], T)); pts = []; };
     const go = u => { // along the floor from cur to u, stepping at the plinth ends
       for (const e of [-PU, PU]) if (e > cur && e < u) { pts.push(P(e, yAt(e - 1e-3)), P(e, yAt(e + 1e-3))); }
@@ -343,8 +347,9 @@ for (let w = 0; w < 4; w++) {
     }
     go(E); flush();
   }
-  const wn = new THREE.Mesh(mergeGeometries(segs), neon(C.pink, 3.5)); wn.name = 'wallNeonRun'; room.add(wn);
+  return mergeGeometries(segs);
 }
+const wn = new THREE.Mesh(wallTubeGeo([...cabinets, ...featured, ...eastGhostCabs], false), neon(C.pink, 3.5)); wn.name = 'wallNeonRun'; room.add(wn);
 const playables = [...cabinets, ...featured];
 const obbs = blockers.filter(b => b.kind === 'obb');
 
@@ -379,9 +384,18 @@ const room2 = new THREE.Group(); room2.name = 'room2'; room2.position.set(0, 0, 
   const bodyBox = new THREE.Box3(); anyT.getObjectByName('body').geometry.computeBoundingBox();
   for (const sl of slots) { bodyBox.copy(anyT.getObjectByName('body').geometry.boundingBox).applyMatrix4(M.compose(sl.pos, q.setFromAxisAngle(up, sl.rotY), one)); blockers.push(map({ minX: bodyBox.min.x, maxX: bodyBox.max.x, minZ: bodyBox.min.z, maxZ: bodyBox.max.z, kind: 'cabinet' })); }
 }
+// ---------- room 1 east wall -> space window (after room 2 cloned the shell, so room 2 keeps its wall, plinth and cabinets) ----------
+{
+  room.getObjectByName('wall3').visible = false;
+  for (const n of ['plinth_east', 'plinthLip_east', 'plinthLip2_east', 'ledge3']) room.getObjectByName(n).visible = false;
+  for (let i = blockers.length - 1; i >= 0; i--) if (blockers[i].kind === 'plinth' && blockers[i].wall === 'east') blockers.splice(i, 1);
+  wallBands.forEach((m, k) => { m.geometry = mergeGeometries(bandsNoEast[k]); });   // the coloured bands stop at the glass
+  wn.geometry = wallTubeGeo([...cabinets, ...featured], true);                       // pink tube runs flat along the bottom of the glass
+  spaceWin = setupSpaceWindow({ scene, room, renderer, HALF, H, isMobile: MOBILE });
+}
 // ---------- room 1 floor option: neon reflective (default) or cream character carpet (Options > FLOOR) ----------
 const FLOOR_KEY = 'neonarcade.floor';
-const carpetTex = new THREE.TextureLoader().load('tex/carpet.webp');
+const carpetTex = new THREE.TextureLoader().load('tex/carpet.webp', () => spaceWin && floorMode === 'carpet' && spaceWin.dirty());
 carpetTex.colorSpace = THREE.SRGBColorSpace; carpetTex.wrapS = carpetTex.wrapT = THREE.RepeatWrapping;   // seamless tile (edge-cut figures removed): plain repeat, never mirrored (mirroring put copies head to head)
 carpetTex.repeat.set(3, 3); carpetTex.anisotropy = renderer.capabilities.getMaxAnisotropy();
 const carpet = new THREE.Mesh(new THREE.PlaneGeometry(HALF * 2, HALF * 2), new THREE.MeshStandardMaterial({
@@ -393,6 +407,7 @@ let floorMode = 'neon';
 function setFloor(mode) {
   floorMode = mode === 'carpet' ? 'carpet' : 'neon'; const c = floorMode === 'carpet';
   carpet.visible = c; for (const m of [mirror, floorTop, floorBase1]) m.geometry = c ? hallFloorGeo : floorGeo;
+  if (spaceWin) spaceWin.dirty();
   try { localStorage.setItem(FLOOR_KEY, floorMode); } catch (e) {}
   return floorMode;
 }
@@ -779,6 +794,7 @@ function frame(now) {
     strikeCab.userData.glow.intensity = demo.running ? 1.2 + Math.sin(now * 0.013) * 0.08 + Math.sin(now * 0.031) * 0.06 : 0.6;
     ghostCab.userData.glow.intensity = ghostDemo.running ? 1.1 + Math.sin(now * 0.017) * 0.08 : 0.5;
   }
+  if (spaceWin) spaceWin.update(now);
   composer.render();
   const cpu = performance.now() - t0;
   stats.frames++; stats.cpu = cpu; stats.cpuAvg += (cpu - stats.cpuAvg) * 0.05; stats.gapAvg += (gap - stats.gapAvg) * 0.05;
@@ -797,4 +813,4 @@ const opts = setupOpts({ play, kiosk, shield, st, monkey, setFloor, getFloor: ()
 requestAnimationFrame(frame);
 
 // hooks for tests / future art work
-window.__arcade = { get kiosk() { return kiosk; }, setFloor, get floor() { return floorMode; }, setWalls, get walls() { return wallsMode; }, wallMat, carpet, mirror, shield, room, room2, Z2, hall, DOOR_W, DOOR_H, HALL_L, berserkerCab, monkeyCab, orcCab, play, get paused() { return paused; }, THREE, scene, camera, renderer, monkey, cabinets, strikeCab, ghostCab, featured, demo, ghostDemo, playables, blockers, st, stats, step, keys, get nearCab() { return nearCab; }, setArt: (i, part, tex, glow) => cabinets[i].userData.setArt(part, tex, glow) };
+window.__arcade = { get spaceWin() { return spaceWin; }, get kiosk() { return kiosk; }, setFloor, get floor() { return floorMode; }, setWalls, get walls() { return wallsMode; }, wallMat, carpet, mirror, shield, room, room2, Z2, hall, DOOR_W, DOOR_H, HALL_L, berserkerCab, monkeyCab, orcCab, play, get paused() { return paused; }, THREE, scene, camera, renderer, monkey, cabinets, strikeCab, ghostCab, featured, demo, ghostDemo, playables, blockers, st, stats, step, keys, get nearCab() { return nearCab; }, setArt: (i, part, tex, glow) => cabinets[i].userData.setArt(part, tex, glow) };
