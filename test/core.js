@@ -4,10 +4,10 @@ const { open } = require('./lib');
   const cab = await page.evaluate(() => { const A = window.__arcade; const by = {}; let screens = 0, art = 0;
     for (const c of A.playables) { by[c.userData.wall] = (by[c.userData.wall] || 0) + 1; const s = c.getObjectByName('screen'); if (s && !s.material.map) screens++; if (c.getObjectByName('marquee') && c.getObjectByName('sidePanelL') && c.getObjectByName('sidePanelR')) art++; }
     return { n: A.playables.length, by, screens, art }; });
-  chk(cab.n === 20, 'cabinets=' + cab.n); chk(Object.values(cab.by).every(v => v === 5) && Object.keys(cab.by).length === 4, 'per wall ' + JSON.stringify(cab.by));
-  chk(cab.screens === 19, 'screen meshes without a texture map (19; BERSERKER shows COMING SOON) ' + cab.screens); chk(cab.art === 20, 'marquee+side panels ' + cab.art);
+  chk(cab.n === 19, 'cabinets=' + cab.n + ' (middle north slot is the doorway)'); chk(cab.by.north === 4 && cab.by.west === 5 && cab.by.south === 5 && cab.by.east === 5, 'per wall ' + JSON.stringify(cab.by));
+  chk(cab.screens === 18, 'screen meshes without a texture map (18; BERSERKER shows COMING SOON) ' + cab.screens); chk(cab.art === 19, 'marquee+side panels ' + cab.art);
   // deterministic movement: stop RAF effects by stepping manually
-  const mv = await page.evaluate(() => { const A = window.__arcade; window.__noAdapt = 1; A.monkey.position.set(0, 0, 0); A.st.yaw = 0; A.st.vel.set(0, 0, 0);
+  const mv = await page.evaluate(() => { const A = window.__arcade; window.__noAdapt = 1; A.monkey.position.set(-6, 0, 0); A.st.yaw = 0; A.st.vel.set(0, 0, 0);
     A.keys.KeyW = true; for (let i = 0; i < 60; i++) A.step(1 / 60); A.keys.KeyW = false; const z1 = A.monkey.position.z;
     A.keys.KeyW = true; A.keys.ShiftLeft = true; for (let i = 0; i < 900; i++) A.step(1 / 60); A.keys.KeyW = false; A.keys.ShiftLeft = false;
     const zWall = A.monkey.position.z; // north row blocks at plinth
@@ -16,14 +16,14 @@ const { open } = require('./lib');
     A.st.vel.set(0, 0, 0); A.monkey.position.set(11, 0, 11); A.keys.KeyD = true; A.keys.KeyS = true; for (let i = 0; i < 300; i++) A.step(1 / 60); A.keys.KeyD = false; A.keys.KeyS = false;
     const corner = [A.monkey.position.x, A.monkey.position.z];
     // stand at a cabinet facing it → play
-    A.st.vel.set(0, 0, 0); A.monkey.position.set(0, 0, -9.6); A.keys.KeyW = true; for (let i = 0; i < 60; i++) A.step(1 / 60); A.keys.KeyW = false; for (let i = 0; i < 90; i++) A.step(1 / 60);
-    return { z1, zWall, xE, corner, play: A.st.play, near: A.nearCab && A.nearCab.name }; });
+    A.st.vel.set(0, 0, 0); A.monkey.position.set(4, 0, -9.6); A.st.yaw = 0; A.keys.KeyW = true; for (let i = 0; i < 60; i++) A.step(1 / 60); A.keys.KeyW = false; for (let i = 0; i < 90; i++) A.step(1 / 60);
+    return { z1, zWall, xE, corner, at: [A.monkey.position.x, A.monkey.position.z, A.st.face], play: A.st.play, near: A.nearCab && A.nearCab.name }; });
   console.log(JSON.stringify(mv));
   chk(mv.z1 < -1.5, 'W moves forward (z ' + mv.z1.toFixed(2) + ')');
   chk(mv.zWall > -12 + 1.45 + 0.29 && mv.zWall < -9.5, 'stopped by north plinth/cabinets at z=' + mv.zWall.toFixed(2));
   chk(mv.xE < 12 - 1.45 && mv.xE > 9.8, 'stopped by east row at x=' + mv.xE.toFixed(2));
   chk(Math.max(...mv.corner) <= 11.651, 'wall clamp in corner ' + mv.corner.map(v => v.toFixed(2)));
-  chk(mv.play > 0.8 && mv.near === 'cabinet_north_2', 'play anim at cabinet ' + mv.near + ' ' + mv.play.toFixed(2));
+  chk(mv.play > 0.8 && mv.near === 'cabinet_north_3', 'play anim at cabinet ' + mv.near + ' ' + mv.play.toFixed(2));
   await page.evaluate(() => { window.__noAdapt = 0; }); await page.waitForTimeout(3000);
   const s = await page.evaluate(() => { const r = window.__arcade.renderer.info.render; return { ...window.__arcade.stats, calls: r.calls, tris: r.triangles }; });
   console.log('frame stats', JSON.stringify(s));

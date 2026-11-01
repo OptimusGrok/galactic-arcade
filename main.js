@@ -30,6 +30,7 @@ scene.fog = new THREE.FogExp2(0x0b0518, 0.028);
 const camera = new THREE.PerspectiveCamera(60, innerWidth / innerHeight, 0.05, 120);
 
 const HALF = 12, H = 8.5;                   // room is 24 x 24 x 8.5
+const DOOR_W = 3.2, DOOR_H = 3.0, HALL_L = 5, Z2 = -(2 * HALF + HALL_L);   // room 2 centre (rotated 180deg, its doorway faces ours)   // doorway in the north wall (x=0) + hallway to room 2
 const neon = (hex, k = 3) => { const m = new THREE.MeshBasicMaterial({ color: new THREE.Color(hex).multiplyScalar(k), fog: false }); return m; };
 const C = { pink: 0xff2bd6, mag: 0xff1fa8, cyan: 0x22d8ff, purple: 0x9b4dff, amber: 0xffa53a };
 
@@ -63,14 +64,16 @@ wallTex.wrapS = wallTex.wrapT = THREE.RepeatWrapping; wallTex.repeat.set(10, 3);
 // ---------- room ----------
 const room = new THREE.Group(); room.name = 'room'; scene.add(room);
 // reflective floor + glossy hex overlay
-const mirror = new Reflector(new THREE.PlaneGeometry(HALF * 2, HALF * 2), {
+const floorGeo = mergeGeometries([new THREE.PlaneGeometry(HALF * 2, HALF * 2), new THREE.PlaneGeometry(DOOR_W, HALL_L + 0.02).translate(0, HALF + HALL_L / 2, 0)]); // room + hallway (plane is rotated -90deg about x: +y -> -z)
+const mirror = new Reflector(floorGeo, {
   textureWidth: Math.round(innerWidth * dpr * Q.refl), textureHeight: Math.round(innerHeight * dpr * Q.refl), color: 0x8a8a96,
 });
 mirror.rotation.x = -Math.PI / 2; mirror.name = 'floorMirror'; room.add(mirror);
-const floorTop = new THREE.Mesh(new THREE.PlaneGeometry(HALF * 2, HALF * 2), new THREE.MeshStandardMaterial({
+const floorTop = new THREE.Mesh(floorGeo, new THREE.MeshStandardMaterial({
   color: 0x0c0814, map: hexTex, emissive: 0x6a2cc0, emissiveMap: hexTex, emissiveIntensity: 0.35,
   roughness: 0.42, metalness: 0.25, transparent: true, opacity: 0.6, depthWrite: false,
 }));
+const floorBase1 = new THREE.Mesh(floorGeo, new THREE.MeshStandardMaterial({ color: 0x05030a, roughness: 0.3, metalness: 0.6 })); floorBase1.rotation.x = -Math.PI / 2; floorBase1.position.y = -0.002; floorBase1.visible = false; floorBase1.name = 'floorBase1'; room.add(floorBase1);
 floorTop.rotation.x = -Math.PI / 2; floorTop.position.y = 0.004; floorTop.name = 'floorHex'; room.add(floorTop);
 
 const wallMat = new THREE.MeshStandardMaterial({ color: 0x2a1840, map: wallTex, roughness: 0.85, metalness: 0.1 });
@@ -78,6 +81,12 @@ for (let i = 0; i < 4; i++) {
   const w = new THREE.Mesh(new THREE.PlaneGeometry(HALF * 2, H), wallMat);
   const a = i * Math.PI / 2; w.rotation.y = a;
   w.position.set(-Math.sin(a) * HALF, H / 2, -Math.cos(a) * HALF); w.name = 'wall' + i; room.add(w);
+  if (i === 0) { // north wall: doorway cut out (two side panels + lintel), replaces the full plane
+    w.geometry = mergeGeometries([
+      new THREE.PlaneGeometry(HALF - DOOR_W / 2, H).translate(-(HALF + DOOR_W / 2) / 2, 0, 0),
+      new THREE.PlaneGeometry(HALF - DOOR_W / 2, H).translate((HALF + DOOR_W / 2) / 2, 0, 0),
+      new THREE.PlaneGeometry(DOOR_W, H - DOOR_H).translate(0, DOOR_H / 2, 0)]);
+  }
 }
 const ceil = new THREE.Mesh(new THREE.PlaneGeometry(HALF * 2, HALF * 2), new THREE.MeshStandardMaterial({ color: 0x07050c, roughness: 1 }));
 ceil.rotation.x = Math.PI / 2; ceil.position.y = H; room.add(ceil);
@@ -141,10 +150,37 @@ room.add(new THREE.Mesh(mergeGeometries(edge), neon(C.pink, 3)));
 room.add(new THREE.Mesh(mergeGeometries(edgeAmber), neon(C.amber, 2.2)));
 room.add(new THREE.Mesh(mergeGeometries(edgeCyan), neon(C.cyan, 1.8)));
 
+// ---------- hallway north of the doorway (z = -HALF .. -HALF-HALL_L) ----------
+const hall = new THREE.Group(); hall.name = 'hallway'; scene.add(hall);
+{
+  const z0 = -HALF, z1 = -HALF - HALL_L, zm = (z0 + z1) / 2, hw = DOOR_W / 2;
+  const hwMat = wallMat.clone(); hwMat.map = wallTex.clone(); hwMat.map.repeat.set(2.2, 1.2); hwMat.map.needsUpdate = true;
+  const side = new THREE.PlaneGeometry(HALL_L, DOOR_H);
+  const L = new THREE.Mesh(side, hwMat); L.rotation.y = Math.PI / 2; L.position.set(-hw, DOOR_H / 2, zm); L.name = 'hallWallW';
+  const Rw = new THREE.Mesh(side, hwMat); Rw.rotation.y = -Math.PI / 2; Rw.position.set(hw, DOOR_H / 2, zm); Rw.name = 'hallWallE';
+  const top = new THREE.Mesh(new THREE.PlaneGeometry(DOOR_W, HALL_L), ceil.material); top.rotation.x = Math.PI / 2; top.position.set(0, DOOR_H, zm); top.name = 'hallCeiling';
+  hall.add(L, Rw, top);
+  // continuous neon strips: bottom (pink, like the plinth lips) and top (pink edge + cyan, like the room's wall strips) on both walls
+  const bot = [], topP = [], topC = [];
+  for (const sx of [-1, 1]) {
+    const x = sx * (hw - 0.03);
+    bot.push(barGeo(new THREE.Vector3(x, 0.09, z0 + 0.02), new THREE.Vector3(x, 0.09, z1), 0.05));
+    topP.push(barGeo(new THREE.Vector3(x, DOOR_H - 0.06, z0 + 0.02), new THREE.Vector3(x, DOOR_H - 0.06, z1), 0.06));
+    topC.push(barGeo(new THREE.Vector3(x, DOOR_H - 0.28, z0 + 0.02), new THREE.Vector3(x, DOOR_H - 0.28, z1), 0.035));
+  }
+  // door frame trim on the room side (pink), same bar style
+  topP.push(polyBars([new THREE.Vector3(-hw, 0.0, z0 + 0.03), new THREE.Vector3(-hw, DOOR_H, z0 + 0.03), new THREE.Vector3(hw, DOOR_H, z0 + 0.03), new THREE.Vector3(hw, 0.0, z0 + 0.03)], 0.06, false));
+  const nb = new THREE.Mesh(mergeGeometries(bot), neon(C.pink, 3.5)); nb.name = 'hallNeonBottom';
+  const nt = new THREE.Mesh(mergeGeometries(topP), neon(C.pink, 3)); nt.name = 'hallNeonTop';
+  const nc = new THREE.Mesh(mergeGeometries(topC), neon(C.cyan, 1.8)); nc.name = 'hallNeonTopCyan';
+  hall.add(nb, nt, nc);
+}
+
 // real lights: only a handful
 scene.add(new THREE.HemisphereLight(0x3a2060, 0x080410, 0.35));
 const lights = [[0, 5.5, 0, C.pink, 22], [0, 2.6, -8.6, C.mag, 14], [0, 2.6, 8.6, C.purple, 14], [-8.6, 2.6, 0, C.cyan, 12], [8.6, 2.6, 0, C.mag, 14], [6, 6, 6, C.amber, 6]];
-for (const [x, y, z, c, i] of lights) { const l = new THREE.PointLight(c, i, 22, 1.6); l.position.set(x, y, z); scene.add(l); }
+const roomLights = [];
+for (const [x, y, z, c, i] of lights) { const l = new THREE.PointLight(c, i, 22, 1.6); l.position.set(x, y, z); l.userData.p1 = [x, y, z]; scene.add(l); roomLights.push(l); }
 
 // ---------- modular cabinet ----------
 // Side profile (x = depth toward the player, y = height). Front of the cabinet faces local +X.
@@ -195,7 +231,7 @@ function makeCabinet(accent) {
   return g;
 }
 
-const cabinets = [], blockers = [];
+const cabinets = [], blockers = [], slots = [], spots = [];
 // every wall: 5 evenly spaced slots. The north-west corner ends of the north and west rows hold STRIKE and GHOST 256
 const ROWS = [[-8, -4, 0, 4, 8], [-8, -4, 0, 4, 8], [-8, -4, 0, 4, 8], [-8, -4, 0, 4, 8]];
 const strikeCab = buildStrikeCabinet(), ghostCab = buildGhostCabinet();
@@ -213,13 +249,22 @@ for (let w = 0; w < 4; w++) {
   const rotY = Math.atan2(-inward.z, inward.x);
   // plinth with neon lip (like the reference)
   const ROW = ROWS[w], uc = (ROW[0] + ROW[4]) / 2, hl = (ROW[4] - ROW[0]) / 2 + 1.5;
-  const plinth = new THREE.Mesh(new THREE.BoxGeometry(hl * 2, 0.09, PLINTH), plinthMat);
-  plinth.position.copy(toWorld(uc, PLINTH / 2)).setY(0.045); plinth.rotation.y = a; room.add(plinth);
-  const lip = new THREE.Mesh(barGeo(toWorld(uc - hl, PLINTH).setY(0.09), toWorld(uc + hl, PLINTH).setY(0.09), 0.035), neon(C.pink, 3.5)); room.add(lip);
-  const lip2 = new THREE.Mesh(barGeo(toWorld(uc - hl, PLINTH + 0.02).setY(0.012), toWorld(uc + hl, PLINTH + 0.02).setY(0.012), 0.02), neon(C.mag, 2)); room.add(lip2);
-  const pc = toWorld(uc, PLINTH / 2);
-  blockers.push({ minX: pc.x - (Math.abs(c) * hl + Math.abs(s) * PLINTH / 2), maxX: pc.x + (Math.abs(c) * hl + Math.abs(s) * PLINTH / 2), minZ: pc.z - (Math.abs(s) * hl + Math.abs(c) * PLINTH / 2), maxZ: pc.z + (Math.abs(s) * hl + Math.abs(c) * PLINTH / 2), kind: 'plinth' });
+  // the north row is split at the doorway: two plinth runs that end neatly at the door jambs
+  const runs = w === 0 ? [[uc - hl, -DOOR_W / 2], [DOOR_W / 2, uc + hl]] : [[uc - hl, uc + hl]];
+  for (const [u0, u1] of runs) {
+    const um = (u0 + u1) / 2, hh = (u1 - u0) / 2;
+    const plinth = new THREE.Mesh(new THREE.BoxGeometry(hh * 2, 0.09, PLINTH), plinthMat);
+    plinth.position.copy(toWorld(um, PLINTH / 2)).setY(0.045); plinth.rotation.y = a; room.add(plinth);
+    const lipG = [barGeo(toWorld(u0, PLINTH).setY(0.09), toWorld(u1, PLINTH).setY(0.09), 0.035)];
+    if (w === 0) lipG.push(barGeo(toWorld(u0 < 0 ? u1 : u0, PLINTH).setY(0.09), toWorld(u0 < 0 ? u1 : u0, 0).setY(0.09), 0.035)); // return along the door edge
+    room.add(new THREE.Mesh(mergeGeometries(lipG), neon(C.pink, 3.5)));
+    const lip2 = new THREE.Mesh(barGeo(toWorld(u0, PLINTH + 0.02).setY(0.012), toWorld(u1, PLINTH + 0.02).setY(0.012), 0.02), neon(C.mag, 2)); room.add(lip2);
+    const pc = toWorld(um, PLINTH / 2);
+    blockers.push({ minX: pc.x - (Math.abs(c) * hh + Math.abs(s) * PLINTH / 2), maxX: pc.x + (Math.abs(c) * hh + Math.abs(s) * PLINTH / 2), minZ: pc.z - (Math.abs(s) * hh + Math.abs(c) * PLINTH / 2), maxZ: pc.z + (Math.abs(s) * hh + Math.abs(c) * PLINTH / 2), kind: 'plinth' });
+  }
   ROW.forEach((u, i) => {
+    if (w === 0 && i === 2) return; // removed: the doorway to the hallway is here
+    slots.push({ pos: toWorld(u, WALL_GAP).setY(0.09), rotY, accent: (w * 5 + i) % 7 === 3 ? C.cyan : (w * 5 + i) % 5 === 2 ? C.purple : C.pink });
     const F = FEATURED[w + ':' + i];
     if (F) { // featured cabinet replaces the blank in this slot: same wall offset, platform height and facing
       const [cab, name] = F;
@@ -230,7 +275,7 @@ for (let w = 0; w < 4; w++) {
       blockers.push({ kind: 'obb', name, ox: cab.position.x, oz: cab.position.z, ang: rotY, x0: -0.02, x1: 1.06 * FSCALE, hz: 0.43 * FSCALE, h: 2.0 });
       // soft warm ceiling spot so the art reads (a light, not neon)
       const spot = new THREE.SpotLight(0xffe6d8, 22, 9, 0.45, 0.7, 1.4); spot.name = name + 'Spot';
-      spot.position.copy(toWorld(u, WALL_GAP + 2.6)).setY(5.4); spot.target.position.copy(toWorld(u, WALL_GAP + 0.4)).setY(1.0); room.add(spot, spot.target);
+      spot.position.copy(toWorld(u, WALL_GAP + 2.6)).setY(5.4); spot.target.position.copy(toWorld(u, WALL_GAP + 0.4)).setY(1.0); room.add(spot, spot.target); spots.push(spot, spot.target);
       return;
     }
     const accent = (w * 5 + i) % 7 === 3 ? C.cyan : (w * 5 + i) % 5 === 2 ? C.purple : C.pink;
@@ -239,6 +284,7 @@ for (let w = 0; w < 4; w++) {
     cab.name = `cabinet_${wallNames[w]}_${i}`; cab.userData.wall = wallNames[w]; cab.userData.index = i;
     cab.userData.front = toWorld(u, WALL_GAP + 1.0); cab.userData.facing = inward.clone().negate();
     room.add(cab); cabinets.push(cab);
+    cab.updateMatrixWorld(true); // (was stale: every blank cabinet's box sat at the origin)
     const b = new THREE.Box3().setFromObject(cab.getObjectByName('body'));
     blockers.push({ minX: b.min.x, maxX: b.max.x, minZ: b.min.z, maxZ: b.max.z, kind: 'cabinet' });
   });
@@ -246,6 +292,54 @@ for (let w = 0; w < 4; w++) {
 
 const playables = [...cabinets, ...featured];
 const obbs = blockers.filter(b => b.kind === 'obb');
+
+// ---------- room 2: identical shell, rotated 180deg north of the hallway, 19 blank cabinets (instanced) ----------
+const room2 = new THREE.Group(); room2.name = 'room2'; room2.position.set(0, 0, Z2); room2.rotation.y = Math.PI; scene.add(room2);
+{
+  const skip = new Set([mirror, floorTop, floorBase1, ...cabinets, ...featured, ...spots]);
+  for (const ch of room.children) if (!skip.has(ch)) room2.add(ch.clone());
+  const plane = new THREE.PlaneGeometry(HALF * 2, HALF * 2);
+  const m2 = new Reflector(plane, { textureWidth: Math.round(innerWidth * dpr * Q.refl), textureHeight: Math.round(innerHeight * dpr * Q.refl), color: 0x8a8a96 });
+  m2.rotation.x = -Math.PI / 2; m2.name = 'floorMirror2'; room2.add(m2); room2.userData.mirror = m2;
+  const base = new THREE.Mesh(plane, new THREE.MeshStandardMaterial({ color: 0x05030a, roughness: 0.3, metalness: 0.6 })); base.rotation.x = -Math.PI / 2; base.position.y = -0.002; base.name = 'floorBase2'; room2.add(base); room2.userData.base = base;
+  const ft = new THREE.Mesh(plane, floorTop.material); ft.rotation.x = -Math.PI / 2; ft.position.y = 0.004; ft.name = 'floorHex2'; room2.add(ft);
+  // instanced blank cabinets: one InstancedMesh per part (neon parts per accent colour)
+  const tmpl = {}, groups = {};
+  for (const sl of slots) { (groups[sl.accent] ||= []).push(sl); tmpl[sl.accent] ||= makeCabinet(sl.accent); }
+  const M = new THREE.Matrix4(), S = new THREE.Matrix4(), q = new THREE.Quaternion(), one = new THREE.Vector3(1, 1, 1), up = new THREE.Vector3(0, 1, 0);
+  room2.userData.cabinetCount = slots.length; room2.userData.instanced = [];
+  const shared = ['body', 'sidePanelL', 'sidePanelR', 'screen', 'marquee', 'controlPanel', 'frontPanel'];
+  const parts = [...shared.map(n => [n, null]), ...Object.keys(groups).flatMap(a => [['neonEdges', +a], ['neonBase', +a]])];
+  const anyT = tmpl[slots[0].accent];
+  for (const [name, acc] of parts) {
+    const list = acc === null ? slots : groups[acc], src = (acc === null ? anyT : tmpl[acc]).getObjectByName(name);
+    src.updateMatrix();
+    const im = new THREE.InstancedMesh(src.geometry, src.material, list.length); im.name = 'cab2_' + name + (acc === null ? '' : '_' + acc.toString(16));
+    list.forEach((sl, k) => { M.compose(sl.pos, q.setFromAxisAngle(up, sl.rotY), one).multiply(S.copy(src.matrix)); im.setMatrixAt(k, M); });
+    im.instanceMatrix.needsUpdate = true; im.computeBoundingSphere(); room2.add(im); room2.userData.instanced.push(im);
+  }
+  // collision: room 1 plinths + one box per cabinet body, mapped into room 2 (x -> -x, z -> Z2 - z)
+  const map = b => ({ minX: -b.maxX, maxX: -b.minX, minZ: Z2 - b.maxZ, maxZ: Z2 - b.minZ, kind: b.kind + '2' });
+  for (const b of blockers.filter(b => b.kind === 'plinth')) blockers.push(map(b));
+  const bodyBox = new THREE.Box3(); anyT.getObjectByName('body').geometry.computeBoundingBox();
+  for (const sl of slots) { bodyBox.copy(anyT.getObjectByName('body').geometry.boundingBox).applyMatrix4(M.compose(sl.pos, q.setFromAxisAngle(up, sl.rotY), one)); blockers.push(map({ minX: bodyBox.min.x, maxX: bodyBox.max.x, minZ: bodyBox.min.z, maxZ: bodyBox.max.z, kind: 'cabinet' })); }
+}
+// which room is the camera in, and can it see the other one through a doorway?
+const doorBox1 = new THREE.Box3(new THREE.Vector3(-DOOR_W / 2, 0, -HALF - 0.05), new THREE.Vector3(DOOR_W / 2, DOOR_H, -HALF + 0.05));
+const doorBox2 = new THREE.Box3(new THREE.Vector3(-DOOR_W / 2, 0, -HALF - HALL_L - 0.05), new THREE.Vector3(DOOR_W / 2, DOOR_H, -HALF - HALL_L + 0.05));
+let lightsIn = 1;
+// the floor reflection skips the far room (it is only a slit through the doorway): saves a second draw of it in the mirror pass
+const skipFar = (m, far) => { const orig = m.onBeforeRender; m.onBeforeRender = function (...args) { const v = far.visible; far.visible = false; try { orig.apply(this, args); } finally { far.visible = v; } }; };
+skipFar(mirror, room2); skipFar(room2.userData.mirror, room);
+function cullRooms(fr) {
+  const z = camera.position.z, in1 = z > -HALF, in2 = z < -HALF - HALL_L;
+  room.visible = !in2 || fr.intersectsBox(doorBox2);
+  room2.visible = !in1 || fr.intersectsBox(doorBox1);
+  const deep = !in1; room2.userData.mirror.visible = deep; room2.userData.base.visible = !deep; // far room seen through the door: no second reflector pass
+  mirror.visible = !in2; floorBase1.visible = in2;
+  const want = monkey.position.z < -HALF - HALL_L / 2 ? 2 : 1; // the 6 room lights follow the monkey (constant light count: no shader recompiles)
+  if (want !== lightsIn) { lightsIn = want; for (const l of roomLights) { const [x, y, zz] = l.userData.p1; if (want === 1) l.position.set(x, y, zz); else l.position.set(-x, y, Z2 - zz); } }
+}
 
 // ---------- the monkey ----------
 const tieDye = canvasTex(512, 512, (g, w, h) => {
@@ -425,14 +519,22 @@ function resize() {
   camera.aspect = innerWidth / innerHeight; camera.fov = camera.aspect < 0.8 ? 72 : 60; camera.updateProjectionMatrix();
   renderer.setPixelRatio(dpr); renderer.setSize(innerWidth, innerHeight); composer.setPixelRatio(dpr); composer.setSize(innerWidth, innerHeight);
   bloom.resolution.set(innerWidth * Q.bloom, innerHeight * Q.bloom);
+  room2.userData.mirror?.getRenderTarget().setSize(Math.round(innerWidth * dpr * Q.refl), Math.round(innerHeight * dpr * Q.refl));
   mirror.getRenderTarget().setSize(Math.round(innerWidth * dpr * Q.refl), Math.round(innerHeight * dpr * Q.refl));
 }
 addEventListener('resize', resize); resize();
 
 // ---------- simulation ----------
 const R = 0.3, LIM = HALF - 0.35;
+// walkable areas: union of axis boxes (room 1, hallway [, room 2]); clamp to the nearest one
+const AREAS = [{ x0: -LIM, x1: LIM, z0: -LIM, z1: LIM }, { x0: -DOOR_W / 2 + (HALF - LIM), x1: DOOR_W / 2 - (HALF - LIM), z0: Z2 + LIM - 0.01, z1: -LIM + 0.01 }, { x0: -LIM, x1: LIM, z0: Z2 - LIM, z1: Z2 + LIM }];
+function clampAreas(p, areas, pad = 0) {
+  let best = null, bd = 1e9;
+  for (const a of areas) { const x = THREE.MathUtils.clamp(p.x, a.x0 - pad, a.x1 + pad), z = THREE.MathUtils.clamp(p.z, a.z0 - pad, a.z1 + pad), d = (x - p.x) ** 2 + (z - p.z) ** 2; if (d < bd) { bd = d; best = [x, z]; } if (!d) break; }
+  p.x = best[0]; p.z = best[1]; return p;
+}
 function collide(p) {
-  p.x = THREE.MathUtils.clamp(p.x, -LIM, LIM); p.z = THREE.MathUtils.clamp(p.z, -LIM, LIM);
+  clampAreas(p, AREAS);
   for (const b of blockers) {
     if (b.kind === 'obb') { // to local (x along cabinet depth, z across)
       const c = Math.cos(b.ang), sn = Math.sin(b.ang), rx = p.x - b.ox, rz = p.z - b.oz;
@@ -459,8 +561,11 @@ function collide(p) {
 }
 // furthest clear distance along dir from the target (walls with margin, and the STRIKE cabinet's box)
 const _cp = new THREE.Vector3();
+const CAM_AREAS = [{ x0: -(HALF - 0.3), x1: HALF - 0.3, z0: -(HALF - 0.3), z1: HALF - 0.3 }, { x0: -DOOR_W / 2 + 0.3, x1: DOOR_W / 2 - 0.3, z0: -HALF - HALL_L - 0.35, z1: -HALF + 0.35 }, { x0: -(HALF - 0.3), x1: HALF - 0.3, z0: Z2 - (HALF - 0.3), z1: Z2 + HALF - 0.3 }];
+const inHallZ = z => z < -HALF + 0.3 && z > -HALF - HALL_L - 0.3;
+function camClamp(q) { clampAreas(q, CAM_AREAS); if (inHallZ(q.z)) q.y = Math.min(q.y, DOOR_H - 0.25); return q; }
 function camPush(q) { // keep the camera inside the walls and outside the STRIKE cabinet (continuous push-out, no ray snapping)
-  const m = HALF - 0.3; q.x = THREE.MathUtils.clamp(q.x, -m, m); q.z = THREE.MathUtils.clamp(q.z, -m, m);
+  camClamp(q);
   for (const b of obbs) {
   if (q.y > b.h + 0.2) continue;
   const c = Math.cos(b.ang), sn = Math.sin(b.ang), rx = q.x - b.ox, rz = q.z - b.oz; let lx = c * rx - sn * rz, lz = sn * rx + c * rz;
@@ -469,7 +574,7 @@ function camPush(q) { // keep the camera inside the walls and outside the STRIKE
     const o = [lx - x0, x1 - lx, lz + hz, hz - lz], mn = Math.min(...o);
     if (mn === o[1]) lx = x1; else if (mn === o[0]) lx = x0; else if (mn === o[2]) lz = -hz; else lz = hz;
     q.x = b.ox + c * lx + sn * lz; q.z = b.oz - sn * lx + c * lz;
-    q.x = THREE.MathUtils.clamp(q.x, -m, m); q.z = THREE.MathUtils.clamp(q.z, -m, m);
+    camClamp(q);
   }
   }
   return q;
@@ -528,7 +633,7 @@ function step(dt) {
     const dir = tmp.set(Math.sin(st.yaw) * Math.cos(st.pitch), Math.sin(st.pitch), Math.cos(st.yaw) * Math.cos(st.pitch));
     camPos.copy(dir).multiplyScalar(st.dist).add(camTarget);
     camPush(camPos);
-    camPos.y = THREE.MathUtils.clamp(camPos.y, 0.25, H - 1.2);
+    camPos.y = THREE.MathUtils.clamp(camPos.y, 0.25, inHallZ(camPos.z) ? DOOR_H - 0.25 : H - 1.2);
     if (!st.camInit || camPos.distanceTo(camera.position) > 6) { camera.position.copy(camPos); st.camInit = true; }   // first frame / teleport
     else camera.position.lerp(camPos, 1 - Math.exp(-dt * 14));
     camPush(camera.position); camera.lookAt(camTarget);
@@ -570,8 +675,11 @@ function frame(now) {
   if (paused) { rafOn = false; return; }   // full-screen game running: arcade render loop stopped
   const t0 = performance.now();
   if (!play.update(Math.min(gap / 1000, 0.05), nearCab)) step(Math.min(gap / 1000, 0.05)); else stepClock(Math.min(gap / 1000, 0.05));
+  if (window.__camOverride) { const o = window.__camOverride; camera.position.set(...o.pos); camera.lookAt(...o.at); monkey.visible = false; } // screenshots / tests
+  camera.updateMatrixWorld();
   { // run each cabinet screen only when that cabinet is near and in view
     _frus.setFromProjectionMatrix(_pm.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse));
+    cullRooms(_frus);
     const vis = c => { const sc = c.userData.centre; return (_frus.intersectsSphere(_sph.set(_v.copy(sc).setY(1.2), 1.4)) && camera.position.distanceTo(sc) < 18) || !!window.__forceDemo; };
     const dts = Math.min(gap / 1000, 0.1);
     tickStrikeDemo(demo, dts, vis(strikeCab)); tickGhostDemo(ghostDemo, dts, vis(ghostCab));
@@ -593,4 +701,4 @@ const play = setupPlay({ camera, monkey, strikeCab, ghostCab, st, pause(on) { pa
 requestAnimationFrame(frame);
 
 // hooks for tests / future art work
-window.__arcade = { berserkerCab, play, get paused() { return paused; }, THREE, scene, camera, renderer, monkey, cabinets, strikeCab, ghostCab, featured, demo, ghostDemo, playables, blockers, st, stats, step, keys, get nearCab() { return nearCab; }, setArt: (i, part, tex, glow) => cabinets[i].userData.setArt(part, tex, glow) };
+window.__arcade = { room, room2, Z2, hall, DOOR_W, DOOR_H, HALL_L, berserkerCab, play, get paused() { return paused; }, THREE, scene, camera, renderer, monkey, cabinets, strikeCab, ghostCab, featured, demo, ghostDemo, playables, blockers, st, stats, step, keys, get nearCab() { return nearCab; }, setArt: (i, part, tex, glow) => cabinets[i].userData.setArt(part, tex, glow) };

@@ -12,9 +12,9 @@ const { open } = require('./lib');
       const d = cs.map(c => w === 'north' || w === 'south' ? Math.abs(c.position.z) : Math.abs(c.position.x)); const gaps = u.slice(1).map((v, i) => +(v - u[i]).toFixed(4));
       rows[w] = { n: cs.length, u, gaps, offs: [...new Set(d.map(v => v.toFixed(4)))], ys: [...new Set(cs.map(c => c.position.y.toFixed(3)))], rots: [...new Set(cs.map(c => c.rotation.y.toFixed(4)))] }; }
     // platform neon lip strips: floor-level emissive bars along the plinth front line, must span the full row (no gaps)
-    const strips = { north: 0, west: 0 }; A.scene.updateMatrixWorld(true);
+    const strips = { north: 0, northL: 0, northR: 0, west: 0 }; A.scene.updateMatrixWorld(true);
     A.scene.traverse(o => { if (!o.isMesh || !o.material.isMeshBasicMaterial) return; const b = new A.THREE.Box3().setFromObject(o); if (b.max.y > 0.2) return;
-      if (b.max.z < -10.4 && b.min.z > -10.7 && b.min.x <= -9.49 && b.max.x >= 9.49) strips.north++;
+      if (b.max.z < -10.4 && b.min.z > -10.7) { if (b.min.x <= -9.49 && b.max.x >= -1.61 && b.max.x < 0) strips.northL++; if (b.max.x >= 9.49 && b.min.x <= 1.61 && b.min.x > 0) strips.northR++; } // north row is split by the doorway
       if (b.max.x < -10.4 && b.min.x > -10.7 && b.min.z <= -9.49 && b.max.z >= 9.49) strips.west++; });
     return { x: g.position.x, z: g.position.z, rot: g.rotation.y, wall: g.userData.wall, idx: g.userData.index, sw: s.userData.wall, rows, strips, names, badG: neonCheck(g), badS: neonCheck(s), err: A.ghostDemo.err }; });
   console.log(JSON.stringify(info));
@@ -22,8 +22,8 @@ const { open } = require('./lib');
   chk(info.wall === 'west' && info.idx === 4 && Math.abs(info.z + 8) < 1e-6, 'GHOST in west row corner slot (z=-8) ' + info.x.toFixed(2) + ',' + info.z.toFixed(2));
   chk(info.sw === 'west' ? false : info.sw === 'north', 'STRIKE and GHOST on different walls meeting at the NW corner');
   chk(Math.abs(info.rot - 0) < 1e-6 && info.rows.west.rots.length === 1, 'GHOST faces straight into the room like its row (not 45deg)');
-  chk(Object.values(info.rows).every(r => r.n === 5 && r.gaps.every(g => Math.abs(g - 4) < 1e-6) && r.offs.length === 1 && r.ys.length === 1 && r.rots.length === 1), '5 cabinets per wall, evenly spaced 4 m, same wall offset/height/facing');
-  chk(info.strips.north >= 2 && info.strips.west >= 2, 'north and west platform neon strips continuous along full row ' + JSON.stringify(info.strips));
+  chk(Object.entries(info.rows).every(([w, r]) => (w === 'north' ? r.n === 4 && JSON.stringify(r.u) === '[-8,-4,4,8]' : r.n === 5 && r.gaps.every(g => Math.abs(g - 4) < 1e-6)) && r.offs.length === 1 && r.ys.length === 1 && r.rots.length === 1), '5 cabinets per wall (north: 4, doorway in the middle slot), 4 m slots, same wall offset/height/facing');
+  chk(info.strips.northL >= 1 && info.strips.northR >= 1 && info.strips.west >= 2, 'west strip continuous along full row; north strips run to each doorway edge ' + JSON.stringify(info.strips));
   chk(['screen', 'marquee', 'sidePanelL', 'sidePanelR', 'bezel', 'controlPanel', 'joystick', 'btn0', 'btn1', 'btn2', 'coinDoor', 'trim', 'screenGlow'].every(n => info.names.includes(n)), 'all GHOST parts present');
   chk(info.badG.length === 0, 'GHOST cabinet has no neon/emissive edge meshes ' + info.badG);
   chk(info.badS.length === 0, 'STRIKE cabinet has no neon/emissive edge meshes ' + info.badS);
