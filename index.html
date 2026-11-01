@@ -64,27 +64,67 @@ canvas{display:block;width:100vw;height:100vh;height:100dvh;outline:none}
 <script type="importmap">{"imports":{"three":"./vendor/three.module.js","three/addons/":"./vendor/addons/"}}</script>
 <link rel="preload" as="image" href="img/start.webp" type="image/webp">
 <style>
-#start{position:fixed;inset:0;z-index:100;background:#05010c;overflow:hidden;cursor:pointer;touch-action:none;user-select:none;-webkit-user-select:none;transition:opacity .6s ease}
+#start{position:fixed;inset:0;z-index:100;background:#05010c;overflow:hidden;cursor:default;touch-action:none;user-select:none;-webkit-user-select:none;transition:opacity .6s ease}
 #start.out{opacity:0;pointer-events:none}
 #stBg{position:absolute;inset:-6%;background:#05010c url(img/start.jpg) center/cover no-repeat;background-image:image-set(url(img/start.webp) type('image/webp'),url(img/start.jpg) type('image/jpeg'));filter:blur(28px) brightness(.38) saturate(1.2);transform:scale(1.12)}
 #stBox{position:absolute;left:50%;top:50%;width:min(100vw,100vh);height:min(100vw,100vh);width:min(100vw,100dvh);height:min(100vw,100dvh);transform:translate(-50%,-50%)}
 #stBox picture,#stBox img{display:block;width:100%;height:100%;object-fit:contain}
-#stPulse{position:absolute;left:18%;right:18%;bottom:3%;height:12%;border-radius:50%;background:radial-gradient(closest-side,#ff3cf066,#00e5ff22,transparent);mix-blend-mode:screen;animation:stp 1.6s ease-in-out infinite;pointer-events:none}
+#stBtns{position:absolute;left:0;right:0;bottom:1.5%;height:13%;display:flex;align-items:center;justify-content:center;gap:4%;background:linear-gradient(transparent,#05010cf0 30%,#05010c 55%);padding-top:1%}
+.stB{font:900 clamp(16px,3.6vmin,30px)/1 'Courier New',monospace;letter-spacing:.14em;color:#fff;padding:.7em 1.5em .62em;border-radius:14px;cursor:pointer;background:linear-gradient(#2a0610ee,#120208ee);text-shadow:0 0 8px currentColor;-webkit-tap-highlight-color:transparent}
+#stStart{border:3px solid #ff3cf0;box-shadow:0 0 18px #ff3cf0aa,inset 0 0 12px #ff3cf044;animation:pp 1.6s ease-in-out infinite}
+#stOpt{border:3px solid #00e5ff;box-shadow:0 0 14px #00e5ff88,inset 0 0 10px #00e5ff33;color:#dffbff}
+.stB:active{transform:scale(.96)}
+#opt{position:absolute;inset:0;z-index:2;display:none;align-items:center;justify-content:center;background:#05010cb8}
+#opt.on{display:flex}
+#optP{width:min(92vw,560px);border-radius:18px;border:3px solid #00e5ff;background:linear-gradient(#140626f4,#08020ff4);box-shadow:0 0 26px #00e5ff77,inset 0 0 18px #ff3cf022;padding:16px 18px 18px;color:#fff;font:700 14px 'Courier New',monospace}
+#optHd{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}
+#optT{font:900 clamp(20px,4.6vmin,30px)/1 'Courier New',monospace;letter-spacing:.16em;color:#dffbff;text-shadow:0 0 10px #00e5ff}
+#optX{width:42px;height:42px;border-radius:50%;border:2px solid #ff3cf0aa;background:#120208;color:#ffd0fa;font:700 20px sans-serif;cursor:pointer}
+#optTabs{display:flex;gap:8px;margin-bottom:14px}
+.optTab{font:900 14px 'Courier New',monospace;letter-spacing:.14em;padding:8px 16px;border-radius:10px;border:2px solid #ff3cf0;background:#2a0628;color:#fff;text-shadow:0 0 6px #ff3cf0}
+#flTiles{display:flex;gap:14px;justify-content:center}
+.flT{flex:1;max-width:240px;border-radius:12px;border:3px solid #444;background:#0a0612;padding:6px;cursor:pointer;color:#bbb;font:900 13px 'Courier New',monospace;letter-spacing:.14em;text-align:center}
+.flT img{display:block;width:100%;aspect-ratio:16/11;object-fit:cover;border-radius:8px;margin-bottom:6px}
+.flT.sel{border-color:#ffe08a;color:#ffe08a;box-shadow:0 0 16px #ffb000aa;text-shadow:0 0 6px #ffb000}
+.flT .now{display:block;font-size:10px;opacity:.85;margin-top:3px;min-height:1em}
+#optBack{display:block;margin:16px auto 0;font-size:clamp(14px,3vmin,20px)}
 @keyframes stp{0%,100%{opacity:.25;transform:scale(.92)}50%{opacity:.9;transform:scale(1.04)}}
 </style>
 </head><body>
-<div id="start" role="button" aria-label="Tap to start"><div id="stBg"></div><div id="stBox"><picture><source srcset="img/start.webp" type="image/webp"><img src="img/start.jpg" alt="Neon Arcade — tap to start" draggable="false"></picture><div id="stPulse"></div></div></div>
+<div id="start" role="dialog" aria-label="Neon Arcade start screen"><div id="stBg"></div><div id="stBox"><picture><source srcset="img/start.webp" type="image/webp"><img src="img/start.jpg" alt="Neon Arcade — tap to start" draggable="false"></picture><div id="stBtns"><button class="stB" id="stStart">START</button><button class="stB" id="stOpt">OPTIONS</button></div></div>
+<div id="opt" aria-hidden="true"><div id="optP"><div id="optHd"><div id="optT">OPTIONS</div><button id="optX" title="Back">✕</button></div>
+<div id="optTabs"><button class="optTab" id="tabFloor">FLOOR</button></div>
+<div id="flTiles"><div class="flT" data-floor="neon" id="flNeon"><img src="img/floor_neon.webp" alt="" draggable="false">CURRENT<span class="now">NEON</span></div><div class="flT" data-floor="carpet" id="flCarpet"><img src="img/floor_carpet.webp" alt="" draggable="false">CARPET<span class="now">CREAM</span></div></div>
+<button class="stB" id="optBack">BACK</button></div></div></div>
 <script>
-// Start screen: shown before the room (which loads behind it). The first tap / click / key only dismisses it and
-// unlocks audio; it is never passed on as a joystick touch or an E / Enter cabinet press.
+// Start screen: shown before the room (which loads behind it). Only START (or Enter) enters; OPTIONS opens the
+// Options menu (FLOOR tab). Every other tap / click / key is swallowed here and never reaches the arcade.
 (function () {
-  var el = document.getElementById('start'), S = window.__start = { shown: true, dismissed: false, at: 0, how: '' };
+  var el = document.getElementById('start'), opt = document.getElementById('opt'), S = window.__start = { shown: true, dismissed: false, at: 0, how: '', opts: 0, ignored: 0 };
   function off() { S.shown = false; el.remove(); }
+  function floorNow() { try { return localStorage.getItem('neonarcade.floor') === 'carpet' ? 'carpet' : 'neon'; } catch (e) { return 'neon'; } }
+  function showFloor() { var f = floorNow(); ['flNeon', 'flCarpet'].forEach(function (id) { var t = document.getElementById(id); t.classList.toggle('sel', t.dataset.floor === f); }); }
+  function pickFloor(f) { if (window.__setFloor) window.__setFloor(f); else try { localStorage.setItem('neonarcade.floor', f); } catch (e) {} S.floor = f; showFloor(); }
+  function openOpt(on) { opt.classList.toggle('on', on); opt.setAttribute('aria-hidden', on ? 'false' : 'true'); if (on) { S.opts++; showFloor(); } }
+  window.__startUI = { openOpt: openOpt, pickFloor: pickFloor };
   if (window.__skipStart) { off(); return; }
   var evs = ['pointerdown', 'pointerup', 'mousedown', 'mouseup', 'click', 'touchstart', 'touchend', 'keydown', 'keyup', 'dblclick'];
   function eat(e) {
-    if (!S.dismissed && /^(pointerdown|touchstart|mousedown|keydown)$/.test(e.type)) go(e.type);
     if (S.dismissed && performance.now() - S.at > 700 && !/^(keyup|pointerup|touchend|mouseup|click)$/.test(e.type)) return release();
+    if (!S.dismissed) {
+      if (e.type === 'pointerup') {   // pointerup, not click: the touchstart preventDefault below suppresses click on phones
+        var t = e.target && e.target.closest ? e.target : null, hit = function (sel) { return t && t.closest(sel); };
+        if (hit('#stStart')) go('start');
+        else if (hit('#stOpt')) openOpt(true);
+        else if (hit('#optX') || hit('#optBack')) openOpt(false);
+        else if (hit('.flT')) pickFloor(hit('.flT').dataset.floor);
+        else S.ignored++;
+      } else if (e.type === 'keydown' && !e.repeat) {
+        if (opt.classList.contains('on')) { if (e.code === 'Escape' || e.code === 'Backspace') openOpt(false); }
+        else if (e.code === 'Enter' || e.code === 'NumpadEnter') go('enter');
+        else S.ignored++;
+      }
+    }
     e.stopImmediatePropagation(); if (e.cancelable) e.preventDefault();
   }
   function release() { evs.forEach(function (t) { window.removeEventListener(t, eat, true); }); }

@@ -325,6 +325,26 @@ const room2 = new THREE.Group(); room2.name = 'room2'; room2.position.set(0, 0, 
   const bodyBox = new THREE.Box3(); anyT.getObjectByName('body').geometry.computeBoundingBox();
   for (const sl of slots) { bodyBox.copy(anyT.getObjectByName('body').geometry.boundingBox).applyMatrix4(M.compose(sl.pos, q.setFromAxisAngle(up, sl.rotY), one)); blockers.push(map({ minX: bodyBox.min.x, maxX: bodyBox.max.x, minZ: bodyBox.min.z, maxZ: bodyBox.max.z, kind: 'cabinet' })); }
 }
+// ---------- room 1 floor option: neon reflective (default) or cream character carpet (Options > FLOOR) ----------
+const FLOOR_KEY = 'neonarcade.floor';
+const carpetTex = new THREE.TextureLoader().load('tex/carpet.webp');
+carpetTex.colorSpace = THREE.SRGBColorSpace; carpetTex.wrapS = carpetTex.wrapT = THREE.MirroredRepeatWrapping;   // mirrored repeat: no tiling seams
+carpetTex.repeat.set(3, 3); carpetTex.anisotropy = renderer.capabilities.getMaxAnisotropy();
+const carpet = new THREE.Mesh(new THREE.PlaneGeometry(HALF * 2, HALF * 2), new THREE.MeshStandardMaterial({
+  map: carpetTex, color: 0xe8ded0, roughness: 1, metalness: 0, emissive: 0xfff0dc, emissiveMap: carpetTex, emissiveIntensity: 0.3 }));   // matte; a little self-light keeps cream warm under the neon
+carpet.rotation.x = -Math.PI / 2; carpet.position.y = 0.005; carpet.name = 'carpet1'; carpet.visible = false; room.add(carpet);
+// with the carpet on, the reflector / hex overlay only cover the hallway (room 1 no longer pays for a mirror pass there)
+const hallFloorGeo = new THREE.PlaneGeometry(DOOR_W, HALL_L + 0.02).translate(0, HALF + HALL_L / 2, 0);
+let floorMode = 'neon';
+function setFloor(mode) {
+  floorMode = mode === 'carpet' ? 'carpet' : 'neon'; const c = floorMode === 'carpet';
+  carpet.visible = c; for (const m of [mirror, floorTop, floorBase1]) m.geometry = c ? hallFloorGeo : floorGeo;
+  try { localStorage.setItem(FLOOR_KEY, floorMode); } catch (e) {}
+  return floorMode;
+}
+try { if (localStorage.getItem(FLOOR_KEY) === 'carpet') setFloor('carpet'); } catch (e) {}
+window.__setFloor = setFloor;   // the start screen's Options menu calls this
+
 // which room is the camera in, and can it see the other one through a doorway?
 const doorBox1 = new THREE.Box3(new THREE.Vector3(-DOOR_W / 2, 0, -HALF - 0.05), new THREE.Vector3(DOOR_W / 2, DOOR_H, -HALF + 0.05));
 const doorBox2 = new THREE.Box3(new THREE.Vector3(-DOOR_W / 2, 0, -HALF - HALL_L - 0.05), new THREE.Vector3(DOOR_W / 2, DOOR_H, -HALF - HALL_L + 0.05));
@@ -696,4 +716,4 @@ shield = setupShield({ scene, play, st, monkey, HALF, DOOR_W, DOOR_H });
 requestAnimationFrame(frame);
 
 // hooks for tests / future art work
-window.__arcade = { shield, room, room2, Z2, hall, DOOR_W, DOOR_H, HALL_L, berserkerCab, play, get paused() { return paused; }, THREE, scene, camera, renderer, monkey, cabinets, strikeCab, ghostCab, featured, demo, ghostDemo, playables, blockers, st, stats, step, keys, get nearCab() { return nearCab; }, setArt: (i, part, tex, glow) => cabinets[i].userData.setArt(part, tex, glow) };
+window.__arcade = { setFloor, get floor() { return floorMode; }, carpet, mirror, shield, room, room2, Z2, hall, DOOR_W, DOOR_H, HALL_L, berserkerCab, play, get paused() { return paused; }, THREE, scene, camera, renderer, monkey, cabinets, strikeCab, ghostCab, featured, demo, ghostDemo, playables, blockers, st, stats, step, keys, get nearCab() { return nearCab; }, setArt: (i, part, tex, glow) => cabinets[i].userData.setArt(part, tex, glow) };

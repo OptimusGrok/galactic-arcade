@@ -22,11 +22,16 @@ const PH = process.argv[2] === 'phone', sfx = PH ? '_phone' : '';
   chk(Math.abs(a.img.w - side) < 2 && Math.abs(a.img.h - side) < 2 && Math.abs(a.img.l + a.img.w / 2 - a.vw / 2) < 2 && Math.abs(a.img.t + a.img.h / 2 - a.vh / 2) < 2, 'whole square image fits (contain), centred: ' + a.img.w.toFixed(0) + 'x' + a.img.h.toFixed(0) + ' in ' + a.vw + 'x' + a.vh);
   await page.screenshot({ path: 'shots/start' + sfx + '.png' });
   // dismiss: phone = tap on the joystick area; desktop = click (Enter on a 2nd run below)
+  // a tap off the buttons does nothing (START / OPTIONS: test/options.js)
   if (PH) await page.touchscreen.tap(a.vw * 0.25, a.vh * 0.8); else await page.mouse.click(a.vw * 0.5, a.vh * 0.5);
+  await page.waitForTimeout(500);
+  chk(await page.evaluate(() => !!document.getElementById('start') && !window.__start.dismissed), 'a tap off the buttons does not dismiss it');
+  { const r = await page.evaluate(() => { const b = document.getElementById('stStart').getBoundingClientRect(); return [b.left + b.width / 2, b.top + b.height / 2]; });
+    if (PH) await page.touchscreen.tap(r[0], r[1]); else await page.mouse.click(r[0], r[1]); }
   if (!PH) await page.keyboard.press('Enter');   // a key right after the click must not reach the cabinet either
   await page.waitForFunction(() => !document.getElementById('start'), null, { timeout: 5000 }).catch(() => {});
   const b = await S();
-  chk(!b.exists && b.st.dismissed && b.st.audio, 'tap dismisses it (' + b.st.how + '), faded out and removed; audio unlocked ' + JSON.stringify([b.exists, b.st]));
+  chk(!b.exists && b.st.dismissed && b.st.audio, 'START dismisses it (' + b.st.how + '), faded out and removed; audio unlocked ' + JSON.stringify([b.exists, b.st]));
   chk(JSON.stringify(b.pos) === JSON.stringify(a.pos) && b.face === a.face, 'monkey has not moved ' + JSON.stringify([a.pos, b.pos]));
   chk(b.cs === a.cs && b.cg === a.cg && b.t === a.t && b.coin === a.coin && b.mode === 'walk', 'no credit, ticket or coin changed, no zoom started');
   // now the arcade takes input normally
@@ -37,9 +42,11 @@ const PH = process.argv[2] === 'phone', sfx = PH ? '_phone' : '';
   await o.close();
   // key dismiss
   if (!PH) { const o2 = await open({ start: true }); await o2.page.waitForTimeout(800); const t0 = await o2.page.evaluate(() => window.__arcade.play.tickets.total);
-    await o2.page.keyboard.press('KeyE'); await o2.page.waitForTimeout(900);
+    await o2.page.keyboard.press('KeyE'); await o2.page.waitForTimeout(400);
+    chk(await o2.page.evaluate(() => !!document.getElementById('start')), 'E does not start');
+    await o2.page.keyboard.press('Enter'); await o2.page.waitForTimeout(900);
     const r = await o2.page.evaluate(() => ({ st: window.__start, ex: !!document.getElementById('start'), t: window.__arcade.play.tickets.total, mode: window.__arcade.play.mode }));
-    chk(r.st.dismissed && r.st.how === 'keydown' && !r.ex && r.t === t0 && r.mode === 'walk', 'any key dismisses it too, and the key is not used');
+    chk(r.st.dismissed && r.st.how === 'enter' && !r.ex && r.t === t0 && r.mode === 'walk', 'Enter starts too, and the key is not used');
     await o2.page.setViewportSize({ width: 1600, height: 700 }); await o2.close(); }
   process.exit(ok ? 0 : 1);
 })();
