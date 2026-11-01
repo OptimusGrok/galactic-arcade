@@ -1,5 +1,5 @@
 // In-game OPTIONS (HUD monkey-face button): BACK TO TITLE SCREEN, SAVE / LOAD (5 slots, 'neonarcade.save.1..5'), MUTE.
-export function setupOpts({ play, kiosk, shield, st, monkey, setFloor, getFloor, HALF, Z2 }) {
+export function setupOpts({ play, kiosk, shield, st, monkey, setFloor, getFloor, setWalls, getWalls, HALF, Z2 }) {
   const $ = id => document.getElementById(id), SLOTS = 5, SK = i => 'neonarcade.save.' + i;
   // ---- monkey-face icon (Arcade Kid: brown fur, tan face, pink cap) ----
   function face(c, s) { c.width = c.height = s; const g = c.getContext('2d'), u = s / 64; g.scale(u, u);
@@ -29,7 +29,7 @@ export function setupOpts({ play, kiosk, shield, st, monkey, setFloor, getFloor,
   const fmt = t => { const d = new Date(t); return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) + ' ' + d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' }); };
   function snapshot() { const k = window.__kiosk, cr = {}; for (const [n, m] of Object.entries(play.machines)) cr[n] = m.credits;
     return { v: 1, at: Date.now(), tickets: play.tickets.total, viking: play.viking ? play.viking.total : 0, cash: k ? { bal: k.C.bal, at: k.C.at } : null, kioskPending: k ? k.pending : 0,
-      credits: cr, shield: !!(shield && shield.open), floor: getFloor(), music: !window.__music || window.__music.on,
+      credits: cr, shield: !!(shield && shield.open), floor: getFloor(), walls: getWalls ? getWalls() : 'current', music: !window.__music || window.__music.on,
       pos: monkey.position.toArray().map(v => +v.toFixed(3)), face: +st.face.toFixed(4), yaw: +st.yaw.toFixed(4), room: roomOf(monkey.position.z) }; }
   function apply(s) {
     try { localStorage.setItem('neonarcade.tickets', String(s.tickets)); localStorage.setItem('neonarcade.vikingTickets', String(s.viking || 0)); } catch (e) {}
@@ -38,6 +38,7 @@ export function setupOpts({ play, kiosk, shield, st, monkey, setFloor, getFloor,
     if (play.refresh) play.refresh();
     if (shield && shield.setOpen) shield.setOpen(!!s.shield);
     if (s.floor && s.floor !== getFloor()) setFloor(s.floor);
+    if (s.walls && setWalls && s.walls !== getWalls()) setWalls(s.walls);
     if (window.__music && window.__music.setOn) window.__music.setOn(s.music !== false);
     const k = window.__kiosk; if (k && s.cash) k.setState({ bal: s.cash.bal, at: s.cash.at, pending: s.kioskPending || 0 });
     if (s.pos) { monkey.position.fromArray(s.pos); monkey.position.y = 0; st.face = s.face || 0; monkey.rotation.y = st.face; if (typeof s.yaw === 'number') st.yaw = s.yaw; if (st.vel) st.vel.set(0, 0, 0); st.camInit = false; } }

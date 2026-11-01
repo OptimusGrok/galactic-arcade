@@ -124,7 +124,9 @@ body.ingame #ui{top:calc(max(10px,env(safe-area-inset-top)) + 58px)}
 #optX{width:42px;height:42px;border-radius:50%;border:2px solid #ff3cf0aa;background:#120208;color:#ffd0fa;font:700 20px sans-serif;cursor:pointer}
 #optTabs{display:flex;gap:8px;margin-bottom:14px}
 .optTab{font:900 14px 'Courier New',monospace;letter-spacing:.14em;padding:8px 16px;border-radius:10px;border:2px solid #ff3cf0;background:#2a0628;color:#fff;text-shadow:0 0 6px #ff3cf0}
-#flTiles{display:flex;gap:14px;justify-content:center}
+#flTiles,#wlTiles{display:flex;gap:14px;justify-content:center}
+#opt.wl #flTiles,#opt:not(.wl) #wlTiles{display:none}
+.optTab.off{border-color:#663a66;background:#12040f;color:#a888a8;text-shadow:none}
 .flT{flex:1;max-width:240px;border-radius:12px;border:3px solid #444;background:#0a0612;padding:6px;cursor:pointer;color:#bbb;font:900 13px 'Courier New',monospace;letter-spacing:.14em;text-align:center}
 .flT img{display:block;width:100%;aspect-ratio:16/11;object-fit:cover;border-radius:8px;margin-bottom:6px}
 .flT.sel{border-color:#ffe08a;color:#ffe08a;box-shadow:0 0 16px #ffb000aa;text-shadow:0 0 6px #ffb000}
@@ -148,8 +150,9 @@ body.ingame #ui{top:calc(max(10px,env(safe-area-inset-top)) + 58px)}
 </head><body>
 <div id="start" role="dialog" aria-label="Neon Arcade start screen"><div id="stBg"></div><div id="stBox"><picture><source srcset="img/start.webp" type="image/webp"><img src="img/start.jpg" alt="Neon Arcade — tap to start" draggable="false"></picture><div id="stBtns"><button class="stB" id="stStart">START</button><button class="stB" id="stOpt">OPTIONS</button></div></div>
 <div id="opt" aria-hidden="true"><div id="optP"><div id="optHd"><div id="optT">OPTIONS</div><button id="optX" title="Back">✕</button></div>
-<div id="optTabs"><button class="optTab" id="tabFloor">FLOOR</button></div>
+<div id="optTabs"><button class="optTab" id="tabFloor">FLOOR</button><button class="optTab off" id="tabWalls">WALLS</button></div>
 <div id="flTiles"><div class="flT" data-floor="neon" id="flNeon"><img src="img/floor_neon.webp" alt="" draggable="false">CURRENT<span class="now">NEON</span></div><div class="flT" data-floor="carpet" id="flCarpet"><img src="img/floor_carpet.webp" alt="" draggable="false">CARPET<span class="now">CREAM</span></div></div>
+<div id="wlTiles"><div class="flT wlT" data-walls="current" id="wlCur"><img src="img/walls_current.webp" alt="" draggable="false">CURRENT<span class="now">NEON PANELS</span></div><div class="flT wlT" data-walls="viking" id="wlVik"><img src="img/walls_viking.webp" alt="" draggable="false">VIKING<span class="now">RUNE WALLS</span></div></div>
 <button class="flT" id="musBtn" style="display:block;margin:14px auto 0;width:min(100%,300px)">MUSIC: <span id="musSt">ON</span></button><button class="stB" id="optBack">BACK</button></div></div><div id="secHot" aria-hidden="true"></div>
 <div id="sec" aria-hidden="true"><div id="secP"><button id="secX" title="Cancel">✕</button><canvas id="secCv"></canvas></div></div>
 <div id="tk" aria-hidden="true"><div id="optP"><div id="optHd"><div id="optT">TICKETS</div><button id="tkX" class="optXb" title="Done" style="width:42px;height:42px;border-radius:50%;border:2px solid #ff3cf0aa;background:#120208;color:#ffd0fa;font:700 20px sans-serif">✕</button></div>
@@ -166,9 +169,13 @@ body.ingame #ui{top:calc(max(10px,env(safe-area-inset-top)) + 58px)}
   function floorNow() { try { return localStorage.getItem('neonarcade.floor') === 'carpet' ? 'carpet' : 'neon'; } catch (e) { return 'neon'; } }
   function showFloor() { var f = floorNow(); ['flNeon', 'flCarpet'].forEach(function (id) { var t = document.getElementById(id); t.classList.toggle('sel', t.dataset.floor === f); }); }
   function pickFloor(f) { if (window.__setFloor) window.__setFloor(f); else try { localStorage.setItem('neonarcade.floor', f); } catch (e) {} S.floor = f; showFloor(); }
-  function openOpt(on) { opt.classList.toggle('on', on); opt.setAttribute('aria-hidden', on ? 'false' : 'true'); if (on) { S.opts++; showFloor(); showMus(); } }
+  function wallsNow() { try { return localStorage.getItem('neonarcade.walls') === 'viking' ? 'viking' : 'current'; } catch (e) { return 'current'; } }
+  function showWalls() { var f = wallsNow(); ['wlCur', 'wlVik'].forEach(function (id) { var t = document.getElementById(id); t.classList.toggle('sel', t.dataset.walls === f); }); }
+  function pickWalls(f) { if (window.__setWalls) window.__setWalls(f); else try { localStorage.setItem('neonarcade.walls', f); } catch (e) {} S.walls = f; showWalls(); }
+  function tab(w) { opt.classList.toggle('wl', w); document.getElementById('tabFloor').classList.toggle('off', w); document.getElementById('tabWalls').classList.toggle('off', !w); S.tab = w ? 'walls' : 'floor'; }
+  function openOpt(on) { opt.classList.toggle('on', on); opt.setAttribute('aria-hidden', on ? 'false' : 'true'); if (on) { S.opts++; tab(false); showFloor(); showWalls(); showMus(); } }
   function showMus() { var m = window.__music; document.getElementById('musSt').textContent = !m || m.on ? 'ON' : 'OFF'; document.getElementById('musBtn').classList.toggle('sel', !m || m.on); }
-  window.__startUI = { openOpt: openOpt, pickFloor: pickFloor };
+  window.__startUI = { openOpt: openOpt, pickFloor: pickFloor, pickWalls: pickWalls, tab: tab };
   // ---- hidden ticket menu: triple-tap top-right -> 3x3 unlock pattern -> TICKETS panel ----
   var sec = document.getElementById('sec'), tk = document.getElementById('tk'), sP = document.getElementById('secP'), cv = document.getElementById('secCv'), taps = [], pat = [], drawing = false, cur = null;
   function hsh(a) { var h = 7; for (var i = 0; i < a.length; i++) h = (h * 31 + a.charCodeAt(i)) % 1000003; return h; }
@@ -212,6 +219,9 @@ body.ingame #ui{top:calc(max(10px,env(safe-area-inset-top)) + 58px)}
         else if (hit('#stOpt')) openOpt(true);
         else if (hit('#optX') || hit('#optBack')) openOpt(false);
         else if (hit('#musBtn')) { if (window.__music) window.__music.setOn(!window.__music.on); showMus(); }
+        else if (hit('#tabFloor')) tab(false);
+        else if (hit('#tabWalls')) tab(true);
+        else if (hit('.wlT')) pickWalls(hit('.wlT').dataset.walls);
         else if (hit('.flT')) pickFloor(hit('.flT').dataset.floor);
         else S.ignored++;
       } else if (e.type === 'keydown' && !e.repeat) {

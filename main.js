@@ -93,6 +93,22 @@ for (let i = 0; i < 4; i++) {
   }
 }
 const ceil = new THREE.Mesh(new THREE.PlaneGeometry(HALF * 2, HALF * 2), new THREE.MeshStandardMaterial({ color: 0x07050c, roughness: 1 }));
+// wall UVs in wall space (the doorway wall is 3 merged panels: give them one continuous mapping)
+for (let i = 0; i < 4; i++) { const g = room.getObjectByName('wall' + i).geometry, P = g.attributes.position, U = g.attributes.uv;
+  for (let k = 0; k < P.count; k++) U.setXY(k, (P.getX(k) + HALF) / (2 * HALF), (P.getY(k) + H / 2) / H); U.needsUpdate = true; }
+// ---------- room 1 walls option: current (default) or Viking rune panels (Options > WALLS) ----------
+const WALLS_KEY = 'neonarcade.walls';
+let wallsMode = 'current', vikTex = null;
+function setWalls(mode) {
+  wallsMode = mode === 'viking' ? 'viking' : 'current'; const v = wallsMode === 'viking';
+  if (v && !vikTex) { vikTex = new THREE.TextureLoader().load('tex/viking_walls.jpg'); vikTex.colorSpace = THREE.SRGBColorSpace; vikTex.wrapS = THREE.RepeatWrapping; vikTex.wrapT = THREE.ClampToEdgeWrapping;
+    vikTex.repeat.set(+(2 * HALF / (H * 928 / 576)).toFixed(3), 1); vikTex.anisotropy = renderer.capabilities.getMaxAnisotropy(); }   // one repeat = wall height
+  wallMat.map = v ? vikTex : wallTex; wallMat.color.setHex(v ? 0x8a7a70 : 0x2a1840); wallMat.roughness = v ? 0.95 : 0.85; wallMat.emissiveMap = v ? vikTex : null; wallMat.emissive.setHex(v ? 0xffffff : 0x000000); wallMat.emissiveIntensity = v ? 1.6 : 1; wallMat.needsUpdate = true;   // a little dark so the neon pops
+  try { localStorage.setItem(WALLS_KEY, wallsMode); } catch (e) {}
+  return wallsMode;
+}
+try { if (localStorage.getItem(WALLS_KEY) === 'viking') setWalls('viking'); } catch (e) {}
+window.__setWalls = setWalls;
 ceil.rotation.x = Math.PI / 2; ceil.position.y = H; room.add(ceil);
 // ceiling beam grid (dark industrial)
 const beamMat = new THREE.MeshStandardMaterial({ color: 0x120c1a, roughness: 0.9 });
@@ -775,8 +791,8 @@ function stepClock(dt) { st.t += dt; }
 const play = setupPlay({ camera, monkey, strikeCab, ghostCab, berserkerCab, monkeyCab, st, pause(on) { paused = on; if (!on && !rafOn) { rafOn = true; last = performance.now(); requestAnimationFrame(frame); } } });
 shield = setupShield({ scene, play, st, monkey, HALF, DOOR_W, DOOR_H });
 kiosk = setupKiosk({ room, camera, monkey, st, play, blockers });
-const opts = setupOpts({ play, kiosk, shield, st, monkey, setFloor, getFloor: () => floorMode, HALF, Z2 });
+const opts = setupOpts({ play, kiosk, shield, st, monkey, setFloor, getFloor: () => floorMode, setWalls, getWalls: () => wallsMode, HALF, Z2 });
 requestAnimationFrame(frame);
 
 // hooks for tests / future art work
-window.__arcade = { get kiosk() { return kiosk; }, setFloor, get floor() { return floorMode; }, carpet, mirror, shield, room, room2, Z2, hall, DOOR_W, DOOR_H, HALL_L, berserkerCab, monkeyCab, play, get paused() { return paused; }, THREE, scene, camera, renderer, monkey, cabinets, strikeCab, ghostCab, featured, demo, ghostDemo, playables, blockers, st, stats, step, keys, get nearCab() { return nearCab; }, setArt: (i, part, tex, glow) => cabinets[i].userData.setArt(part, tex, glow) };
+window.__arcade = { get kiosk() { return kiosk; }, setFloor, get floor() { return floorMode; }, setWalls, get walls() { return wallsMode; }, wallMat, carpet, mirror, shield, room, room2, Z2, hall, DOOR_W, DOOR_H, HALL_L, berserkerCab, monkeyCab, play, get paused() { return paused; }, THREE, scene, camera, renderer, monkey, cabinets, strikeCab, ghostCab, featured, demo, ghostDemo, playables, blockers, st, stats, step, keys, get nearCab() { return nearCab; }, setArt: (i, part, tex, glow) => cabinets[i].userData.setArt(part, tex, glow) };
