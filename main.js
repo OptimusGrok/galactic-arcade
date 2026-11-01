@@ -438,15 +438,7 @@ function makeMonkey() {
     const hand = part(el, S(0.06, 12, 10), M.skin, 0, -0.33, 0.01, 0.8, 1.1, 1);
     arms.push({ sh, el, hand, sd });
   }
-  // curled tail: chain of segments
-  const tail = []; let p = hips;
-  const tb = new THREE.Group(); tb.position.set(0, -0.05, -0.17); hips.add(tb); p = tb;
-  for (let i = 0; i < 14; i++) {
-    const s = new THREE.Group(); s.position.y = i ? 0.075 : 0; p.add(s);
-    const r = 0.03 - i * 0.0013; part(s, CYL(r * 0.9, r, 0.08, 8), M.fur, 0, 0.04, 0);
-    tail.push(s); p = s;
-  }
-  root.userData = { hips, torso, neck, head, legs, arms, tail };
+  root.userData = { hips, torso, neck, head, legs, arms };
   return root;
 }
 const monkey = makeMonkey(); scene.add(monkey);
@@ -657,11 +649,7 @@ function animateMonkey(dt) {
     a.sh.rotation.z = THREE.MathUtils.lerp(0.08 * a.sd, 0.18 * a.sd, P);
     a.el.rotation.x = THREE.MathUtils.lerp(-0.3 - runK * 0.8, -0.65 + jitter, P);
   }
-  u.tail.forEach((g, i) => {
-    const base = i === 0 ? 2.1 : i < 7 ? -0.12 : -0.42; // out backwards, then curl up
-    g.rotation.x = base + Math.sin(t * 2.2 + i * 0.5) * 0.04 * (1 + sw * 2);
-    g.rotation.z = Math.sin(t * 1.6 - i * 0.35) * (0.05 + sw * 0.07);
-  });
+
 }
 
 // ---------- loop + adaptive quality ----------
