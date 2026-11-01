@@ -99,12 +99,12 @@ for (let i = 0; i < 4; i++) { const g = room.getObjectByName('wall' + i).geometr
   for (let k = 0; k < P.count; k++) U.setXY(k, (P.getX(k) + HALF) / (2 * HALF), (P.getY(k) + H / 2) / H); U.needsUpdate = true; }
 // ---------- room 1 walls option: current (default) or Viking rune panels (Options > WALLS) ----------
 const WALLS_KEY = 'neonarcade.walls';
-let wallsMode = 'current', vikTex = null;
+let wallsMode = 'current', vikTex = null, wallBands = [];
 function setWalls(mode) {
   wallsMode = mode === 'viking' ? 'viking' : 'current'; const v = wallsMode === 'viking';
   if (v && !vikTex) { vikTex = new THREE.TextureLoader().load('tex/viking_walls.jpg'); vikTex.colorSpace = THREE.SRGBColorSpace; vikTex.wrapS = THREE.RepeatWrapping; vikTex.wrapT = THREE.ClampToEdgeWrapping;
     vikTex.repeat.set(+(2 * HALF / (H * 928 / 576)).toFixed(3), 1); vikTex.anisotropy = renderer.capabilities.getMaxAnisotropy(); }   // one repeat = wall height
-  wallMat.map = v ? vikTex : wallTex; wallMat.color.setHex(v ? 0x8a7a70 : 0x2a1840); wallMat.roughness = v ? 0.95 : 0.85; wallMat.emissiveMap = v ? vikTex : null; wallMat.emissive.setHex(v ? 0xffffff : 0x000000); wallMat.emissiveIntensity = v ? 1.6 : 1; wallMat.needsUpdate = true;   // a little dark so the neon pops
+  wallMat.map = v ? vikTex : wallTex; wallMat.color.setHex(v ? 0x8a7a70 : 0x2a1840); wallMat.roughness = v ? 0.95 : 0.85; wallMat.emissiveMap = v ? vikTex : null; wallMat.emissive.setHex(v ? 0xffffff : 0x000000); wallMat.emissiveIntensity = v ? 1.6 : 1; wallBands.forEach(m => { m.visible = !v; }); wallMat.needsUpdate = true;   // a little dark so the neon pops
   try { localStorage.setItem(WALLS_KEY, wallsMode); } catch (e) {}
   return wallsMode;
 }
@@ -155,12 +155,12 @@ for (const hx of hexes) {
   shaft.position.set(hx.x, (H - 1) / 2, hx.z); shaft.rotation.y = Math.PI / 6; shaft.name = 'lightShaft'; room.add(shaft);
 }
 // wall neon: ceiling edge strips + soffit ledge above the cabinet rows
-const edge = [], edgeAmber = [], edgeCyan = [];
+const edge = [], edgeLedge = [], edgeAmber = [], edgeCyan = [];
 for (let i = 0; i < 4; i++) {
   const a = i * Math.PI / 2, s = Math.sin(a), c = Math.cos(a);
   const P = (u, y, d) => new THREE.Vector3(-s * (HALF - d) + c * u, y, -c * (HALF - d) - s * u);
   edge.push(barGeo(P(-HALF, H - 0.1, 0.1), P(HALF, H - 0.1, 0.1), 0.08));
-  edge.push(barGeo(P(-10.2, 3.12, 1.64), P(10.2, 3.12, 1.64), 0.07));
+  edgeLedge.push(barGeo(P(-10.2, 3.12, 1.64), P(10.2, 3.12, 1.64), 0.07));
   edgeAmber.push(barGeo(P(-10.2, 3.64, 1.64), P(10.2, 3.64, 1.64), 0.05));
   edgeCyan.push(barGeo(P(-HALF, 6.2, 0.05), P(HALF, 6.2, 0.05), 0.045));
   // ledge body
@@ -168,8 +168,9 @@ for (let i = 0; i < 4; i++) {
   ledge.position.copy(P(0, 3.38, 0.8)); ledge.rotation.y = a; room.add(ledge);
 }
 room.add(new THREE.Mesh(mergeGeometries(edge), neon(C.pink, 3)));
-room.add(new THREE.Mesh(mergeGeometries(edgeAmber), neon(C.amber, 2.2)));
-room.add(new THREE.Mesh(mergeGeometries(edgeCyan), neon(C.cyan, 1.8)));
+wallBands = [new THREE.Mesh(mergeGeometries(edgeLedge), neon(C.pink, 3)), new THREE.Mesh(mergeGeometries(edgeAmber), neon(C.amber, 2.2)), new THREE.Mesh(mergeGeometries(edgeCyan), neon(C.cyan, 1.8))];
+wallBands.forEach((m, k) => { m.name = 'wallBand' + ['Pink', 'Amber', 'Cyan'][k]; room.add(m); });   // the 3 coloured horizontal wall bands (hidden with Viking walls)
+wallBands.forEach(m => { m.visible = wallsMode !== 'viking'; });
 
 // ---------- hallway north of the doorway (z = -HALF .. -HALF-HALL_L) ----------
 const hall = new THREE.Group(); hall.name = 'hallway'; scene.add(hall);
