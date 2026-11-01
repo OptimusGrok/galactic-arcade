@@ -2,7 +2,7 @@
 const { open } = require('./lib');
 const PH = process.argv[2] === 'phone', SUF = PH ? '_phone' : '';
 (async () => {
-  const { page, errors, close } = await open(PH ? { phone: true } : {}); let ok = true; const chk = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); if (!c) ok = false; };
+  const { page, errors, close } = await open(PH ? { phone: true, shieldOpen: true } : { shieldOpen: true }); let ok = true; const chk = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); if (!c) ok = false; };
   const info = await page.evaluate(() => { const A = window.__arcade; const names = A.playables.map(c => c.name);
     const inst = A.room2.userData.instanced; const art = A.room2.getObjectsByProperty ? 0 : 0;
     return { n2: A.room2.userData.cabinetCount, inst: inst.length, perPart: inst.filter(i => /^cab2_body$/.test(i.name)).map(i => i.count)[0], slot: names.includes('cabinet_north_2'), featured2: A.room2.getObjectByName('strikeCabinet') || A.room2.getObjectByName('ghostCabinet') ? 1 : 0, cap: !!A.scene.getObjectByName('hallEndCap') }; });

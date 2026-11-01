@@ -1,7 +1,7 @@
 // fps probe (phone viewport, software GL so numbers are relative, not absolute). Usage: node test/perf.js [label]
 const { open } = require('./lib');
 (async () => {
-  const { page, errors, close } = await open({ phone: true });
+  const { page, errors, close } = await open({ phone: true, shieldOpen: true });
   await page.evaluate(() => { window.__noAdapt = 1; });
   const views = [['room1 centre facing north', 0, 4, 0], ['room1 near doorway facing north', 0, -8, 0], ['room1 facing south', 0, -4, Math.PI]];
   const hasR2 = await page.evaluate(() => !!window.__arcade.room2);

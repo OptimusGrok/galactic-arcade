@@ -22,7 +22,7 @@ REGISTRY = [
 ]
 SHARED_TESTS = ['credits', 'tickets']          # cover every cabinet: demo, INSERT TICKET, credits, in-game tickets
 PHONE = True                                   # each test also runs with the 'phone' argument
-EXTRA_PUBLISH = ['index.html', 'main.js', 'play.js', 'sw.js', 'ticket-art.js', 'berserkcab.js', 'img/start.webp', 'img/start.jpg']
+EXTRA_PUBLISH = ['index.html', 'main.js', 'play.js', 'sw.js', 'ticket-art.js', 'berserkcab.js', 'shield.js', 'img/start.webp', 'img/start.jpg']
 ARCADE_ONLY = ['TicketArt', '__TK', '__neonTicket', '__demo', 'INSERT TICKET']
 sha = lambda p: hashlib.sha256(open(p, 'rb').read()).hexdigest()
 def die(code, msg): print('FAIL:', msg, file=sys.stderr); sys.exit(code)

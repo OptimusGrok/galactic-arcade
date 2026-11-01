@@ -9,6 +9,7 @@ import { buildStrikeCabinet, startStrikeDemo, tickStrikeDemo } from './strikecab
 import { buildGhostCabinet, startGhostDemo, tickGhostDemo } from './ghostcab.js';
 import { buildBerserkerCabinet } from './berserkcab.js';
 import { setupPlay } from './play.js';
+import { setupShield } from './shield.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 
 const MOBILE = matchMedia('(pointer:coarse)').matches || /Android|iPhone|iPad/i.test(navigator.userAgent);
@@ -525,8 +526,10 @@ function clampAreas(p, areas, pad = 0) {
   for (const a of areas) { const x = THREE.MathUtils.clamp(p.x, a.x0 - pad, a.x1 + pad), z = THREE.MathUtils.clamp(p.z, a.z0 - pad, a.z1 + pad), d = (x - p.x) ** 2 + (z - p.z) ** 2; if (d < bd) { bd = d; best = [x, z]; } if (!d) break; }
   p.x = best[0]; p.z = best[1]; return p;
 }
+let shield = null;   // red energy shield in the doorway (shield.js)
 function collide(p) {
   clampAreas(p, AREAS);
+  if (shield) shield.block(p, R);
   for (const b of blockers) {
     if (b.kind === 'obb') { // to local (x along cabinet depth, z across)
       const c = Math.cos(b.ang), sn = Math.sin(b.ang), rx = p.x - b.ox, rz = p.z - b.oz;
@@ -569,6 +572,7 @@ function camPush(q) { // keep the camera inside the walls and outside the STRIKE
     camClamp(q);
   }
   }
+  if (shield) shield.camBlock(q);
   return q;
 }
 // when the monkey walks up to the STRIKE cabinet, ease the camera round to a three-quarter view (unless the player is steering the camera)
@@ -617,6 +621,7 @@ function step(dt) {
   camTarget.set(monkey.position.x, monkey.position.y + (st.fp ? 1.42 : 1.25), monkey.position.z);
   if (st.fp) {
     camera.position.copy(camTarget).add(tmp.set(-Math.sin(st.yaw) * 0.25, 0, -Math.cos(st.yaw) * 0.25));
+    if (shield) shield.camBlock(camera.position);
     camera.lookAt(camera.position.x - Math.sin(st.yaw) * Math.cos(st.pitch), camera.position.y - Math.sin(st.pitch - 0.28), camera.position.z - Math.cos(st.yaw) * Math.cos(st.pitch));
     monkey.visible = false;
   } else {
@@ -663,6 +668,7 @@ function frame(now) {
   if (paused) { rafOn = false; return; }   // full-screen game running: arcade render loop stopped
   const t0 = performance.now();
   if (!play.update(Math.min(gap / 1000, 0.05), nearCab)) step(Math.min(gap / 1000, 0.05)); else stepClock(Math.min(gap / 1000, 0.05));
+  shield.update(Math.min(gap / 1000, 0.05));
   if (window.__camOverride) { const o = window.__camOverride; camera.position.set(...o.pos); camera.lookAt(...o.at); monkey.visible = false; } // screenshots / tests
   camera.updateMatrixWorld();
   { // run each cabinet screen only when that cabinet is near and in view
@@ -686,7 +692,8 @@ function frame(now) {
 }
 function stepClock(dt) { st.t += dt; }
 const play = setupPlay({ camera, monkey, strikeCab, ghostCab, st, pause(on) { paused = on; if (!on && !rafOn) { rafOn = true; last = performance.now(); requestAnimationFrame(frame); } } });
+shield = setupShield({ scene, play, st, monkey, HALF, DOOR_W, DOOR_H });
 requestAnimationFrame(frame);
 
 // hooks for tests / future art work
-window.__arcade = { room, room2, Z2, hall, DOOR_W, DOOR_H, HALL_L, berserkerCab, play, get paused() { return paused; }, THREE, scene, camera, renderer, monkey, cabinets, strikeCab, ghostCab, featured, demo, ghostDemo, playables, blockers, st, stats, step, keys, get nearCab() { return nearCab; }, setArt: (i, part, tex, glow) => cabinets[i].userData.setArt(part, tex, glow) };
+window.__arcade = { shield, room, room2, Z2, hall, DOOR_W, DOOR_H, HALL_L, berserkerCab, play, get paused() { return paused; }, THREE, scene, camera, renderer, monkey, cabinets, strikeCab, ghostCab, featured, demo, ghostDemo, playables, blockers, st, stats, step, keys, get nearCab() { return nearCab; }, setArt: (i, part, tex, glow) => cabinets[i].userData.setArt(part, tex, glow) };
