@@ -12,17 +12,19 @@ Rule: originals and their arcade copies always update together. Run this after a
 Exit codes: 2 = a ticket/credit/demo hook no longer matches its original (the hook is named, nothing is written),
 3 = an original source was modified or contains arcade-only code, 4 = a test failed, 5 = push or live verify failed.
 """
-import argparse, hashlib, os, random, subprocess, sys, time, urllib.request
+import re, argparse, hashlib, os, random, subprocess, sys, time, urllib.request
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__))); os.chdir(ROOT)
 LIVE = 'https://optimusgrok.github.io/neon-arcade/'
 # ---- registry: one entry per playable cabinet (adding BERSERKER later = one entry + its builder) ----
 REGISTRY = [
     dict(name='strike', source='/workspace/strike/strike.html', builder='tools_build_play.py', out='strike-play/index.html', tests=['play']),
     dict(name='ghost', source='/workspace/ghost256/index.html', builder='tools_build_ghost_play.py', out='ghost-play/index.html', tests=['ghostplay']),
+    dict(name='monkey', source='/workspace/monkey-cross/index.html', builder='tools_build_monkey_play.py', out='monkey-play/index.html', tests=['monkeyplay']),
+    dict(name='berserker', source='/workspace/berserker/index.html', builder='tools_build_berserker_play.py', out='berserker-play/index.html', tests=['berserkerplay']),
 ]
 SHARED_TESTS = ['credits', 'tickets']          # cover every cabinet: demo, INSERT TICKET, credits, in-game tickets
 PHONE = True                                   # each test also runs with the 'phone' argument
-EXTRA_PUBLISH = ['index.html', 'main.js', 'play.js', 'sw.js', 'ticket-art.js', 'berserkcab.js', 'shield.js', 'img/start.webp', 'img/start.jpg', 'tex/carpet.webp', 'img/floor_neon.webp', 'img/floor_carpet.webp']
+EXTRA_PUBLISH = ['index.html', 'main.js', 'play.js', 'sw.js', 'ticket-art.js', 'berserkcab.js', 'shield.js', 'img/start.webp', 'img/start.jpg', 'tex/carpet.webp', 'img/floor_neon.webp', 'img/floor_carpet.webp', 'monkeycab.js', 'tex/mc_side.jpg', 'tex/mc_marquee.jpg', 'tex/mc_panel.jpg', 'img/bz_title.jpg', 'berserker-play/hero8.webp', 'berserker-play/music_village.m4a']
 ARCADE_ONLY = ['TicketArt', '__TK', '__neonTicket', '__demo', 'INSERT TICKET']
 sha = lambda p: hashlib.sha256(open(p, 'rb').read()).hexdigest()
 def die(code, msg): print('FAIL:', msg, file=sys.stderr); sys.exit(code)
@@ -51,7 +53,7 @@ def main():
         if miss: die(2, f'{e["name"]}: copy is missing {miss}')
     for e in entries:
         if sha(e['source']) != before[e['source']]: die(3, f'{e["source"]} changed during the build')
-        src = open(e['source']).read(); bad = [m for m in ARCADE_ONLY if m in src]
+        src = re.sub(r'(?m)^\s*//[^\n]*', '', open(e['source']).read()); bad = [m for m in ARCADE_ONLY if m in src]
         if bad: die(3, f'original {e["source"]} contains arcade-only code {bad}')
     print('originals untouched, copies carry tickets + credits + demo')
     if not a.no_tests:

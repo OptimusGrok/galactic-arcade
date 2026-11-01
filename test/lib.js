@@ -6,7 +6,7 @@ function serve() { return new Promise(r => { const s = http.createServer((q, res
 async function open(opts = {}) {
   const srv = await serve();
   const browser = await chromium.launch({ executablePath: '/home/box/.cache/ms-playwright/chromium-1248/chrome-linux64/chrome', args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] });
-  const ctx = await browser.newContext(opts.phone ? { viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true } : { viewport: { width: opts.w || 1280, height: opts.h || 720 } });
+  const ctx = await browser.newContext(opts.phone ? { viewport: { width: opts.w || 390, height: opts.h || 844 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true } : { viewport: { width: opts.w || 1280, height: opts.h || 720 } });
   const page = await ctx.newPage(); const errors = [], requests = [];
   ctx.on('request', r => requests.push(r.url()));
   await ctx.route(/supabase/i, opts.supa || (r => r.abort()));

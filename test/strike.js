@@ -4,7 +4,7 @@ const { open } = require('./lib');
   await page.waitForFunction(() => window.__arcade.demo.ready || window.__arcade.demo.err, null, { timeout: 60000 });
   const info = await page.evaluate(() => { const A = window.__arcade, c = A.strikeCab; const names = []; c.traverse(o => o.name && names.push(o.name));
     let neon = 0; c.traverse(o => { if (o.isMesh && o.material && o.material.isMeshBasicMaterial) neon++; });
-    return { x: c.position.x, z: c.position.z, rot: c.rotation.y, nrot: A.cabinets.find(k => k.name === 'cabinet_north_3').rotation.y, nz: A.cabinets.find(k => k.name === 'cabinet_north_3').position.z, wall: c.userData.wall, idx: c.userData.index, names, neon, err: A.demo.err, blank: A.cabinets.length }; });
+    return { x: c.position.x, z: c.position.z, rot: c.rotation.y, nrot: A.cabinets.find(k => k.name === 'cabinet_north_4').rotation.y, nz: A.cabinets.find(k => k.name === 'cabinet_north_4').position.z, wall: c.userData.wall, idx: c.userData.index, names, neon, err: A.demo.err, blank: A.cabinets.length }; });
   console.log(JSON.stringify(info));
   chk(!info.err, 'demo loaded ' + (info.err || ''));
   chk(info.wall === 'north' && info.idx === 0 && Math.abs(info.x + 8) < 1e-6 && Math.abs(info.z - info.nz) < 1e-6, 'STRIKE in north row corner slot (x=-8, same wall offset as row) ' + info.x.toFixed(2) + ',' + info.z.toFixed(2));

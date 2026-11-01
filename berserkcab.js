@@ -1,16 +1,23 @@
-// BERSERKER cabinet (cabinet only, game not added yet): art cropped from the design reference, plain dark-red/gold trim (no neon), static COMING SOON screen.
+// BERSERKER cabinet: art cropped from the design reference, plain dark-red/gold trim (no neon), animated attract screen (5 TICKETS TO PLAY).
 import * as THREE from 'three';
 import { SPROFILE, SW, segFrame, segPlane, bar, sideGeo, mergeGeos } from './strikecab.js';
 const L = new THREE.TextureLoader();
 const load = (url, flip) => { const t = L.load(url); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 8; if (flip) { t.wrapS = THREE.RepeatWrapping; t.repeat.x = -1; t.offset.x = 1; } return t; };
-function screenTexture() {
+function screenTexture() {   // attract loop: the game's title art, INSERT CREDIT, 5 TICKETS TO PLAY
   const c = document.createElement('canvas'); c.width = 270; c.height = 480; const g = c.getContext('2d');
-  const bg = g.createRadialGradient(135, 220, 20, 135, 240, 300); bg.addColorStop(0, '#2a0a06'); bg.addColorStop(1, '#050203'); g.fillStyle = bg; g.fillRect(0, 0, 270, 480);
-  g.strokeStyle = '#7a1a10'; g.lineWidth = 3; g.strokeRect(14, 14, 242, 452);
-  g.textAlign = 'center'; g.fillStyle = '#ff3a1a'; g.shadowColor = '#ff2000'; g.shadowBlur = 14; g.font = 'bold 34px Georgia, serif'; g.fillText('BERSERKER', 135, 200);
-  g.shadowBlur = 0; g.fillStyle = '#c89a3a'; g.font = '14px Georgia, serif'; g.fillText('ᛒ ᛖ ᚱ ᛊ ᛖ ᚱ ᚲ ᛖ ᚱ', 135, 232);
-  g.fillStyle = '#ffd27a'; g.font = 'bold 22px "Courier New", monospace'; g.fillText('COMING SOON', 135, 320);
-  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t;
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace;
+  const img = new Image(); img.src = 'img/bz_title.jpg'; img.onload = () => draw(0);
+  function draw(time) {
+    const bg = g.createRadialGradient(135, 220, 20, 135, 240, 300); bg.addColorStop(0, '#2a0a06'); bg.addColorStop(1, '#050203'); g.fillStyle = bg; g.fillRect(0, 0, 270, 480);
+    if (img.complete && img.naturalWidth) { const s = Math.max(270 / img.naturalWidth, 480 / img.naturalHeight), w = img.naturalWidth * s, h = img.naturalHeight * s, k = 1 + 0.04 * Math.sin(time * 0.4);
+      g.save(); g.translate(135, 240); g.scale(k, k); g.drawImage(img, -w / 2, -h / 2, w, h); g.restore(); g.fillStyle = '#0006'; g.fillRect(0, 0, 270, 480); }
+    g.textAlign = 'center'; g.fillStyle = '#ff3a1a'; g.shadowColor = '#ff2000'; g.shadowBlur = 14; g.font = 'bold 36px Georgia, serif'; g.fillText('BERSERKER', 135, 150);
+    g.shadowBlur = 0; g.fillStyle = '#c89a3a'; g.font = '14px Georgia, serif'; g.fillText('\u16D2 \u16D6 \u16B1 \u16CA \u16D6 \u16B1 \u16B2 \u16D6 \u16B1', 135, 178);
+    if (Math.floor(time * 2) % 2 === 0) { g.fillStyle = '#000a'; g.fillRect(30, 352, 210, 34); g.fillStyle = '#ffd27a'; g.font = 'bold 22px "Courier New", monospace'; g.fillText('INSERT CREDIT', 135, 376); }
+    g.fillStyle = '#000a'; g.fillRect(20, 400, 230, 30); g.fillStyle = '#ffe08a'; g.font = 'bold 17px "Courier New", monospace'; g.fillText('5 TICKETS TO PLAY', 135, 421);
+    t.needsUpdate = true;
+  }
+  draw(0); return { t, draw };
 }
 export function buildBerserkerCabinet() {
   const g = new THREE.Group(); g.name = 'berserkerCabinet';
@@ -26,7 +33,7 @@ export function buildBerserkerCabinet() {
   add(segPlane(SPROFILE[7], SPROFILE[8], SW - 0.06, 0.004, 0.86), new THREE.MeshStandardMaterial({ map: mq, emissive: 0xffffff, emissiveMap: mq, emissiveIntensity: 0.55, roughness: 0.2 }), 'marquee');
   add(segPlane(SPROFILE[5], SPROFILE[6], SW - 0.04, 0.003), new THREE.MeshStandardMaterial({ color: 0x0b0806, roughness: 0.35, metalness: 0.3 }), 'bezel');
   const sf = segFrame(SPROFILE[5], SPROFILE[6]), sh = sf.L * 0.86, sw = Math.min(SW - 0.16, sh * 9 / 16);
-  const st = screenTexture();
+  const sc = screenTexture(), st = sc.t;
   add(new THREE.PlaneGeometry(sw, sh).rotateY(Math.PI / 2).rotateZ(sf.ang).translate(sf.mid[0] + sf.n.x * 0.008, sf.mid[1] + sf.n.y * 0.008, 0),
     new THREE.MeshStandardMaterial({ map: st, emissive: 0xffffff, emissiveMap: st, emissiveIntensity: 0.9, roughness: 0.15 }), 'screen');
   // control panel: two red ball-tops, red + gold buttons
@@ -46,6 +53,6 @@ export function buildBerserkerCabinet() {
   const slot = new THREE.MeshStandardMaterial({ color: 0x400808, emissive: 0xff2010, emissiveIntensity: 1.5 });
   for (const z of [-0.05, 0.05]) door.add(new THREE.Mesh(new THREE.BoxGeometry(0.022, 0.05, 0.03).translate(0.006, 0.07, z), slot));
   const glow = new THREE.PointLight(0xff8060, 0.6, 2.6, 1.6); glow.name = 'screenGlow'; glow.position.set(sf.mid[0] + sf.n.x * 0.45, sf.mid[1] - 0.15, 0); g.add(glow);
-  g.userData = { screen: g.getObjectByName('screen'), glow };
+  g.userData = { screen: g.getObjectByName('screen'), glow, tick: sc.draw };
   return g;
 }

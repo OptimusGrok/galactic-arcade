@@ -5,7 +5,7 @@ const { open } = require('./lib');
     for (const c of A.playables) { by[c.userData.wall] = (by[c.userData.wall] || 0) + 1; const s = c.getObjectByName('screen'); if (s && !s.material.map) screens++; if (c.getObjectByName('marquee') && c.getObjectByName('sidePanelL') && c.getObjectByName('sidePanelR')) art++; }
     return { n: A.playables.length, by, screens, art }; });
   chk(cab.n === 19, 'cabinets=' + cab.n + ' (middle north slot is the doorway)'); chk(cab.by.north === 4 && cab.by.west === 5 && cab.by.south === 5 && cab.by.east === 5, 'per wall ' + JSON.stringify(cab.by));
-  chk(cab.screens === 18, 'screen meshes without a texture map (18; BERSERKER shows COMING SOON) ' + cab.screens); chk(cab.art === 19, 'marquee+side panels ' + cab.art);
+  chk(cab.screens === 17, 'screen meshes without a texture map (17; BERSERKER + MONKEY CROSSING draw attract screens) ' + cab.screens); chk(cab.art === 19, 'marquee+side panels ' + cab.art);
   // deterministic movement: stop RAF effects by stepping manually
   const mv = await page.evaluate(() => { const A = window.__arcade; window.__noAdapt = 1; A.monkey.position.set(-6, 0, 0); A.st.yaw = 0; A.st.vel.set(0, 0, 0);
     A.keys.KeyW = true; for (let i = 0; i < 60; i++) A.step(1 / 60); A.keys.KeyW = false; const z1 = A.monkey.position.z;
@@ -23,7 +23,7 @@ const { open } = require('./lib');
   chk(mv.zWall > -12 + 1.45 + 0.29 && mv.zWall < -9.5, 'stopped by north plinth/cabinets at z=' + mv.zWall.toFixed(2));
   chk(mv.xE < 12 - 1.45 && mv.xE > 9.8, 'stopped by east row at x=' + mv.xE.toFixed(2));
   chk(Math.max(...mv.corner) <= 11.651, 'wall clamp in corner ' + mv.corner.map(v => v.toFixed(2)));
-  chk(mv.play > 0.8 && mv.near === 'cabinet_north_3', 'play anim at cabinet ' + mv.near + ' ' + mv.play.toFixed(2));
+  chk(mv.play > 0.8 && mv.near === 'monkeyCabinet', 'play anim at cabinet ' + mv.near + ' ' + mv.play.toFixed(2));
   await page.evaluate(() => { window.__noAdapt = 0; }); await page.waitForTimeout(3000);
   const s = await page.evaluate(() => { const r = window.__arcade.renderer.info.render; return { ...window.__arcade.stats, calls: r.calls, tris: r.triangles }; });
   console.log('frame stats', JSON.stringify(s));

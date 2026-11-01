@@ -1,6 +1,27 @@
 // PLAY mode for the STRIKE and GHOST 256 cabinets: PLAY prompt, zoom into the game's DEMO (INSERT CREDIT; 1 ticket = 1 credit; tap to play), zoom through the monkey into the screen,
 // then a full-screen playable copy. Credits are tracked per machine; a machine with 0 credits cannot be played.
 import * as THREE from 'three';
+// rune-marked bronze/silver ticket with a horned Viking helmet (drawn, no image file); cw = CSS width
+export function vikingArt(cv, cw) {
+  const d = Math.min(3, window.devicePixelRatio || 1), ch = Math.round(cw * 0.62); cv.width = Math.round(cw * d); cv.height = Math.round(ch * d); cv.style.width = cw + 'px'; cv.style.height = ch + 'px';
+  const g = cv.getContext('2d'); g.setTransform(d, 0, 0, d, 0, 0); const w = cw, h = ch, r = h * 0.14;
+  const path = () => { g.beginPath(); g.moveTo(r, 0); g.lineTo(w - r, 0); g.arc(w, 0, r, Math.PI, Math.PI / 2, true); g.lineTo(w, h / 2 - r * 0.8); g.arc(w, h / 2, r * 0.8, -Math.PI / 2, Math.PI / 2, true); g.lineTo(w, h - r); g.arc(w, h, r, -Math.PI / 2, Math.PI, true);
+    g.lineTo(r, h); g.arc(0, h, r, 0, -Math.PI / 2, true); g.lineTo(0, h / 2 + r * 0.8); g.arc(0, h / 2, r * 0.8, Math.PI / 2, -Math.PI / 2, true); g.lineTo(0, r); g.arc(0, 0, r, Math.PI / 2, 0, true); g.closePath(); };
+  path(); const bz = g.createLinearGradient(0, 0, w, h); bz.addColorStop(0, '#e9c48a'); bz.addColorStop(0.35, '#a8692e'); bz.addColorStop(0.6, '#d8e0e8'); bz.addColorStop(1, '#7a4a20'); g.fillStyle = bz; g.fill();
+  g.save(); path(); g.clip(); g.strokeStyle = 'rgba(40,20,5,.55)'; g.lineWidth = Math.max(1, w * 0.012); g.setLineDash([w * 0.02, w * 0.015]); g.strokeRect(w * 0.06, h * 0.08, w * 0.88, h * 0.84); g.setLineDash([]);
+  g.fillStyle = 'rgba(255,255,255,.18)'; g.beginPath(); g.moveTo(0, 0); g.lineTo(w * 0.45, 0); g.lineTo(w * 0.2, h); g.lineTo(0, h); g.fill(); g.restore();
+  const cx = w * 0.5, cy = h * 0.5, s = h * 0.3;   // helmet
+  g.fillStyle = '#eadfc8'; g.strokeStyle = '#3a2410'; g.lineWidth = Math.max(1, s * 0.06);
+  for (const k of [-1, 1]) { g.beginPath(); g.moveTo(cx + k * s * 0.75, cy - s * 0.05); g.quadraticCurveTo(cx + k * s * 1.45, cy - s * 0.3, cx + k * s * 1.25, cy - s * 1.05); g.quadraticCurveTo(cx + k * s * 1.15, cy - s * 0.5, cx + k * s * 0.7, cy - s * 0.35); g.closePath(); g.fill(); g.stroke(); }
+  const hg = g.createLinearGradient(cx - s, cy - s, cx + s, cy + s); hg.addColorStop(0, '#f2f4f6'); hg.addColorStop(1, '#7c8590'); g.fillStyle = hg;
+  g.beginPath(); g.arc(cx, cy + s * 0.05, s * 0.8, Math.PI, 0); g.lineTo(cx + s * 0.8, cy + s * 0.35); g.lineTo(cx - s * 0.8, cy + s * 0.35); g.closePath(); g.fill(); g.stroke();
+  g.fillStyle = '#b07a3a'; g.fillRect(cx - s * 0.85, cy + s * 0.2, s * 1.7, s * 0.22); g.strokeRect(cx - s * 0.85, cy + s * 0.2, s * 1.7, s * 0.22);
+  g.fillRect(cx - s * 0.1, cy + s * 0.2, s * 0.2, s * 0.6); g.strokeRect(cx - s * 0.1, cy + s * 0.2, s * 0.2, s * 0.6);
+  g.fillStyle = '#3a2410'; g.textAlign = 'center'; g.font = `bold ${Math.round(h * 0.12)}px Georgia, serif`; g.fillText('ᚢ ᛁ ᚲ ᛁ ᛜ', cx, h * 0.2);
+  g.font = `900 ${Math.round(h * 0.11)}px 'Courier New', monospace`; g.fillText('VIKING TICKET', cx, h * 0.9);
+  g.font = `bold ${Math.round(h * 0.13)}px Georgia, serif`; g.fillText('ᛟ', w * 0.14, cy + h * 0.05); g.fillText('ᛟ', w * 0.86, cy + h * 0.05);
+  return cv;
+}
 export function setupPlay(A) {
   const { camera, monkey, st } = A;
   const ui = document.getElementById('playUI'), bPlay = document.getElementById('bPlay'), credit = document.getElementById('credit'), hint = document.getElementById('hint');
@@ -20,9 +41,21 @@ export function setupPlay(A) {
       scene(w) { const s = w.__ghost.G.state; return s === 'play' || s === 'dying' || s === 'pause' ? 'play' : s === 'over' ? 'over' : s; },
       active(w) { return w.__ghost.G.state === 'play'; },
       hold(w) { const s = w.__ghost.G.state; if (s !== 'play' && s !== 'dying') return false; w.__ghost.togglePause(); return true; }, unhold(w) { if (w.__ghost.G.state === 'pause') w.__ghost.togglePause(); }, overHold: 4500, scoresHold: 0 },
+    monkey: { key: 'monkey', cab: A.monkeyCab, src: 'monkey-play/index.html', credits: 0, games: 0, aspect: 9 / 16,
+      demo(w) { w.__demo.start(); }, stopDemo(w) { w.__demo.stop(); },
+      start(w) { w.__HOLD = 0; w.__M.startGame(); },
+      scene(w) { return w.__M.state; }, active(w) { return w.__M.state === 'play'; },
+      hold(w) { if (w.__M.state !== 'play') return false; w.__HOLD = 1; return true; }, unhold(w) { w.__HOLD = 0; }, overHold: 3500, scoresHold: 0 },
+    berserker: { key: 'berserker', cab: A.berserkerCab, src: 'berserker-play/index.html', credits: 0, games: 0, aspect: 9 / 16, cost: 5,   // 5 tickets = 1 credit = the whole run incl. 3 continues
+      demo(w) { w.__demo.start(); }, stopDemo(w) { w.__demo.stop(); },
+      start(w) { w.__bz.start(); },
+      scene(w) { const s = w.__B.G().state; return s === 'dead' || s === 'win' ? 'over' : s === 'title' ? 'title' : 'play'; },
+      active(w) { return w.__B.G().state === 'play'; },
+      hold(w) { if (w.__B.G().state !== 'play') return false; w.togglePause(); return true; }, unhold(w) { if (w.__B.G().state === 'pause') w.togglePause(); }, overHold: 5000, scoresHold: 0 },
   };
   const P = { need: 0, sub: null, demoReturns: 0, plays: 0, mode: 'walk', t: 0, frame: null, zooms: 0, coinSfx: 0, blocked: 0, cur: null, machines: MACHINES };
-  const TKEY = 'neonarcade.tickets', tixEl = document.getElementById('tix');
+  const TKEY = 'neonarcade.tickets', tixEl = document.getElementById('tix'), dCost = document.getElementById('dCost');
+  function toast(msg) { const d = document.createElement('div'); d.className = 'ntoast'; d.textContent = msg; document.body.appendChild(d); P.lastToast = msg; setTimeout(() => d.remove(), 2200); }
   const T = { total: 0, got: 0 };
   const saveT = () => { try { localStorage.setItem(TKEY, String(T.total)); } catch (e) {} };
   try { const v = localStorage.getItem(TKEY); if (v === null) { T.total = 1; saveT(); } else T.total = Math.max(0, parseInt(v, 10) || 0); } catch (e) { T.total = 1; }   // a new player starts with 1 ticket
@@ -30,20 +63,23 @@ export function setupPlay(A) {
   let curve = null, look0 = new THREE.Vector3(), look1 = new THREE.Vector3(), ac = null, near = null, coinLock = 0;
   function coinSound() { P.coinSfx++; try { ac = ac || new (window.AudioContext || window.webkitAudioContext)(); const t = ac.currentTime;
     for (const [f, d] of [[988, 0], [1319, 0.08]]) { const o = ac.createOscillator(), g = ac.createGain(); o.type = 'square'; o.frequency.value = f; g.gain.setValueAtTime(0.12, t + d); g.gain.exponentialRampToValueAtTime(0.001, t + d + 0.35); o.connect(g).connect(ac.destination); o.start(t + d); o.stop(t + d + 0.4); } } catch (e) {} }
+  const costOf = m => m.cost || 1;
   function refresh() { const m = near || MACHINES.strike;   // the room prompt: always PLAY (zooms into the demo)
-    bPlay.textContent = 'PLAY'; credit.textContent = 'CREDIT ' + m.credits + '  ·  YOU HAVE ' + T.total + ' 🎟';
+    bPlay.textContent = 'PLAY'; credit.textContent = (costOf(m) > 1 ? costOf(m) + ' TICKETS TO PLAY  ·  ' : '') + 'CREDIT ' + m.credits + '  ·  YOU HAVE ' + T.total + ' 🎟';
     hint.textContent = coarse ? 'TAP TO PLAY' : 'ENTER / E / SPACE'; }
-  function demoRefresh() { const m = P.cur; if (!m) return; const has = T.total >= 1;
+  function demoRefresh() { const m = P.cur; if (!m) return; const c = costOf(m), has = T.total >= c;
     dInsert.textContent = m.credits > 0 ? (coarse ? 'TAP TO PLAY' : 'TAP / ENTER TO PLAY') : 'INSERT CREDIT'; dInsert.classList.toggle('ready', m.credits > 0);
     dCredit.textContent = 'CREDIT ' + m.credits + '  ·  ' + T.total + ' 🎟';
-    bTicket.textContent = has ? 'INSERT TICKET · 1 🎟' : 'NEED A TICKET'; bTicket.classList.toggle('need', !has); }
+    bTicket.textContent = has ? (c > 1 ? 'INSERT ' + c + ' TICKETS · ' + c + ' 🎟' : 'INSERT TICKET · 1 🎟') : (c > 1 ? 'NEED ' + c + ' TICKETS' : 'NEED A TICKET'); bTicket.classList.toggle('need', !has);
+    dCost.textContent = c > 1 ? c + ' TICKETS TO PLAY' : ''; dCost.style.display = c > 1 ? '' : 'none'; }
   function buzz() { try { ac = ac || new (window.AudioContext || window.webkitAudioContext)(); const t = ac.currentTime, o = ac.createOscillator(), g = ac.createGain(); o.type = 'square'; o.frequency.setValueAtTime(180, t); o.frequency.linearRampToValueAtTime(110, t + 0.18); g.gain.setValueAtTime(0.06, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.22); o.connect(g).connect(ac.destination); o.start(t); o.stop(t + 0.25); } catch (e) {} }
   const shake = el => { el.classList.remove('shake'); void el.offsetWidth; el.classList.add('shake'); };
   function insertTicket() {   // demo view button: 1 ticket -> 1 credit
     const m = P.cur, now = performance.now();
     if (P.mode !== 'game' || P.sub !== 'demo' || !m || TV.open || now < coinLock) { P.blocked++; return; }
-    if (T.total < 1) { P.need++; demoRefresh(); shake(bTicket); buzz(); return; }
-    T.total -= 1; saveT(); m.credits += 1; coinLock = now + 350; coinSound(); showTix(); demoRefresh(); bTicket.animate([{ transform: 'scale(1.12)' }, { transform: 'scale(1)' }], 220); }
+    const c = costOf(m);
+    if (T.total < c) { P.need++; demoRefresh(); shake(bTicket); buzz(); toast('NEED ' + c + ' TICKETS · YOU HAVE ' + T.total); return; }
+    T.total -= c; saveT(); m.credits += 1; coinLock = now + 350; coinSound(); showTix(); demoRefresh(); bTicket.animate([{ transform: 'scale(1.12)' }, { transform: 'scale(1)' }], 220); }
   function tryPlay() {   // a tap / click / Enter / Space on the demo screen
     const m = P.cur;
     if (P.mode !== 'game' || P.sub !== 'demo' || !m || TV.open || !P.frame) { P.blocked++; return; }
@@ -105,13 +141,15 @@ export function setupPlay(A) {
   // ---- tickets: collected inside the games (gold monkey tickets), 1 each; no time-based payout ----
   const tixN = document.getElementById('tixN'), tview = document.getElementById('tview'), tvCv = document.getElementById('tvCv'), tvCount = document.getElementById('tvCount');
   try { TicketArt.toCanvas(document.getElementById('tixIco'), 30, false); const c = TicketArt.toCanvas(document.createElement('canvas'), 80, false); document.documentElement.style.setProperty('--tkimg', 'url(' + c.toDataURL() + ')'); } catch (e) {}
-  const showTix = () => { tixN.textContent = String(T.total); if (P.mode === 'walk') refresh(); else demoRefresh(); tixEl.classList.toggle('ingame', P.mode === 'game'); };
+  const showTix = () => { try { showVix(); } catch (e) {} tixN.textContent = String(T.total); if (P.mode === 'walk') refresh(); else demoRefresh(); tixEl.classList.toggle('ingame', P.mode === 'game'); };
   // ---- enlarged ticket view: tap/click the HUD counter; tap, click, Esc or ✕ closes. Pauses the arcade / game while open ----
   const TV = { open: false, opens: 0, heldGame: false, heldArcade: false };
-  function openView() {
-    if (TV.open) return; TV.open = true; TV.opens++;
-    const side = Math.min(innerWidth, innerHeight), w = Math.round(Math.min(innerWidth * 0.92, side * 0.66)); TicketArt.toCanvas(tvCv, w, true);
-    tvCount.textContent = '🎟 ' + T.total + (T.total === 1 ? ' TICKET' : ' TICKETS'); tview.classList.add('on'); tview.setAttribute('aria-hidden', 'false');
+  function openView(kind) {
+    if (TV.open) return; TV.open = true; TV.opens++; TV.kind = kind === 'viking' ? 'viking' : 'gold';
+    const side = Math.min(innerWidth, innerHeight), w = Math.round(Math.min(innerWidth * 0.92, side * 0.66));
+    if (TV.kind === 'viking') { vikingArt(tvCv, w); tvCount.textContent = 'ᛟ ' + V.total + (V.total === 1 ? ' VIKING TICKET' : ' VIKING TICKETS'); }
+    else { TicketArt.toCanvas(tvCv, w, true); tvCount.textContent = '🎟 ' + T.total + (T.total === 1 ? ' TICKET' : ' TICKETS'); }
+    tview.classList.toggle('viking', TV.kind === 'viking'); tview.classList.add('on'); tview.setAttribute('aria-hidden', 'false');
     const k = window.__arcade && window.__arcade.keys; if (k) for (const c in k) k[c] = false;   // never carry a held key into / out of the view
     TV.heldGame = false; TV.heldArcade = false;
     if (P.mode === 'game' && P.frame) { try { TV.heldGame = P.cur.hold(P.frame.contentWindow); } catch (e) {} }
@@ -140,6 +178,20 @@ export function setupPlay(A) {
     const r = tixEl.getBoundingClientRect(), d = document.createElement('div'); d.className = 'tpop'; d.textContent = '+1 🎟'; d.style.left = (r.left + 4) + 'px'; d.style.top = (r.bottom + 4) + 'px';
     document.body.appendChild(d); setTimeout(() => d.remove(), 1500); return true; }
   window.__neonTicket = award;
+  // ---- VIKING TICKET (from clearing BERSERKER Stage I): its own count, its own HUD chip and enlarged view; does nothing else yet ----
+  const VKEY = 'neonarcade.vikingTickets', vixEl = document.getElementById('vix'), vixN = document.getElementById('vixN'), V = { total: 0, got: 0 };
+  try { V.total = Math.max(0, parseInt(localStorage.getItem(VKEY), 10) || 0); } catch (e) {}
+  const showVix = () => { vixN.textContent = String(V.total); vixEl.style.display = V.total > 0 ? '' : 'none'; try { const r = tixEl.getBoundingClientRect(); if (r.width) { vixEl.style.left = (r.right + 8) + 'px'; vixEl.style.top = r.top + 'px'; } } catch (e) {} vixEl.classList.toggle('ingame', P.mode === 'game'); };
+  try { vikingArt(document.getElementById('vixIco'), 30); } catch (e) {}
+  function vikingAward(game) {
+    if (P.mode !== 'game' || P.sub !== 'play' || !P.frame || !P.cur || P.cur.key !== 'berserker' || (game && game !== 'berserker')) return false;
+    V.total++; V.got++; try { localStorage.setItem(VKEY, String(V.total)); } catch (e) {} showVix(); ticketSound(); setTimeout(ticketSound, 180);
+    const d = document.createElement('div'); d.className = 'vpop'; const c = document.createElement('canvas'); d.appendChild(c); const t = document.createElement('div'); t.textContent = 'VIKING TICKET!'; d.appendChild(t);
+    vikingArt(c, Math.round(Math.min(innerWidth * 0.6, 300))); document.body.appendChild(d); setTimeout(() => d.remove(), 3200); return true; }
+  window.__neonViking = vikingAward; P.vikingAward = vikingAward; P.viking = V;
+  vixEl.addEventListener('pointerdown', swallow); vixEl.addEventListener('touchstart', swallow, { passive: true });
+  vixEl.addEventListener('click', e => { swallow(e); openView('viking'); });
+  showVix();
   P.award = award;
   P.spend = n => { if (T.total < n) return false; T.total -= n; saveT(); showTix(); if (TV.open) tvCount.textContent = '🎟 ' + T.total + (T.total === 1 ? ' TICKET' : ' TICKETS'); return true; };   // used by shield.js
   P.tickets = T; showTix();
