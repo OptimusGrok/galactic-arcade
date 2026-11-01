@@ -13,9 +13,17 @@
 <style>
 html,body{margin:0;height:100%;background:#07040c;overflow:hidden;touch-action:none;-webkit-user-select:none;user-select:none}
 canvas{display:block;width:100vw;height:100vh;height:100dvh;outline:none}
-#ui{position:fixed;top:max(8px,env(safe-area-inset-top));right:max(8px,env(safe-area-inset-right));display:flex;gap:6px;z-index:5}
+#ui{position:fixed;top:max(8px,env(safe-area-inset-top));right:max(8px,env(safe-area-inset-right));display:flex;gap:6px;z-index:26}
 #ui button{width:30px;height:30px;border-radius:7px;border:1px solid #ff2bd666;background:#0a0612aa;color:#ff8ce8;font:600 13px system-ui;padding:0;opacity:.55}
 #ui button:active{opacity:1}
+body.ingame #ui{top:calc(max(10px,env(safe-area-inset-top)) + 58px)}
+#homeQ{position:fixed;inset:0;z-index:90;display:none;align-items:center;justify-content:center;background:#05010cb0}
+#homeQ.on{display:flex}
+#homeP{width:min(88vw,440px);border-radius:18px;border:3px solid #00e5ff;background:linear-gradient(#140626f4,#08020ff4);box-shadow:0 0 26px #00e5ff77;padding:18px;text-align:center;color:#fff;font:700 14px 'Courier New',monospace}
+#homeT{font:900 clamp(17px,4.4vmin,26px)/1.2 'Courier New',monospace;letter-spacing:.1em;color:#dffbff;text-shadow:0 0 10px #00e5ff}
+#homeN{margin:10px 0 4px;color:#ffe08a;font-size:13px;line-height:1.4;min-height:0}
+#homeB{display:flex;gap:14px;justify-content:center;margin-top:14px}
+#homeYes{border:3px solid #ff3cf0}#homeNo{border:3px solid #00e5ff}
 #joy{position:fixed;width:110px;height:110px;margin:-55px 0 0 -55px;border-radius:50%;border:2px solid #ff2bd688;background:radial-gradient(#ff2bd622,#0000 70%);display:none;pointer-events:none;z-index:4}
 #knob{position:absolute;left:35px;top:35px;width:40px;height:40px;border-radius:50%;background:#ff2bd6aa;box-shadow:0 0 14px #ff2bd6}
 #playUI{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%) scale(.85);z-index:6;display:flex;flex-direction:column;align-items:center;gap:10px;opacity:0;pointer-events:none;transition:opacity .35s ease,transform .35s ease}
@@ -126,13 +134,12 @@ canvas{display:block;width:100vw;height:100vh;height:100dvh;outline:none}
 // Options menu (FLOOR tab). Every other tap / click / key is swallowed here and never reaches the arcade.
 (function () {
   var el = document.getElementById('start'), opt = document.getElementById('opt'), S = window.__start = { shown: true, dismissed: false, at: 0, how: '', opts: 0, ignored: 0 };
-  function off() { S.shown = false; el.remove(); }
+  function off() { S.shown = false; if (el.isConnected) el.remove(); }
   function floorNow() { try { return localStorage.getItem('neonarcade.floor') === 'carpet' ? 'carpet' : 'neon'; } catch (e) { return 'neon'; } }
   function showFloor() { var f = floorNow(); ['flNeon', 'flCarpet'].forEach(function (id) { var t = document.getElementById(id); t.classList.toggle('sel', t.dataset.floor === f); }); }
   function pickFloor(f) { if (window.__setFloor) window.__setFloor(f); else try { localStorage.setItem('neonarcade.floor', f); } catch (e) {} S.floor = f; showFloor(); }
   function openOpt(on) { opt.classList.toggle('on', on); opt.setAttribute('aria-hidden', on ? 'false' : 'true'); if (on) { S.opts++; showFloor(); } }
   window.__startUI = { openOpt: openOpt, pickFloor: pickFloor };
-  if (window.__skipStart) { off(); return; }
   // ---- hidden ticket menu: triple-tap top-right -> 3x3 unlock pattern -> TICKETS panel ----
   var sec = document.getElementById('sec'), tk = document.getElementById('tk'), sP = document.getElementById('secP'), cv = document.getElementById('secCv'), taps = [], pat = [], drawing = false, cur = null;
   function hsh(a) { var h = 7; for (var i = 0; i < a.length; i++) h = (h * 31 + a.charCodeAt(i)) % 1000003; return h; }
@@ -192,10 +199,16 @@ canvas{display:block;width:100vw;height:100vh;height:100dvh;outline:none}
     try { var k = window.__arcade && window.__arcade.keys; if (k) for (var c in k) k[c] = false; } catch (e) {}
     el.classList.add('out'); setTimeout(function () { off(); }, 650); setTimeout(release, 700);
   }
-  evs.forEach(function (t) { window.addEventListener(t, eat, { capture: true, passive: false }); });
+  function on() { evs.forEach(function (t) { window.addEventListener(t, eat, { capture: true, passive: false }); }); }
+  window.__startUI.show = function () {   // back to the start screen (from the HUD home button)
+    release(); openOpt(false); openSec(false); openTk(false); el.classList.remove('out'); if (!el.isConnected) document.body.appendChild(el);
+    S.shown = true; S.dismissed = false; S.how = ''; S.returns = (S.returns || 0) + 1; on(); };
+  if (window.__skipStart) { off(); return; }
+  on();
 })();
 </script>
-<div id="ui"><button id="bView" title="First / third person (V)">V</button><button id="bFs" title="Fullscreen">⛶</button></div>
+<div id="ui"><button id="bView" title="First / third person (V)">V</button><button id="bFs" title="Fullscreen">⛶</button><button id="bHome" title="Back to start screen">⌂</button></div>
+<div id="homeQ" aria-hidden="true"><div id="homeP"><div id="homeT">BACK TO START SCREEN?</div><div id="homeN"></div><div id="homeB"><button class="stB" id="homeYes">YES</button><button class="stB" id="homeNo">NO</button></div></div></div>
 <div id="playUI"><button id="bPlay">PLAY</button><div id="credit">CREDIT 1</div><div id="hint">ENTER / E / SPACE</div></div>
 <div id="demoUI"><div id="dTag">DEMO</div><div id="dInsert">INSERT CREDIT</div><div id="dCredit">CREDIT 0</div><div id="dCost" style="display:none"></div><button id="bTicket">INSERT TICKET · 1 🎟</button></div><button id="bExit" title="Exit (Esc)">✕</button><div id="tix" role="button" tabindex="0" title="Show ticket"><canvas id="tixIco"></canvas><span id="tixN">0</span></div><div id="vix" role="button" tabindex="0" title="Show Viking ticket" style="display:none"><canvas id="vixIco"></canvas><span id="vixN">0</span></div><div id="tview" aria-hidden="true"><button id="tvX" title="Close (Esc)">✕</button><div id="tvWrap"><canvas id="tvCv"></canvas><div id="tvShine"></div></div><div id="tvCount">🎟 0 TICKETS</div><div id="tvHint">TAP OR ESC TO CLOSE</div></div><div id="over">GAME OVER</div>
 <div id="joy"><div id="knob"></div></div>

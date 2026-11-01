@@ -199,6 +199,17 @@ export function setupPlay(A) {
   bPlay.addEventListener('click', e => { e.stopPropagation(); press(); });
   ['pointerdown', 'touchstart'].forEach(t => ui.addEventListener(t, e => e.stopPropagation(), { passive: true }));
   bExit.addEventListener('click', () => exit('x'));
+  // HUD home button: confirm, then leave any cabinet game / demo and show the start screen again (credits, tickets, floor kept)
+  const homeQ = document.getElementById('homeQ'), homeN = document.getElementById('homeN');
+  const homeAsk = on => { homeQ.classList.toggle('on', on); homeQ.setAttribute('aria-hidden', on ? 'false' : 'true'); P.homeAsk = on;
+    if (on) { const m = P.cur, inGame = P.mode === 'game' && P.sub === 'play';
+      homeN.textContent = inGame ? 'THE CURRENT GAME WILL END.' : (P.mode === 'game' && m && m.credits > 0 ? 'YOUR UNUSED CREDIT STAYS ON THIS MACHINE.' : ''); } };
+  const goHome = () => { homeAsk(false); P.homes = (P.homes || 0) + 1; if (P.mode === 'game') { exit('home'); P.t = 1; } try { if (TV.open) closeView(); } catch (e) {}
+    try { for (const c in A.keys) A.keys[c] = false; } catch (e) {} if (window.__startUI && window.__startUI.show) window.__startUI.show(); };
+  P.home = { ask: homeAsk, go: goHome };
+  for (const [id, fn] of [['bHome', () => homeAsk(true)], ['homeYes', goHome], ['homeNo', () => homeAsk(false)]]) {
+    const b = document.getElementById(id); b.addEventListener('pointerdown', swallow); b.addEventListener('touchstart', swallow, { passive: true }); b.addEventListener('click', e => { swallow(e); fn(); }); }
+  homeQ.addEventListener('pointerdown', swallow); homeQ.addEventListener('click', e => { if (e.target === homeQ) homeAsk(false); });
   ['pointerdown', 'touchstart'].forEach(t => demoUI.addEventListener(t, e => e.stopPropagation(), { passive: true }));
   bTicket.addEventListener('click', e => { e.stopPropagation(); insertTicket(); });   // not a screen tap
   demoUI.addEventListener('click', e => { if (e.target === bTicket) return; tryPlay(); });
@@ -207,7 +218,7 @@ export function setupPlay(A) {
   P.update = (dt, nearCab) => {
     const m = P.mode === 'walk' && !st.fp ? Object.values(MACHINES).find(k => k.cab === nearCab) : null;
     if (m && m !== near) { near = m; refresh(); } if (!m && P.mode === 'walk') near = null;
-    ui.classList.toggle('on', !!m);
+    ui.classList.toggle('on', !!m); document.body.classList.toggle('ingame', P.mode === 'game');
     if (P.mode === 'zoomIn' || P.mode === 'zoomOut') {
       const dur = P.mode === 'zoomIn' ? 1.6 : 1.4; P.t = Math.min(1, P.t + dt / dur); const k = ease(P.t);
       camera.position.copy(curve.getPointAt(k));
