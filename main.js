@@ -401,63 +401,87 @@ function part(parent, geo, mat, x = 0, y = 0, z = 0, sx = 1, sy = 1, sz = 1) { c
 const S = (r, w = 20, h = 14) => new THREE.SphereGeometry(r, w, h);
 const CYL = (r1, r2, h, s = 16) => new THREE.CylinderGeometry(r1, r2, h, s);
 
-function makeMonkey() {
+function makeMonkey() { // "Arcade Kid": cartoon monkey, no tail, pink cap, tie-dye tee, open navy bomber, headphones, gold ticket pin, jeans, plain high-tops
+  const mk = (c, o = {}) => new THREE.MeshStandardMaterial(Object.assign({ color: c, roughness: 0.8 }, o));
+  const fur = mk(0x4e2a14, { roughness: 0.95, emissive: 0x100804 }), tan = mk(0xd9a779, { roughness: 0.7, emissive: 0x2a1a0c }), navy = mk(0x1d2452, { roughness: 0.75 }), navyD = mk(0x1d2452, { roughness: 0.75, side: THREE.DoubleSide });
+  const rib = mk(0x141a3a, { roughness: 0.9 }), pink = mk(0xff4f9e, { roughness: 0.6 }), pinkD = mk(0xd93a82, { roughness: 0.6 }), cream = mk(0xf1e8d6, { roughness: 0.6 }), maroon = mk(0x8a1e2c, { roughness: 0.55 }), hp = mk(0x18181f, { roughness: 0.35 }), iris = mk(0x8a4c1a, { roughness: 0.3, emissive: 0x2a1404 }), lip = mk(0x3a1a10, { roughness: 0.5 });
   const root = new THREE.Group(); root.name = 'monkey';
   const hips = new THREE.Group(); hips.position.y = 0.8; root.add(hips);
-  part(hips, CYL(0.2, 0.21, 0.16), M.jeans, 0, 0, 0, 1, 1, 0.8);
-  part(hips, CYL(0.205, 0.205, 0.03), M.dark, 0, 0.07, 0, 1, 1, 0.8); // belt
+  part(hips, CYL(0.2, 0.21, 0.16, 20), M.jeans, 0, 0, 0, 1, 1, 0.8);
+  part(hips, CYL(0.205, 0.205, 0.03, 20), M.dark, 0, 0.07, 0, 1, 1, 0.8);
   const legs = [];
   for (const sd of [-1, 1]) {
     const leg = new THREE.Group(); leg.position.set(0.1 * sd, -0.04, 0); hips.add(leg);
-    part(leg, CYL(0.105, 0.115, 0.42), M.jeans, 0, -0.2, 0);
+    part(leg, CYL(0.11, 0.115, 0.42, 14), M.jeans, 0, -0.2, 0);
     const knee = new THREE.Group(); knee.position.y = -0.4; leg.add(knee);
-    part(knee, CYL(0.115, 0.125, 0.34), M.jeans, 0, -0.15, 0);
-    const shoe = new THREE.Group(); shoe.position.set(0, -0.34, 0.05); knee.add(shoe);
-    part(shoe, new THREE.BoxGeometry(0.17, 0.11, 0.3), M.white, 0, 0, 0);
-    part(shoe, new THREE.BoxGeometry(0.18, 0.04, 0.32), M.yellow, 0, -0.06, 0);
-    part(shoe, new THREE.BoxGeometry(0.182, 0.05, 0.14), M.blue, 0, 0.0, -0.03);
-    part(shoe, new THREE.BoxGeometry(0.185, 0.025, 0.08), M.red, 0, 0.03, 0.06);
-    part(shoe, S(0.09, 12, 8), M.white, 0, 0.0, 0.13, 0.95, 0.6, 0.6);
+    part(knee, CYL(0.115, 0.13, 0.3, 14), M.jeans, 0, -0.14, 0);
+    part(knee, CYL(0.13, 0.13, 0.05, 14), M.jeans, 0, -0.27, 0, 1.03, 1, 1.03); // cuff
+    const shoe = new THREE.Group(); shoe.position.set(0, -0.34, 0.04); knee.add(shoe);
+    part(shoe, CYL(0.095, 0.1, 0.14, 14), cream, 0, 0.04, -0.03);          // high-top ankle
+    part(shoe, CYL(0.1, 0.1, 0.025, 14), maroon, 0, 0.11, -0.03);          // collar
+    part(shoe, new THREE.BoxGeometry(0.17, 0.1, 0.26), cream, 0, -0.01, 0.02);
+    part(shoe, S(0.088, 14, 10), maroon, 0, -0.01, 0.13, 0.98, 0.6, 0.75);  // toe box
+    part(shoe, new THREE.BoxGeometry(0.185, 0.045, 0.34), M.white, 0, -0.065, 0.03); // sole
+    part(shoe, new THREE.BoxGeometry(0.176, 0.06, 0.09), maroon, 0, 0.0, -0.09);    // heel panel
+    for (let i = 0; i < 3; i++) part(shoe, new THREE.BoxGeometry(0.08, 0.012, 0.015), M.white, 0, 0.055 - i * 0.025 + 0.01, 0.06 + i * 0.03).rotation.x = -0.5; // laces
     legs.push({ leg, knee });
   }
-  // wallet chain
-  const wc = new THREE.CatmullRomCurve3([new THREE.Vector3(0.12, 0.05, 0.15), new THREE.Vector3(0.22, -0.15, 0.08), new THREE.Vector3(0.23, -0.2, -0.04), new THREE.Vector3(0.15, 0.03, -0.16)]);
-  part(hips, new THREE.TubeGeometry(wc, 24, 0.008, 5), M.silver);
-  // torso
   const torso = new THREE.Group(); torso.position.y = 0.06; hips.add(torso);
-  const shirt = part(torso, CYL(0.25, 0.29, 0.56, 20), M.shirt, 0, 0.26, 0, 1, 1, 0.78); shirt.rotation.y = -Math.PI / 2;
-  part(torso, S(0.26), M.shirt, 0, 0.5, 0, 1.15, 0.45, 0.8);
+  const shirt = part(torso, CYL(0.24, 0.27, 0.56, 22), M.shirt, 0, 0.26, 0, 1, 1, 0.76); shirt.rotation.y = -Math.PI / 2;
+  part(torso, S(0.25), M.shirt, 0, 0.5, 0, 1.12, 0.42, 0.78);
+  // open bomber: body shell with a gap at the front, ribbed hem, collar, zip edges
+  const gap = 0.42;
+  part(torso, new THREE.CylinderGeometry(0.265, 0.29, 0.5, 26, 1, true, gap, Math.PI * 2 - gap * 2), navyD, 0, 0.29, 0, 1, 1, 1.06);
+  part(torso, new THREE.CylinderGeometry(0.29, 0.28, 0.07, 26, 1, true, gap, Math.PI * 2 - gap * 2), rib, 0, 0.03, 0, 1.01, 1, 1.07);
+  part(torso, new THREE.SphereGeometry(0.27, 26, 10, Math.PI / 2 + gap, Math.PI * 2 - gap * 2, 0, Math.PI / 2), navyD, 0, 0.53, 0, 1.12, 0.42, 1.06);
+  const col = part(torso, new THREE.TorusGeometry(0.15, 0.03, 8, 24, Math.PI * 1.5), rib, 0, 0.61, -0.01, 1.05, 1, 1.1); col.rotation.set(Math.PI / 2, 0, Math.PI * 0.75);
+  for (const sd of [-1, 1]) { const zx = Math.sin(gap) * 0.27 * sd, zz = Math.cos(gap) * 0.27 * 1.06; part(torso, new THREE.BoxGeometry(0.014, 0.5, 0.014), M.gold, zx, 0.29, zz + 0.012); }
+  // gold monkey-ticket pin on the left chest
+  const pin = new THREE.Group(); pin.position.set(0.2, 0.42, 0.25); pin.rotation.y = 0.55; torso.add(pin);
+  part(pin, new THREE.BoxGeometry(0.075, 0.05, 0.01), M.gold); part(pin, S(0.017, 10, 8), fur, 0, 0.003, 0.008, 1, 1, 0.5); part(pin, S(0.011, 8, 6), tan, 0, -0.001, 0.014, 1, 0.8, 0.4);
+  for (const sx of [-1, 1]) part(pin, S(0.008, 6, 4), tan, sx * 0.018, 0.012, 0.008, 1, 1, 0.4);
   const neck = new THREE.Group(); neck.position.y = 0.58; torso.add(neck);
-  part(neck, CYL(0.07, 0.08, 0.1), M.fur, 0, 0.02, 0);
-  const chain = part(neck, new THREE.TorusGeometry(0.15, 0.014, 6, 28), M.gold, 0, -0.06, 0.02, 1, 1.25, 1); chain.rotation.x = Math.PI / 2 + 0.5;
-  part(neck, S(0.03, 8, 6), M.gold, 0, -0.2, 0.18);
+  part(neck, CYL(0.075, 0.085, 0.12), fur, 0, 0.02, 0);
+  // headphones resting around the neck
+  const band = part(neck, new THREE.TorusGeometry(0.13, 0.018, 8, 26, Math.PI * 1.15), hp, 0, -0.02, -0.03, 1, 1, 1); band.rotation.set(Math.PI / 2 - 0.25, 0, Math.PI * 0.95);
+  for (const sd of [-1, 1]) { const cup = part(neck, CYL(0.055, 0.055, 0.04, 18), hp, 0.115 * sd, -0.02, 0.07, 1, 1, 1); cup.rotation.set(0.3, 0, Math.PI / 2 + 0.35 * sd); const ring = part(cup, new THREE.TorusGeometry(0.05, 0.008, 6, 18), pink, 0, 0.021 * -sd, 0); ring.rotation.x = Math.PI / 2; }
   // head
   const head = new THREE.Group(); head.position.y = 0.08; neck.add(head);
-  part(head, S(0.17), M.fur, 0, 0.14, -0.01, 1, 1.02, 1);
-  part(head, S(0.13), M.skin, 0, 0.13, 0.08, 1, 1.05, 0.7);
-  part(head, S(0.1), M.skin, 0, 0.06, 0.16, 1.05, 0.78, 0.85);
-  part(head, S(0.11), M.fur, 0, 0.22, 0.09, 1.15, 0.3, 0.6); // brow ridge
+  part(head, S(0.18, 28, 20), fur, 0, 0.15, -0.01, 1, 1.02, 0.98);
+  part(head, S(0.11, 24, 16), tan, 0.045, 0.16, 0.095, 0.75, 0.9, 0.75);   // heart-shaped face mask (two lobes)
+  part(head, S(0.11, 24, 16), tan, -0.045, 0.16, 0.095, 0.75, 0.9, 0.75);
+  part(head, S(0.11, 24, 16), tan, 0, 0.07, 0.13, 1.1, 0.8, 0.85);         // muzzle
+  part(head, S(0.05, 16, 10), fur, 0, 0.215, 0.165, 2.7, 0.4, 0.6);         // brow
   for (const sd of [-1, 1]) {
-    part(head, S(0.032, 12, 8), M.white, 0.055 * sd, 0.165, 0.175);
-    part(head, S(0.02, 10, 8), M.dark, 0.057 * sd, 0.165, 0.198);
-    part(head, S(0.065, 14, 10), M.skin, 0.18 * sd, 0.14, -0.01, 0.4, 1, 0.9);
-    part(head, S(0.012, 6, 4), M.dark, 0.022 * sd, 0.07, 0.245);
+    part(head, S(0.046, 16, 12), M.white, 0.06 * sd, 0.165, 0.175, 1, 1.15, 0.7);
+    part(head, S(0.03, 14, 10), iris, 0.058 * sd, 0.163, 0.2, 1, 1.1, 0.6);
+    part(head, S(0.017, 10, 8), M.dark, 0.057 * sd, 0.163, 0.214, 1, 1.1, 0.5);
+    part(head, S(0.007, 6, 4), M.white, 0.048 * sd, 0.178, 0.222);
+    part(head, S(0.07, 16, 12), fur, 0.185 * sd, 0.15, 0, 0.45, 1, 0.9);   // ear
+    part(head, S(0.05, 14, 10), tan, 0.2 * sd, 0.15, 0.01, 0.3, 0.85, 0.75);
+    part(head, S(0.011, 6, 4), lip, 0.022 * sd, 0.1, 0.225);                 // nostril
   }
-  part(head, new THREE.BoxGeometry(0.1, 0.008, 0.01), M.dark, 0, 0.02, 0.235); // mouth
-  // backwards white cap
-  const cap = new THREE.Group(); cap.position.set(0, 0.2, -0.01); cap.rotation.x = -0.15; head.add(cap);
-  part(cap, new THREE.SphereGeometry(0.182, 20, 10, 0, Math.PI * 2, 0, Math.PI / 2), M.white, 0, 0, 0, 1, 0.85, 1.02);
-  part(cap, new THREE.CylinderGeometry(0.15, 0.15, 0.014, 20, 1, false, Math.PI * 0.5, Math.PI), M.white, 0, 0.0, -0.15, 1, 1, 1.05);
-  part(cap, S(0.018, 8, 6), M.white, 0, 0.155, 0);
-  // arms (long, chimp-like)
+  const smile = part(head, new THREE.TorusGeometry(0.055, 0.008, 6, 20, Math.PI * 0.8), lip, 0, 0.065, 0.214); smile.rotation.set(-0.35, 0, Math.PI + Math.PI * 0.1);
+  for (const sd of [-1, 1]) part(head, S(0.01, 6, 4), lip, 0.05 * sd, 0.058, 0.205);
+  // pink baseball cap, brim forward
+  const cap = new THREE.Group(); cap.position.set(0, 0.215, -0.005); cap.rotation.x = -0.08; head.add(cap);
+  part(cap, new THREE.SphereGeometry(0.188, 24, 10, 0, Math.PI * 2, 0, Math.PI / 2), pink, 0, 0, 0, 1, 0.82, 1.03);
+  part(cap, new THREE.CylinderGeometry(0.19, 0.19, 0.03, 24, 1, true), pinkD, 0, 0.005, 0, 1, 1, 1.03);
+  part(cap, new THREE.CylinderGeometry(0.15, 0.15, 0.014, 22, 1, false, -Math.PI * 0.5, Math.PI), pinkD, 0, -0.005, 0.17, 1, 1, 1.0).rotation.x = 0.1;
+  part(cap, S(0.018, 8, 6), pinkD, 0, 0.152, 0);
+  // arms: navy bomber sleeves with ribbed cuffs, tan hands
   const arms = [];
   for (const sd of [-1, 1]) {
     const sh = new THREE.Group(); sh.position.set(0.29 * sd, 0.47, 0); torso.add(sh);
-    part(sh, CYL(0.1, 0.11, 0.2), M.shirt, 0.02 * sd, -0.06, 0).rotation.z = 0.25 * sd;
-    part(sh, CYL(0.06, 0.055, 0.32), M.fur, 0.02 * sd, -0.18, 0);
+    part(sh, S(0.105, 16, 12), navy, 0.01 * sd, -0.02, 0);
+    part(sh, CYL(0.09, 0.08, 0.34, 14), navy, 0.02 * sd, -0.17, 0);
     const el = new THREE.Group(); el.position.set(0.02 * sd, -0.34, 0); sh.add(el);
-    part(el, CYL(0.055, 0.045, 0.3), M.fur, 0, -0.15, 0);
-    const hand = part(el, S(0.06, 12, 10), M.skin, 0, -0.33, 0.01, 0.8, 1.1, 1);
+    part(el, S(0.08, 12, 10), navy, 0, 0, 0);
+    part(el, CYL(0.078, 0.068, 0.24, 14), navy, 0, -0.12, 0);
+    part(el, CYL(0.066, 0.06, 0.05, 14), rib, 0, -0.26, 0);
+    const hand = part(el, S(0.058, 14, 10), tan, 0, -0.32, 0.01, 0.8, 1.05, 1);
+    part(hand, S(0.022, 8, 6), tan, -0.035 * sd, 0.01, 0.035, 1, 1.6, 1);   // thumb
+    for (let f = 0; f < 3; f++) part(hand, CYL(0.013, 0.012, 0.06, 6), tan, (f - 1) * 0.024, -0.06, 0.012);
     arms.push({ sh, el, hand, sd });
   }
   root.userData = { hips, torso, neck, head, legs, arms };
@@ -690,7 +714,7 @@ function frame(now) {
   const t0 = performance.now();
   if (!play.update(Math.min(gap / 1000, 0.05), nearCab)) step(Math.min(gap / 1000, 0.05)); else stepClock(Math.min(gap / 1000, 0.05));
   shield.update(Math.min(gap / 1000, 0.05));
-  if (window.__camOverride) { const o = window.__camOverride; camera.position.set(...o.pos); camera.lookAt(...o.at); monkey.visible = false; } // screenshots / tests
+  if (window.__camOverride) { const o = window.__camOverride; camera.position.set(...o.pos); camera.lookAt(...o.at); if (!o.showMonkey) monkey.visible = false; } // screenshots / tests
   camera.updateMatrixWorld();
   { // run each cabinet screen only when that cabinet is near and in view
     _frus.setFromProjectionMatrix(_pm.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse));
