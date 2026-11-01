@@ -294,6 +294,39 @@ for (let w = 0; w < 4; w++) {
   });
 }
 
+
+// ---------- room 1: pink neon tube tight along the base of all 4 walls, outlining every cabinet against the wall (up the back edge, over the top, down) and framing the doorway ----------
+{
+  const D = 0.04, T = 0.035, Y0 = 0.03, YP = 0.09 + 0.03, RISE = 0.06, segs = [];
+  const PU = (ROWS[0][4] - ROWS[0][0]) / 2 + 1.5;   // plinth half-length along each wall
+  for (let w = 0; w < 4; w++) {
+    const a = w * Math.PI / 2, s = Math.sin(a), c = Math.cos(a);
+    const P = (u, y) => new THREE.Vector3(-s * (HALF - D) + c * u, y, -c * (HALF - D) - s * u);
+    const toU = v => c * v.x - s * v.z;
+    // cabinet silhouettes on this wall (u range + top)
+    const outl = [];
+    for (const cab of [...cabinets, ...featured]) { if (cab.userData.wall !== wallNames[w]) continue; cab.updateMatrixWorld(true);
+      const b = new THREE.Box3().setFromObject(cab), us = [toU(b.min), toU(b.max), toU(new THREE.Vector3(b.min.x, 0, b.max.z)), toU(new THREE.Vector3(b.max.x, 0, b.min.z))];
+      outl.push([Math.min(...us) - RISE, Math.max(...us) + RISE, b.max.y + RISE]); }
+    outl.sort((p, q) => p[0] - q[0]);
+    // floor run broken into pieces: corners, plinth ends (step up onto the plinth), cabinets (go round), doorway (frame)
+    const E = HALF - D, door = w === 0 ? [-DOOR_W / 2 - 0.05, DOOR_W / 2 + 0.05] : null;
+    const yAt = u => Math.abs(u) < PU ? YP : Y0;
+    let pts = [], cur = -E; const flush = () => { for (let i = 0; i + 1 < pts.length; i++) segs.push(barGeo(pts[i], pts[i + 1], T)); pts = []; };
+    const go = u => { // along the floor from cur to u, stepping at the plinth ends
+      for (const e of [-PU, PU]) if (e > cur && e < u) { pts.push(P(e, yAt(e - 1e-3)), P(e, yAt(e + 1e-3))); }
+      pts.push(P(u, yAt(u - 1e-4))); cur = u; };
+    pts.push(P(cur, yAt(cur)));
+    const stops = outl.map(o => ['cab', ...o]); if (door) stops.push(['door', door[0], door[1], DOOR_H + 0.05]); stops.sort((p, q) => p[1] - q[1]);
+    for (const [kind, u0, u1, top] of stops) {
+      go(u0);
+      if (kind === 'cab') { pts.push(P(u0, top), P(u1, top), P(u1, yAt(u1))); cur = u1; }
+      else { pts.push(P(u0, top), P(u1, top)); flush(); pts.push(P(u1, top), P(u1, yAt(u1 + 1e-3))); cur = u1; }
+    }
+    go(E); flush();
+  }
+  const wn = new THREE.Mesh(mergeGeometries(segs), neon(C.pink, 3.5)); wn.name = 'wallNeonRun'; room.add(wn);
+}
 const playables = [...cabinets, ...featured];
 const obbs = blockers.filter(b => b.kind === 'obb');
 
