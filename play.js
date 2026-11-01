@@ -192,6 +192,7 @@ export function setupPlay(A) {
   vixEl.addEventListener('pointerdown', swallow); vixEl.addEventListener('touchstart', swallow, { passive: true });
   vixEl.addEventListener('click', e => { swallow(e); openView('viking'); });
   showVix();
+  window.__neonSync = () => { try { T.total = Math.max(0, parseInt(localStorage.getItem(TKEY), 10) || 0); V.total = Math.max(0, parseInt(localStorage.getItem(VKEY), 10) || 0); } catch (e) {} showTix(); };
   P.award = award;
   P.spend = n => { if (T.total < n) return false; T.total -= n; saveT(); showTix(); if (TV.open) tvCount.textContent = '🎟 ' + T.total + (T.total === 1 ? ' TICKET' : ' TICKETS'); return true; };   // used by shield.js
   P.tickets = T; showTix();
