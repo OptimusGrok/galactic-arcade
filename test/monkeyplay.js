@@ -25,6 +25,12 @@ const PHONE = process.argv[2] === 'phone';
   chk(d2.au.muted && d2.au.mg <= 0.001, 'DEMO is silent ' + JSON.stringify(d2.au));
   chk(d2.hops > 0, 'DEMO autopilot hops (' + d2.hops + ')');
   await page.screenshot({ path: 'shots/monkey_demo' + sfx + '.png' });
+  { const t0 = await page.evaluate(() => localStorage.getItem('neonarcade.tickets'));
+    const bm = await page.evaluate(() => document.getElementById('game').contentWindow.__demo.bench(120));
+    const dirs = ['f', 'l', 'r', 'b'].filter(k => bm.moves[k] > 0).length, t1 = await page.evaluate(() => localStorage.getItem('neonarcade.tickets'));
+    chk(dirs >= 3 && bm.moves.l > 5 && bm.moves.r > 5, 'DEMO AI moves forward / left / right / back ' + JSON.stringify(bm.moves));
+    chk(bm.deaths <= 3 && bm.rowsGained >= 100, 'DEMO AI survives: 120 s sim, ' + bm.deaths + ' deaths, ' + bm.rowsGained + ' rows, best ' + bm.best);
+    chk(t0 === t1, 'DEMO never touches neonarcade.tickets'); }
   // blocked at 0 credits / 0 tickets
   const n0 = (await H.state()).need; await page.evaluate(() => window.__arcade.play.tryPlay()); await page.waitForTimeout(300); await H.insert();
   const b = await H.state(); chk(b.sub === 'demo' && b.need >= n0 + 2 && b.tickets === 0, 'with 0 tickets: no credit, the tap does not start a game ' + JSON.stringify(b));
