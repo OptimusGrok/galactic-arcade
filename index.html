@@ -15,6 +15,20 @@ html,body{margin:0;height:100%;background:#07040c;overflow:hidden;touch-action:n
 canvas{display:block;width:100vw;height:100vh;height:100dvh;outline:none}
 #ui{position:fixed;top:max(8px,env(safe-area-inset-top));right:max(8px,env(safe-area-inset-right));display:flex;gap:6px;z-index:26}
 #ui button{width:30px;height:30px;border-radius:7px;border:1px solid #ff2bd666;background:#0a0612aa;color:#ff8ce8;font:600 13px system-ui;padding:0;opacity:.55}
+#bUse,#bPick{position:fixed;left:50%;top:58%;transform:translate(-50%,-50%) scale(.85);z-index:6;font:900 clamp(24px,5.5vw,40px)/1 'Courier New',monospace;letter-spacing:.12em;color:#fff;padding:16px 38px 14px;border-radius:14px;border:3px solid #ffb000;background:linear-gradient(#2a1a04ee,#120a02ee);text-shadow:0 0 10px #ffb000;box-shadow:0 0 18px #ffb00088;opacity:0;pointer-events:none;transition:opacity .3s,transform .3s;cursor:pointer}
+#bUse.on,#bPick.on{opacity:1;pointer-events:auto;transform:translate(-50%,-50%) scale(1)}
+#bPick{top:66%;border-color:#3cff7a;text-shadow:0 0 10px #3cff7a;box-shadow:0 0 18px #3cff7a88}
+#cash{position:fixed;top:calc(max(8px,env(safe-area-inset-top)) + 40px);right:max(8px,env(safe-area-inset-right));z-index:23;display:none;flex-direction:column;align-items:flex-end;font:700 15px 'Courier New',monospace;color:#9dffb5;background:#0a0612cc;border:1px solid #3cff7a66;border-radius:8px;padding:4px 9px;text-shadow:0 0 6px #3cff7a}
+#cash.on{display:flex}#cash small{font-size:10px;color:#cfe;opacity:.8}
+#kview{position:fixed;left:50%;bottom:max(10px,env(safe-area-inset-bottom));transform:translateX(-50%);z-index:30;width:min(96vw,460px);display:none;flex-direction:column;gap:8px;padding:12px;border-radius:16px;border:3px solid #c9a24a;background:linear-gradient(#1c1d22f2,#0c0c10f2);box-shadow:0 0 22px #c9a24a66;font:700 14px 'Courier New',monospace;color:#fff}
+#kview.on{display:flex}#kview.shake{animation:kshk .4s}@keyframes kshk{0%,100%{transform:translateX(-50%)}25%{transform:translateX(calc(-50% - 8px))}75%{transform:translateX(calc(-50% + 8px))}}
+#kHd{display:flex;justify-content:space-between;align-items:center}#kHd b{color:#ffd98a;letter-spacing:.12em;font-size:16px}
+#kX{width:44px;height:44px;border-radius:50%;border:2px solid #ff3cf0aa;background:#120208;color:#ffd0fa;font:700 20px sans-serif}
+.kOff{min-height:54px;font:900 20px 'Courier New',monospace;border-radius:10px;border:2px solid #2f6cff;background:#0c1424;color:#fff;letter-spacing:.06em}
+.kOff.sel{border-color:#ffd98a;box-shadow:0 0 12px #ffb00088}.kOff.dis{opacity:.35;border-color:#444;color:#888}
+#kPad{display:grid;grid-template-columns:repeat(6,1fr);gap:6px}.kKey{min-height:44px;font:700 20px Arial;border-radius:8px;border:none;background:#c3c7cf;color:#1a1a1a}
+#kInfo{text-align:center;color:#9fd6ff;min-height:1.2em}
+body.ingame #cash{display:none}
 #ui button:active{opacity:1}
 body.ingame #ui{top:calc(max(10px,env(safe-area-inset-top)) + 58px)}
 #homeQ{position:fixed;inset:0;z-index:90;display:none;align-items:center;justify-content:center;background:#05010cb0}
@@ -128,6 +142,7 @@ body.ingame #ui{top:calc(max(10px,env(safe-area-inset-top)) + 58px)}
 <div id="tk" aria-hidden="true"><div id="optP"><div id="optHd"><div id="optT">TICKETS</div><button id="tkX" class="optXb" title="Done" style="width:42px;height:42px;border-radius:50%;border:2px solid #ff3cf0aa;background:#120208;color:#ffd0fa;font:700 20px sans-serif">✕</button></div>
 <div class="tkR">🎟 GOLD <b id="tkG">0</b></div><div class="tkBs"><button class="tkB" data-g="1">+1</button><button class="tkB" data-g="5">+5</button><button class="tkB" data-g="10">+10</button><button class="tkB" data-g="50">+50</button><button class="tkB z" data-g="-1">−1</button><button class="tkB z" data-g="0">RESET</button></div>
 <div class="tkR">ᚱ VIKING <b id="tkV">0</b></div><div class="tkBs"><button class="tkB" data-v="1">+1</button><button class="tkB z" data-v="-1">−1</button><button class="tkB z" data-v="0">RESET</button></div>
+<div class="tkR">💵 CASH <b id="tkC">$5</b></div><div class="tkBs"><button class="tkB" data-c="5">+$5</button><button class="tkB z" data-c="0">RESET $5</button></div>
 <button class="stB" id="tkDone" style="display:block;margin:12px auto 0">DONE</button></div></div></div>
 <script>
 // Start screen: shown before the room (which loads behind it). Only START (or Enter) enters; OPTIONS opens the
@@ -155,7 +170,7 @@ body.ingame #ui{top:calc(max(10px,env(safe-area-inset-top)) + 58px)}
   function finish() { drawing = false; var code = pat.map(function (n) { return n + 1; }).join(''); if (!pat.length) return draw();
     if (hsh(code) === GOOD) { openSec(false); openTk(true); } else { S.secBad = (S.secBad || 0) + 1; sP.classList.add('bad'); draw(); setTimeout(function () { pat = []; sP.classList.remove('bad'); draw(); }, 450); } }
   function rd(k) { try { return Math.max(0, parseInt(localStorage.getItem(k), 10) || 0); } catch (e) { return 0; } }
-  function showTk() { document.getElementById('tkG').textContent = rd('neonarcade.tickets'); document.getElementById('tkV').textContent = rd('neonarcade.vikingTickets'); }
+  function showTk() { document.getElementById('tkG').textContent = rd('neonarcade.tickets'); document.getElementById('tkV').textContent = rd('neonarcade.vikingTickets'); document.getElementById('tkC').textContent = '$' + (window.__kiosk ? window.__kiosk.C.bal : 5); }
   function openTk(on) { tk.classList.toggle('on', on); S.tk = on; if (on) showTk(); }
   function bump(k, d) { var v = d === 0 ? 0 : Math.max(0, rd(k) + d); try { localStorage.setItem(k, String(v)); } catch (e) {} showTk(); if (window.__neonSync) window.__neonSync(); }
   window.addEventListener('pointermove', function (e) { if (!drawing) return; cur = [e.clientX, e.clientY]; addAt(e.clientX, e.clientY); draw(); }, true);
@@ -167,7 +182,7 @@ body.ingame #ui{top:calc(max(10px,env(safe-area-inset-top)) + 58px)}
       else if (e.type === 'keydown' && e.code === 'Escape') openSec(false);
       return true; }
     if (tk.classList.contains('on')) {
-      if (e.type === 'pointerup') { var b = hit('.tkB'); if (b) { if (b.dataset.g != null) bump('neonarcade.tickets', +b.dataset.g); else bump('neonarcade.vikingTickets', +b.dataset.v); } else if (hit('#tkDone') || hit('#tkX') || !hit('#optP')) openTk(false); }
+      if (e.type === 'pointerup') { var b = hit('.tkB'); if (b) { if (b.dataset.c != null) { if (window.__kiosk) window.__kiosk.addCash(+b.dataset.c); showTk(); } else if (b.dataset.g != null) bump('neonarcade.tickets', +b.dataset.g); else bump('neonarcade.vikingTickets', +b.dataset.v); } else if (hit('#tkDone') || hit('#tkX') || !hit('#optP')) openTk(false); }
       else if (e.type === 'keydown' && e.code === 'Escape') openTk(false);
       return true; }
     if (e.type === 'pointerup' && hit('#secHot') && !opt.classList.contains('on')) { var n = performance.now(); taps = taps.filter(function (x) { return n - x < 1200; }); taps.push(n); S.hotTaps = taps.length; if (taps.length >= 3) { taps = []; openSec(true); } return true; }
@@ -213,6 +228,10 @@ body.ingame #ui{top:calc(max(10px,env(safe-area-inset-top)) + 58px)}
 <div id="homeQ" aria-hidden="true"><div id="homeP"><div id="homeT">BACK TO START SCREEN?</div><div id="homeN"></div><div id="homeB"><button class="stB" id="homeYes">YES</button><button class="stB" id="homeNo">NO</button></div></div></div>
 <div id="playUI"><button id="bPlay">PLAY</button><div id="credit">CREDIT 1</div><div id="hint">ENTER / E / SPACE</div></div>
 <div id="demoUI"><div id="dTag">DEMO</div><div id="dInsert">INSERT CREDIT</div><div id="dCredit">CREDIT 0</div><div id="dCost" style="display:none"></div><button id="bTicket">INSERT TICKET · 1 🎟</button></div><button id="bExit" title="Exit (Esc)">✕</button><div id="tix" role="button" tabindex="0" title="Show ticket"><canvas id="tixIco"></canvas><span id="tixN">0</span></div><div id="vix" role="button" tabindex="0" title="Show Viking ticket" style="display:none"><canvas id="vixIco"></canvas><span id="vixN">0</span></div><div id="tview" aria-hidden="true"><button id="tvX" title="Close (Esc)">✕</button><div id="tvWrap"><canvas id="tvCv"></canvas><div id="tvShine"></div></div><div id="tvCount">🎟 0 TICKETS</div><div id="tvHint">TAP OR ESC TO CLOSE</div></div><div id="over">GAME OVER</div>
+<button id="bUse">USE</button><button id="bPick">PICK UP 🎟</button><div id="cash"></div>
+<div id="kview"><div id="kHd"><b>TICKET EXCHANGE</b><button id="kX" title="Exit (Esc)">✕</button></div>
+<button class="kOff">$1 = 10 TICKETS</button><button class="kOff">$5 = 60 TICKETS</button><button class="kOff">$10 = 150 TICKETS</button>
+<div id="kPad"><button class="kKey" data-k="1">1</button><button class="kKey" data-k="2">2</button><button class="kKey" data-k="3">3</button><button class="kKey" data-k="4">4</button><button class="kKey" data-k="5">5</button><button class="kKey" data-k="6">6</button><button class="kKey" data-k="7">7</button><button class="kKey" data-k="8">8</button><button class="kKey" data-k="9">9</button><button class="kKey" data-k="*">*</button><button class="kKey" data-k="0">0</button><button class="kKey" data-k="#">#</button></div><div id="kInfo"></div></div>
 <div id="joy"><div id="knob"></div></div>
 <script src="ticket-art.js"></script>
 <script src="music.js"></script>

@@ -11,6 +11,7 @@ import { buildBerserkerCabinet } from './berserkcab.js';
 import { buildMonkeyCabinet } from './monkeycab.js';
 import { setupPlay } from './play.js';
 import { setupShield } from './shield.js';
+import { setupKiosk } from './kiosk.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 
 const MOBILE = matchMedia('(pointer:coarse)').matches || /Android|iPhone|iPad/i.test(navigator.userAgent);
@@ -571,7 +572,7 @@ function clampAreas(p, areas, pad = 0) {
   for (const a of areas) { const x = THREE.MathUtils.clamp(p.x, a.x0 - pad, a.x1 + pad), z = THREE.MathUtils.clamp(p.z, a.z0 - pad, a.z1 + pad), d = (x - p.x) ** 2 + (z - p.z) ** 2; if (d < bd) { bd = d; best = [x, z]; } if (!d) break; }
   p.x = best[0]; p.z = best[1]; return p;
 }
-let shield = null;   // red energy shield in the doorway (shield.js)
+let shield = null, kiosk = null;   // red energy shield in the doorway (shield.js)
 function collide(p) {
   clampAreas(p, AREAS);
   if (shield) shield.block(p, R);
@@ -712,7 +713,7 @@ function frame(now) {
   const gap = Math.max(0, Math.min(100, now - last)); last = now;   // rAF time can be a hair before a resume timestamp
   if (paused) { rafOn = false; return; }   // full-screen game running: arcade render loop stopped
   const t0 = performance.now();
-  if (!play.update(Math.min(gap / 1000, 0.05), nearCab)) step(Math.min(gap / 1000, 0.05)); else stepClock(Math.min(gap / 1000, 0.05));
+  { const dtc = Math.min(gap / 1000, 0.05); if (play.update(dtc, kiosk && kiosk.mode !== 'walk' && kiosk.mode !== 'pick' ? null : nearCab) || (kiosk && kiosk.update(dtc))) stepClock(dtc); else step(dtc); }
   shield.update(Math.min(gap / 1000, 0.05));
   if (window.__camOverride) { const o = window.__camOverride; camera.position.set(...o.pos); camera.lookAt(...o.at); if (!o.showMonkey) monkey.visible = false; } // screenshots / tests
   camera.updateMatrixWorld();
@@ -739,7 +740,8 @@ function frame(now) {
 function stepClock(dt) { st.t += dt; }
 const play = setupPlay({ camera, monkey, strikeCab, ghostCab, berserkerCab, monkeyCab, st, pause(on) { paused = on; if (!on && !rafOn) { rafOn = true; last = performance.now(); requestAnimationFrame(frame); } } });
 shield = setupShield({ scene, play, st, monkey, HALF, DOOR_W, DOOR_H });
+kiosk = setupKiosk({ room, camera, monkey, st, play, blockers });
 requestAnimationFrame(frame);
 
 // hooks for tests / future art work
-window.__arcade = { setFloor, get floor() { return floorMode; }, carpet, mirror, shield, room, room2, Z2, hall, DOOR_W, DOOR_H, HALL_L, berserkerCab, monkeyCab, play, get paused() { return paused; }, THREE, scene, camera, renderer, monkey, cabinets, strikeCab, ghostCab, featured, demo, ghostDemo, playables, blockers, st, stats, step, keys, get nearCab() { return nearCab; }, setArt: (i, part, tex, glow) => cabinets[i].userData.setArt(part, tex, glow) };
+window.__arcade = { get kiosk() { return kiosk; }, setFloor, get floor() { return floorMode; }, carpet, mirror, shield, room, room2, Z2, hall, DOOR_W, DOOR_H, HALL_L, berserkerCab, monkeyCab, play, get paused() { return paused; }, THREE, scene, camera, renderer, monkey, cabinets, strikeCab, ghostCab, featured, demo, ghostDemo, playables, blockers, st, stats, step, keys, get nearCab() { return nearCab; }, setArt: (i, part, tex, glow) => cabinets[i].userData.setArt(part, tex, glow) };

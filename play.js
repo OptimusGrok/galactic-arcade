@@ -196,6 +196,7 @@ export function setupPlay(A) {
   window.__neonSync = () => { try { T.total = Math.max(0, parseInt(localStorage.getItem(TKEY), 10) || 0); V.total = Math.max(0, parseInt(localStorage.getItem(VKEY), 10) || 0); } catch (e) {} showTix(); };
   P.award = award;
   P.spend = n => { if (T.total < n) return false; T.total -= n; saveT(); showTix(); if (TV.open) tvCount.textContent = '🎟 ' + T.total + (T.total === 1 ? ' TICKET' : ' TICKETS'); return true; };   // used by shield.js
+  P.addTickets = n => { T.total += n; saveT(); showTix(); refresh(); ticketSound(); };
   P.tickets = T; showTix();
   bPlay.addEventListener('click', e => { e.stopPropagation(); press(); });
   ['pointerdown', 'touchstart'].forEach(t => ui.addEventListener(t, e => e.stopPropagation(), { passive: true }));
