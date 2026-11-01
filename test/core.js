@@ -5,7 +5,7 @@ const { open } = require('./lib');
     for (const c of A.playables) { by[c.userData.wall] = (by[c.userData.wall] || 0) + 1; const s = c.getObjectByName('screen'); if (s && !s.material.map) screens++; if (c.getObjectByName('marquee') && c.getObjectByName('sidePanelL') && c.getObjectByName('sidePanelR')) art++; }
     return { n: A.playables.length, by, screens, art }; });
   chk(cab.n === 19, 'cabinets=' + cab.n + ' (middle north slot is the doorway)'); chk(cab.by.north === 4 && cab.by.west === 5 && cab.by.south === 5 && cab.by.east === 5, 'per wall ' + JSON.stringify(cab.by));
-  chk(cab.screens === 17, 'screen meshes without a texture map (17; BERSERKER + MONKEY CROSSING draw attract screens) ' + cab.screens); chk(cab.art === 19, 'marquee+side panels ' + cab.art);
+  chk(cab.screens === 16, 'screen meshes without a texture map (16; BERSERKER + MONKEY CROSSING + ORC ATTACK draw attract screens) ' + cab.screens); chk(cab.art === 19, 'marquee+side panels ' + cab.art);
   // deterministic movement: stop RAF effects by stepping manually
   const mv = await page.evaluate(() => { const A = window.__arcade; window.__noAdapt = 1; A.monkey.position.set(-6, 0, 0); A.st.yaw = 0; A.st.vel.set(0, 0, 0);
     A.keys.KeyW = true; for (let i = 0; i < 60; i++) A.step(1 / 60); A.keys.KeyW = false; const z1 = A.monkey.position.z;

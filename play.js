@@ -52,6 +52,12 @@ export function setupPlay(A) {
       scene(w) { const s = w.__B.G().state; return s === 'dead' || s === 'win' ? 'over' : s === 'title' ? 'title' : 'play'; },
       active(w) { return w.__B.G().state === 'play'; },
       hold(w) { if (w.__B.G().state !== 'play') return false; w.togglePause(); return true; }, unhold(w) { if (w.__B.G().state === 'pause') w.togglePause(); }, overHold: 5000, scoresHold: 0 },
+    orc: { key: 'orc', cab: A.orcCab, src: 'orc-play/index.html', credits: 0, games: 0, aspect: (A.orcCab && A.orcCab.userData.aspect) || 4 / 3, cost: 3,   // 3 tickets = 1 credit = the whole run
+      demo(w) { w.__demo.start(); }, stopDemo(w) { w.__demo.stop(); },
+      start(w) { w.__orc.start(); },
+      scene(w) { const s = w.__TD.G.state; return s === 'lost' || s === 'won' ? 'over' : s === 'title' ? 'title' : 'play'; },
+      active(w) { return w.__TD.G.state === 'play'; },
+      hold(w) { const G = w.__TD.G; if (G.state !== 'play' || G.paused) return false; G.paused = true; return true; }, unhold(w) { w.__TD.G.paused = false; }, overHold: 5000, scoresHold: 0 },
   };
   const P = { need: 0, sub: null, demoReturns: 0, plays: 0, mode: 'walk', t: 0, frame: null, zooms: 0, coinSfx: 0, blocked: 0, cur: null, machines: MACHINES };
   const TKEY = 'neonarcade.tickets', tixEl = document.getElementById('tix'), dCost = document.getElementById('dCost');
