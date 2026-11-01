@@ -8,18 +8,23 @@ const PH = process.argv[2] === 'phone', SUF = PH ? '_phone' : '';
   let ok = true; const chk = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); if (!c) ok = false; };
   const goTo = name => page.evaluate(n => { const A = window.__arcade, c = A.playables.find(k => k.name === n), u = c.userData; window.__noAdapt = 1; A.st.fp = false;
     A.st.vel.set(0, 0, 0); A.monkey.position.set(u.front.x, 0, u.front.z); A.st.face = Math.atan2(u.facing.x, u.facing.z); A.st.lookT = -99; }, name);
-  const T = () => page.evaluate(() => ({ total: window.__arcade.play.tickets.total, badge: document.getElementById('tix').textContent, ls: localStorage.getItem('neonarcade.tickets'), pops: [...document.querySelectorAll('.tpop')].map(p => p.textContent) }));
+  const T = () => page.evaluate(() => ({ total: window.__arcade.play.tickets.total, badge: document.getElementById('tixN').textContent, ls: localStorage.getItem('neonarcade.tickets'), pops: [...document.querySelectorAll('.tpop')].map(p => p.textContent) }));
   const W = f => page.evaluate(`(() => { const w = document.getElementById('game').contentWindow; return w.eval('(' + ${JSON.stringify(String(f))} + ')(window)'); })()`);
   const W0 = f => page.evaluate(`(() => { const w = document.getElementById('game').contentWindow; return (${f})(w); })()`);
-  const t0 = await T(); chk(t0.total === 0 && t0.badge === '🎟 0', 'ticket badge in the arcade starts at 0');
+  const t0 = await T(); chk(t0.total === 1 && t0.badge.trim() === '1', 'a new player starts with 1 ticket (badge 1)');
   chk(await page.evaluate(() => typeof window.__arcade.play.ticketTick === 'undefined'), 'time-based payout code removed (no ticketTick / timer)');
   const press = async () => { if (PH) await page.tap('#bPlay'); else await page.keyboard.press('Enter'); await page.waitForTimeout(900); };
   for (const cab of ['strikeCabinet', 'ghostCabinet']) {
     await goTo(cab); await page.waitForTimeout(900);
+    for (let k = 0; k < 4; k++) { await press(); if (await page.evaluate(() => window.__arcade.play.mode !== 'walk')) break; await goTo(cab); await page.waitForTimeout(600); }
+    await page.waitForFunction(() => window.__arcade.play.mode === 'game' && document.getElementById('game').classList.contains('on'), null, { timeout: 30000 });
+    for (let k = 0; k < 3 && !(await page.evaluate(w => document.getElementById('game').src.includes(w), cab === 'strikeCabinet' ? 'strike-play' : 'ghost-play')); k++) { await page.evaluate(() => window.__arcade.play.exit('x')); await page.waitForFunction(() => window.__arcade.play.mode === 'walk', null, { timeout: 30000 }); await goTo(cab); await page.waitForTimeout(900); await press(); await page.waitForFunction(() => window.__arcade.play.mode === 'game' && document.getElementById('game').classList.contains('on'), null, { timeout: 30000 }); }
+    chk(await page.evaluate(w => document.getElementById('game').src.includes(w), cab === 'strikeCabinet' ? 'strike-play' : 'ghost-play'), cab + ': launched the right game'); await page.waitForTimeout(300);
+    await page.evaluate(() => { const p = window.__arcade.play; if (p.tickets.total < 1) p.tickets.total = 1; p.insertTicket(); }); await page.waitForTimeout(450);   // demo: INSERT TICKET, then tap the screen
+    await page.evaluate(() => window.__arcade.play.tryPlay());
+    chk(await page.evaluate(() => window.__arcade.play.sub === 'play'), cab + ': ticket -> credit -> real game');
     const base = (await T()).total;
-    const cr = await page.evaluate(c => window.__arcade.play.machines[c.replace('Cabinet', '')].credits, cab); if (!cr) await press();
-    await press();
-    await page.waitForFunction(() => window.__arcade.play.mode === 'game' && document.getElementById('game').classList.contains('on'), null, { timeout: 30000 }); await page.waitForTimeout(300);
+    if (cab === 'ghostCabinet') await page.waitForFunction(() => { const f = document.getElementById('game'); return f && f.contentWindow && f.contentWindow.__ghost && f.contentWindow.__ghost.G; }, null, { timeout: 45000 }).catch(async e => { console.log('ghostwait', JSON.stringify(await page.evaluate(() => { const f = document.getElementById('game'); const p = window.__arcade.play; let g; try { g = f && Object.keys(f.contentWindow.__ghost || {}).length + ' ' + f.contentWindow.location.href + ' ' + f.contentWindow.document.readyState; } catch (x) { g = 'err ' + x; } return { m: p.mode, sub: p.sub, ex: p.lastExit, g, ifr: [...document.querySelectorAll('iframe')].map(i => i.id + ':' + i.src) }; }))); throw e; });
     if (cab === 'ghostCabinet') await W(w => { const G = w.__ghost.G; w.__keepInv = setInterval(() => { G.lives = 5; if (G.state === 'play') G.inv = 9; }, 100); return 1; });   // stay alive for the test
     await page.waitForTimeout(1200);
     // 4 s of real play earns nothing by itself
@@ -63,12 +68,14 @@ const PH = process.argv[2] === 'phone', SUF = PH ? '_phone' : '';
     const vis = await page.evaluate(() => { const t = document.getElementById('tix').getBoundingClientRect(), x = document.getElementById('bExit').getBoundingClientRect(); const cs = getComputedStyle(document.getElementById('tix'));
       return { on: cs.display !== 'none' && +cs.zIndex > 20, overlapX: !(t.bottom < x.top || t.top > x.bottom || t.right < x.left || t.left > x.right) }; });
     chk(vis.on && !vis.overlapX, cab + ': ticket badge visible during play, clear of ✕');
+    await page.waitForFunction(() => window.__arcade.play.sub === 'demo' || window.__arcade.play.mode !== 'game', null, { timeout: 40000 });   // game over -> back to the demo (STRIKE already left via ✕)
+    if (await page.evaluate(() => window.__arcade.play.sub === 'demo')) { chk(await page.evaluate(() => window.__neonTicket(1) === false), cab + ': no ticket can be awarded in the demo'); await page.evaluate(() => window.__arcade.play.exit('x')); }
     await page.waitForFunction(() => window.__arcade.play.mode === 'walk', null, { timeout: 40000 }).catch(async e => { console.log('stuck', JSON.stringify(await page.evaluate(() => { const p = window.__arcade.play; return { m: p.mode, ex: p.lastExit, t: p.t, paused: window.__arcade.paused }; }))); throw e; });
     chk(await page.evaluate(() => window.__neonTicket(1, 'strike')) === false, cab + ': no ticket can be awarded outside a game');
   }
   const before = await T(); await page.screenshot({ path: 'shots/tickets_badge' + SUF + '.png' });
   await page.reload(); await page.waitForFunction(() => window.__arcade && window.__arcade.stats.frames > 3, null, { timeout: 60000 });
-  const after = await T(); chk(before.total === after.total && after.total >= 2 && after.badge === '🎟 ' + after.total, 'total persists after reload (' + before.total + ' -> ' + after.total + ')');
+  const after = await T(); chk(before.total === after.total && after.total >= 1 && after.badge.trim() === String(after.total), 'total persists after reload (' + before.total + ' -> ' + after.total + ')');
   const sa = fs.readFileSync('/workspace/strike/strike.html', 'utf8'), ga = fs.readFileSync('/workspace/ghost256/index.html', 'utf8');
   chk(!/TicketArt|__TK|neonTicket/.test(sa + ga), 'standalone Strike / Ghost 256 sources have no ticket code');
   const ext = requests.filter(u => !u.startsWith('http://localhost') && !u.startsWith('https://kfupqtafhaflzaoqtenf.supabase.co/'));

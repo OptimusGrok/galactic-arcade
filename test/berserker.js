@@ -24,7 +24,7 @@ const { open } = require('./lib');
   const pr = await page.evaluate(() => { const A = window.__arcade, b = A.play.blocked; dispatchEvent(new KeyboardEvent('keydown', { code: 'Enter', key: 'Enter', bubbles: true }));
     return { near: A.nearCab && A.nearCab.name, on: document.getElementById('playUI').classList.contains('on'), mode: A.play.mode, blocked: A.play.blocked > b, tix: window.__neonTicket(1, 'berserker'), total: A.play.tickets.total }; });
   chk(pr.near === 'berserkerCabinet' && !pr.on && pr.mode === 'walk' && pr.blocked, 'monkey at BERSERKER: no PLAY / INSERT COIN prompt, Enter does nothing ' + JSON.stringify(pr));
-  chk(pr.tix === false && pr.total === 0, 'BERSERKER never pays tickets');
+  chk(pr.tix === false && pr.total === 1, 'BERSERKER never pays tickets (still the starting 1)');
   chk(requests.filter(u => !u.startsWith('http://localhost')).length === 0, 'zero off-site requests');
   chk(errors.length === 0, 'no page errors ' + errors.join(' | '));
   await close(); process.exit(ok ? 0 : 1);

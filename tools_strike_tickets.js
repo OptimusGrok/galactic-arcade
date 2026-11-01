@@ -14,7 +14,7 @@
   const _upd = updPlay;
   updPlay = function () {
     _upd();
-    if (G.scene !== 'play') return;
+    if (G.scene !== 'play' || window.__DEMO) { if (window.__DEMO) TK.t = null; return; }
     if (!TK.t && --TK.next <= 0) { TK.spawn(); TK.next = Math.round(rint(25, 35) * 60); }
     const t = TK.t; if (!t) return;
     t.age++; t.y += t.vy * (t.y < H * 0.35 ? 1 : 0.6); t.x = Math.max(12, Math.min(W - 12, t.x0 + Math.sin(t.age * t.fr + t.ph) * t.amp));
