@@ -31,7 +31,7 @@ export function setupPlay(A) {
   const MACHINES = {
     strike: { key: 'strike', cab: A.strikeCab, src: 'strike-play/index.html', credits: 0, games: 0, aspect: 9 / 16,
       start(w) { const S = w.STRIKE; S.start(0); S.G.credits = 0; },
-      demo(w) { w.__demo.start(); }, stopDemo(w) { w.__demo.stop(); },             // no continues: one credit = one game
+      demo(w) { w.__demo.start(); }, stopDemo(w) { w.__demo.stop(); if (w.__board) w.__board.stop(); }, board(w) { if (w.__board) w.__board.start(); },   // credit loaded: live WORLD TOP 10;: one credit = one game
       scene(w) { const sc = w.STRIKE.G.scene; return sc === 'play' || sc === 'pause' ? 'play' : sc === 'gameover' ? 'over' : sc === 'entry' ? 'entry' : sc === 'scores' ? 'scores' : sc === 'title' ? 'title' : sc; },
       active(w) { return w.STRIKE.G.scene === 'play'; },
       hold(w) { if (w.STRIKE.G.scene !== 'play') return false; w.pauseGame(); return true; }, unhold(w) { if (w.STRIKE.G.scene === 'pause') w.resumeGame(); }, overHold: 0, scoresHold: 6000 },
@@ -77,6 +77,7 @@ export function setupPlay(A) {
     dInsert.textContent = m.credits > 0 ? (coarse ? 'TAP TO PLAY' : 'TAP / ENTER TO PLAY') : 'INSERT CREDIT'; dInsert.classList.toggle('ready', m.credits > 0);
     dCredit.textContent = 'CREDIT ' + m.credits + '  ·  ' + T.total + ' 🎟';
     bTicket.textContent = has ? (c > 1 ? 'INSERT ' + c + ' TICKETS · ' + c + ' 🎟' : 'INSERT TICKET · 1 🎟') : (c > 1 ? 'NEED ' + c + ' TICKETS' : 'NEED A TICKET'); bTicket.classList.toggle('need', !has);
+    const dTag = document.getElementById('dTag'); if (dTag) dTag.style.visibility = m.credits > 0 && m.board ? 'hidden' : '';   // the live board is not a demo
     dCost.textContent = c > 1 ? c + ' TICKETS TO PLAY' : ''; dCost.style.display = c > 1 ? '' : 'none'; }
   function buzz() { try { ac = ac || new (window.AudioContext || window.webkitAudioContext)(); const t = ac.currentTime, o = ac.createOscillator(), g = ac.createGain(); o.type = 'square'; o.frequency.setValueAtTime(180, t); o.frequency.linearRampToValueAtTime(110, t + 0.18); g.gain.setValueAtTime(0.06, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.22); o.connect(g).connect(ac.destination); o.start(t); o.stop(t + 0.25); } catch (e) {} }
   const shake = el => { el.classList.remove('shake'); void el.offsetWidth; el.classList.add('shake'); };
@@ -85,7 +86,7 @@ export function setupPlay(A) {
     if (P.mode !== 'game' || P.sub !== 'demo' || !m || TV.open || now < coinLock) { P.blocked++; return; }
     const c = costOf(m);
     if (T.total < c) { P.need++; demoRefresh(); shake(bTicket); buzz(); toast('NEED ' + c + ' TICKETS · YOU HAVE ' + T.total); return; }
-    T.total -= c; saveT(); m.credits += 1; coinLock = now + 350; coinSound(); showTix(); demoRefresh(); bTicket.animate([{ transform: 'scale(1.12)' }, { transform: 'scale(1)' }], 220); }
+    T.total -= c; saveT(); m.credits += 1; if (m.credits === 1 && m.board && P.frame) try { m.board(P.frame.contentWindow); } catch (e) {} coinLock = now + 350; coinSound(); showTix(); demoRefresh(); bTicket.animate([{ transform: 'scale(1.12)' }, { transform: 'scale(1)' }], 220); }
   function tryPlay() {   // a tap / click / Enter / Space on the demo screen
     const m = P.cur;
     if (P.mode !== 'game' || P.sub !== 'demo' || !m || TV.open || !P.frame) { P.blocked++; return; }
@@ -93,10 +94,11 @@ export function setupPlay(A) {
     const w = P.frame.contentWindow; m.credits -= 1; m.games++; P.plays++;
     try { m.stopDemo(w); m.start(w); } catch (e) { console.warn('game start', e); }
     P.sub = 'play'; P.over = false; P.goShown = false; clearTimeout(P.holdT); P.holdT = 0; demoUI.classList.remove('on'); try { P.frame.focus(); w.focus(); } catch (e) {} showTix(); }
+  function idle(m, w) { if (m.credits > 0 && m.board) m.board(w); else m.demo(w); }   // credit waiting -> machine's board (STRIKE: live high scores), else attract demo
   function toDemo(why) {   // after game over (and the score screens) -> back to the demo, not the room
     const m = P.cur, f = P.frame; if (!m || !f) return; clearTimeout(P.holdT); P.holdT = 0; over.style.display = 'none';
     P.sub = 'demo'; P.over = false; P.goShown = false; P.demoReturns++; P.lastDemo = why;
-    try { m.demo(f.contentWindow); } catch (e) { console.warn('demo', e); } demoRefresh(); demoUI.classList.add('on'); }
+    try { idle(m, f.contentWindow); } catch (e) { console.warn('demo', e); } demoRefresh(); demoUI.classList.add('on'); }
   function screenInfo(m) { const s = m.cab.userData.screen; s.geometry.computeBoundingBox(); const c = s.geometry.boundingBox.getCenter(new THREE.Vector3()); s.localToWorld(c);
     const sz = s.geometry.boundingBox.getSize(new THREE.Vector3()), h = Math.hypot(sz.x, sz.y) * m.cab.scale.y; return { c, h }; }
   function endPos(m) { // camera spot where the portrait screen fills the view
@@ -124,7 +126,7 @@ export function setupPlay(A) {
   }
   function launch() {
     const f = P.frame, m = P.cur; P.mode = 'game'; P.over = false; P.goShown = false; clearTimeout(P.holdT); P.holdT = 0; P.scene = null;
-    const go = () => { P.sub = 'demo'; try { m.demo(f.contentWindow); } catch (e) { console.warn('demo start', e); } demoRefresh(); demoUI.classList.add('on'); f.classList.add('on'); bExit.style.display = 'block'; f.focus(); try { f.contentWindow.focus(); } catch (e) {}
+    const go = () => { P.sub = 'demo'; try { idle(m, f.contentWindow); } catch (e) { console.warn('demo start', e); } demoRefresh(); demoUI.classList.add('on'); f.classList.add('on'); bExit.style.display = 'block'; f.focus(); try { f.contentWindow.focus(); } catch (e) {}
       A.pause(true); P.poll = setInterval(poll, 200); showTix(); };
     if (P.loaded) go(); else f.addEventListener('load', go, { once: true });
   }

@@ -14,3 +14,15 @@
     Input.keys.fire = true;
   }, 100);
 })();
+// STRIKE (arcade copy) CREDIT LOADED: while the cabinet has a credit waiting, show the live WORLD TOP 10 (same Supabase board as
+// the standalone game; GET only) instead of the attract demo, refreshed every 20 s, until the player taps to play.
+(function () {
+  const D = window.__demo, B = window.__board = { on: false, shows: 0, fetches: 0 };
+  B.start = function () { D.stop(); B.on = true; B.shows++; try { clearWorld(); } catch (e) {} G.scene = 'scores'; G.sceneT = 0; UI.netMsg = ''; B.fetches++; netFetchTop(); };
+  B.stop = function () { B.on = false; };
+  const _st = D.start; D.start = function () { B.on = false; return _st.apply(this, arguments); };
+  const _sp = D.stop; D.stop = function () { const was = B.on; _sp.apply(this, arguments); B.on = was; };
+  const _tx = text; text = function (s) { if (B.on && G.scene === 'scores' && s === 'TAP / FIRE TO RETURN') arguments[0] = 'CREDIT LOADED - TAP TO PLAY'; return _tx.apply(this, arguments); };
+  setInterval(function () { if (!B.on) return; if (G.scene !== 'scores') { G.scene = 'scores'; } G.sceneT = 0; Input.taps.length = 0; }, 100);   // hold the board: no auto return to title
+  setInterval(function () { if (B.on) { B.fetches++; netFetchTop(); } }, 20000);
+})();
