@@ -141,7 +141,7 @@ export function setupPlay(A) {
   // ---- tickets: collected inside the games (gold monkey tickets), 1 each; no time-based payout ----
   const tixN = document.getElementById('tixN'), tview = document.getElementById('tview'), tvCv = document.getElementById('tvCv'), tvCount = document.getElementById('tvCount');
   try { TicketArt.toCanvas(document.getElementById('tixIco'), 30, false); const c = TicketArt.toCanvas(document.createElement('canvas'), 80, false); document.documentElement.style.setProperty('--tkimg', 'url(' + c.toDataURL() + ')'); } catch (e) {}
-  const showTix = () => { try { showVix(); } catch (e) {} tixN.textContent = String(T.total); if (P.mode === 'walk') refresh(); else demoRefresh(); tixEl.classList.toggle('ingame', P.mode === 'game'); };
+  const showTix = () => { tixN.textContent = String(T.total); if (P.mode === 'walk') refresh(); else demoRefresh(); tixEl.classList.toggle('ingame', P.mode === 'game'); document.body.classList.toggle('ingame', P.mode === 'game'); try { showVix(); } catch (e) {} };
   // ---- enlarged ticket view: tap/click the HUD counter; tap, click, Esc or ✕ closes. Pauses the arcade / game while open ----
   const TV = { open: false, opens: 0, heldGame: false, heldArcade: false };
   function openView(kind) {
@@ -181,7 +181,8 @@ export function setupPlay(A) {
   // ---- VIKING TICKET (from clearing BERSERKER Stage I): its own count, its own HUD chip and enlarged view; does nothing else yet ----
   const VKEY = 'neonarcade.vikingTickets', vixEl = document.getElementById('vix'), vixN = document.getElementById('vixN'), V = { total: 0, got: 0 };
   try { V.total = Math.max(0, parseInt(localStorage.getItem(VKEY), 10) || 0); } catch (e) {}
-  const showVix = () => { vixN.textContent = String(V.total); vixEl.style.display = V.total > 0 ? '' : 'none'; try { const r = tixEl.getBoundingClientRect(); if (r.width) { vixEl.style.left = (r.right + 8) + 'px'; vixEl.style.top = r.top + 'px'; } } catch (e) {} vixEl.classList.toggle('ingame', P.mode === 'game'); };
+  const showVix = () => { vixN.textContent = String(V.total); vixEl.style.display = V.total > 0 ? '' : 'none'; vixEl.classList.toggle('ingame', P.mode === 'game'); try { const r = tixEl.getBoundingClientRect(); if (r.width) { vixEl.style.left = r.left + 'px'; vixEl.style.top = (r.bottom + 4) + 'px'; vixEl.style.minWidth = r.width + 'px'; } } catch (e) {} };   // tight under the gold ticket
+  addEventListener('resize', () => setTimeout(showVix, 50));
   try { vikingArt(document.getElementById('vixIco'), 30); } catch (e) {}
   function vikingAward(game) {
     if (P.mode !== 'game' || P.sub !== 'play' || !P.frame || !P.cur || P.cur.key !== 'berserker' || (game && game !== 'berserker')) return false;
