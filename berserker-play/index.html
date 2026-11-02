@@ -95,7 +95,7 @@ window.TicketArt = (function () {
     g.strokeStyle = '#4a200a'; g.lineWidth = r * 0.07; g.beginPath(); g.arc(cx, cy + r * 0.28, r * 0.32, 0.35, Math.PI - 0.35); g.stroke();
     g.fillStyle = 'rgba(230,110,90,0.35)'; E(cx - r * 0.42, cy + r * 0.3, r * 0.1, r * 0.06); g.fill(); E(cx + r * 0.42, cy + r * 0.3, r * 0.1, r * 0.06); g.fill();
   }
-  // ticket of width w, height h at 0,0. big: inner border + NEON ARCADE / ADMIT ONE text
+  // ticket of width w, height h at 0,0. big: inner border + GALACTIC ARCADE / ADMIT ONE text
   function paint(g, w, h, big) {
     const n = h * 0.16, lw = Math.max(1, w / 60);
     const path = () => { g.beginPath(); g.moveTo(0, 0); g.lineTo(w, 0); g.lineTo(w, h / 2 - n); g.arc(w, h / 2, n, -Math.PI / 2, Math.PI / 2, true); g.lineTo(w, h); g.lineTo(0, h); g.lineTo(0, h / 2 + n); g.arc(0, h / 2, n, Math.PI / 2, -Math.PI / 2, true); g.closePath(); };
@@ -108,7 +108,7 @@ window.TicketArt = (function () {
     if (big) {
       g.setLineDash([w / 60, w / 90]); g.strokeStyle = 'rgba(122,74,0,0.7)'; g.lineWidth = lw * 0.6; g.strokeRect(w * 0.08, h * 0.08, w * 0.84, h * 0.84); g.setLineDash([]);
       g.fillStyle = '#6a3c00'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.font = '900 ' + Math.round(h * 0.11) + 'px "Courier New", monospace';
-      g.fillText('NEON ARCADE', w / 2, h * 0.17); g.fillText('ADMIT ONE', w / 2, h * 0.84);
+      g.fillText('GALACTIC ARCADE', w / 2, h * 0.17, w * 0.78); g.fillText('ADMIT ONE', w / 2, h * 0.84);
       g.font = '900 ' + Math.round(h * 0.09) + 'px "Courier New", monospace'; g.fillText('★', w * 0.17, h / 2); g.fillText('★', w * 0.83, h / 2);
       monkey(g, w / 2, h * 0.52, h * 0.22);
     } else monkey(g, w / 2, h * 0.54, h * 0.3);

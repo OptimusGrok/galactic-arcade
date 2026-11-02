@@ -1,6 +1,6 @@
 {
-  "name": "Neon Arcade",
-  "short_name": "Neon Arcade",
+  "name": "Galactic Arcade",
+  "short_name": "Galactic Arcade",
   "description": "Walk a neon cyberpunk arcade as the monkey.",
   "start_url": "./",
   "scope": "./",

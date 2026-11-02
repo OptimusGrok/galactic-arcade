@@ -14,7 +14,7 @@ Exit codes: 2 = a ticket/credit/demo hook no longer matches its original (the ho
 """
 import re, argparse, hashlib, os, random, subprocess, sys, time, urllib.request
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__))); os.chdir(ROOT)
-LIVE = 'https://optimusgrok.github.io/neon-arcade/'
+LIVE = 'https://optimusgrok.github.io/galactic-arcade/'
 # ---- registry: one entry per playable cabinet (adding BERSERKER later = one entry + its builder) ----
 REGISTRY = [
     dict(name='strike', source='/workspace/strike/strike.html', builder='tools_build_play.py', out='strike-play/index.html', tests=['play']),

@@ -1,4 +1,4 @@
-# Neon Arcade tools
+# Galactic Arcade tools
 
 ## Rebuild the playable arcade copies — `tools/rebuild_all_play.py`
 

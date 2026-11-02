@@ -1,4 +1,4 @@
-# Neon Arcade icons: nested neon hexagons on black.
+# Galactic Arcade icons: nested neon hexagons on black.
 from PIL import Image, ImageDraw, ImageFilter
 import math, os
 def make(size, scale, name):

@@ -1,4 +1,4 @@
-// Neon Arcade — walkable 3D arcade room with a playable monkey.
+// Galactic Arcade (formerly Neon Arcade) — walkable 3D arcade room with a playable monkey.
 import * as THREE from 'three';
 import { Reflector } from 'three/addons/objects/Reflector.js';
 import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';

@@ -20,7 +20,8 @@ const PH = process.argv[2] === 'phone', sfx = PH ? '_phone' : '';
   const side = Math.min(a.vw, a.vh);
   chk(a.img.nat === 1024 && /start\.webp/.test(a.img.src), 'image loaded as WebP (' + a.img.src.split('/').pop() + ')');
   chk(Math.abs(a.img.w - side) < 2 && Math.abs(a.img.h - side) < 2 && Math.abs(a.img.l + a.img.w / 2 - a.vw / 2) < 2 && Math.abs(a.img.t + a.img.h / 2 - a.vh / 2) < 2, 'whole square image fits (contain), centred: ' + a.img.w.toFixed(0) + 'x' + a.img.h.toFixed(0) + ' in ' + a.vw + 'x' + a.vh);
-  await page.screenshot({ path: 'shots/start' + sfx + '.png' });
+  await page.screenshot({ path: 'shots/start' + sfx + '.png' }); await page.screenshot({ path: 'shots/galactic_start' + sfx + '.png' });
+  chk(await page.title() === 'Galactic Arcade', 'page title is Galactic Arcade');
   // dismiss: phone = tap on the joystick area; desktop = click (Enter on a 2nd run below)
   // a tap off the buttons does nothing (START / OPTIONS: test/options.js)
   if (PH) await page.touchscreen.tap(a.vw * 0.25, a.vh * 0.8); else await page.mouse.click(a.vw * 0.5, a.vh * 0.5);
