@@ -6,7 +6,7 @@ const PH = process.argv[2] === 'phone', SUF = PH ? '_phone' : '';
   const supa = r => r.fulfill({ status: 200, contentType: 'application/json', body: r.request().url().includes('submit') ? 'true' : '[]' });
   const o = await open({ supa, phone: PH }); const { page, errors, requests } = o;
   let ok = true; const chk = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); if (!c) ok = false; };
-  await page.evaluate(() => localStorage.setItem('neonarcade.tickets', '7')); await page.reload();
+  await page.addInitScript(() => { window.__sessSeed = { 'neonarcade.tickets': '7' }; }); await page.reload();
   await page.waitForFunction(() => window.__arcade && window.__arcade.stats.frames > 3, null, { timeout: 60000 });
   const cdp = PH ? await page.context().newCDPSession(page) : null;
   const tapAt = async (x, y) => { if (PH) { await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x, y, id: 1 }] }); await page.waitForTimeout(60); await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] }); } else await page.mouse.click(x, y); };

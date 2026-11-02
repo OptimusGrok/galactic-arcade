@@ -131,7 +131,7 @@ export function setupPlay(A) {
     P.loaded = false; document.body.appendChild(f);
   }
   function launch() {
-    const f = P.frame, m = P.cur; P.mode = 'game'; P.over = false; P.goShown = false; clearTimeout(P.holdT); P.holdT = 0; P.scene = null;
+    const f = P.frame, m = P.cur; P.mode = 'game'; document.body.dataset.cab = m ? m.key : ''; P.over = false; P.goShown = false; clearTimeout(P.holdT); P.holdT = 0; P.scene = null;
     const go = () => { P.sub = 'demo'; try { idle(m, f.contentWindow); } catch (e) { console.warn('demo start', e); } demoRefresh(); demoUI.classList.add('on'); f.classList.add('on'); bExit.style.display = 'block'; f.focus(); try { f.contentWindow.focus(); } catch (e) {}
       A.pause(true); P.poll = setInterval(poll, 200); showTix(); };
     if (P.loaded) go(); else f.addEventListener('load', go, { once: true });
@@ -146,7 +146,7 @@ export function setupPlay(A) {
   }
   function exit(why) {
     if (P.mode !== 'game') return; clearInterval(P.poll); clearTimeout(P.holdT); P.holdT = 0; over.style.display = 'none';
-    P.lastExit = why; P.sub = null; demoUI.classList.remove('on'); P.mode = 'zoomOut'; P.t = 0; bExit.style.display = 'none';
+    P.lastExit = why; P.sub = null; demoUI.classList.remove('on'); P.mode = 'zoomOut'; P.t = 0; bExit.style.display = 'none'; document.body.dataset.cab = '';
     const f = P.frame; f.classList.remove('on'); try { f.contentWindow.document.body.style.display = 'none'; } catch (e) {} setTimeout(() => f.remove(), 500); P.frame = null;
     const m = P.cur, back = monkey.position.clone().setY(1.25), out = back.clone().addScaledVector(m.cab.userData.inward, 2.6).setY(2.1);
     curve = new THREE.CatmullRomCurve3([camera.position.clone(), back.clone().lerp(camera.position, 0.4), back, out]); look0.copy(back); look1.copy(screenInfo(m).c);
@@ -219,7 +219,8 @@ export function setupPlay(A) {
   const homeQ = document.getElementById('homeQ'), homeN = document.getElementById('homeN');
   const homeAsk = on => { homeQ.classList.toggle('on', on); homeQ.setAttribute('aria-hidden', on ? 'false' : 'true'); P.homeAsk = on;
     if (on) { const m = P.cur, inGame = P.mode === 'game' && P.sub === 'play';
-      homeN.textContent = inGame ? 'THE CURRENT GAME WILL END.' : (P.mode === 'game' && m && m.credits > 0 ? 'YOUR UNUSED CREDIT STAYS ON THIS MACHINE.' : ''); } };
+      homeN.textContent = inGame ? 'THE CURRENT GAME WILL END.' : (P.mode === 'game' && m && m.credits > 0 ? 'YOUR UNUSED CREDIT STAYS ON THIS MACHINE.' : '');
+      if (window.__sess && window.__sess.dirty) homeN.textContent = (homeN.textContent ? homeN.textContent + ' ' : '') + 'UNSAVED PROGRESS - SAVE IN OPTIONS TO KEEP IT.'; } };
   const goHome = () => { homeAsk(false); P.homes = (P.homes || 0) + 1; if (P.mode === 'game') { exit('home'); P.t = 1; } try { if (TV.open) closeView(); } catch (e) {}
     try { for (const c in A.keys) A.keys[c] = false; } catch (e) {} if (window.__startUI && window.__startUI.show) window.__startUI.show(); };
   P.home = { ask: homeAsk, go: goHome };
@@ -234,7 +235,7 @@ export function setupPlay(A) {
   P.update = (dt, nearCab) => {
     const m = P.mode === 'walk' && !st.fp ? Object.values(MACHINES).find(k => k.cab === nearCab) : null;
     if (m && m !== near) { near = m; refresh(); } if (!m && P.mode === 'walk') near = null;
-    ui.classList.toggle('on', !!m); document.body.classList.toggle('ingame', P.mode === 'game');
+    ui.classList.toggle('on', !!m); document.body.classList.toggle('ingame', P.mode === 'game'); { const ck = P.mode === 'game' && P.cur ? P.cur.key : ''; if (document.body.dataset.cab !== ck) { document.body.dataset.cab = ck; try { showVix(); } catch (e) {} } }
     if (P.mode === 'zoomIn' || P.mode === 'zoomOut') {
       const dur = P.mode === 'zoomIn' ? 1.6 : 1.4; P.t = Math.min(1, P.t + dt / dur); const k = ease(P.t);
       camera.position.copy(curve.getPointAt(k));

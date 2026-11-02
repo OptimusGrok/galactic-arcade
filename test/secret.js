@@ -29,7 +29,7 @@ const PH = process.argv[2] === 'phone', sfx = PH ? '_phone' : '';
   for (const g of [1, 5, 10, 50]) await tap(`.tkB[data-g="${g}"]`);
   await tap('.tkB[data-v="1"]'); await page.waitForTimeout(200);
   s = await ev(() => ({ t: localStorage.getItem('neonarcade.tickets'), v: localStorage.getItem('neonarcade.vikingTickets'), g: document.getElementById('tkG').textContent, hud: document.getElementById('tixN').textContent, vh: document.getElementById('vixN').textContent, P: window.__arcade.play.tickets.total }));
-  chk(s.t === '69' && s.v === '1' && s.g === '69', 'adds saved to localStorage (69 gold, 1 viking)');
+  chk(s.t === '69' && s.v === '1' && s.g === '69', 'adds go into the session progress (69 gold, 1 viking)');
   chk(s.hud === '69' && s.vh === '1' && s.P === 69, 'ticket HUD / game counter updated');
   await page.screenshot({ path: `shots/secret_tickets${sfx}.png` });
   await tap('#tkDone'); await page.waitForTimeout(200);

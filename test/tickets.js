@@ -74,8 +74,8 @@ const PH = process.argv[2] === 'phone', SUF = PH ? '_phone' : '';
     chk(await page.evaluate(() => window.__neonTicket(1, 'strike')) === false, cab + ': no ticket can be awarded outside a game');
   }
   const before = await T(); await page.screenshot({ path: 'shots/tickets_badge' + SUF + '.png' });
-  await page.reload(); await page.waitForFunction(() => window.__arcade && window.__arcade.stats.frames > 3, null, { timeout: 60000 });
-  const after = await T(); chk(before.total === after.total && after.total >= 1 && after.badge.trim() === String(after.total), 'total persists after reload (' + before.total + ' -> ' + after.total + ')');
+  await page.evaluate(() => { window.__noUnloadWarn = 1; }); await page.reload(); await page.waitForFunction(() => window.__arcade && window.__arcade.stats.frames > 3, null, { timeout: 60000 });
+  const after = await T(); chk(after.total === 1 && after.badge.trim() === '1', 'no auto-save: a reload starts fresh with 1 ticket (' + before.total + ' -> ' + after.total + ')');
   const sa = fs.readFileSync('/workspace/strike/strike.html', 'utf8'), ga = fs.readFileSync('/workspace/ghost256/index.html', 'utf8');
   chk(!/TicketArt|__TK|neonTicket/.test(sa + ga), 'standalone Strike / Ghost 256 sources have no ticket code');
   const ext = requests.filter(u => !u.startsWith('http://localhost') && !u.startsWith('https://kfupqtafhaflzaoqtenf.supabase.co/'));

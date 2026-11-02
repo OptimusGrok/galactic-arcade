@@ -12,7 +12,8 @@ async function open(opts = {}) {
   await ctx.route(/supabase/i, opts.supa || (r => r.abort()));
   page.on('pageerror', e => errors.push(String(e))); page.on('console', m => { if (m.type() === 'error') errors.push(m.text()); });
   if (!opts.start) await page.addInitScript(() => { window.__skipStart = 1; });   // only test/start.js sees the start screen
-  if (opts.shieldOpen) await page.addInitScript(() => { try { localStorage.setItem('neonarcade.shieldOpen', '1'); } catch (e) {} });   // hallway tests walk through the doorway
+  if (!opts.unloadWarn) await page.addInitScript(() => { window.__noUnloadWarn = 1; });   // tests reload freely; test/nosave.js checks the warning
+  if (opts.shieldOpen) await page.addInitScript(() => { window.__sessSeed = Object.assign(window.__sessSeed || {}, { 'neonarcade.shieldOpen': '1' }); });   // hallway tests walk through the doorway
   await page.goto(`http://localhost:${srv.address().port}/index.html`);
   await page.waitForFunction(() => window.__arcade && window.__arcade.stats.frames > 3, null, { timeout: 60000 });
   return { page, errors, requests, close: async () => { await browser.close(); srv.close(); } };

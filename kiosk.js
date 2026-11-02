@@ -1,8 +1,9 @@
 // TICKET EXCHANGE kiosk in the centre of room 1: USE -> camera zooms onto the screen + keypad, buy tickets with pretend cash
 // ($1 = 10, $5 = 60, $10 = 150). After leaving the view the machine dispenses a gold ticket strip into its tray; PICK UP walks the
-// monkey over, he bends down, pockets them and the tickets count up. Cash: $5, refilled to $5 every 24 h. Purchases persist.
+// monkey over, he bends down, pockets them and the tickets count up. Cash: $5, topped back up to $5 every hour (never stacks). Purchases persist.
 import * as THREE from 'three';
-const OFFERS = [[1, 10], [5, 60], [10, 150]], DAY = 864e5, CK = 'neonarcade.cash', PK = 'neonarcade.kioskPending';
+const OFFERS = [[1, 10], [5, 60], [10, 150]], DAY = 36e5,   // cash refill period: 1 hour (name kept)
+  CK = 'neonarcade.cash', PK = 'neonarcade.kioskPending';
 export function setupKiosk({ room, camera, monkey, st, play, blockers }) {
   const now = () => (window.__kioskNow ? window.__kioskNow() : Date.now());
   // ---------- money ----------
@@ -86,7 +87,7 @@ export function setupKiosk({ room, camera, monkey, st, play, blockers }) {
   const $ = id => document.getElementById(id);
   const bUse = $('bUse'), kv = $('kview'), cash = $('cash'), bPick = $('bPick');
   const K_ = window.__kiosk = { K, C, get pending() { return pending; }, mode: 'walk', near: false, buys: 0, pocketed: 0, dispK: 0, refill, offers: OFFERS };
-  function showCash() { refill(); const left = C.at + DAY - now(); cash.innerHTML = '<b>$' + C.bal + '</b>' + (C.bal < 5 ? '<small>+$' + (5 - C.bal) + ' in ' + Math.floor(left / 36e5) + 'h ' + String(Math.floor(left % 36e5 / 6e4)).padStart(2, '0') + 'm</small>' : ''); }
+  function showCash() { refill(); const left = C.at + DAY - now(); cash.innerHTML = '<b>$' + C.bal + '</b>' + (C.bal < 5 ? '<small>+$' + (5 - C.bal) + ' in ' + Math.max(0, Math.floor((left - 1) / 6e4)) + 'm</small>' : ''); }
   K_.showCash = showCash; K_.setState = o => { C.bal = o.bal; C.at = o.at; saveC(); pending = o.pending || 0; saveP(); count = null; K_.dispK = pending ? 1 : 0; setStrip(K_.dispK); showCash(); drawFace(); }; K_.addCash = d => { C.bal = d === 0 ? 5 : Math.max(0, C.bal + d); saveC(); showCash(); drawFace(); renderView(); };
   function renderView() { kv.querySelectorAll('.kOff').forEach((b, i) => { b.classList.toggle('dis', C.bal < OFFERS[i][0]); b.classList.toggle('sel', S.sel === i); });
     $('kInfo').textContent = S.msg || (S.entry ? 'ENTER $' + S.entry + '  ·  # TO BUY' : 'CASH $' + C.bal + (pending ? '  ·  ' + pending + ' 🎟 TO DISPENSE' : '')); }

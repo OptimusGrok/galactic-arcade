@@ -1386,14 +1386,18 @@ $('bClearYes').onclick=()=>{AU.play('click');clearProg();$('clearQ').style.displ
   var chip = document.createElement('div'); chip.id = 'tkChip'; chip.innerHTML = '<canvas id="tkIco"></canvas><b id="tkN">0</b>';
   document.body.appendChild(chip); try { TicketArt.toCanvas(document.getElementById('tkIco'), 26, false); } catch (e) {}
   var st = document.createElement('style');
-  st.textContent = '#tkChip{position:fixed;left:8px;top:calc(52px + env(safe-area-inset-top));z-index:6;display:flex;align-items:center;gap:6px;background:rgba(30,20,12,.85);border:1px solid #c89a2a;border-radius:9px;padding:3px 8px;font:bold 15px Georgia,serif;color:#ffe08a;pointer-events:none}' +
+  st.textContent = '#tkChip{display:none!important;position:fixed;left:8px;top:calc(52px + env(safe-area-inset-top));z-index:6;display:flex;align-items:center;gap:6px;background:rgba(30,20,12,.85);border:1px solid #c89a2a;border-radius:9px;padding:3px 8px;font:bold 15px Georgia,serif;color:#ffe08a;pointer-events:none}' +
     '#tkChip.pop{animation:tkp .35s}@keyframes tkp{50%{transform:scale(1.25)}}.tkFly{position:fixed;z-index:7;pointer-events:none;width:30px;height:20px;transition:transform .75s cubic-bezier(.5,-0.4,.7,1),opacity .75s;filter:drop-shadow(0 0 6px #ffd23a)}' +
     'body.demo #tkChip,body.demo #hud .btn,body.demo #bWave,body.demo #bPortal,body.demo #sheet,body.demo #over,body.demo #banner,body.demo #bossWarn,body.demo #floaters{display:none!important}' +
     '#bAgain,#bNext,#bCont,#bMenu,#bEndless,#bReset,#resetQ,#bClearProg,#clearQ,#lvlSel{display:none!important}';
   document.head.appendChild(st);
   var V = new THREE.Vector3();
+  // one gold counter only: the arcade HUD chip in the parent page; tickets fly to it (the in-game chip stays hidden, counts only)
+  function target() { try { var pt = parent.document.getElementById('tix'), fe = frameElement; if (pt && fe) { var a = pt.getBoundingClientRect(), b = fe.getBoundingClientRect(), k = b.width / innerWidth || 1;
+    if (a.width) return { left: (a.left - b.left) / k, top: (a.top - b.top) / k }; } } catch (e) {} return chip.getBoundingClientRect(); }
+  window.__tkTarget = target;
   function fly(x, y, z, k) {
-    var r = chip.getBoundingClientRect(), sx = innerWidth / 2, sy = innerHeight / 2;
+    var r = target(), sx = innerWidth / 2, sy = innerHeight / 2;
     try { V.set(x, y, z).project(camera); sx = (V.x + 1) / 2 * innerWidth; sy = (1 - V.y) / 2 * innerHeight; } catch (e) {}
     var c = document.createElement('canvas'); c.className = 'tkFly'; try { TicketArt.toCanvas(c, 30, false); } catch (e) {}
     c.style.left = (sx - 15 + (k % 3 - 1) * 14) + 'px'; c.style.top = (sy - 10 - Math.floor(k / 3) * 12) + 'px'; document.body.appendChild(c);

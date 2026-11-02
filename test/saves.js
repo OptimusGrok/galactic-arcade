@@ -18,7 +18,7 @@ const PH = process.argv[2] === 'phone', sfx = PH ? '_phone' : '';
   await page.screenshot({ path: `shots/opts_panel${sfx}.png` });
   await page.keyboard.press('KeyW'); s = await S(); chk(s.open, 'keys do not leak to the arcade while open');
   // state A -> slot 1
-  await ev(() => { const A = window.__arcade; A.monkey.position.set(2, 0, 6); A.st.face = 1; window.__kiosk.setState({ bal: 3, at: Date.now() - 36e5, pending: 10 }); A.play.machines.ghost.credits = 2; });
+  await ev(() => { const A = window.__arcade; A.monkey.position.set(2, 0, 6); A.st.face = 1; window.__kiosk.setState({ bal: 3, at: Date.now() - 6e5, pending: 10 }); A.play.machines.ghost.credits = 2; });
   await tapEl('.opSl:nth-child(1) .sv'); s = await S(); chk(/🎟42 · ⚔3 · \$3 · ROOM 1/.test(s.slots[0]) && !s.q, 'SAVE slot 1 (no confirm when empty): ' + s.slots[0]);
   // change everything
   await ev(() => { const A = window.__arcade; localStorage.setItem('neonarcade.tickets', '7'); localStorage.setItem('neonarcade.vikingTickets', '0'); window.__neonSync(); A.play.viking.total = 0; A.monkey.position.set(-3, 0, -2); window.__kiosk.setState({ bal: 5, at: Date.now(), pending: 0 }); A.play.machines.ghost.credits = 0; A.shield.setOpen(true); A.setFloor('neon'); window.__music.setOn(false); });

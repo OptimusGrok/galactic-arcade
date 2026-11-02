@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en"><head>
+<script src="session.js"></script>
 <script src="mute.js"></script>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
@@ -95,6 +96,8 @@ body.ingame #ui{top:calc(max(10px,env(safe-area-inset-top)) + 58px)}
 #tix.ingame{top:calc(max(10px,env(safe-area-inset-top)) + 100px);opacity:.85}
 #vix{position:fixed;box-sizing:border-box;top:max(8px,env(safe-area-inset-top));left:calc(max(8px,env(safe-area-inset-left)) + 112px);z-index:23;font:700 13px 'Courier New',monospace;color:#e2e8ee;background:#0a0612cc;border:1px solid #c8a06a88;border-radius:8px;padding:5px 9px;display:flex;align-items:center;gap:6px;cursor:pointer;text-shadow:0 0 6px #c8a06a}
 #vix.ingame{opacity:.85}
+/* BERSERKER: its level / wave text runs under the top-left, so the close button + counters sit below it */
+body[data-cab=berserker] #bExit{top:calc(max(10px,env(safe-area-inset-top)) + 92px)}body[data-cab=berserker] #tix.ingame{top:calc(max(10px,env(safe-area-inset-top)) + 138px)}
 #dCost{font:900 clamp(14px,3.6vw,20px)/1 'Courier New',monospace;color:#ffe08a;letter-spacing:.12em;text-shadow:0 0 8px #ffb000;background:#0009;padding:6px 10px;border-radius:8px}
 .ntoast{position:fixed;left:50%;bottom:22%;transform:translateX(-50%);z-index:45;font:900 16px 'Courier New',monospace;color:#fff;background:#a01010e6;border:2px solid #ffb0a0;border-radius:10px;padding:10px 16px;letter-spacing:.08em;pointer-events:none;white-space:nowrap}
 .vpop{position:fixed;left:50%;top:42%;transform:translate(-50%,-50%);z-index:46;display:flex;flex-direction:column;align-items:center;gap:10px;pointer-events:none;animation:vpop 3.2s ease-out forwards}
@@ -259,5 +262,6 @@ body.ingame #ui{top:calc(max(10px,env(safe-area-inset-top)) + 58px)}
 <script src="ticket-art.js"></script>
 <script src="music.js"></script>
 <script type="module" src="main.js"></script>
+<script src="inventory.js"></script>
 <script>if('serviceWorker' in navigator&&location.protocol!=='file:')addEventListener('load',()=>navigator.serviceWorker.register('sw.js').catch(()=>{}));</script>
 </body></html>

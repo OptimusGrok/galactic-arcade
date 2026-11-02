@@ -49,16 +49,16 @@ const PH = process.argv[2] === 'phone', sfx = PH ? '_phone' : '';
   chk(lk.arm < -0.5, 'new avatar reaches into the tray with its arm (' + lk.arm.toFixed(2) + ')');
   await page.waitForFunction(t => window.__arcade.play.tickets.total === t + 20 && window.__kiosk.mode === 'walk' && !window.__kiosk.counting, t0, { timeout: 30000 }).catch(() => {});
   k = await K(); chk(k.t === t0 + 20 && k.ls === String(t0 + 20) && k.pending === 0 && !k.pick, 'PICK UP: monkey pockets them, tickets +20 ' + k.t);
-  // 24 h refill with mocked time
+  // 1 h refill with mocked time (never stacks)
   const at = await ev(() => window.__kiosk.C.at);
-  await ev(at => { window.__kioskNow = () => at + 23 * 36e5; window.__kiosk.showCash(); }, at); k = await K(); chk(k.bal === 3 && /in 1h/.test(k.cash), 'after 23 h still $3 with countdown: ' + k.cash);
-  await ev(at => { window.__kioskNow = () => at + 24 * 36e5 + 1000; window.__kiosk.showCash(); }, at); k = await K(); chk(k.bal === 5 && !/in/.test(k.cash), 'after 24 h refilled to $5');
-  await ev(at => { window.__kioskNow = () => at + 49 * 36e5; window.__kiosk.showCash(); }, at); k = await K(); chk(k.bal === 5, 'no stacking past $5');
+  await ev(at => { window.__kioskNow = () => at + 59 * 6e4 + 5000; window.__kiosk.showCash(); }, at); k = await K(); chk(k.bal === 3 && /\+\$2 in 0m/.test(k.cash), 'after 59 min still $3 with countdown: ' + k.cash);
+  await ev(at => { window.__kioskNow = () => at + 36e5 + 1000; window.__kiosk.showCash(); }, at); k = await K(); chk(k.bal === 5 && !/in/.test(k.cash), 'after 1 h refilled to $5');
+  await ev(at => { window.__kioskNow = () => at + 5 * 36e5; window.__kiosk.showCash(); }, at); k = await K(); chk(k.bal === 5, 'no stacking past $5 (5 h later still $5)');
   await page.screenshot({ path: `shots/kiosk_cash${sfx}.png`, clip: { x: (PH ? 412 : 1280) - 200, y: 0, width: 200, height: 110 } });
-  // reload: purchases survive
-  await ev(() => { delete window.__kioskNow; localStorage.setItem('neonarcade.kioskPending', '60'); });
+  // no auto-save: a reload starts fresh ($5, empty tray) unless a slot is loaded
+  await ev(() => { delete window.__kioskNow; window.__kiosk.setState({ bal: 2, at: Date.now() - 6e5, pending: 60 }); window.__noUnloadWarn = 1; });
   await page.reload(); await page.waitForTimeout(2500);
-  k = await K(); chk(k.pending === 60 && k.dispK >= 1, 'reload keeps unpocketed tickets in the tray');
+  k = await K(); chk(k.pending === 0 && k.bal === 5, 'reload starts fresh: $5, empty tray ' + JSON.stringify(k));
   chk(!errors.length, 'no page errors ' + errors.slice(0, 2).join(' | '));
   await o.close(); console.log(ok ? 'ALL PASS' : 'SOME FAIL'); process.exit(ok ? 0 : 1);
 })();

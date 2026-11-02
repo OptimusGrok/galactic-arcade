@@ -26,7 +26,7 @@ REGISTRY = [
 ]
 SHARED_TESTS = ['credits', 'tickets']          # cover every cabinet: demo, INSERT TICKET, credits, in-game tickets
 PHONE = True                                   # each test also runs with the 'phone' argument
-EXTRA_PUBLISH = ['index.html', 'main.js', 'play.js', 'sw.js', 'ticket-art.js', 'berserkcab.js', 'shield.js', 'img/start.webp', 'img/start.jpg', 'tex/carpet.webp', 'img/floor_neon.webp', 'img/floor_carpet.webp', 'monkeycab.js', 'tex/mc_side.jpg', 'tex/mc_marquee.jpg', 'tex/mc_panel.jpg', 'img/bz_title.jpg', 'berserker-play/hero8.webp', 'berserker-play/music_village.m4a', 'orccab.js', 'tex/oa_side.jpg', 'tex/oa_marquee.jpg', 'novacab.js', 'tex/nt_side.jpg', 'tex/nt_marquee.jpg']
+EXTRA_PUBLISH = ['index.html', 'main.js', 'play.js', 'sw.js', 'ticket-art.js', 'berserkcab.js', 'shield.js', 'img/start.webp', 'img/start.jpg', 'tex/carpet.webp', 'img/floor_neon.webp', 'img/floor_carpet.webp', 'monkeycab.js', 'tex/mc_side.jpg', 'tex/mc_marquee.jpg', 'tex/mc_panel.jpg', 'img/bz_title.jpg', 'berserker-play/hero8.webp', 'berserker-play/music_village.m4a', 'orccab.js', 'tex/oa_side.jpg', 'tex/oa_marquee.jpg', 'novacab.js', 'tex/nt_side.jpg', 'tex/nt_marquee.jpg', 'inventory.js', 'session.js']
 ARCADE_ONLY = ['TicketArt', '__TK', '__neonTicket', '__demo', 'INSERT TICKET']
 sha = lambda p: hashlib.sha256(open(p, 'rb').read()).hexdigest()
 def die(code, msg): print('FAIL:', msg, file=sys.stderr); sys.exit(code)

@@ -30,8 +30,7 @@ var _hpdUpd = hpdUpd; hpdUpd = function (dt) { _hpdUpd(dt);
   TK.list = TK.list.filter(k => { if (!k.got && k.t >= TK.LIFE) TK.expired++; return !k.got && k.t < TK.LIFE; }); };
 var _drawHpd = drawHpd; drawHpd = function (t) { _drawHpd(t); for (const k of TK.list) { const a = k.t > TK.LIFE - 4 ? (Math.floor(k.t * 8) % 2 ? .35 : 1) : 1;
   TicketArt.draw(cx, k.x, k.y - 4 + Math.sin(t * 3 + k.x) * 2, 22, t + k.x, a); } };
-var _hud = hud; hud = function () { _hud(); if (window.__DEMO) return; const top = 8 + (parseInt(getComputedStyle(document.documentElement).getPropertyValue('--sat')) || 0), y = top + (cheat.inv || cheat.ff ? 94 : 79) + (G.boss ? 34 : 0);
-  try { TicketArt.draw(cx, 22, y - 4, 20, performance.now() / 1000, 1); } catch (e) {} cx.font = 'bold 12px Georgia'; cx.textAlign = 'left'; cx.fillStyle = '#ffe08a'; cx.fillText('\u00d7 ' + TK.run + (TK.viking ? '   \u16DF VIKING' : ''), 36, y); };
+// one gold counter only: the arcade's own HUD chip (plus its VIKING chip once one is won); nothing drawn in the game's top bar
 var _startStage = startStage; startStage = function (i, c) { TK.list = []; TK.seq = -1; TK.stage = -1; _startStage(i, c); };
 var _newRun = newRun; newRun = function () { TK.run = 0; TK.viking = 0; _newRun(); };
 // ---- VIKING TICKET: clearing Stage I (The Village) ----

@@ -51,8 +51,8 @@ export function setupOpts({ play, kiosk, shield, st, monkey, setFloor, getFloor,
   let qFn = null;
   function ask(t, n, fn) { $('opQt').textContent = t; $('opQn').textContent = n || ''; qFn = fn; $('opQ').classList.add('on'); O.q = t; }
   function qClose() { $('opQ').classList.remove('on'); qFn = null; O.q = null; }
-  O.save = i => { if (inGame()) return false; localStorage.setItem(SK(i), JSON.stringify(snapshot())); O.saves++; render(); return true; };
-  O.load = i => { const s = read(i); if (!s || inGame()) return false; apply(s); O.loads++; render(); return true; };
+  O.save = i => { if (inGame()) return false; localStorage.setItem(SK(i), JSON.stringify(snapshot())); O.saves++; if (window.__sess) window.__sess.clean(); render(); return true; };
+  O.load = i => { const s = read(i); if (!s || inGame()) return false; apply(s); O.loads++; if (window.__sess) window.__sess.clean(); render(); return true; };
   O.del = i => { localStorage.removeItem(SK(i)); render(); };
   O.snapshot = snapshot; O.render = render;
   function show(on) { O.open = window.__optsOpen = on; op.classList.toggle('on', on); op.setAttribute('aria-hidden', on ? 'false' : 'true'); if (!on) qClose(); else render();
