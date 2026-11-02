@@ -4,9 +4,9 @@
 (function () {
   var st = document.createElement('style');
   st.textContent =
-    '#bPack{position:fixed;right:calc(max(12px,env(safe-area-inset-right)));bottom:calc(max(12px,env(safe-area-inset-bottom)));z-index:24;width:54px;height:54px;border-radius:50%;padding:0;' +
-    'border:2px solid #00e5ffaa;background:radial-gradient(#1a0c2cee,#08020fee);box-shadow:0 0 12px #00e5ff55;display:none;align-items:center;justify-content:center;cursor:pointer;touch-action:none}' +
-    '#bPack.on{display:flex}#bPack:active{transform:scale(.93)}#bPack canvas{width:40px;height:40px;pointer-events:none}' +
+    '#bPack{position:fixed;right:calc(max(12px,env(safe-area-inset-right)));bottom:calc(max(12px,env(safe-area-inset-bottom)));z-index:24;width:104px;height:104px;border-radius:50%;padding:0;' +
+    'border:0;background:none;box-shadow:none;outline:none;-webkit-tap-highlight-color:transparent;display:none;align-items:center;justify-content:center;cursor:pointer;touch-action:none}' +
+    '#bPack.on{display:flex}#bPack:active{transform:scale(.93)}#bPack canvas{width:100px;height:100px;pointer-events:none;filter:drop-shadow(0 2px 4px #000c)}' +
     '#inv{position:fixed;inset:0;z-index:40;display:none;align-items:center;justify-content:center;background:#05010cb8;touch-action:none}#inv.on{display:flex}' +
     '#invP{width:min(92vw,420px);border-radius:18px;border:3px solid #00e5ff;background:linear-gradient(#140626f4,#08020ff4);box-shadow:0 0 26px #00e5ff77,inset 0 0 18px #ff3cf022;padding:16px 18px 18px;color:#fff;font:700 14px "Courier New",monospace}' +
     '#invHd{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px}#invHd b{display:flex;align-items:center;gap:10px;font:900 clamp(20px,4.6vmin,28px)/1 "Courier New",monospace;letter-spacing:.14em;color:#dffbff;text-shadow:0 0 10px #00e5ff}' +
@@ -34,7 +34,7 @@
     g.fillStyle = '#4a4a52'; g.beginPath(); g.ellipse(46, 72, 1.6, 1.2, 0, 0, 7); g.ellipse(52, 72, 1.6, 1.2, 0, 0, 7); g.fill();   // nostrils
     g.strokeStyle = '#4a4a52'; g.lineWidth = 1.8; g.beginPath(); g.arc(49, 75, 5, 0.25 * Math.PI, 0.75 * Math.PI); g.stroke();      // smile
     return c; }
-  var b = document.createElement('button'); b.id = 'bPack'; b.title = 'Backpack (I)'; b.setAttribute('aria-label', 'Backpack: inventory'); b.appendChild(drawPack(document.createElement('canvas'), 40));
+  var b = document.createElement('button'); b.id = 'bPack'; b.title = 'Backpack (I)'; b.setAttribute('aria-label', 'Backpack: inventory'); b.appendChild(drawPack(document.createElement('canvas'), 100));
   var inv = document.createElement('div'); inv.id = 'inv'; inv.setAttribute('aria-hidden', 'true'); inv.setAttribute('role', 'dialog'); inv.setAttribute('aria-label', 'Inventory');
   inv.innerHTML = '<div id="invP"><div id="invHd"><b><canvas id="invIco"></canvas>INVENTORY</b><button id="invX" title="Close">\u2715</button></div>' +
     '<div class="invR" id="invG"><canvas></canvas><div class="l">GOLD TICKETS</div><div class="n" id="invGn">0</div></div>' +

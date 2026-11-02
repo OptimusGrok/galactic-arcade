@@ -23,6 +23,8 @@ const { open } = require('./lib'); const PH = process.argv[2] === 'phone', sfx =
   const shot = async (name, pos, at) => { await p.evaluate(([pos, at]) => { window.__camOverride = { pos, at, showMonkey: true }; }, [pos, at]); await p.waitForTimeout(1800); await p.screenshot({ path: `shots/${name}${sfx}.png` }); };
   await shot('window_wide', [0, 4.5, 11], [0, 1, -6]);
   await shot('window_angle', [-8, 3.2, 9], [12, 2.2, -4]);
+  await shot('space_side', [6, 1.6, 4], [12, 2.0, -6]);
+  await shot('space_front', [2, 1.8, 0], [12, 2.0, 0]);
   await shot('window_close', [4, 2.2, 3], [12, 2.6, -1.5]);
   const place = (x) => p.evaluate(x => { const A = window.__arcade; window.__noAdapt = 1; A.monkey.position.set(x, 0, 0.3); A.st.vel.set(0, 0, 0); A.st.face = Math.PI / 2; }, x);
   const W = () => p.evaluate(() => ({ near: window.__arcade.spaceWin.near, renders: window.__arcade.spaceWin.renders }));

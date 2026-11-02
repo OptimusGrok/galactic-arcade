@@ -11,8 +11,8 @@ const PHONE = process.argv[2] === 'phone';
   const lay = await page.evaluate(() => { const R = id => { const e = document.getElementById(id); if (!e || getComputedStyle(e).display === 'none') return null; const r = e.getBoundingClientRect(); return r.width ? r : null; };
     const b = R('bPack'), hit = []; for (const id of ['tix', 'vix', 'cash', 'ui', 'bUse', 'bPick', 'playUI', 'bPlay']) { const r = R(id); if (r && !(r.bottom <= b.top || b.bottom <= r.top || r.right <= b.left || b.right <= r.left)) hit.push(id); }
     return { b: b && [b.left | 0, b.top | 0, b.width | 0, b.height | 0], W: innerWidth, H: innerHeight, hit, why: window.__inv.why }; });
-  chk(lay.b && lay.b[0] + lay.b[2] > lay.W - 80 && lay.b[1] + lay.b[3] > lay.H - 80 && lay.b[2] <= 60 && lay.hit.length === 0, 'small backpack button bottom-right, clear of the other HUD ' + JSON.stringify(lay));
-  await page.screenshot({ path: 'shots/backpack_room' + sfx + '.png' });
+  chk(lay.b && lay.b[0] + lay.b[2] > lay.W - 130 && lay.b[1] + lay.b[3] > lay.H - 130 && lay.b[2] >= 100 && lay.b[2] <= 110 && lay.hit.length === 0, 'big (2.5x) ringless backpack button bottom-right, clear of the other HUD ' + JSON.stringify(lay));
+  await page.screenshot({ path: 'shots/backpack_room' + sfx + '.png' }); await page.screenshot({ path: 'shots/backpack_big' + sfx + '.png' });
   { await page.evaluate(() => { localStorage.setItem('neonarcade.tickets', '4'); localStorage.setItem('neonarcade.vikingTickets', '0'); window.__neonSync(); });
     if (PHONE) await page.tap('#bPack'); else await page.click('#bPack'); await page.waitForTimeout(700);
     const z = await page.evaluate(() => ({ open: window.__inv.open, row: getComputedStyle(document.getElementById('invV')).display, h: document.getElementById('invV').getBoundingClientRect().height, rows: [...document.querySelectorAll('#inv .invR')].filter(r => r.offsetParent).map(r => r.id) }));
