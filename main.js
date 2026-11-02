@@ -292,7 +292,7 @@ for (let w = 0; w < 4; w++) {
   }
   ROW.forEach((u, i) => {
     if (w === 0 && i === 2) return; // removed: the doorway to the hallway is here
-    slots.push({ pos: toWorld(u, WALL_GAP).setY(0.09), rotY, accent: (w * 5 + i) % 7 === 3 ? C.cyan : (w * 5 + i) % 5 === 2 ? C.purple : C.pink });
+    slots.push({ w, i, pos: toWorld(u, WALL_GAP).setY(0.09), rotY, accent: (w * 5 + i) % 7 === 3 ? C.cyan : (w * 5 + i) % 5 === 2 ? C.purple : C.pink });
     const F = FEATURED[w + ':' + i];
     if (F) { // featured cabinet replaces the blank in this slot: same wall offset, platform height and facing
       const [cab, name] = F;
@@ -360,15 +360,25 @@ const DEV = { numbers: localStorage.getItem('neonarcade.dev.numbers') === '1', c
   const order = ['0:0', '0:1', '0:3', '0:4', '1:2', '1:3', '1:4', '1:0', '1:1', '2:0', '2:1', '2:2', '2:3', '2:4'];
   let n = 0;
   for (const key of order) { const F = FEATURED[key]; if (!F) continue; n++;
-    const c = document.createElement('canvas'); c.width = c.height = 128; const g = c.getContext('2d');
-    g.fillStyle = '#ffe000'; g.beginPath(); g.arc(64, 64, 58, 0, 7); g.fill(); g.lineWidth = 8; g.strokeStyle = '#000'; g.stroke();
-    g.fillStyle = '#000'; g.font = '900 78px Arial'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(String(n), 64, 68);
-    const tx = new THREE.CanvasTexture(c); tx.colorSpace = THREE.SRGBColorSpace;
-    const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: tx, depthTest: false, transparent: true })); sp.renderOrder = 999;
     const cab = F[0]; cab.updateMatrixWorld(true); const b = new THREE.Box3().setFromObject(cab), ctr = b.getCenter(new THREE.Vector3());
-    sp.position.set(ctr.x, b.max.y + 0.55, ctr.z); sp.scale.setScalar(1.4); sp.name = 'machineNumber_' + n; sp.userData = { n, key, game: F[1] };
-    sp.visible = DEV.numbers; scene.add(sp); DEV.badges.push(sp); }
+    badge(String(n), '#ffe000', ctr.x, b.max.y + 0.55, ctr.z, { n, key, game: F[1] }); }
+  // blank cabinets: cyan LETTER badges. Room 1 (west, south rows), then room 2 (its 19 instanced slots, slot order)
+  let L = 0; const AB = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', letter = k => (k >= 26 ? AB[Math.floor(k / 26) - 1] : '') + AB[k % 26];
+  for (const cab of cabinets) { cab.updateMatrixWorld(true); const b = new THREE.Box3().setFromObject(cab.getObjectByName('body')), ctr = b.getCenter(new THREE.Vector3());
+    badge(letter(L), '#00e5ff', ctr.x, b.max.y + 0.55, ctr.z, { letter: letter(L), key: wallNames.indexOf(cab.userData.wall) + ':' + cab.userData.index, room: 1 }); L++; }
+  for (const sl of slots) { const x = -sl.pos.x, z = Z2 - sl.pos.z;   // room 2 = room 1 rotated 180deg about (0, Z2)
+    badge(letter(L), '#00e5ff', x, 2.65, z, { letter: letter(L), key: 'r2:' + sl.w + ':' + sl.i, room: 2 }); L++; }
 }
+function badge(txt, col, x, y, z, ud) {
+  const c = document.createElement('canvas'); c.width = c.height = 128; const g = c.getContext('2d');
+  g.fillStyle = col; g.beginPath(); g.arc(64, 64, 58, 0, 7); g.fill(); g.lineWidth = 8; g.strokeStyle = '#000'; g.stroke();
+  g.fillStyle = '#000'; g.font = '900 ' + (txt.length > 1 ? 60 : 78) + 'px Arial'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(txt, 64, 68);
+  const tx = new THREE.CanvasTexture(c); tx.colorSpace = THREE.SRGBColorSpace;
+  const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: tx, depthTest: false, transparent: true })); sp.renderOrder = 999;
+  sp.position.set(x, y, z); sp.scale.setScalar(1.4); sp.name = 'machineBadge_' + txt; sp.userData = ud;
+  sp.visible = DEV.numbers; scene.add(sp); DEV.badges.push(sp); return sp;
+}
+
 DEV.set = (k, v) => { DEV[k] = !!v; localStorage.setItem('neonarcade.dev.' + (k === 'clip' ? 'clip' : 'numbers'), v ? '1' : '0'); if (k === 'numbers') DEV.badges.forEach(b => b.visible = !!v); };
 window.__dev = DEV;
 const obbs = blockers.filter(b => b.kind === 'obb');
