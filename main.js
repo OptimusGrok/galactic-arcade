@@ -555,7 +555,13 @@ function makeMonkey() { // "Arcade Kid": cartoon monkey, no tail, pink cap, tie-
     for (let f = 0; f < 3; f++) part(hand, CYL(0.013, 0.012, 0.06, 6), tan, (f - 1) * 0.024, -0.06, 0.012);
     arms.push({ sh, el, hand, sd });
   }
-  root.userData = { hips, torso, neck, head, legs, arms };
+  // idle prop: a small phone with a glowing generic dark feed (placeholder posts, no real content), held in the right hand
+  const phone = new THREE.Group(); phone.name = 'idlePhone'; phone.visible = false;
+  const pcv = document.createElement('canvas'); pcv.width = 128; pcv.height = 256; const ptex = new THREE.CanvasTexture(pcv); ptex.colorSpace = THREE.SRGBColorSpace;
+  part(phone, new THREE.BoxGeometry(0.075, 0.14, 0.009), mk(0x111116, { roughness: 0.3, metalness: 0.6 }));
+  const scr = new THREE.Mesh(new THREE.PlaneGeometry(0.066, 0.128), new THREE.MeshBasicMaterial({ map: ptex, color: 0xe0e8f4 })); scr.position.z = 0.0052; phone.add(scr);
+  arms[1].el.add(phone); phone.position.set(0.0, -0.36, 0.06); phone.rotation.set(-3.1, Math.PI, 0.75);   // screen faces his eyes, top pointing away
+  root.userData = { hips, torso, neck, head, legs, arms, phone, pcv, ptex };
   return root;
 }
 const monkey = makeMonkey(); scene.add(monkey);
@@ -712,6 +718,7 @@ function step(dt) {
   let mag = Math.min(1, Math.hypot(ix, iz)); if (mag) { ix /= Math.hypot(ix, iz); iz /= Math.hypot(ix, iz) || 1; }
   let run = keys.ShiftLeft || keys.ShiftRight;
   if (st.joy.on && Math.hypot(st.joy.x, st.joy.y) > 0.12) { ix = st.joy.x; iz = st.joy.y; mag = Math.min(1, Math.hypot(ix, iz)); run = mag > 0.85; }
+  st.inMag = mag; st.lastStep = st.t;
   const sy = Math.sin(st.yaw), cy = Math.cos(st.yaw);
   // camera forward on ground = (-sin yaw, -cos yaw)
   const wx = ix * cy + iz * sy, wz = -ix * sy + iz * cy;
@@ -771,6 +778,51 @@ function animateMonkey(dt) {
     a.el.rotation.x = THREE.MathUtils.lerp(-0.3 - runK * 0.8, -0.65 + jitter, P);
   }
 
+  idlePose(dt, u, sw);
+}
+
+// ---------- idle: 5 s still -> hands in jacket pockets (+ breathing); 10 s -> phone out, scrolling a generic dark feed ----------
+const idle = { t: 0, wP: 0, wF: 0, state: 'none', scroll: 0, flick: 0, nextFlick: 0, drawn: -1, moves: 0 };
+window.__neonPlayer = { get idleState() { return idle.state; }, get idleT() { return idle.t; }, get wPocket() { return idle.wP; }, get wPhone() { return idle.wF; }, idle };
+function drawFeed(u) {   // placeholder X-style feed: grey/white blocks only, no real posts or people
+  const g = u.pcv.getContext('2d'), W = 128, Hc = 256; g.fillStyle = '#000'; g.fillRect(0, 0, W, Hc);
+  const off = idle.scroll % 96;
+  for (let i = -1; i < 5; i++) { const y = 30 + i * 96 - off, k = (Math.floor(idle.scroll / 96) + i) & 3;
+    g.fillStyle = '#3a3f47'; g.beginPath(); g.arc(14, y + 10, 7, 0, 7); g.fill();
+    g.fillStyle = '#e7e9ea'; g.fillRect(26, y + 5, 44, 5); g.fillStyle = '#71767b'; g.fillRect(74, y + 5, 26, 5);
+    g.fillStyle = '#d0d3d6'; g.fillRect(26, y + 16, 92, 4); g.fillRect(26, y + 24, 78 - k * 8, 4);
+    if (k % 2 === 0) { const gr = g.createLinearGradient(26, y + 34, 118, y + 78); gr.addColorStop(0, ['#1d3b5c', '#4a2a5c'][k >> 1]); gr.addColorStop(1, ['#3d7ab8', '#c65a8a'][k >> 1]); g.fillStyle = gr; g.fillRect(26, y + 34, 92, 46); }
+    else { g.fillStyle = '#c4c7ca'; g.fillRect(26, y + 32, 86, 4); g.fillRect(26, y + 40, 60, 4); }
+    g.fillStyle = '#2f3336'; g.fillRect(0, y + 88, W, 1); }
+  g.fillStyle = '#000'; g.fillRect(0, 0, W, 22); g.fillStyle = '#2f3336'; g.fillRect(0, 22, W, 1);
+  g.strokeStyle = '#fff'; g.lineWidth = 3; g.lineCap = 'butt'; g.beginPath(); g.moveTo(57, 5); g.lineTo(71, 18); g.moveTo(71, 5); g.lineTo(57, 18); g.stroke();   // X mark
+  u.ptex.needsUpdate = true; }
+function idlePose(dt, u, sw) {
+  const L = THREE.MathUtils.lerp, busy = st.play > 0.3 || (window.__inv && window.__inv.open) || window.__optsOpen || document.getElementById('start') && !(window.__start && window.__start.dismissed);
+  const moving = (st.inMag || 0) > 0.01 || st.speed > 0.15 || busy || st.t - (st.lastStep || 0) > 0.2;
+  if (moving) { if (idle.t > 0.5) idle.moves++; idle.t = 0; } else idle.t += dt * (window.__idleTimeScale || 1);   // tests may speed the idle clock up (slow software GL)
+  idle.state = idle.t >= 10 ? 'phone' : idle.t >= 5 ? 'pockets' : 'none';
+  const wantP = idle.state === 'none' ? 0 : 1, wantF = idle.state === 'phone' ? 1 : 0, rate = moving ? 12 : 2.4;
+  idle.wP += (wantP - idle.wP) * (1 - Math.exp(-dt * rate)); idle.wF += (wantF - idle.wF) * (1 - Math.exp(-dt * (moving ? 14 : 3)));
+  if (idle.wP < 0.002 && idle.wF < 0.002) { u.phone.visible = false; u.torso.scale.set(1, 1, 1); for (const a of u.arms) { a.hand.scale.setScalar(1); a.sh.rotation.y = 0; a.el.rotation.z = 0; a.hand.rotation.x = 0; } return; }
+  const wP = idle.wP, wF = idle.wF, br = Math.sin(st.t * 1.6);
+  u.torso.scale.set(1 + br * 0.012 * wP, 1, 1 + br * 0.018 * wP); u.hips.position.y += br * 0.004 * wP;   // breathing
+  for (const a of u.arms) {
+    const ph = a.sd > 0 && wF > 0;   // right arm (sd=+1) takes the phone
+    // pockets: upper arm a little back + out, forearm forward-in so the hand tucks into the jacket's front pocket
+    let sx = 0.05, sz = 0.16 * a.sd, ex = -1.05, ez = 0, hs = 0.35;
+    if (ph) { sx = L(sx, -0.75, wF); sz = L(sz, 0.02, wF); ex = L(ex, -1.6, wF); ez = 0; hs = L(hs, 1, wF); }
+    a.sh.rotation.x = L(a.sh.rotation.x, sx, wP); a.sh.rotation.z = L(a.sh.rotation.z, sz, wP); a.sh.rotation.y = L(0, ph ? L(-0.5, -0.75, wF) : -0.45 * a.sd, wP);
+    a.el.rotation.x = L(a.el.rotation.x, ex, wP); a.el.rotation.z = L(0, ez, wP); a.hand.scale.setScalar(L(1, hs, wP));
+  }
+  u.neck.rotation.x = L(u.neck.rotation.x, u.neck.rotation.x + 0.45, wF); u.head.rotation.y = L(u.head.rotation.y, -0.12, wF);
+  u.phone.visible = wF > 0.35;
+  if (u.phone.visible) {   // thumb flicks: quick scroll bursts every ~1.6-2.6 s
+    if (st.t > idle.nextFlick) { idle.flick = 1; idle.nextFlick = st.t + 1.6 + ((st.t * 7.13) % 1); }
+    idle.scroll += dt * (6 + idle.flick * 150); idle.flick *= Math.exp(-dt * 4);
+    u.arms[1].hand.rotation.x = -idle.flick * 0.35;
+    const fr = Math.floor(st.t * 12); if (fr !== idle.drawn) { idle.drawn = fr; drawFeed(u); }
+  } else u.arms[1].hand.rotation.x = 0;
 }
 
 // ---------- loop + adaptive quality ----------
