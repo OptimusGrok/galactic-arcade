@@ -507,6 +507,8 @@ function makeMonkey() { // "Arcade Kid": cartoon monkey, no tail, pink cap, tie-
   part(torso, new THREE.SphereGeometry(0.27, 26, 10, Math.PI / 2 + gap, Math.PI * 2 - gap * 2, 0, Math.PI / 2), navyD, 0, 0.53, 0, 1.12, 0.42, 1.06);
   const col = part(torso, new THREE.TorusGeometry(0.15, 0.03, 8, 24, Math.PI * 1.5), rib, 0, 0.61, -0.01, 1.05, 1, 1.1); col.rotation.set(Math.PI / 2, 0, Math.PI * 0.75);
   for (const sd of [-1, 1]) { const zx = Math.sin(gap) * 0.27 * sd, zz = Math.cos(gap) * 0.27 * 1.06; part(torso, new THREE.BoxGeometry(0.014, 0.5, 0.014), M.gold, zx, 0.29, zz + 0.012); }
+  // front welt pockets on the bomber (hands go in here when idle)
+  for (const sd of [-1, 1]) { const pk = part(torso, new THREE.BoxGeometry(0.15, 0.03, 0.03), rib, 0.19 * sd, 0.15, 0.255); pk.rotation.set(-0.15, -0.62 * sd, -0.35 * sd); pk.name = 'pocket'; }
   // gold monkey-ticket pin on the left chest
   const pin = new THREE.Group(); pin.position.set(0.2, 0.42, 0.25); pin.rotation.y = 0.55; torso.add(pin);
   part(pin, new THREE.BoxGeometry(0.075, 0.05, 0.01), M.gold); part(pin, S(0.017, 10, 8), fur, 0, 0.003, 0.008, 1, 1, 0.5); part(pin, S(0.011, 8, 6), tan, 0, -0.001, 0.014, 1, 0.8, 0.4);
@@ -560,7 +562,7 @@ function makeMonkey() { // "Arcade Kid": cartoon monkey, no tail, pink cap, tie-
   const pcv = document.createElement('canvas'); pcv.width = 128; pcv.height = 256; const ptex = new THREE.CanvasTexture(pcv); ptex.colorSpace = THREE.SRGBColorSpace;
   part(phone, new THREE.BoxGeometry(0.075, 0.14, 0.009), mk(0x111116, { roughness: 0.3, metalness: 0.6 }));
   const scr = new THREE.Mesh(new THREE.PlaneGeometry(0.066, 0.128), new THREE.MeshBasicMaterial({ map: ptex, color: 0xe0e8f4 })); scr.position.z = 0.0052; phone.add(scr);
-  arms[1].el.add(phone); phone.position.set(0.0, -0.36, 0.06); phone.rotation.set(-3.1, Math.PI, 0.75);   // screen faces his eyes, top pointing away
+  arms[1].el.add(phone); phone.position.set(0.0, -0.36, 0.06); phone.rotation.set(-0.2, 0.75, -2.1);   // screen tipped up toward his eyes (angled a little outward, as people hold them), top pointing away
   root.userData = { hips, torso, neck, head, legs, arms, phone, pcv, ptex };
   return root;
 }
@@ -804,18 +806,19 @@ function idlePose(dt, u, sw) {
   idle.state = idle.t >= 10 ? 'phone' : idle.t >= 5 ? 'pockets' : 'none';
   const wantP = idle.state === 'none' ? 0 : 1, wantF = idle.state === 'phone' ? 1 : 0, rate = moving ? 12 : 2.4;
   idle.wP += (wantP - idle.wP) * (1 - Math.exp(-dt * rate)); idle.wF += (wantF - idle.wF) * (1 - Math.exp(-dt * (moving ? 14 : 3)));
-  if (idle.wP < 0.002 && idle.wF < 0.002) { u.phone.visible = false; u.torso.scale.set(1, 1, 1); for (const a of u.arms) { a.hand.scale.setScalar(1); a.sh.rotation.y = 0; a.el.rotation.z = 0; a.hand.rotation.x = 0; } return; }
+  if (idle.wP < 0.002 && idle.wF < 0.002) { u.phone.visible = false; u.torso.scale.set(1, 1, 1); u.head.rotation.x = 0; for (const a of u.arms) { a.hand.scale.setScalar(1); a.hand.visible = true; a.sh.rotation.y = 0; a.el.rotation.z = 0; a.hand.rotation.x = 0; } return; }
   const wP = idle.wP, wF = idle.wF, br = Math.sin(st.t * 1.6);
   u.torso.scale.set(1 + br * 0.012 * wP, 1, 1 + br * 0.018 * wP); u.hips.position.y += br * 0.004 * wP;   // breathing
   for (const a of u.arms) {
     const ph = a.sd > 0 && wF > 0;   // right arm (sd=+1) takes the phone
     // pockets: upper arm a little back + out, forearm forward-in so the hand tucks into the jacket's front pocket
-    let sx = 0.05, sz = 0.16 * a.sd, ex = -1.05, ez = 0, hs = 0.35;
-    if (ph) { sx = L(sx, -0.75, wF); sz = L(sz, 0.02, wF); ex = L(ex, -1.6, wF); ez = 0; hs = L(hs, 1, wF); }
-    a.sh.rotation.x = L(a.sh.rotation.x, sx, wP); a.sh.rotation.z = L(a.sh.rotation.z, sz, wP); a.sh.rotation.y = L(0, ph ? L(-0.5, -0.75, wF) : -0.45 * a.sd, wP);
-    a.el.rotation.x = L(a.el.rotation.x, ex, wP); a.el.rotation.z = L(0, ez, wP); a.hand.scale.setScalar(L(1, hs, wP));
+    // pockets (solved so the hand lands in the jacket's front pocket, torso-local (±0.19, 0.1, 0.22)); the hand is hidden inside it
+    let sx = 0.25, sy = -0.6 * a.sd, sz = 0.22 * a.sd, ex = -1.6, hs = 0;
+    if (ph) { sx = L(sx, -0.8, wF); sy = L(sy, -0.9, wF); sz = L(sz, 0.2, wF); ex = L(ex, -1.8, wF); hs = L(0, 1, Math.min(1, wF * 1.6)); }   // phone hand at the chest
+    a.sh.rotation.x = L(a.sh.rotation.x, sx, wP); a.sh.rotation.z = L(a.sh.rotation.z, sz, wP); a.sh.rotation.y = L(0, sy, wP);
+    a.el.rotation.x = L(a.el.rotation.x, ex, wP); a.el.rotation.z = 0; const k = L(1, hs, Math.min(1, wP * 1.4)); a.hand.scale.setScalar(Math.max(0.001, k)); a.hand.visible = k > 0.02;
   }
-  u.neck.rotation.x = L(u.neck.rotation.x, u.neck.rotation.x + 0.45, wF); u.head.rotation.y = L(u.head.rotation.y, -0.12, wF);
+  u.neck.rotation.x = L(u.neck.rotation.x, u.neck.rotation.x + 0.35, wF); u.head.rotation.x = L(0, 0.12, wF); u.head.rotation.y = L(u.head.rotation.y, -0.12, wF);
   u.phone.visible = wF > 0.35;
   if (u.phone.visible) {   // thumb flicks: quick scroll bursts every ~1.6-2.6 s
     if (st.t > idle.nextFlick) { idle.flick = 1; idle.nextFlick = st.t + 1.6 + ((st.t * 7.13) % 1); }
