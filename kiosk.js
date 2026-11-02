@@ -24,6 +24,13 @@ export function setupKiosk({ room, camera, monkey, st, play, blockers }) {
   box(W + 0.04, 0.04, D + 0.04, char, 0, 0.02, 0);   // plinth
   box(W - 0.06, Hh - 0.12, 0.02, char, 0, Hh / 2 + 0.06, D / 2 + 0.005);   // charcoal front panel
   for (const [w, h, x, y] of [[W - 0.04, 0.012, 0, Hh - 0.005], [W - 0.04, 0.012, 0, 0.14], [0.012, Hh - 0.15, -(W / 2 - 0.02), Hh / 2 + 0.07], [0.012, Hh - 0.15, W / 2 - 0.02, Hh / 2 + 0.07]]) box(w, h, 0.03, gold, x, y, D / 2 + 0.012);   // gold trim
+  // gold monkey ticket decals (same art as the HUD counter) on both side panels, readable from each side (not mirrored)
+  { const dc = document.createElement('canvas'); dc.width = 1024; dc.height = 676; const dg = dc.getContext('2d');
+    try { dg.translate(12, 12); TicketArt.paint(dg, 1000, 652, false); } catch (e) { dg.fillStyle = '#e8c45a'; dg.fillRect(0, 0, 1024, 676); }
+    const dt = new THREE.CanvasTexture(dc); dt.colorSpace = THREE.SRGBColorSpace; dt.anisotropy = 8;
+    const dm = new THREE.MeshStandardMaterial({ map: dt, transparent: true, alphaTest: 0.5, roughness: 0.4, metalness: 0.35, emissiveMap: dt, emissive: 0xffffff, emissiveIntensity: 0.18 });
+    const dw = D - 0.05, dh = dw * 676 / 1024;
+    for (const s of [1, -1]) { const m = new THREE.Mesh(new THREE.PlaneGeometry(dw, dh), dm); m.name = 'kioskSideTicket'; m.rotation.y = s * Math.PI / 2; m.position.set(s * (W / 2 + 0.003), 0.98, 0); K.add(m); } }
   // front face art (sign, screen, card pad, bills / coins, keypad, chute) on one canvas
   const fc = document.createElement('canvas'); fc.width = 512; fc.height = 1100; const fg = fc.getContext('2d');
   const ftex = new THREE.CanvasTexture(fc); ftex.colorSpace = THREE.SRGBColorSpace; ftex.anisotropy = 4;
