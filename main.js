@@ -394,7 +394,7 @@ const room2 = new THREE.Group(); room2.name = 'room2'; room2.position.set(0, 0, 
   for (let i = blockers.length - 1; i >= 0; i--) if (blockers[i].kind === 'plinth' && blockers[i].wall === 'east') blockers.splice(i, 1);
   wallBands.forEach((m, k) => { m.geometry = mergeGeometries(bandsNoEast[k]); });   // the coloured bands stop at the glass
   wn.geometry = wallTubeGeo([...cabinets, ...featured], true);                       // pink tube runs flat along the bottom of the glass
-  spaceWin = setupSpaceWindow({ scene, room, renderer, HALF, H, isMobile: MOBILE });
+  spaceWin = setupSpaceWindow({ scene, room, renderer, HALF, H, isMobile: MOBILE, getMonkey: () => monkey, getCamera: () => camera });
 }
 // ---------- room 1 floor option: neon reflective (default) or cream character carpet (Options > FLOOR) ----------
 const FLOOR_KEY = 'neonarcade.floor';
