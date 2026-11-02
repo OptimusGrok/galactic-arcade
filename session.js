@@ -3,7 +3,7 @@
 (function () {
   var PROG = { 'neonarcade.tickets': 1, 'neonarcade.vikingTickets': 1, 'neonarcade.cash': 1, 'neonarcade.kioskPending': 1, 'neonarcade.shieldOpen': 1 };
   // per-run progress the cabinet copies keep (same origin): cleared on every fresh visit so a new session starts fresh
-  var RUN = ['arcade_orc_progress', 'arcade_orc_run', 'arcade_berserker_save', 'arcade_mc_tickets'];
+  var RUN = ['arcade_orc_progress', 'arcade_orc_run', 'arcade_berserker_save', 'arcade_mc_tickets', 'arcade_cyber_cybercity_save', 'arcade_cyber_cybercity_autosave'];
   var P = Storage.prototype, g = P.getItem, s = P.setItem, r = P.removeItem, LS; try { LS = window.localStorage; } catch (e) {}
   var M = {}, S = window.__sess = { mem: M, dirty: false, quiet: true, discarded: [] };
   addEventListener('load', function () { setTimeout(function () { S.quiet = false; }, 1500); });

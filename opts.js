@@ -32,7 +32,7 @@ export function setupOpts({ play, kiosk, shield, st, monkey, setFloor, getFloor,
       credits: cr, shield: !!(shield && shield.open), floor: getFloor(), walls: getWalls ? getWalls() : 'current', music: !window.__music || window.__music.on,
       pos: monkey.position.toArray().map(v => +v.toFixed(3)), face: +st.face.toFixed(4), yaw: +st.yaw.toFixed(4), room: roomOf(monkey.position.z), run: runSnap() }; }
   // per-game arcade run progress (same-origin cabinet keys): session-only, kept only by a SAVE slot
-  const RUNK = ['arcade_orc_progress', 'arcade_berserker_save', 'arcade_mc_tickets'];
+  const RUNK = ['arcade_orc_progress', 'arcade_berserker_save', 'arcade_mc_tickets', 'arcade_cyber_cybercity_save', 'arcade_cyber_cybercity_autosave'];
   function runSnap() { const o = {}; for (const k of RUNK) { const v = localStorage.getItem(k); if (v !== null) o[k] = v; } return o; }
   function apply(s) {
     try { for (const k of RUNK) { if (s.run && k in s.run) localStorage.setItem(k, s.run[k]); else localStorage.removeItem(k); } } catch (e) {}

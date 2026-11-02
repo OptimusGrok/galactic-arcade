@@ -58,6 +58,11 @@ export function setupPlay(A) {
       scene(w) { if (w.__orcAdv) return 'play'; const s = w.__TD.G.state; return s === 'lost' || s === 'won' ? 'over' : s === 'title' ? 'title' : 'play'; },
       active(w) { return !!w.__TD && w.__TD.G.state === 'play'; },
       hold(w) { if (!w.__TD) return false; const G = w.__TD.G; if (G.state !== 'play' || G.paused) return false; G.paused = true; return true; }, unhold(w) { if (w.__TD) w.__TD.G.paused = false; }, overHold: 5000, scoresHold: 0 },
+    cyber: { key: 'cyber', cab: A.cyberCab, src: 'cybercity-play/index.html', credits: 0, games: 0, aspect: (A.cyberCab && A.cyberCab.userData.aspect) || 4 / 3, cost: 10,   // 10 tickets = 1 credit = one 15-minute run
+      start(w) { w.__cyber.start(); },
+      demo(w) { w.__demo.start(); }, stopDemo(w) { w.__demo.stop(); },
+      scene(w) { const s = w.__cyber.scene(); return s === 'over' ? 'over' : s === 'play' ? 'play' : 'title'; },
+      hold(w) { if (!w.__cyber) return false; w.__cyber.pause(true); return true; }, unhold(w) { if (w.__cyber) w.__cyber.pause(false); }, overHold: 5000, scoresHold: 0 },
     nova: { key: 'nova', cab: A.novaCab, src: 'nova-play/index.html', credits: 0, games: 0, aspect: (A.novaCab && A.novaCab.userData.aspect) || 16 / 9, cost: 2,   // 2 tickets = 1 credit = one run
       demo(w) { w.__demo.start(); }, stopDemo(w) { w.__demo.stop(); },
       start(w) { w.__nova.start(); },
@@ -192,6 +197,10 @@ export function setupPlay(A) {
     const r = tixEl.getBoundingClientRect(), d = document.createElement('div'); d.className = 'tpop'; d.textContent = '+1 🎟'; d.style.left = (r.left + 4) + 'px'; d.style.top = (r.bottom + 4) + 'px';
     document.body.appendChild(d); setTimeout(() => d.remove(), 1500); return true; }
   window.__neonTicket = award;
+  // SESSION TICKET API for cabinet copies: n tickets (1..20) for the cabinet that is zoomed in and playing; goes into the session
+  // (in memory, kept only by a SAVE slot). Returns how many were added. Never writes storage itself.
+  window.__neonSession = { addTickets(n, game) { n = Math.max(0, Math.min(20, n | 0)); let k = 0; for (let i = 0; i < n; i++) if (award(1, game)) k++; return k; },
+    get tickets() { return T.total; } };
   // ---- VIKING TICKET (from clearing BERSERKER Stage I): its own count, its own HUD chip and enlarged view; does nothing else yet ----
   const VKEY = 'neonarcade.vikingTickets', vixEl = document.getElementById('vix'), vixN = document.getElementById('vixN'), V = { total: 0, got: 0 };
   try { V.total = Math.max(0, parseInt(localStorage.getItem(VKEY), 10) || 0); } catch (e) {}

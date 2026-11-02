@@ -22,11 +22,12 @@ REGISTRY = [
     dict(name='monkey', source='/workspace/monkey-cross/index.html', builder='tools_build_monkey_play.py', out='monkey-play/index.html', tests=['monkeyplay']),
     dict(name='berserker', source='/workspace/berserker/index.html', builder='tools_build_berserker_play.py', out='berserker-play/index.html', tests=['berserkerplay']),
     dict(name='orc', source='/workspace/orc-attack-pages/index.html', builder='tools_build_orc_play.py', out='orc-play/index.html', tests=['orcplay']),
+    dict(name='cyber', source='/workspace/cybercity/cybercity.html', builder='tools_build_cyber_play.py', out='cybercity-play/index.html', tests=['cyberplay'], markers=['__TK', '__demo', '__neonSession']),   # READ ONLY (RPG); the builder pins commit 8431b75
     dict(name='nova', source='/workspace/nova-tether-pages/index.html', builder='tools_build_nova_play.py', out='nova-play/index.html', tests=['novaplay']),   # READ ONLY repo (Chief of Staff); the builder pins commit bde4704
 ]
 SHARED_TESTS = ['credits', 'tickets']          # cover every cabinet: demo, INSERT TICKET, credits, in-game tickets
 PHONE = True                                   # each test also runs with the 'phone' argument
-EXTRA_PUBLISH = ['index.html', 'main.js', 'play.js', 'sw.js', 'ticket-art.js', 'berserkcab.js', 'shield.js', 'img/start.webp', 'img/start.jpg', 'tex/carpet.webp', 'img/floor_neon.webp', 'img/floor_carpet.webp', 'monkeycab.js', 'tex/mc_side.jpg', 'tex/mc_marquee.jpg', 'tex/mc_panel.jpg', 'img/bz_title.jpg', 'berserker-play/hero8.webp', 'berserker-play/music_village.m4a', 'orccab.js', 'tex/oa_side.jpg', 'tex/oa_marquee.jpg', 'novacab.js', 'tex/nt_side.jpg', 'tex/nt_marquee.jpg', 'inventory.js', 'session.js']
+EXTRA_PUBLISH = ['index.html', 'main.js', 'play.js', 'sw.js', 'ticket-art.js', 'berserkcab.js', 'shield.js', 'img/start.webp', 'img/start.jpg', 'tex/carpet.webp', 'img/floor_neon.webp', 'img/floor_carpet.webp', 'monkeycab.js', 'tex/mc_side.jpg', 'tex/mc_marquee.jpg', 'tex/mc_panel.jpg', 'img/bz_title.jpg', 'berserker-play/hero8.webp', 'berserker-play/music_village.m4a', 'orccab.js', 'tex/oa_side.jpg', 'tex/oa_marquee.jpg', 'novacab.js', 'tex/nt_side.jpg', 'tex/nt_marquee.jpg', 'inventory.js', 'session.js', 'cybercitycab.js', 'tex/cc_side.jpg', 'tex/cc_marquee.jpg']
 ARCADE_ONLY = ['TicketArt', '__TK', '__neonTicket', '__demo', 'INSERT TICKET']
 sha = lambda p: hashlib.sha256(open(p, 'rb').read()).hexdigest()
 def die(code, msg): print('FAIL:', msg, file=sys.stderr); sys.exit(code)
@@ -51,7 +52,7 @@ def main():
         sys.stdout.write(p.stdout); sys.stderr.write(p.stderr)
         if p.returncode: die(2, f'{e["name"]}: builder failed (see HOOK BROKEN above); {e["out"]} was NOT written')
         out = open(e['out']).read()
-        miss = [m for m in ['TicketArt', '__TK', '__demo', '__neonTicket'] if m not in out]
+        miss = [m for m in e.get('markers', ['TicketArt', '__TK', '__demo', '__neonTicket']) if m not in out]
         if miss: die(2, f'{e["name"]}: copy is missing {miss}')
     for e in entries:
         if sha(e['source']) != before[e['source']]: die(3, f'{e["source"]} changed during the build')
