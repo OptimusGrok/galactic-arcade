@@ -17,13 +17,14 @@ import { setupPlay } from './play.js';
 import { setupShield } from './shield.js';
 import { setupKiosk } from './kiosk.js';
 import { setupOpts } from './opts.js';
+import { setupTeleport, WX } from './teleport.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 
 const MOBILE = matchMedia('(pointer:coarse)').matches || /Android|iPhone|iPad/i.test(navigator.userAgent);
 const Q = MOBILE ? { dpr: 1.5, refl: 0.35, bloom: 0.5 } : { dpr: 2, refl: 0.6, bloom: 0.5 };
 
 // ---------- renderer / scene ----------
-const renderer = new THREE.WebGLRenderer({ antialias: !MOBILE, powerPreference: 'high-performance' });
+const renderer = new THREE.WebGLRenderer({ antialias: !MOBILE, powerPreference: 'high-performance' }); renderer.localClippingEnabled = true;   // teleporter dissolve
 let dpr = Math.min(devicePixelRatio || 1, Q.dpr);
 renderer.setPixelRatio(dpr);
 renderer.setSize(innerWidth, innerHeight);
@@ -452,6 +453,9 @@ let lightsIn = 1;
 const skipFar = (m, far) => { const orig = m.onBeforeRender; m.onBeforeRender = function (...args) { const v = far.visible; far.visible = false; try { orig.apply(this, args); } finally { far.visible = v; } }; };
 skipFar(mirror, room2); skipFar(room2.userData.mirror, room);
 function cullRooms(fr) {
+  const inW = camera.position.x > WX / 2; if (tp) tp.whiteRoom.visible = inW;
+  hall.visible = !inW;
+  if (inW) { room.visible = room2.visible = false; mirror.visible = false; room2.userData.mirror.visible = false; return; }
   const z = camera.position.z, in1 = z > -HALF, in2 = z < -HALF - HALL_L;
   room.visible = !in2 || fr.intersectsBox(doorBox2);
   room2.visible = !in1 || fr.intersectsBox(doorBox1);
@@ -671,14 +675,14 @@ addEventListener('resize', resize); resize();
 // ---------- simulation ----------
 const R = 0.3, LIM = HALF - 0.35;
 // walkable areas: union of axis boxes (room 1, hallway [, room 2]); clamp to the nearest one
-const AREAS = [{ x0: -LIM, x1: LIM, z0: -LIM, z1: LIM }, { x0: -DOOR_W / 2 + (HALF - LIM), x1: DOOR_W / 2 - (HALF - LIM), z0: Z2 + LIM - 0.01, z1: -LIM + 0.01 }, { x0: -LIM, x1: LIM, z0: Z2 - LIM, z1: Z2 + LIM }];
+const AREAS = [{ x0: -LIM, x1: LIM, z0: -LIM, z1: LIM }, { x0: -DOOR_W / 2 + (HALF - LIM), x1: DOOR_W / 2 - (HALF - LIM), z0: Z2 + LIM - 0.01, z1: -LIM + 0.01 }, { x0: -LIM, x1: LIM, z0: Z2 - LIM, z1: Z2 + LIM }, { x0: WX - LIM, x1: WX + LIM, z0: -LIM, z1: LIM }];   // last: teleporter white room
 function clampAreas(p, areas, pad = 0) {
   let best = null, bd = 1e9;
   for (const a of areas) { const x = THREE.MathUtils.clamp(p.x, a.x0 - pad, a.x1 + pad), z = THREE.MathUtils.clamp(p.z, a.z0 - pad, a.z1 + pad), d = (x - p.x) ** 2 + (z - p.z) ** 2; if (d < bd) { bd = d; best = [x, z]; } if (!d) break; }
   p.x = best[0]; p.z = best[1]; return p;
 }
-let shield = null, kiosk = null;   // red energy shield in the doorway (shield.js)
-const CLIP_AREA = [{ x0: -LIM, x1: LIM, z0: Z2 - LIM, z1: LIM }];   // noclip: outer building envelope only (both rooms + hallway span)
+let shield = null, kiosk = null, tp = null;   // red energy shield in the doorway (shield.js)
+const CLIP_AREA = [{ x0: -LIM, x1: LIM, z0: Z2 - LIM, z1: LIM }, { x0: WX - LIM, x1: WX + LIM, z0: -LIM, z1: LIM }];   // noclip: outer building envelope only (both rooms + hallway span)
 function collide(p) {
   if (DEV.clip) { clampAreas(p, CLIP_AREA); collideCabs(p); return; }   // walls, doors, shield and plinths off; cabinets stay solid
   clampAreas(p, AREAS);
@@ -713,10 +717,10 @@ function collideCabs(p, onlyCabs = true) {
 }
 // furthest clear distance along dir from the target (walls with margin, and the STRIKE cabinet's box)
 const _cp = new THREE.Vector3();
-const CAM_AREAS = [{ x0: -(HALF - 0.3), x1: HALF - 0.3, z0: -(HALF - 0.3), z1: HALF - 0.3 }, { x0: -DOOR_W / 2 + 0.3, x1: DOOR_W / 2 - 0.3, z0: -HALF - HALL_L - 0.35, z1: -HALF + 0.35 }, { x0: -(HALF - 0.3), x1: HALF - 0.3, z0: Z2 - (HALF - 0.3), z1: Z2 + HALF - 0.3 }];
+const CAM_AREAS = [{ x0: -(HALF - 0.3), x1: HALF - 0.3, z0: -(HALF - 0.3), z1: HALF - 0.3 }, { x0: -DOOR_W / 2 + 0.3, x1: DOOR_W / 2 - 0.3, z0: -HALF - HALL_L - 0.35, z1: -HALF + 0.35 }, { x0: -(HALF - 0.3), x1: HALF - 0.3, z0: Z2 - (HALF - 0.3), z1: Z2 + HALF - 0.3 }, { x0: WX - (HALF - 0.3), x1: WX + HALF - 0.3, z0: -(HALF - 0.3), z1: HALF - 0.3 }];
 const inHallZ = z => z < -HALF + 0.3 && z > -HALF - HALL_L - 0.3;
 function camClamp(q) { clampAreas(q, CAM_AREAS); if (inHallZ(q.z)) q.y = Math.min(q.y, DOOR_H - 0.25); return q; }
-function camPush(q) { if (DEV.clip) { clampAreas(q, [{ x0: -HALF + 0.3, x1: HALF - 0.3, z0: Z2 - HALF + 0.3, z1: HALF - 0.3 }]); return q; } // keep the camera inside the walls and outside the STRIKE cabinet (continuous push-out, no ray snapping)
+function camPush(q) { if (DEV.clip) { clampAreas(q, [{ x0: -HALF + 0.3, x1: HALF - 0.3, z0: Z2 - HALF + 0.3, z1: HALF - 0.3 }, CAM_AREAS[3]]); return q; } // keep the camera inside the walls and outside the STRIKE cabinet (continuous push-out, no ray snapping)
   camClamp(q);
   for (const b of obbs) {
   if (q.y > b.h + 0.2) continue;
@@ -734,6 +738,7 @@ function camPush(q) { if (DEV.clip) { clampAreas(q, [{ x0: -HALF + 0.3, x1: HALF
 }
 // when the monkey walks up to the STRIKE cabinet, ease the camera round to a three-quarter view (unless the player is steering the camera)
 function showcase(dt) {
+  if (tp && (tp.locked || tp.near < tp.R + 0.6)) { st.showK = 0; return; }   // on the teleporter pad: no cabinet showcase swing
   let u = null, d = 1e9, dx = 0, dz = 0;
   for (const c of featured) { const ex = monkey.position.x - c.userData.front.x, ez = monkey.position.z - c.userData.front.z, ed = Math.hypot(ex, ez); if (ed < d) { d = ed; u = c.userData; dx = ex; dz = ez; } }
   st.showK = (st.showK || 0) + (((d < 2.8) && st.t - (st.lookT ?? -9) > 1.6 ? 1 : 0) - (st.showK || 0)) * (1 - Math.exp(-dt * 2.5));
@@ -753,6 +758,7 @@ function step(dt) {
   let mag = Math.min(1, Math.hypot(ix, iz)); if (mag) { ix /= Math.hypot(ix, iz); iz /= Math.hypot(ix, iz) || 1; }
   let run = keys.ShiftLeft || keys.ShiftRight;
   if (st.joy.on && Math.hypot(st.joy.x, st.joy.y) > 0.12) { ix = st.joy.x; iz = st.joy.y; mag = Math.min(1, Math.hypot(ix, iz)); run = mag > 0.85; }
+  if (tp && tp.locked) { ix = iz = mag = 0; run = false; }   // teleporting: input locked
   st.inMag = mag; st.lastStep = st.t;
   const sy = Math.sin(st.yaw), cy = Math.cos(st.yaw);
   // camera forward on ground = (-sin yaw, -cos yaw)
@@ -873,6 +879,8 @@ function frame(now) {
   const t0 = performance.now();
   { const dtc = Math.min(gap / 1000, 0.05); if (play.update(dtc, kiosk && kiosk.mode !== 'walk' && kiosk.mode !== 'pick' ? null : nearCab) || (kiosk && kiosk.update(dtc))) stepClock(dtc); else step(dtc); }
   shield.update(Math.min(gap / 1000, 0.05));
+  bloom.strength = camera.position.x > WX / 2 ? 0.12 : 0.75;   // white room: no glare
+  if (tp) tp.update(Math.min(gap / 1000, 0.05), !!document.querySelector('#bPack.on') && !document.querySelector('#inv.on'));
   if (window.__camOverride) { const o = window.__camOverride; camera.position.set(...o.pos); camera.lookAt(...o.at); if (!o.showMonkey) monkey.visible = false; } // screenshots / tests
   camera.updateMatrixWorld();
   { // run each cabinet screen only when that cabinet is near and in view
@@ -899,6 +907,7 @@ function frame(now) {
 function stepClock(dt) { st.t += dt; }
 const play = setupPlay({ camera, monkey, strikeCab, ghostCab, berserkerCab, monkeyCab, orcCab, novaCab, cyberCab, st, pause(on) { paused = on; if (!on && !rafOn) { rafOn = true; last = performance.now(); requestAnimationFrame(frame); } } });
 shield = setupShield({ scene, play, st, monkey, HALF, DOOR_W, DOOR_H });
+tp = setupTeleport({ scene, monkey, st, HALF, H }); window.__tp = tp;
 kiosk = setupKiosk({ room, camera, monkey, st, play, blockers });
 const opts = setupOpts({ play, kiosk, shield, st, monkey, setFloor, getFloor: () => floorMode, setWalls, getWalls: () => wallsMode, HALF, Z2 });
 requestAnimationFrame(frame);
