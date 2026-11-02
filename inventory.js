@@ -17,12 +17,11 @@
     '#invC{border-color:#3cff7a88;background:#04180ccc}#invC .n{color:#9dffb5;text-shadow:0 0 8px #3cff7a}#invC .l{color:#c8ffd6}#invC small{display:block;font-size:11px;color:#7fdc98;letter-spacing:.06em;margin-top:3px}' +
     '.invCoin{width:28px!important;height:28px!important;border-radius:50%;background:radial-gradient(#9dffb5,#1d8f45);color:#04180c;font:900 17px/28px sans-serif;text-align:center;flex:none}';
   document.head.appendChild(st);
-  // original icon: black backpack, grey cartoon monkey face on the front pocket (big white eyes), grey ear on the side
+  // original icon: black backpack, grey cartoon monkey face on the front pocket (big white eyes), (side ear removed)
   function drawPack(c, px) {
     var d = 2; c.width = c.height = px * d; var g = c.getContext('2d'); g.scale(px * d / 100, px * d / 100);
     function rr(x, y, w, h, r) { g.beginPath(); g.moveTo(x + r, y); g.arcTo(x + w, y, x + w, y + h, r); g.arcTo(x + w, y + h, x, y + h, r); g.arcTo(x, y + h, x, y, r); g.arcTo(x, y, x + w, y, r); g.closePath(); }
     g.lineWidth = 5; g.strokeStyle = '#1b1b1f'; g.beginPath(); g.arc(50, 18, 11, Math.PI, 0); g.stroke();             // top handle
-    g.fillStyle = '#8d8f96'; g.beginPath(); g.ellipse(85, 50, 9, 12, 0.2, 0, 7); g.fill(); g.fillStyle = '#6c6e75'; g.beginPath(); g.ellipse(86, 50, 5, 7.5, 0.2, 0, 7); g.fill();   // side ear
     g.fillStyle = '#111115'; rr(16, 18, 66, 76, 22); g.fill(); g.strokeStyle = '#3a3a44'; g.lineWidth = 2.5; g.stroke();     // bag body
     g.fillStyle = '#1d1d24'; rr(22, 46, 54, 44, 16); g.fill(); g.strokeStyle = '#4a4a55'; g.lineWidth = 2; g.stroke();       // front pocket
     g.strokeStyle = '#55555f'; g.lineWidth = 1.6; g.setLineDash([3, 3]); g.beginPath(); g.moveTo(24, 40); g.quadraticCurveTo(49, 34, 74, 40); g.stroke(); g.setLineDash([]);   // zip

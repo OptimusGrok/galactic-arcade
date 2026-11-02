@@ -354,6 +354,23 @@ function wallTubeGeo(cabList, flatEast) {
 }
 const wn = new THREE.Mesh(wallTubeGeo([...cabinets, ...featured, ...eastGhostCabs], false), neon(C.pink, 3.5)); wn.name = 'wallNeonRun'; room.add(wn);
 const playables = [...cabinets, ...featured];
+// ---------- dev toggles (hidden ticket menu): NUMBERS badges over game cabinets, CLIPPING (walk through walls/doors) ----------
+const DEV = { numbers: localStorage.getItem('neonarcade.dev.numbers') === '1', clip: localStorage.getItem('neonarcade.dev.clip') === '1', badges: [] };
+{ // stable order: room 1 walk, north wall left->right then west wall; only cabinets with a game (blanks get no number)
+  const order = ['0:0', '0:1', '0:3', '0:4', '1:2', '1:3', '1:4', '1:0', '1:1', '2:0', '2:1', '2:2', '2:3', '2:4'];
+  let n = 0;
+  for (const key of order) { const F = FEATURED[key]; if (!F) continue; n++;
+    const c = document.createElement('canvas'); c.width = c.height = 128; const g = c.getContext('2d');
+    g.fillStyle = '#ffe000'; g.beginPath(); g.arc(64, 64, 58, 0, 7); g.fill(); g.lineWidth = 8; g.strokeStyle = '#000'; g.stroke();
+    g.fillStyle = '#000'; g.font = '900 78px Arial'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(String(n), 64, 68);
+    const tx = new THREE.CanvasTexture(c); tx.colorSpace = THREE.SRGBColorSpace;
+    const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: tx, depthTest: false, transparent: true })); sp.renderOrder = 999;
+    const cab = F[0]; cab.updateMatrixWorld(true); const b = new THREE.Box3().setFromObject(cab), ctr = b.getCenter(new THREE.Vector3());
+    sp.position.set(ctr.x, b.max.y + 0.55, ctr.z); sp.scale.setScalar(1.4); sp.name = 'machineNumber_' + n; sp.userData = { n, key, game: F[1] };
+    sp.visible = DEV.numbers; scene.add(sp); DEV.badges.push(sp); }
+}
+DEV.set = (k, v) => { DEV[k] = !!v; localStorage.setItem('neonarcade.dev.' + (k === 'clip' ? 'clip' : 'numbers'), v ? '1' : '0'); if (k === 'numbers') DEV.badges.forEach(b => b.visible = !!v); };
+window.__dev = DEV;
 const obbs = blockers.filter(b => b.kind === 'obb');
 
 // ---------- room 2: identical shell, rotated 180deg north of the hallway, 19 blank cabinets (instanced) ----------
@@ -651,10 +668,16 @@ function clampAreas(p, areas, pad = 0) {
   p.x = best[0]; p.z = best[1]; return p;
 }
 let shield = null, kiosk = null;   // red energy shield in the doorway (shield.js)
+const CLIP_AREA = [{ x0: -LIM, x1: LIM, z0: Z2 - LIM, z1: LIM }];   // noclip: outer building envelope only (both rooms + hallway span)
 function collide(p) {
+  if (DEV.clip) { clampAreas(p, CLIP_AREA); collideCabs(p); return; }   // walls, doors, shield and plinths off; cabinets stay solid
   clampAreas(p, AREAS);
   if (shield) shield.block(p, R);
+  collideCabs(p, false);
+}
+function collideCabs(p, onlyCabs = true) {
   for (const b of blockers) {
+    if (onlyCabs && /plinth/.test(b.kind)) continue;
     if (b.kind === 'obb') { // to local (x along cabinet depth, z across)
       const c = Math.cos(b.ang), sn = Math.sin(b.ang), rx = p.x - b.ox, rz = p.z - b.oz;
       const lx = c * rx - sn * rz, lz = sn * rx + c * rz;
@@ -683,7 +706,7 @@ const _cp = new THREE.Vector3();
 const CAM_AREAS = [{ x0: -(HALF - 0.3), x1: HALF - 0.3, z0: -(HALF - 0.3), z1: HALF - 0.3 }, { x0: -DOOR_W / 2 + 0.3, x1: DOOR_W / 2 - 0.3, z0: -HALF - HALL_L - 0.35, z1: -HALF + 0.35 }, { x0: -(HALF - 0.3), x1: HALF - 0.3, z0: Z2 - (HALF - 0.3), z1: Z2 + HALF - 0.3 }];
 const inHallZ = z => z < -HALF + 0.3 && z > -HALF - HALL_L - 0.3;
 function camClamp(q) { clampAreas(q, CAM_AREAS); if (inHallZ(q.z)) q.y = Math.min(q.y, DOOR_H - 0.25); return q; }
-function camPush(q) { // keep the camera inside the walls and outside the STRIKE cabinet (continuous push-out, no ray snapping)
+function camPush(q) { if (DEV.clip) { clampAreas(q, [{ x0: -HALF + 0.3, x1: HALF - 0.3, z0: Z2 - HALF + 0.3, z1: HALF - 0.3 }]); return q; } // keep the camera inside the walls and outside the STRIKE cabinet (continuous push-out, no ray snapping)
   camClamp(q);
   for (const b of obbs) {
   if (q.y > b.h + 0.2) continue;

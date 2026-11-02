@@ -1,0 +1,36 @@
+// hidden menu DEV tabs: NUMBERS badges + CLIPPING (noclip). node test/devmenu.js [phone]
+const { open } = require('./lib');
+const PH = process.argv[2] === 'phone', sfx = PH ? '_phone' : '';
+(async () => {
+  let ok = true; const chk = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); if (!c) ok = false; };
+  const o = await open(PH ? { phone: true, start: true, w: 412, h: 860 } : { start: true, w: 1280, h: 720 }); const { page, errors } = o;
+  const ev = (f, a) => page.evaluate(f, a);
+  const tapXY = async (x, y) => { if (PH) await page.touchscreen.tap(x, y); else await page.mouse.click(x, y); };
+  const tap = async sel => { const r = await ev(s => { const b = document.querySelector(s).getBoundingClientRect(); return [b.left + b.width / 2, b.top + b.height / 2]; }, sel); await tapXY(r[0], r[1]); await page.waitForTimeout(250); };
+  await page.waitForTimeout(1200);
+  await ev(() => { const h = document.getElementById('secHot'), r = h.getBoundingClientRect(); for (let i = 0; i < 3; i++) h.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, clientX: r.left + 30, clientY: r.top + 30 })); });
+  await page.waitForTimeout(300);
+  const D = await ev(() => { const r = document.getElementById('secP').getBoundingClientRect(), o = []; for (let i = 0; i < 9; i++) o.push([r.left + r.width * (0.2 + 0.3 * (i % 3)), r.top + r.height * (0.2 + 0.3 * Math.floor(i / 3))]); return o; });
+  const p = [1, 5, 9, 6, 3].map(n => D[n - 1]); await page.mouse.move(p[0][0], p[0][1]); await page.mouse.down(); for (let k = 1; k < 5; k++) await page.mouse.move(p[k][0], p[k][1], { steps: 8 }); await page.mouse.up(); await page.waitForTimeout(400);
+  chk(await ev(() => !!document.getElementById('tkNum') && !!document.getElementById('tkClip') && !!document.querySelector('#tk.on')), 'menu has NUMBERS and CLIPPING tabs');
+  chk(await ev(() => document.getElementById('tkNum').textContent === 'NUMBERS: OFF' && window.__dev.badges.every(b => !b.visible)), 'NUMBERS off by default, no badges');
+  await tap('#tkNum'); await page.screenshot({ path: `shots/menu_tabs${sfx}.png` });
+  let s = await ev(() => ({ t: document.getElementById('tkNum').textContent, ls: localStorage.getItem('neonarcade.dev.numbers'), n: window.__dev.badges.length, vis: window.__dev.badges.every(b => b.visible), games: window.__dev.badges.map(b => b.userData.n + '=' + b.userData.game).join(',') }));
+  chk(s.t === 'NUMBERS: ON' && s.ls === '1' && s.n === 7 && s.vis, 'NUMBERS on: 7 game cabinets badged, persisted ' + JSON.stringify(s));
+  await tap('#tkDone'); await tap('#stStart'); await page.waitForFunction(() => !document.getElementById('start'), null, { timeout: 8000 }).catch(() => {});
+  await page.waitForTimeout(800);
+  await ev(() => { window.__camOverride = { pos: [5, 5.5, 7], at: [-4, 1.6, -5], showMonkey: true }; }); await page.waitForTimeout(1800);
+  await page.screenshot({ path: `shots/numbers_on${sfx}.png` });
+  await ev(() => { window.__camOverride = null; }); await page.waitForTimeout(600);
+  if (PH) await page.screenshot({ path: `shots/backpack_noear_phone.png`, clip: { x: 412 - 140, y: 860 - 140, width: 140, height: 140 } });
+  await ev(() => window.__dev.set('numbers', false)); chk(await ev(() => window.__dev.badges.every(b => !b.visible) && localStorage.getItem('neonarcade.dev.numbers') === '0'), 'NUMBERS off hides badges');
+  const walk = () => ev(() => { const A = window.__arcade; A.monkey.position.set(5, 0, -6); A.st.vel.set(0, 0, 0); for (let i = 0; i < 300; i++) { A.monkey.position.z -= 0.05; A.step(1 / 60); } return A.monkey.position.z; });
+  const HALF = await ev(() => (-window.__arcade.Z2 - window.__arcade.HALL_L) / 2);
+  let z = await walk(); chk(z > -HALF, `CLIPPING off: north wall blocks (z=${z.toFixed(2)})`);
+  await ev(() => window.__dev.set('clip', true)); z = await walk(); chk(z < -HALF - 1, `CLIPPING on: walked through the wall towards room 2 (z=${z.toFixed(2)})`);
+  const z2 = await ev(() => { const A = window.__arcade; A.monkey.position.set(0, 0, -6); for (let i = 0; i < 1200; i++) { A.monkey.position.z -= 0.05; A.step(1 / 60); } return [A.monkey.position.z, A.monkey.position.y, A.Z2]; });
+  chk(z2[0] >= z2[2] - HALF && z2[0] < z2[2] + HALF && Math.abs(z2[1]) < 0.01, 'CLIPPING on: through the shield doorway into room 2, stops at the outer wall, on the floor ' + JSON.stringify(z2));
+  await ev(() => window.__dev.set('clip', false));
+  chk(!errors.length, 'no page errors ' + errors.slice(0, 2).join(' | '));
+  await o.close(); console.log(ok ? 'ALL PASS' : 'SOME FAIL'); process.exit(ok ? 0 : 1);
+})();
