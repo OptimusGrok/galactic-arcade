@@ -30,8 +30,12 @@ export function setupOpts({ play, kiosk, shield, st, monkey, setFloor, getFloor,
   function snapshot() { const k = window.__kiosk, cr = {}; for (const [n, m] of Object.entries(play.machines)) cr[n] = m.credits;
     return { v: 1, at: Date.now(), tickets: play.tickets.total, viking: play.viking ? play.viking.total : 0, cash: k ? { bal: k.C.bal, at: k.C.at } : null, kioskPending: k ? k.pending : 0,
       credits: cr, shield: !!(shield && shield.open), floor: getFloor(), walls: getWalls ? getWalls() : 'current', music: !window.__music || window.__music.on,
-      pos: monkey.position.toArray().map(v => +v.toFixed(3)), face: +st.face.toFixed(4), yaw: +st.yaw.toFixed(4), room: roomOf(monkey.position.z) }; }
+      pos: monkey.position.toArray().map(v => +v.toFixed(3)), face: +st.face.toFixed(4), yaw: +st.yaw.toFixed(4), room: roomOf(monkey.position.z), run: runSnap() }; }
+  // per-game arcade run progress (same-origin cabinet keys): session-only, kept only by a SAVE slot
+  const RUNK = ['arcade_orc_progress', 'arcade_berserker_save', 'arcade_mc_tickets'];
+  function runSnap() { const o = {}; for (const k of RUNK) { const v = localStorage.getItem(k); if (v !== null) o[k] = v; } return o; }
   function apply(s) {
+    try { for (const k of RUNK) { if (s.run && k in s.run) localStorage.setItem(k, s.run[k]); else localStorage.removeItem(k); } } catch (e) {}
     try { localStorage.setItem('neonarcade.tickets', String(s.tickets)); localStorage.setItem('neonarcade.vikingTickets', String(s.viking || 0)); } catch (e) {}
     if (window.__neonSync) window.__neonSync(); if (play.viking) play.viking.total = s.viking || 0; if (play.showVix) play.showVix();
     for (const [n, c] of Object.entries(s.credits || {})) if (play.machines[n]) play.machines[n].credits = c;

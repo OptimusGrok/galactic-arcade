@@ -21,7 +21,7 @@ const PHONE = process.argv[2] === 'phone';
   chk(JSON.stringify(o.m) === JSON.stringify(m0), 'tapping the backpack does not move the monkey');
   await page.evaluate(() => { const p = window.__arcade.play; p.tickets.total = 9; p.viking.total = 3; window.__kiosk.setState({ bal: 2, at: Date.now() - 600e3, pending: 0 }); }); await page.waitForTimeout(600);
   const l = await page.evaluate(() => ({ g: document.getElementById('invGn').textContent, v: document.getElementById('invVn').textContent, c: document.getElementById('invCn').textContent, r: document.getElementById('invCr').textContent }));
-  chk(l.g === '9' && l.v === '3' && l.c === '$2' && /^\+\$3 IN \d+M \d\dS$/.test(l.r), 'values live-update, cash below $5 shows the refill countdown ' + JSON.stringify(l));
+  chk(l.g === '9' && l.v === '3' && l.c === '$2' && /^\+\$3 in \d+m$/.test(l.r), 'values live-update, cash below $5 shows the refill countdown ' + JSON.stringify(l));
   await page.screenshot({ path: 'shots/inventory_open' + sfx + '.png' });
   if (PHONE) await page.tap('#invX'); else await page.click('#invX'); await page.waitForTimeout(300);
   chk(await page.evaluate(() => !window.__inv.open && !document.getElementById('inv').classList.contains('on')), 'X closes it');

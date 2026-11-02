@@ -49,7 +49,7 @@
   [b, inv].forEach(function (el) { ['pointerdown', 'mousedown', 'pointerup'].forEach(function (t) { el.addEventListener(t, swallow); }); el.addEventListener('touchstart', function (e) { e.stopPropagation(); }, { passive: true }); });
   function A() { return window.__arcade || {}; }
   function vals() { var a = A(), p = a.play || {}, k = window.__kiosk, now = window.__kioskNow ? window.__kioskNow() : Date.now(); var v = { gold: p.tickets ? p.tickets.total : 0, viking: p.viking ? p.viking.total : 0, cash: k ? k.C.bal : 0, refill: '' };
-    if (k && v.cash < 5) { var left = Math.max(0, k.C.at + 36e5 - now); v.refill = '+$' + (5 - v.cash) + ' IN ' + Math.floor(left / 6e4) + 'M ' + String(Math.floor(left % 6e4 / 1e3)).padStart(2, '0') + 'S'; }
+    if (k && v.cash < 5) { var left = Math.max(0, k.C.at + 36e5 - now); v.refill = '+$' + (5 - v.cash) + ' in ' + Math.max(0, Math.floor((left - 1) / 6e4)) + 'm'; }
     return v; }
   function fill() { var v = vals(); I.vals = v; document.getElementById('invGn').textContent = v.gold; document.getElementById('invVn').textContent = v.viking; document.getElementById('invCn').textContent = '$' + v.cash; document.getElementById('invCr').textContent = v.refill; vikArt(); }
   function canShow() { var a = A(), p = a.play, s = window.__start; if (!p) return 'loading'; if (s && s.shown && !s.dismissed) return 'start'; if (p.mode !== 'walk') return 'game';
