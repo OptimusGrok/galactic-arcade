@@ -22,10 +22,11 @@ REGISTRY = [
     dict(name='monkey', source='/workspace/monkey-cross/index.html', builder='tools_build_monkey_play.py', out='monkey-play/index.html', tests=['monkeyplay']),
     dict(name='berserker', source='/workspace/berserker/index.html', builder='tools_build_berserker_play.py', out='berserker-play/index.html', tests=['berserkerplay']),
     dict(name='orc', source='/workspace/orc-attack-pages/index.html', builder='tools_build_orc_play.py', out='orc-play/index.html', tests=['orcplay']),
+    dict(name='nova', source='/workspace/nova-tether-pages/index.html', builder='tools_build_nova_play.py', out='nova-play/index.html', tests=['novaplay']),   # READ ONLY repo (Chief of Staff); the builder pins commit bde4704
 ]
 SHARED_TESTS = ['credits', 'tickets']          # cover every cabinet: demo, INSERT TICKET, credits, in-game tickets
 PHONE = True                                   # each test also runs with the 'phone' argument
-EXTRA_PUBLISH = ['index.html', 'main.js', 'play.js', 'sw.js', 'ticket-art.js', 'berserkcab.js', 'shield.js', 'img/start.webp', 'img/start.jpg', 'tex/carpet.webp', 'img/floor_neon.webp', 'img/floor_carpet.webp', 'monkeycab.js', 'tex/mc_side.jpg', 'tex/mc_marquee.jpg', 'tex/mc_panel.jpg', 'img/bz_title.jpg', 'berserker-play/hero8.webp', 'berserker-play/music_village.m4a', 'orccab.js', 'tex/oa_side.jpg', 'tex/oa_marquee.jpg']
+EXTRA_PUBLISH = ['index.html', 'main.js', 'play.js', 'sw.js', 'ticket-art.js', 'berserkcab.js', 'shield.js', 'img/start.webp', 'img/start.jpg', 'tex/carpet.webp', 'img/floor_neon.webp', 'img/floor_carpet.webp', 'monkeycab.js', 'tex/mc_side.jpg', 'tex/mc_marquee.jpg', 'tex/mc_panel.jpg', 'img/bz_title.jpg', 'berserker-play/hero8.webp', 'berserker-play/music_village.m4a', 'orccab.js', 'tex/oa_side.jpg', 'tex/oa_marquee.jpg', 'novacab.js', 'tex/nt_side.jpg', 'tex/nt_marquee.jpg']
 ARCADE_ONLY = ['TicketArt', '__TK', '__neonTicket', '__demo', 'INSERT TICKET']
 sha = lambda p: hashlib.sha256(open(p, 'rb').read()).hexdigest()
 def die(code, msg): print('FAIL:', msg, file=sys.stderr); sys.exit(code)
