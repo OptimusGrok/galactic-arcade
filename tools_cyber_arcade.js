@@ -8,7 +8,7 @@
   };
   var RUN_SECS = 15 * 60;
   var TK = window.__TK = { got: 0, drops: 0, log: [], stepAcc: 0, run: false, left: RUN_SECS, over: false,
-    P: { battle: 0.35, boss: 5, chest: 0.5, quest: 3, questExtra: 0.5, walkEvery: 150, walk: 0.25, runBonus: 3 } };
+    P: { battle: 0.6, boss: 8, chest: 0.75, quest: 4, questExtra: 0.5, walkEvery: 40, walk: 0.3, runBonus: 5 } };   // tuned 'pays well': ~20-25 tickets per 10-ticket run (measured, test/cyberplay.js)
   function cheating() { try { return (typeof Auto !== 'undefined' && Auto.on) || (typeof Speed !== 'undefined' && Speed.mode !== 1); } catch (e) { return false; } }
   function give(n, why) {
     if (!n || window.__DEMO || !TK.run || TK.over || cheating()) return;
@@ -16,7 +16,7 @@
   }
   var R = function () { return Math.random(); };
   TK.ev = function (kind, a) {
-    if (kind === 'battle') { if (a) give(TK.P.boss, 'boss'); else if (R() < TK.P.battle) give(1, 'battle'); }
+    if (kind === 'battle') { if (a) give(TK.P.boss, 'boss'); else if (R() < TK.P.battle) give(R() < 0.5 ? 2 : 1, 'battle'); }
     else if (kind === 'chest') { if (R() < TK.P.chest) give(R() < 0.35 ? 2 : 1, 'chest'); }
     else if (kind === 'quest') give(TK.P.quest + (R() < TK.P.questExtra ? 1 : 0), 'quest');
     else if (kind === 'step') { if (++TK.stepAcc >= TK.P.walkEvery) { TK.stepAcc = 0; if (R() < TK.P.walk) give(R() < 0.5 ? 2 : 1, 'explore'); } }

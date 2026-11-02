@@ -35,7 +35,7 @@ const PHONE = process.argv[2] === 'phone', MEAS = +(process.argv[3] || 90);
   const r = await page.evaluate(W => { const w = eval(W), R = w.Math.random; w.Math.random = () => 0.1; w.__TK.ev('battle', false); w.__TK.ev('chest'); w.Math.random = R; return w.__cyber.state(); }, W);
   await page.waitForTimeout(500);
   const h = await page.evaluate(W => { const w = eval(W), ch = w.document.getElementById('cyChip'); return { t: window.__arcade.play.tickets.total, hud: document.getElementById('tixN').textContent, ls: localStorage.getItem('neonarcade.tickets'), chipTxt: ch ? ch.textContent : '', inner: Object.keys(w.localStorage).filter(k => /neonarcade/.test(k)) }; }, W);
-  chk(r.got === 3 && h.t === before + 3 && h.hud === String(h.t) && h.ls === String(h.t), 'battle + chest drops reach the session counter (+3) ' + JSON.stringify([r.log, h]));
+  chk(r.got === 4 && h.t === before + 4 && h.hud === String(h.t) && h.ls === String(h.t), 'battle + chest drops reach the session counter (+4) ' + JSON.stringify([r.log, h]));
   chk(!/\d+\s*\u00b7/.test(h.chipTxt) && /\d:\d\d/.test(h.chipTxt) && h.inner.length === 0, 'game shows only its run timer (no second ticket counter), writes no neonarcade keys ' + JSON.stringify(h.chipTxt));
   await page.screenshot({ path: 'shots/cyber_ticket' + sfx + '.png' });
   // pause on hold
@@ -47,11 +47,12 @@ const PHONE = process.argv[2] === 'phone', MEAS = +(process.argv[3] || 90);
   const m = await page.evaluate(async ([W, S]) => { const w = eval(W), ev = []; const o = w.__TK.ev; w.__TK.ev = (k, a) => { ev.push([k, !!a]); return o(k, a); };
     w.Auto.enable(); await new Promise(r => setTimeout(r, S * 1000)); try { w.Auto.cancel('test'); } catch (e) {} w.__TK.ev = o;
     const P = w.__TK.P; let sim = []; for (let trial = 0; trial < 400; trial++) { let n = 0, acc = 0; const R = Math.random;
-      for (const [k, a] of ev) { if (k === 'battle') { if (a) n += P.boss; else if (R() < P.battle) n++; } else if (k === 'chest') { if (R() < P.chest) n += R() < .35 ? 2 : 1; } else if (k === 'quest') n += P.quest + (R() < P.questExtra ? 1 : 0); else if (k === 'step') { if (++acc >= P.walkEvery) { acc = 0; if (R() < P.walk) n += R() < .5 ? 2 : 1; } } }
+      for (const [k, a] of ev) { if (k === 'battle') { if (a) n += P.boss; else if (R() < P.battle) n += R() < .5 ? 2 : 1; } else if (k === 'chest') { if (R() < P.chest) n += R() < .35 ? 2 : 1; } else if (k === 'quest') n += P.quest + (R() < P.questExtra ? 1 : 0); else if (k === 'step') { if (++acc >= P.walkEvery) { acc = 0; if (R() < P.walk) n += R() < .5 ? 2 : 1; } } }
       sim.push(n); }
     const mean = sim.reduce((a, b) => a + b, 0) / sim.length, cnt = {}; ev.forEach(([k, a]) => { const kk = k + (a ? ':boss' : ''); cnt[kk] = (cnt[kk] || 0) + 1; });
     return { secs: S, events: cnt, perWindow: +mean.toFixed(2), per15min: +(mean * 900 / S + P.runBonus).toFixed(1) }; }, [W, MEAS]);
   console.log('PAYOUT ' + JSON.stringify(m) + ' -> about ' + m.per15min + ' tickets per 10 spent');
+  chk(m.per15min >= 15 && m.per15min <= 35, 'payout pays well: ~' + m.per15min + ' tickets per 10-ticket run');
   chk(m.events.step > 0, 'autoplay drove the real hooks during the measurement');
   chk(!requests.some(u => !u.startsWith('http://localhost') && !u.startsWith('data:') && !u.startsWith('blob:')), 'no network calls ' + requests.filter(u => !u.startsWith('http://localhost')).slice(0, 3));
   const keys = await page.evaluate(W => Object.keys(eval(W).localStorage).filter(k => /^cybercity|^ghost256/.test(k)), W); chk(keys.length === 0, 'cabinet storage isolated (arcade_cyber_*) ' + keys);
