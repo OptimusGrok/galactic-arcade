@@ -441,13 +441,59 @@ export function setupShop({ scene, tp, play, monkey, camera, st } = {}) {
   // t563: teleporter pad moved from the room centre to the far-left corner (title wall's car end meets the left wall's Viking end),
   // 2 m clear of both walls. teleport.js reads tp.PAD2 live (proximity button, beam, arrival), so moving the vector + the pad group moves it all.
   if (tp && tp.PAD2 && tp.pads && tp.pads[1]) { tp.PAD2.set(WXp - (HS - 2.0), 0, HS - 2.0); tp.pads[1].G.position.copy(tp.PAD2); }
+  // ---------- POOL TABLE (t564, Dave via Card & Board Games): right wall, opposite the corner teleporter pad. Same look as the 8-Ball Pool game
+  // (dark walnut rails, #17734a felt, six pockets), racked balls + a cue on top. ~8 draw calls. Near it a PLAY POOL button opens
+  // pool-play/index.html (a same-origin copy of https://optimusgrok.github.io/pool/) full-screen in an iframe overlay with a ✕. Free for now.
+  const PX = 12.1, PZ = 6.0, PLW = 0.78, PLL = 1.42, PTY = 0.82;   // table centre (shop-local), felt half-width (x) / half-length (z), felt height
+  const pool = new THREE.Group(); pool.name = 'poolTable'; pool.position.set(PX, 0, PZ); G.add(pool);
+  { const tex = (w, h, f) => { const c = document.createElement('canvas'); c.width = w; c.height = h; f(c.getContext('2d'), w, h); const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t; };
+    const woodT = tex(512, 64, (g, w, h) => { const gr = g.createLinearGradient(0, 0, 0, h); gr.addColorStop(0, '#5a2c12'); gr.addColorStop(1, '#3e1c0a'); g.fillStyle = gr; g.fillRect(0, 0, w, h);
+      for (let i = 0; i < 70; i++) { g.strokeStyle = `rgba(${20 + Math.random() * 40 | 0},${8 + Math.random() * 12 | 0},0,${0.15 + Math.random() * 0.3})`; g.lineWidth = 0.5 + Math.random() * 1.5; g.beginPath(); let y = Math.random() * h; g.moveTo(0, y); for (let x = 0; x <= w; x += 32) { y += (Math.random() - 0.5) * 2; g.lineTo(x, y); } g.stroke(); } });
+    const feltT = tex(128, 128, (g, w, h) => { g.fillStyle = '#17734a'; g.fillRect(0, 0, w, h); const id = g.getImageData(0, 0, w, h), d = id.data; for (let i = 0; i < d.length; i += 4) { const n = (Math.random() - 0.5) * 22; d[i] += n * 0.5; d[i + 1] += n; d[i + 2] += n * 0.6; } g.putImageData(id, 0, 0); });
+    const woodM = new THREE.MeshStandardMaterial({ map: woodT, roughness: 0.35, metalness: 0.05 }), feltM = new THREE.MeshStandardMaterial({ map: feltT, roughness: 0.95 });
+    const merge = (parts) => { const gs = parts.map(([w, h, d, x, y, z]) => new THREE.BoxGeometry(w, h, d).translate(x, y, z)); return mergeGeometries(gs); };
+    const RW = 0.16, RO = PLW + RW, LO = PLL + RW;
+    const wood = merge([[2 * RO, 0.24, 2 * LO, 0, PTY - 0.14, 0],                                                              // apron / body
+      [RW, 0.07, 2 * LO, -(PLW + RW / 2), PTY + 0.035, 0], [RW, 0.07, 2 * LO, PLW + RW / 2, PTY + 0.035, 0],               // long rails
+      [2 * PLW, 0.07, RW, 0, PTY + 0.035, -(PLL + RW / 2)], [2 * PLW, 0.07, RW, 0, PTY + 0.035, PLL + RW / 2],               // short rails
+      ...[[-1, -1], [1, -1], [-1, 1], [1, 1], [-1, 0], [1, 0]].map(([sx, sz]) => [0.16, PTY - 0.26, 0.16, sx * (RO - 0.12), (PTY - 0.26) / 2, sz * (LO - 0.12)]),   // legs
+      [2 * RO - 0.3, 0.06, 2 * LO - 0.3, 0, 0.05, 0]]);                                                                      // foot plinth
+    const wm = new THREE.Mesh(wood, woodM); wm.name = 'poolWood'; pool.add(wm);
+    const fm = new THREE.Mesh(new THREE.PlaneGeometry(2 * PLW, 2 * PLL).rotateX(-Math.PI / 2).translate(0, PTY + 0.002, 0), feltM); fm.name = 'poolFelt'; pool.add(fm);
+    const cush = merge([[0.05, 0.04, 2 * PLL - 0.2, -(PLW - 0.025), PTY + 0.02, 0], [0.05, 0.04, 2 * PLL - 0.2, PLW - 0.025, PTY + 0.02, 0], [2 * PLW - 0.2, 0.04, 0.05, 0, PTY + 0.02, -(PLL - 0.025)], [2 * PLW - 0.2, 0.04, 0.05, 0, PTY + 0.02, PLL - 0.025]]);
+    pool.add(Object.assign(new THREE.Mesh(cush, new THREE.MeshStandardMaterial({ map: feltT, color: 0x0f8f55, roughness: 0.9 })), { name: 'poolCushions' }));
+    // six pockets: black cups + brass rims
+    const pk = [[-1, -1], [1, -1], [-1, 0], [1, 0], [-1, 1], [1, 1]].map(([sx, sz]) => [sx * (PLW - 0.01), sz * (PLL - 0.01)]);
+    const cup = new THREE.InstancedMesh(new THREE.CylinderGeometry(0.075, 0.06, 0.08, 16), new THREE.MeshBasicMaterial({ color: 0x050505 }), 6), rim = new THREE.InstancedMesh(new THREE.TorusGeometry(0.078, 0.012, 6, 18).rotateX(Math.PI / 2), new THREE.MeshStandardMaterial({ color: 0xc9a24a, metalness: 0.8, roughness: 0.3 }), 6);
+    const M4 = new THREE.Matrix4(); pk.forEach(([x, z], i) => { cup.setMatrixAt(i, M4.makeTranslation(x, PTY + 0.035, z)); rim.setMatrixAt(i, M4.makeTranslation(x, PTY + 0.075, z)); });
+    cup.name = 'poolPockets'; rim.name = 'poolPocketRims'; pool.add(cup, rim);
+    // racked balls (game colours: solids 1-7, 8 black, stripes 9-15 shown as their colour with a white band) + cue ball
+    const COLS = ['#f4f1e6', '#f2c40f', '#1f4fbf', '#d42222', '#5b2a86', '#f07818', '#0f7a3c', '#7d1c1c', '#111111', '#f2c40f', '#1f4fbf', '#d42222', '#5b2a86', '#f07818', '#0f7a3c', '#7d1c1c'];
+    const BR = 0.028, RACK = [1, 9, 2, 10, 8, 3, 11, 7, 14, 4, 5, 13, 15, 6, 12], balls = new THREE.InstancedMesh(new THREE.SphereGeometry(BR, 14, 10), new THREE.MeshStandardMaterial({ roughness: 0.15, metalness: 0.05 }), 16);
+    const stripes = new THREE.InstancedMesh(new THREE.CylinderGeometry(BR * 1.004, BR * 1.004, BR * 0.9, 14, 1, true), new THREE.MeshStandardMaterial({ color: 0xf4f1e6, roughness: 0.15, side: THREE.DoubleSide }), 7);
+    let k = 0, s = 0; const zf = -PLL / 2;   // foot spot: rack apex points at the cue ball
+    for (let row = 0; row < 5; row++) for (let j = 0; j <= row; j++) { const n = RACK[k], x = (j - row / 2) * 2 * BR * 1.01, z = zf - row * BR * 1.75;
+      balls.setMatrixAt(k, M4.makeTranslation(x, PTY + BR, z)); balls.setColorAt(k, new THREE.Color(COLS[n])); if (n > 8) stripes.setMatrixAt(s++, M4.makeTranslation(x, PTY + BR, z)); k++; }
+    balls.setMatrixAt(15, M4.makeTranslation(0.05, PTY + BR, PLL / 2)); balls.setColorAt(15, new THREE.Color(COLS[0]));
+    balls.name = 'poolBalls'; stripes.name = 'poolStripes'; pool.add(balls, stripes);
+    // cue lying across the far rail toward the cue ball: maple butt + ivory ferrule
+    const cue = new THREE.Group(); cue.name = 'poolCue';
+    const shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.0065, 0.014, 1.45, 10), new THREE.MeshStandardMaterial({ color: 0xe0c08a, roughness: 0.4 })); cue.add(shaft);
+    const butt = new THREE.Mesh(new THREE.CylinderGeometry(0.0145, 0.016, 0.45, 10).translate(0, -0.5, 0), new THREE.MeshStandardMaterial({ color: 0x2a1408, roughness: 0.3 })); cue.add(butt);
+    shaft.rotation.x = butt.rotation.x = -Math.PI / 2; cue.rotation.y = 0.12; cue.position.set(0.32, PTY + 0.017, 0.5); pool.add(cue);
+    // warm lamp over the table (emissive bar, no extra light)
+    const lamp = new THREE.Mesh(merge([[0.34, 0.08, 1.9, 0, 2.35, 0], [0.02, 0.9, 0.02, 0, 2.85, 0]]), new THREE.MeshStandardMaterial({ color: 0x0f3a24, roughness: 0.4, emissive: 0x041a0e }));
+    const glow = new THREE.Mesh(new THREE.PlaneGeometry(0.28, 1.8).rotateX(Math.PI / 2).translate(0, 2.305, 0), new THREE.MeshBasicMaterial({ color: 0xfff1d0, toneMapped: false }));
+    lamp.name = 'poolLamp'; glow.name = 'poolLampGlow'; pool.add(lamp, glow);
+  }
   // ---------- bounds + obstacles ----------
   const R = 0.3, L = HS - 0.35, KX = 0, KZ = 0;
   const extraBounds = { x0: WXp - L, x1: WXp + L, z0: Z0 + SD / 2 + R, z1: L };
   const camBounds = { x0: WXp - (HS - 0.3), x1: WXp + HS - 0.3, z0: Z0 + SD / 2 + 0.1, z1: HS - 0.3 };
   const cc = [[-0.86, -CL / 2], [0.84, -CL / 2], [0.84, CL / 2], [-0.86, CL / 2]].map(([a, b]) => toW(a, b));
   const OBST = [{ x0: Math.min(...cc.map(c => c[0])), x1: Math.max(...cc.map(c => c[0])), z0: Math.min(...cc.map(c => c[1])), z1: Math.max(...cc.map(c => c[1])) },
-    { x0: -SXW - 0.1, x1: -SXW + 0.1, z0: ZW, z1: ZF }, { x0: SXW - 0.1, x1: SXW + 0.1, z0: ZW, z1: ZF }];
+    { x0: -SXW - 0.1, x1: -SXW + 0.1, z0: ZW, z1: ZF }, { x0: SXW - 0.1, x1: SXW + 0.1, z0: ZW, z1: ZF },
+    { x0: PX - PLW - 0.18, x1: PX + PLW + 0.18, z0: PZ - PLL - 0.18, z1: PZ + PLL + 0.18 }];   // pool table
   const NP = { x: QX + Math.sin(GYAW) * (RO + 0.55), z: QZ + Math.cos(GYAW) * (RO + 0.55) };
   function pushOut(p) { const lx = p.x - WXp, lz = p.z;
     const dx = lx - QX, dz = lz - QZ, d = Math.hypot(dx, dz); if (d < RO + R) { const k = (RO + R) / (d || 1); p.x = WXp + QX + dx * k; p.z = QZ + dz * k; return; }
@@ -538,6 +584,35 @@ export function setupShop({ scene, tp, play, monkey, camera, st } = {}) {
   holo.addEventListener('click', e => { e.stopPropagation(); if (performance.now() - holoTapT < 700) return; holoDo(holoAct(e.target)); });
   addEventListener('keydown', e => { if (api.open) { if (e.code === 'Escape' || e.code === 'Backspace') closeShop(); e.stopImmediatePropagation(); return; }
     if (api.near && (e.code === 'KeyE' || e.code === 'Enter') && btn.classList.contains('on')) { openShop(); e.preventDefault(); e.stopImmediatePropagation(); } }, true);
+  // ---------- PLAY POOL: button near the table -> 8-Ball Pool full-screen in an iframe overlay, ✕ returns to the shop (free for now) ----------
+  const poolCss = document.createElement('style'); poolCss.textContent = '#poolBtn{position:fixed;left:50%;bottom:calc(max(22px,env(safe-area-inset-bottom)) + 6px);transform:translateX(-50%);z-index:24;display:none;min-width:150px;height:58px;padding:0 26px;border-radius:29px;border:3px solid #3fe08a;background:#03200fe8;color:#e6ffef;font:900 20px/1 "Courier New",monospace;letter-spacing:.12em;box-shadow:0 0 16px #3fe08aaa,inset 0 0 12px #3fe08a55;text-shadow:0 0 8px #3fe08a;cursor:pointer;touch-action:none;white-space:nowrap}#poolBtn.on{display:block}#poolBtn:active{transform:translateX(-50%) scale(.95)}' +
+    '#poolOv{position:fixed;inset:0;z-index:60;display:none;background:#0b0d0c}#poolOv.on{display:block}#poolOv iframe{position:absolute;inset:0;width:100%;height:100%;border:0}#poolX{position:absolute;right:calc(10px + env(safe-area-inset-right));top:calc(10px + env(safe-area-inset-top));z-index:2;width:46px;height:46px;border-radius:23px;border:2px solid #fff8;background:#000a;color:#fff;font:900 22px/1 Arial,sans-serif;cursor:pointer;touch-action:manipulation}';
+  document.head.appendChild(poolCss);
+  const poolBtn = document.createElement('button'); poolBtn.id = 'poolBtn'; poolBtn.textContent = '🎱 PLAY POOL'; document.body.appendChild(poolBtn);
+  const poolOv = document.createElement('div'); poolOv.id = 'poolOv'; poolOv.innerHTML = '<button id="poolX" aria-label="Close">✕</button>'; document.body.appendChild(poolOv);
+  const poolX = poolOv.querySelector('#poolX'), POOL_SRC = new URL('./pool-play/index.html', import.meta.url).href;
+  const poolApi = { open: false, near: false, opens: 0, closes: 0, frame: null, src: POOL_SRC, PX, PZ };
+  const clearKeys = () => { const k = window.__arcade && window.__arcade.keys; if (k) for (const c in k) k[c] = false; };
+  const POOL_COST = 5, poolMsg = document.createElement('div'); poolMsg.id = 'poolMsg'; poolMsg.style.cssText = 'position:fixed;left:50%;bottom:calc(max(22px,env(safe-area-inset-bottom)) + 80px);transform:translateX(-50%);z-index:25;display:none;padding:10px 18px;border-radius:14px;border:2px solid #ff5a5a;background:#2a0606ee;color:#fff;font:900 15px "Courier New",monospace;letter-spacing:.06em;white-space:nowrap;box-shadow:0 0 14px #ff5a5a99;pointer-events:none'; document.body.appendChild(poolMsg);
+  let poolMsgT = 0; const poolNeed = b => { poolApi.need++; poolMsg.textContent = 'NEED ' + POOL_COST + ' TICKETS · YOU HAVE ' + b; poolMsg.style.display = 'block'; clearTimeout(poolMsgT); poolMsgT = setTimeout(() => { poolMsg.style.display = 'none'; }, 2200);
+    poolBtn.animate([{ transform: 'translateX(-50%) translateX(-8px)' }, { transform: 'translateX(-50%) translateX(8px)' }, { transform: 'translateX(-50%)' }], 240); };
+  poolBtn.textContent = '🎱 PLAY POOL · 🎟 ' + POOL_COST; poolApi.cost = POOL_COST; poolApi.need = 0; poolApi.paid = 0;
+  function openPool() { if (poolApi.open) return; const b = balance(); if (b < POOL_COST || !spend(POOL_COST)) { poolNeed(b); return; }   // 5 Galactic Arcade tickets per game (Dave), same pot as the cabinets
+    poolApi.paid += POOL_COST; poolMsg.style.display = 'none'; try { const P = play || (window.__arcade && window.__arcade.play); if (P && P.tickets && P.tickets.save) P.tickets.save(); } catch (e) {}
+    poolApi.open = true; poolApi.opens++; poolBtn.classList.remove('on'); clearKeys(); if (api.open) closeShop();
+    const f = poolApi.frame = document.createElement('iframe'); f.src = POOL_SRC; f.title = '8-Ball Pool'; f.allow = 'autoplay; fullscreen'; poolOv.appendChild(f); poolOv.classList.add('on');
+    f.addEventListener('load', () => { try { f.contentWindow.focus(); f.contentWindow.addEventListener('keydown', e => { if (e.code === 'Escape') { e.preventDefault(); closePool(); } }, true); } catch (e) {} });
+    const cv = window.__arcade && window.__arcade.renderer && window.__arcade.renderer.domElement; if (cv) cv.style.visibility = 'hidden'; }
+  function closePool() { if (!poolApi.open) return; poolApi.open = false; poolApi.closes++; poolOv.classList.remove('on'); const f = poolApi.frame; poolApi.frame = null;
+    if (f) { try { f.src = 'about:blank'; } catch (e) {} f.remove(); }   // unload: stops the pool game's render loop + audio
+    const cv = window.__arcade && window.__arcade.renderer && window.__arcade.renderer.domElement; if (cv) cv.style.visibility = ''; clearKeys(); try { window.focus(); } catch (e) {} }
+  for (const el of [poolBtn, poolOv]) { el.addEventListener('pointerdown', stop); el.addEventListener('touchstart', stop, { passive: true }); }
+  poolBtn.addEventListener('pointerup', e => { e.stopPropagation(); openPool(); }); poolBtn.addEventListener('click', e => { e.stopPropagation(); openPool(); });
+  // ✕ closes on its click (not pointerup): closing earlier let the tap's synthesized click fall through to the HUD options button under it
+  poolX.addEventListener('pointerup', e => { e.stopPropagation(); }); poolX.addEventListener('click', e => { e.stopPropagation(); e.preventDefault(); closePool(); });
+  addEventListener('keydown', e => { if (poolApi.open) { if (e.code === 'Escape') closePool(); e.stopImmediatePropagation(); return; }
+    if (poolApi.near && (e.code === 'KeyE' || e.code === 'Enter') && poolBtn.classList.contains('on')) { openPool(); e.preventDefault(); e.stopImmediatePropagation(); } }, true);
+  Object.assign(poolApi, { openPool, closePool }); api.pool = poolApi; window.__pool = poolApi;
   // prizes row in the existing INVENTORY panel (inventory.js), injected only while it is open
   const inv = document.getElementById('inv');
   if (inv) new MutationObserver(() => { if (!inv.classList.contains('on')) return; const P = document.getElementById('invP'); if (!P) return; let r = document.getElementById('invPz');
@@ -625,11 +700,13 @@ export function setupShop({ scene, tp, play, monkey, camera, st } = {}) {
       heldObj.visible = (!pm || pm === 'walk') && !(sStat && (sStat.seated || sStat.fp)) && !(tp && tp.locked) && m.visible; if (m.userData) holdPose(m.userData, dt); }
     const inRoom = m.position.x > WXp / 2;
     if (inRoom && !wasIn && st) { st.pitch = 0.04; st.dist = Math.max(st.dist, 5.0); }   // shop-local camera: level, a bit closer (once per visit)
-    wasIn = inRoom; if (!inRoom) { if (btn.classList.contains('on')) btn.classList.remove('on'); if (api.open) closeShop(); return; }
+    wasIn = inRoom; if (!inRoom) { if (btn.classList.contains('on')) btn.classList.remove('on'); poolBtn.classList.remove('on'); poolApi.near = false; if (api.open) closeShop(); return; }
     pushOut(m.position);
     const busy = (tp && tp.locked) || (play && play.mode && play.mode !== 'walk') || !!document.querySelector('#inv.on');
     api.near = !busy && Math.hypot(m.position.x - WXp - NP.x, m.position.z - NP.z) < 1.9;
     btn.classList.toggle('on', api.near && !api.open); if (api.open && !api.near && !busy) closeShop();
+    { const lx = m.position.x - WXp, lz = m.position.z, dx = Math.max(0, Math.abs(lx - PX) - PLW - 0.16), dz = Math.max(0, Math.abs(lz - PZ) - PLL - 0.16);
+      poolApi.near = !busy && !poolApi.open && !api.open && Math.hypot(dx, dz) < 1.3; poolBtn.classList.toggle('on', poolApi.near); }
     // Grok idle: gentle bob + sway, head turns toward the player, blinks, mouth moves while talking
     grok.position.y = Math.sin(t * 1.6) * 0.015; grok.rotation.z = Math.sin(t * 0.9) * 0.02;
     grok.getWorldPosition(tmp); const want = Math.atan2(m.position.x - tmp.x, m.position.z - tmp.z) - grok.rotation.y - 0 ;
