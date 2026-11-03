@@ -306,7 +306,7 @@ export function setupShop({ scene, tp, play, monkey, camera, st } = {}) {
     else if (kind === 'boxRoadster') { g.fillStyle = '#20263a'; g.fillRect(bx + 6, by + 26, w - 12, h - 42); rect(26, by + 62, 76, 16, '#e8202a', 6); rect(44, by + 52, 34, 14, '#e8202a', 6); rect(50, by + 55, 22, 8, '#9ad8ff', 3); circ(42, by + 80, 7, '#111'); circ(86, by + 80, 7, '#111'); g.fillStyle = '#9aa4b8'; g.font = '700 10px Arial'; g.textAlign = 'center'; g.fillText('MODEL KIT 1:24', 64, by + 100); }
     else { circ(64, by + 56, 16, v % 2 ? c1 : art[1]); rect(64 - 18, by + 70, 36, 26, v % 3 ? c2 : art[1], 6); circ(58, by + 54, 3, '#111'); circ(70, by + 54, 3, '#111'); }
     g.fillStyle = '#fff'; g.font = '900 17px Impact, Arial Black'; g.textAlign = 'center'; g.fillText(art[0], 64, by + 19, w - 10); rect(bx + 8, by + h - 12, w - 16, 7, c3, 3); g.restore(); }
-  const BOXC = { boxBerserker: ['BERSERKER', '#c8302a'], boxRoadster: ['ROADSTER', '#ff6a2a'], boxMars: ['MARS ROADSTER', '#b8321e'], boxMars2: ['MARS ROADSTER', '#b8321e'], boxOrc: ['ORC', '#2e8a2a'], boxGhost: ['GHOST', '#6a1a9a'], boxMonkey: ['MONKEY', '#2a8ad8'] };
+  const BOXC = { boxBerserker: ['BERSERKER', '#c8302a'], boxRoadster: ['ROADSTER', '#ff6a2a'], boxMars: ['MARS ROADSTER', '#b8321e'], boxMars2: ['MARS ROADSTER', '#b8321e'], boxNova: ['NOVA TETHER', '#2a5ad8'], boxOrc: ['ORC', '#2e8a2a'], boxGhost: ['GHOST', '#6a1a9a'], boxMonkey: ['MONKEY', '#2a8ad8'] };
   KIND.forEach((k, ki) => { if (BOXC[k]) for (let v = 0; v < AC; v++) drawBox(atl.g, k, v, v * CS, ki * CS); }); atl.t.needsUpdate = true;
   const SPAN = { viking: .26, orc: .28, teddy: .24, roadster: .36, dino: .32, robot: .2, rocket: .15, alien: .19, ball: .2, duck: .22 };
   const sprBox = [], mfr = []; let nToys = 0;
@@ -480,7 +480,7 @@ export function setupShop({ scene, tp, play, monkey, camera, st } = {}) {
     '#grokSay{position:fixed;left:50%;top:calc(max(14px,env(safe-area-inset-top)) + 60px);transform:translateX(-50%);z-index:42;display:none;max-width:84vw;padding:12px 18px;border-radius:18px;background:#fff;color:#141824;font:800 17px/1.3 Arial,sans-serif;box-shadow:0 4px 18px #0006;border:3px solid #7b5cff}#grokSay.on{display:block}#grokSay:after{content:"";position:absolute;left:50%;bottom:-14px;border:8px solid transparent;border-top-color:#7b5cff}' +
     '#holo{position:fixed;inset:0;z-index:41;display:none;align-items:center;justify-content:center;background:#00101866;touch-action:none}#holo.on{display:flex}' +
     '#holoP{position:relative;width:min(92vw,460px);max-height:min(74vh,640px);display:flex;flex-direction:column;border-radius:14px;border:2px solid #6ff6ff;background:linear-gradient(#00e5ff2e,#3d7bff22);box-shadow:0 0 30px #00e5ffaa,inset 0 0 24px #00e5ff55;color:#dffcff;font:700 14px "Courier New",monospace;text-shadow:0 0 6px #00e5ff;overflow:hidden;animation:hIn .35s ease-out;backdrop-filter:blur(2px)}' +
-    '#holoP:before{content:"";position:absolute;inset:0;pointer-events:none;background:repeating-linear-gradient(0deg,#9ff8ff22 0 1px,transparent 1px 4px);animation:hScan 3s linear infinite}@keyframes hScan{to{background-position:0 40px}}@keyframes hIn{from{opacity:0;transform:scaleY(.1)}to{opacity:1;transform:none}}' +
+    '#holoP:before{content:"";position:absolute;inset:0;pointer-events:none;background:repeating-linear-gradient(0deg,#9ff8ff22 0 1px,transparent 1px 4px);animation:hScan 3s linear infinite}@keyframes hScan{to{background-position:0 40px}}@keyframes hIn{from{opacity:0}to{opacity:1}}' +
     '#holoHd{display:flex;align-items:center;justify-content:space-between;padding:12px 14px;border-bottom:1px solid #6ff6ff77}#holoHd b{font:900 20px "Courier New",monospace;letter-spacing:.14em}#holoBal{font-size:13px;color:#ffe08a;text-shadow:0 0 6px #ffb000}' +
     '#holoX{width:40px;height:40px;border-radius:50%;border:2px solid #6ff6ff;background:#00222c99;color:#dffcff;font:700 18px sans-serif;cursor:pointer}' +
     '#holoL{overflow-y:auto;padding:4px 12px 12px;-webkit-overflow-scrolling:touch;touch-action:pan-y}.hC{margin:12px 0 4px;font-size:11px;letter-spacing:.3em;color:#9ff8ff99}' +
@@ -500,12 +500,22 @@ export function setupShop({ scene, tp, play, monkey, camera, st } = {}) {
   const api = { open: false, near: false, said: [], buys: 0, stats, G, grok, extraBounds, camBounds, ITEMS, balance, openShop, closeShop, buy };
   function openShop() { if (api.open) return; api.open = true; btn.classList.remove('on'); fill(); holo.classList.add('on'); say(GREET);
     const k = window.__arcade && window.__arcade.keys; if (k) for (const c in k) k[c] = false; }
-  function closeShop() { if (!api.open) return; api.open = false; holo.classList.remove('on'); }
+  function closeShop() { if (!api.open) return; api.open = false; holo.classList.remove('on'); holoDown = null;
+    const k = window.__arcade && window.__arcade.keys; if (k) for (const c in k) k[c] = false; }
   function buy(id) { const it = byId[id]; if (!it) return false; const b = balance();
     if (b < it.price) { say(`Ah, the ${it.name} is ${it.price} tickets and you've got ${b}. Win a few more games and come back!`); return false; }
     spend(it.price); addPrize(id); api.buys++; setHeld(id); say(`Great choice! Enjoy your ${it.name}!`); fill(); return true; }
   btn.addEventListener('click', e => { e.stopPropagation(); openShop(); });
-  holo.addEventListener('click', e => { e.stopPropagation(); const t = e.target; if (t.id === 'holoX' || t === holo) closeShop(); else if (t.dataset && t.dataset.id) buy(t.dataset.id); });
+  // Taps act on pointerup of the element that got the pointerdown. On Android Chrome the synthesized 'click' can be touch-adjusted onto a
+  // neighbouring BUY button (seen: tapping ✕ fired click on a BUY), so the menu never closed and its full-screen overlay ate every joystick
+  // touch -> "player won't move after buying". The later click is ignored.
+  const holoAct = t => { if (!t || !t.closest) return null; return t.closest('#holoX') || t.closest('[data-id]') || (t === holo ? holo : null); };
+  const holoDo = a => { if (!a) return; if (a.id === 'holoX' || a === holo) closeShop(); else buy(a.dataset.id); };
+  let holoDown = null, holoTapT = -1e9;
+  holo.addEventListener('pointerdown', e => { holoDown = holoAct(e.target); });
+  holo.addEventListener('pointerup', e => { const a = holoAct(e.target), d = holoDown; holoDown = null; if (!a || a !== d) return; holoTapT = performance.now(); holoDo(a); });
+  holo.addEventListener('pointercancel', () => { holoDown = null; });
+  holo.addEventListener('click', e => { e.stopPropagation(); if (performance.now() - holoTapT < 700) return; holoDo(holoAct(e.target)); });
   addEventListener('keydown', e => { if (api.open) { if (e.code === 'Escape' || e.code === 'Backspace') closeShop(); e.stopImmediatePropagation(); return; }
     if (api.near && (e.code === 'KeyE' || e.code === 'Enter') && btn.classList.contains('on')) { openShop(); e.preventDefault(); e.stopImmediatePropagation(); } }, true);
   // prizes row in the existing INVENTORY panel (inventory.js), injected only while it is open
@@ -536,7 +546,7 @@ export function setupShop({ scene, tp, play, monkey, camera, st } = {}) {
         const t = id === 'rainbow' ? 1 : id === 'cherry' ? 2 : 0, cg = setUV(new THREE.CircleGeometry(0.1, 22), 0, 1, 0, 1), uv = cg.attributes.uv; for (let q = 0; q < uv.count; q++) uv.setX(q, (t + uv.getX(q)) / 3);
         const pop = new THREE.Mesh(cg.translate(0, 0.3, 0.012), new THREE.MeshBasicMaterial({ map: sw.t, side: THREE.DoubleSide, toneMapped: false })); g.add(pop); }
       g.add(vm(L, new THREE.MeshBasicMaterial({ vertexColors: true, toneMapped: false }))); g.userData.size = 0.3; }
-    else { const L = []; toy3(L, id, 0, 0, 0, 1.6, 0, 0); g.add(vm(L)); g.userData.size = 0.45; }
+    else { const L = []; toy3(L, id, 0, 0, 0, 1.6, 0, 0); if (!L.length) part(L, BOX, 0x00e5ff, 0, 0.15, 0, 0.24, 0.3, 0.1); g.add(vm(L)); g.userData.size = 0.45; }   // never an empty merge (t552: it threw and froze the game loop)
     g.userData.kind = kind; g.traverse(o => { if (o.isMesh) { o.frustumCulled = false; o.castShadow = false; } }); return g;
   }
   const heldId = () => { try { const v = localStorage.getItem(HK); return v && byId[v] && prizes()[v] ? v : null; } catch (e) { return null; } };
@@ -562,17 +572,19 @@ export function setupShop({ scene, tp, play, monkey, camera, st } = {}) {
   api.hold = setHeld; Object.defineProperty(api, 'held', { get: heldId }); Object.defineProperty(api, 'heldObj', { get: () => heldObj });
   // INVENTORY: PRIZES chips (tap = hold, tap the held one = put away)
   const css2 = document.createElement('style'); css2.textContent = '#invPz{flex-direction:column;align-items:stretch!important}#invPz .pzT{display:flex;justify-content:space-between;color:#dffbff;font-weight:800}#invPz .pzT small{color:#9ff8ff;font-weight:600}#pzChips{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}' +
-    '.pzC{min-height:48px;padding:6px 14px;border-radius:24px;border:2px solid #00e5ff88;background:#00222ccc;color:#dffbff;font:800 14px Arial,sans-serif;cursor:pointer;touch-action:manipulation}.pzC.on{border-color:#ffe08a;background:#ffb00044;color:#fff;box-shadow:0 0 12px #ffb000aa}.pzC b{color:#ffe08a;margin-left:6px}';
+    '.pzC{min-height:48px;padding:6px 14px;border-radius:24px;border:2px solid #00e5ff88;background:#00222ccc;color:#dffbff;font:800 14px Arial,sans-serif;cursor:pointer;touch-action:manipulation}.pzC.on{border-color:#ffe08a;background:#ffb00044;color:#fff;box-shadow:0 0 12px #ffb000aa}.pzC b{color:#ffe08a;margin-left:6px}.pzU{display:block;width:100%;min-height:52px;margin-top:10px;padding:0 14px;border-radius:26px;border:2px solid #ff6b8b;background:#3a0614cc;color:#ffe1e8;font:900 16px Arial,sans-serif;letter-spacing:.06em;cursor:pointer;touch-action:manipulation}';
   document.head.appendChild(css2);
   function renderChips() { const r = document.getElementById('invPz'); if (!r) return; const p = prizes(), h = heldId(), ids = ITEMS.map(i => i.id).filter(id => p[id]);
-    r.innerHTML = '<div class="pzT"><span>PRIZES</span><small>' + (ids.length ? 'tap one to hold it · tap again to put away' : 'none yet - visit Grok!') + '</small></div><div id="pzChips">' +
+    r.innerHTML = '<div class="pzT"><span>PRIZES</span><small>' + (ids.length ? 'tap one to hold it · tap again to put away' : 'none yet - visit Grok!') + '</small></div>' + (h ? '<button class="pzU" data-pz="__unequip">✋ UNEQUIP · put ' + byId[h].name + ' away</button>' : '') + '<div id="pzChips">' +
       ids.map(id => `<button class="pzC${id === h ? ' on' : ''}" data-pz="${id}">${id === h ? '✋ ' : ''}${byId[id].name}${p[id] > 1 ? '<b>×' + p[id] + '</b>' : ''}</button>`).join('') + '</div>'; }
-  document.addEventListener('click', e => { const b = e.target.closest && e.target.closest('[data-pz]'); if (!b) return; e.stopPropagation(); const id = b.dataset.pz; setHeld(heldId() === id ? null : id); }, true);
+  document.addEventListener('click', e => { const b = e.target.closest && e.target.closest('[data-pz]'); if (!b) return; e.stopPropagation(); const id = b.dataset.pz; setHeld(id === '__unequip' || heldId() === id ? null : id); }, true);
 
   // ---------- per frame ----------
   let wasIn = false, t = 0, blinkT = 2, faceState = '';
   const tmp = new THREE.Vector3();
-  api.update = (dt) => {
+  // t552: shop.update runs inside main.js's rAF frame before the next requestAnimationFrame, so any throw here froze the whole game.
+  api.update = (dt) => { try { updateShop(dt); } catch (e) { if (!api._err) { api._err = 1; console.warn('shop.update', e); } } };
+  const updateShop = (dt) => {
     t += dt; if (api_sky) api_sky.uniforms.uT.value = t; const m = getMonkey(); if (!m) return;
     syncHeld(); if (heldObj) { const pm = play && play.mode, A = window.__arcade, sStat = A && A.st;
       heldObj.visible = (!pm || pm === 'walk') && !(sStat && (sStat.seated || sStat.fp)) && !(tp && tp.locked) && m.visible; if (m.userData) holdPose(m.userData, dt); }
