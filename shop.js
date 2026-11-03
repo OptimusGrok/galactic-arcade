@@ -1,7 +1,7 @@
 // GALACTIC ARCADE PRIZE SHOP (white teleporter room). Self-contained: setupShop({ scene, tp, play, monkey, camera, st })
 // Enlarges the white room (24 -> 28 m), adds a white-glass prize wall (Grok plush + monkey plushes on top, cheap toys below,
 // one "NAME · N TICKETS" label under every item), a candy stand, a checkout counter with a life-size Grok robot, anime wall art
-// (one atlas, one draw call). Near Grok a SHOP button appears -> Grok greets you (recorded clip sfx/grok_hi.mp3 + bubble) and a holographic
+// (one atlas, one draw call). Near Grok a SHOP button appears -> Grok greets you (recorded clip sfx/grok_hi.mp3, no bubble) and a holographic
 // price list of every item opens. Buying spends play.tickets.total (persisted to 'neonarcade.tickets'); prizes -> 'neonarcade.prizes'.
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
@@ -468,33 +468,30 @@ export function setupShop({ scene, tp, play, monkey, camera, st } = {}) {
   try { pickVoice(); speechSynthesis.onvoiceschanged = pickVoice; } catch (e) {}
   const tts = (text) => { try { speechSynthesis.cancel(); const u = new SpeechSynthesisUtterance(text); if (voice) u.voice = voice; u.lang = (voice && voice.lang) || 'en-US'; u.pitch = 0.95; speechSynthesis.speak(u); } catch (e) {} };
   let talkT = 0, happyT = 0;
-  function say(text) { bubble.textContent = text; bubble.classList.add('on'); clearTimeout(say.h); say.h = setTimeout(() => bubble.classList.remove('on'), 3800); talkT = Math.max(1.4, text.length * 0.065); happyT = talkT + 1.2; api.said.push(text);
+  function say(text) { talkT = Math.max(1.4, text.length * 0.065); happyT = talkT + 1.2; api.said.push(text);
     if (window.__muted) return;
     if (text === GREET) { api.voice = 'clip'; try { greetA.currentTime = 0; const pr = greetA.play(); if (pr && pr.catch) pr.catch(() => { api.voice = 'tts'; tts(text); }); } catch (e) { api.voice = 'tts'; tts(text); } }
     else tts(text); }
   greetA.addEventListener('playing', () => { talkT = Math.max(talkT, (greetA.duration || 2) - greetA.currentTime); happyT = talkT + 1.2; });
 
-  // ---------- UI: SHOP button, speech bubble, holographic list ----------
+  // ---------- UI: SHOP button, holographic prize row (no speech bubble: voice only) ----------
   const css = document.createElement('style'); css.textContent =
     '#shopBtn{position:fixed;left:50%;bottom:calc(max(22px,env(safe-area-inset-bottom)) + 6px);transform:translateX(-50%);z-index:24;display:none;min-width:150px;height:58px;padding:0 30px;border-radius:29px;border:3px solid #00e5ff;background:#021a22e8;color:#dffbff;font:900 22px/1 "Courier New",monospace;letter-spacing:.14em;box-shadow:0 0 16px #00e5ffaa,inset 0 0 12px #00e5ff55;text-shadow:0 0 8px #00e5ff;cursor:pointer;touch-action:none}#shopBtn.on{display:block}#shopBtn:active{transform:translateX(-50%) scale(.95)}' +
-    '#grokSay{position:fixed;left:50%;top:calc(max(14px,env(safe-area-inset-top)) + 60px);transform:translateX(-50%);z-index:42;display:none;max-width:84vw;padding:12px 18px;border-radius:18px;background:#fff;color:#141824;font:800 17px/1.3 Arial,sans-serif;box-shadow:0 4px 18px #0006;border:3px solid #7b5cff}#grokSay.on{display:block}#grokSay:after{content:"";position:absolute;left:50%;bottom:-14px;border:8px solid transparent;border-top-color:#7b5cff}' +
-    '#holo{position:fixed;inset:0;z-index:41;display:none;align-items:center;justify-content:center;background:#00101866;touch-action:none}#holo.on{display:flex}' +
+    '#holo{position:fixed;inset:0;z-index:41;display:none;align-items:flex-end;padding-bottom:max(18px,env(safe-area-inset-bottom));box-sizing:border-box;justify-content:center;background:#00101866;touch-action:pan-x}#holo.on{display:flex}' +
     '#holoP{position:relative;width:min(92vw,460px);max-height:min(74vh,640px);display:flex;flex-direction:column;border-radius:14px;border:2px solid #6ff6ff;background:linear-gradient(#00e5ff2e,#3d7bff22);box-shadow:0 0 30px #00e5ffaa,inset 0 0 24px #00e5ff55;color:#dffcff;font:700 14px "Courier New",monospace;text-shadow:0 0 6px #00e5ff;overflow:hidden;animation:hIn .35s ease-out;backdrop-filter:blur(2px)}' +
     '#holoP:before{content:"";position:absolute;inset:0;pointer-events:none;background:repeating-linear-gradient(0deg,#9ff8ff22 0 1px,transparent 1px 4px);animation:hScan 3s linear infinite}@keyframes hScan{to{background-position:0 40px}}@keyframes hIn{from{opacity:0}to{opacity:1}}' +
     '#holoHd{display:flex;align-items:center;justify-content:space-between;padding:12px 14px;border-bottom:1px solid #6ff6ff77}#holoHd b{font:900 20px "Courier New",monospace;letter-spacing:.14em}#holoBal{font-size:13px;color:#ffe08a;text-shadow:0 0 6px #ffb000}' +
     '#holoX{width:40px;height:40px;border-radius:50%;border:2px solid #6ff6ff;background:#00222c99;color:#dffcff;font:700 18px sans-serif;cursor:pointer}' +
-    '#holoL{overflow-y:auto;padding:4px 12px 12px;-webkit-overflow-scrolling:touch;touch-action:pan-y}.hC{margin:12px 0 4px;font-size:11px;letter-spacing:.3em;color:#9ff8ff99}' +
+    '#holoL{display:flex;gap:12px;overflow-x:auto;overflow-y:hidden;padding:14px 16px 16px;-webkit-overflow-scrolling:touch;touch-action:pan-x;scroll-snap-type:x mandatory;overscroll-behavior:contain;scroll-padding:0 16px;-webkit-mask-image:linear-gradient(90deg,transparent,#000 22px,#000 calc(100% - 22px),transparent);mask-image:linear-gradient(90deg,transparent,#000 22px,#000 calc(100% - 22px),transparent)}.hT{flex:0 0 132px;scroll-snap-align:start;position:relative;display:flex;flex-direction:column;align-items:center;gap:6px;padding:8px 8px 10px;border-radius:14px;border:1.5px solid #6ff6ffaa;background:linear-gradient(#00e5ff26,#3d7bff14);box-shadow:0 0 12px #00e5ff66,inset 0 0 14px #00e5ff33;animation:hFl 4s infinite steps(1)}.hT .hN{min-height:2.4em;display:flex;align-items:center;text-align:center;font:800 12px/1.15 Arial,sans-serif;color:#e8feff}.hT img{width:112px;height:112px;border-radius:10px;opacity:.88;filter:drop-shadow(0 0 6px #00e5ff) saturate(.85) hue-rotate(-8deg);background:radial-gradient(#00e5ff22,transparent 70%);pointer-events:none}.hT i{font-style:normal;color:#ffe08a;font-size:13px}.hT em{position:absolute;right:10px;top:calc(2.4em + 92px);font-style:normal;font-size:11px;padding:1px 6px;border-radius:9px;background:#002a33cc;color:#9dffb5}.hT button{width:100%;height:40px;border-radius:20px;border:2px solid #6ff6ff;background:#00e5ff33;color:#fff;font:900 15px "Courier New",monospace;cursor:pointer;touch-action:manipulation}.hT.no{opacity:.6}@keyframes hFl{0%,100%{opacity:1}47%{opacity:.86}48%{opacity:1}83%{opacity:.93}}#holoP{width:min(96vw,720px)!important;background:linear-gradient(#00e5ff22,#3d7bff11)!important;border-color:#6ff6ffcc!important}.hC{margin:12px 0 4px;font-size:11px;letter-spacing:.3em;color:#9ff8ff99}' +
     '.hR{display:flex;align-items:center;gap:10px;padding:8px 6px;border-bottom:1px dashed #6ff6ff33}.hR span{flex:1}.hR i{font-style:normal;color:#ffe08a;min-width:92px;text-align:right}' +
     '.hR button{height:34px;min-width:58px;border-radius:17px;border:2px solid #6ff6ff;background:#00e5ff33;color:#fff;font:900 13px "Courier New",monospace;cursor:pointer}.hR button.no{opacity:.45}.hR em{font-style:normal;font-size:11px;color:#9dffb5}';
   document.head.appendChild(css);
   const btn = document.createElement('button'); btn.id = 'shopBtn'; btn.textContent = 'SHOP'; document.body.appendChild(btn);
-  const bubble = document.createElement('div'); bubble.id = 'grokSay'; document.body.appendChild(bubble);
   const holo = document.createElement('div'); holo.id = 'holo'; holo.innerHTML = '<div id="holoP"><div id="holoHd"><div><b>GROK PRIZE SHOP</b><div id="holoBal"></div></div><button id="holoX" aria-label="Close">✕</button></div><div id="holoL"></div></div>'; document.body.appendChild(holo);
   const list = holo.querySelector('#holoL'), bal = holo.querySelector('#holoBal');
-  function fill() { const b = balance(), own = prizes(); bal.textContent = '🎟 ' + b + ' TICKETS'; let cat = '', h = '';
-    for (const it of ITEMS) { if (it.cat !== cat) { cat = it.cat; h += '<div class="hC">' + cat + '</div>'; }
-      h += `<div class="hR"><span>${it.name}${own[it.id] ? ' <em>×' + own[it.id] + '</em>' : ''}</span><i>${it.price} TICKETS</i><button data-id="${it.id}" class="${b < it.price ? 'no' : ''}">BUY</button></div>`; }
-    list.innerHTML = h; }
+  function fill() { const b = balance(), own = prizes(); bal.textContent = '🎟 ' + b + ' TICKETS'; const x = list.scrollLeft;   // t558: sideways hologram row of prize tiles
+    list.innerHTML = ITEMS.map(it => `<div class="hT${b < it.price ? ' no' : ''}"><span class="hN">${it.name}</span><img data-ic="${it.id}" alt="" src="${iconFor(it.id) || 'data:image/gif;base64,R0lGODlhAQABAAAAACw='}">${own[it.id] ? '<em>×' + own[it.id] + '</em>' : ''}<i>🎟 ${it.price}</i><button data-id="${it.id}" class="${b < it.price ? 'no' : ''}">BUY</button></div>`).join('');
+    list.scrollLeft = x; }
   const stop = e => { e.stopPropagation(); };
   for (const el of [btn, holo]) { el.addEventListener('pointerdown', stop); el.addEventListener('touchstart', stop, { passive: true }); }
   const api = { open: false, near: false, said: [], buys: 0, stats, G, grok, extraBounds, camBounds, ITEMS, balance, openShop, closeShop, buy };
@@ -586,7 +583,7 @@ export function setupShop({ scene, tp, play, monkey, camera, st } = {}) {
         iconR.render(sc, cam); ICON[id] = iconR.domElement.toDataURL('image/png'); sc.remove(g); }
     } catch (e) { console.warn('prize icons', e); }
     try { if (iconR) { iconR.dispose(); iconR.forceContextLoss(); iconR = null; } } catch (e) {}   // free the extra GL context on phones
-    for (const im of document.querySelectorAll('#pzChips img[data-ic]')) if (ICON[im.dataset.ic]) im.src = ICON[im.dataset.ic]; }
+    for (const im of document.querySelectorAll('img[data-ic]')) if (ICON[im.dataset.ic]) im.src = ICON[im.dataset.ic]; }
   function renderChips() { const r = document.getElementById('invPz'); if (!r) return; const p = prizes(), h = heldId(), ids = ITEMS.map(i => i.id).filter(id => p[id]);
     r.innerHTML = '<div class="pzT"><span>PRIZES</span><small>' + (ids.length ? 'tap one to hold it · tap again to put away' : 'none yet - visit Grok!') + '</small></div>' + (h ? '<button class="pzU" data-pz="__unequip">✋ UNEQUIP · put ' + byId[h].name + ' away</button>' : '') + '<div id="pzChips">' +
       ids.map(id => `<button class="pzC${id === h ? ' on' : ''}" data-pz="${id}"><span class="pzN">${id === h ? '✋ ' : ''}${byId[id].name}</span><img data-ic="${id}" alt="" src="${iconFor(id) || 'data:image/gif;base64,R0lGODlhAQABAAAAACw='}">${p[id] > 1 ? '<b>×' + p[id] + '</b>' : ''}</button>`).join('') + '</div>'; }
