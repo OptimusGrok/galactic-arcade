@@ -13,7 +13,8 @@ const PH = process.argv[2] === 'phone';
   chk(off.length === 0, 'all key spots are on a path (spawn, kiosk, doorways, hall, pads, DS, shop, ' + Object.keys(spots).length + ' spots incl. cabinet fronts) ' + off.join(','));
   const rs = await page.evaluate(() => { const A = window.__arcade, L = A.LAVA, bad = []; for (const p of L.samples().filter((_, i) => i % 7 === 0)) { const r = A.lavaRespawnPoint(p[0] !== undefined ? p[0] : p.x, p[1] !== undefined ? p[1] : p.z); if (!L.onPath(r.x, r.z, 0)) bad.push([r.x, r.z]); } return bad.length; });
   chk(rs === 0, 'respawn points are always on a path, outside blockers');
-  const fall = (floor) => page.evaluate(floor => { const A = window.__arcade; A.setFloor(floor); const st = A.st; st.lavaFalls = 0; st.lastRespawn = null;
+  const fall = (floor) => page.evaluate(floor => { const A = window.__arcade; A.setFloor(floor); const st = A.st; for (let i = 0; i < 300 && st.lavaFall; i++) A.step(1 / 60);   // let a fall still in progress from the step before finish first (slow boxes)
+    st.lavaFalls = 0; st.lastRespawn = null;
     A.monkey.position.set(5.2, 0, 3.0); st.vel.set(0, 0, 0); let t = 0, tFall = null, minY = 0; for (let i = 0; i < 120 && !st.lastRespawn; i++) { A.step(1 / 60); t += 1 / 60; if (st.lavaFall && tFall === null) tFall = t; minY = Math.min(minY, A.monkey.position.y); }
     return { falls: st.lavaFalls, rp: st.lastRespawn, dt: tFall !== null && st.lastRespawn ? +(t - tFall).toFixed(2) : null, minY: +minY.toFixed(2), on: st.lastRespawn ? A.LAVA.onPath(st.lastRespawn[0], st.lastRespawn[1], 0) : null, fx: !!document.getElementById('lavaFx') }; }, floor);
   await page.waitForTimeout(800);
