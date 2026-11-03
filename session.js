@@ -1,7 +1,7 @@
 // NO AUTO-SAVE: game progress lives in memory for the session and only reaches storage through SAVE (Options, 5 slots).
 // A reload / new visit starts fresh (1 ticket, $5, defaults) unless a slot is LOADed. Settings, save slots, high scores persist.
 (function () {
-  var PROG = { 'neonarcade.tickets': 1, 'neonarcade.vikingTickets': 1, 'neonarcade.cash': 1, 'neonarcade.kioskPending': 1, 'neonarcade.shieldOpen': 1 };
+  var PROG = { 'neonarcade.tickets': 1, 'neonarcade.vikingTickets': 1, 'neonarcade.cash': 1, 'neonarcade.kioskPending': 1, 'neonarcade.shieldOpen': 1, 'neonarcade.prizes': 1, 'neonarcade.held': 1 };  // prizes/held: bought shop prizes are session-only too
   // per-run progress the cabinet copies keep (same origin): cleared on every fresh visit so a new session starts fresh
   var RUN = ['arcade_orc_progress', 'arcade_orc_run', 'arcade_berserker_save', 'arcade_mc_tickets', 'arcade_cyber_cybercity_save', 'arcade_cyber_cybercity_autosave'];
   var P = Storage.prototype, g = P.getItem, s = P.setItem, r = P.removeItem, LS; try { LS = window.localStorage; } catch (e) {}
