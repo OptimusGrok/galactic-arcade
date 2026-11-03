@@ -24,10 +24,16 @@ const S = '/workspace/galactic-shop/shots/';
   await page.evaluate(() => document.querySelector('#invPz [data-pz="monkeyBrown"]').click()); await page.waitForTimeout(200);
   a = await att(); chk(a.id === null && a.ls === null, 'tapping held chip puts it away');
   await page.evaluate(() => document.querySelector('#invPz [data-pz="grok"]').click());
+  await page.waitForTimeout(200);
+  // prizes are session-only (v53): a plain reload empties the hands; SAVE then LOAD of a slot brings the held prize back
+  await page.evaluate(() => window.__opts.save(2)); await page.waitForTimeout(300);
   await page.reload(); await page.waitForFunction(() => window.__arcade && window.__arcade.stats.frames > 3 && window.__shop, null, { timeout: 60000 }); await page.waitForTimeout(500);
-  a = await att(); chk(a.id === 'grok' && a.inM, 'held prize persists after reload');
+  a = await att(); chk(a.id === null && !a.inM, 'reload without LOAD: hands empty ' + JSON.stringify(a));
+  const ld = await page.evaluate(() => window.__opts.load(2)); await page.waitForTimeout(500);
+  a = await att(); chk(ld && a.id === 'grok' && a.inM, 'LOAD of the saved slot: Grok plush held again ' + JSON.stringify(a));
+  await page.evaluate(() => localStorage.removeItem('neonarcade.save.2'));
   // hidden while playing a cabinet / seated
-  const hid = await page.evaluate(async () => { const A = window.__arcade; const pm = A.play.mode; A.play.mode = 'game'; const w = async () => { const f = A.stats.frames; while (A.stats.frames < f + 3) await new Promise(r => setTimeout(r, 50)); }; await w(); const v = window.__shop.heldObj.visible; A.play.mode = pm; await w(); return [v, window.__shop.heldObj.visible]; });
+  const hid = await page.evaluate(async () => { const A = window.__arcade; const pm = A.play.mode; A.play.mode = 'game'; const w = async () => { const f = A.stats.frames; while (A.stats.frames < f + 3) await new Promise(r => setTimeout(r, 50)); }; await w(); const v = !!(window.__shop.heldObj && window.__shop.heldObj.visible); A.play.mode = pm; await w(); return [v, !!(window.__shop.heldObj && window.__shop.heldObj.visible)]; });
   chk(!hid[0] && hid[1], 'hidden while in a game, back afterwards ' + hid);
   // save slots: reloadPrizes() re-reads localStorage
   const rp = await page.evaluate(async () => { const S = window.__shop, A = window.__arcade; const w = async () => { const f = A.stats.frames; while (A.stats.frames < f + 3) await new Promise(r => setTimeout(r, 50)); };
