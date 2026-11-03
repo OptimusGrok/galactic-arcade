@@ -117,16 +117,43 @@ for (let i = 0; i < 4; i++) { const g = room.getObjectByName('wall' + i).geometr
 // ---------- room 1 walls option: current (default) or Viking rune panels (Options > WALLS) ----------
 const WALLS_KEY = 'neonarcade.walls';
 let wallsMode = 'current', vikTex = null, wallBands = [], spaceWin = null;
+// PORTALS walls (t187, Dave: 'a wall of big and small multi colour swirling portals that are moving with the colours changing'):
+// one cheap unlit procedural shader - two layers of hashed cells (big + small), each a spiral vortex that turns, drifts, pulses and cycles hue.
+// Brightness is capped (no near-white) for the flash test.
+const portalU = { uT: { value: 0 } };
+const portalMat = new THREE.ShaderMaterial({ uniforms: portalU, vertexShader: 'varying vec2 vW; void main(){ vW = vec2(uv.x * ' + (2 * HALF).toFixed(1) + ', uv.y * ' + H.toFixed(2) + '); gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
+  fragmentShader: `uniform float uT; varying vec2 vW;
+    float h21(vec2 p){ return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+    vec3 hue(float h){ return clamp(abs(fract(h + vec3(0.0, 0.667, 0.333)) * 6.0 - 3.0) - 1.0, 0.0, 1.0); }
+    vec3 layer(vec2 p, float cell, float seed, inout float m){
+      p.x += uT * 0.12 * (seed - 0.5); p.y += sin(uT * 0.21 + seed * 7.0) * 0.18;
+      vec2 g = p / cell, id = floor(g), f = fract(g) - 0.5; float r0 = h21(id + seed);
+      vec2 c = (vec2(h21(id + seed + 3.1), h21(id + seed + 9.7)) - 0.5) * 0.35; vec2 q = f - c;
+      float rad = (0.28 + 0.14 * r0) * (1.0 + 0.06 * sin(uT * 1.3 + r0 * 30.0));
+      float r = length(q) / rad; if (r > 1.0 || r0 < 0.18) return vec3(0.0);
+      float a = atan(q.y, q.x), dir = r0 > 0.55 ? 1.0 : -1.0;
+      float sw = 0.5 + 0.5 * sin(a * 3.0 + dir * (log(r + 0.04) * 9.0 - uT * (1.4 + r0)));
+      float rim = smoothstep(1.0, 0.86, r) * smoothstep(0.62, 0.9, r), core = smoothstep(0.35, 0.0, r);
+      float k = smoothstep(1.0, 0.7, r) * (0.25 + 0.75 * sw) * (1.0 - core * 0.6) + rim * 0.9;
+      vec3 col = hue(r0 + uT * 0.05 + r * 0.35 + a * 0.08) * k * mix(0.35, 1.0, sw) + hue(r0 + 0.5 + uT * 0.05) * rim * 0.4;
+      m = max(m, k); return col; }
+    void main(){ float m = 0.0; vec3 c = layer(vW, 3.0, 0.0, m) * 0.5; c += layer(vW + 0.7, 1.15, 5.3, m) * 0.34;
+      vec3 base = vec3(0.035, 0.015, 0.06) + 0.02 * vec3(sin(vW.x * 0.6 + uT * 0.3) + 1.0, 0.0, 1.0);
+      c = min(base + c, vec3(0.55)); gl_FragColor = vec4(c, 1.0);
+      #include <colorspace_fragment>
+    }` });
+portalMat.name = 'portalWalls';
 function setWalls(mode) {
-  wallsMode = mode === 'viking' ? 'viking' : 'current'; const v = wallsMode === 'viking';
+  wallsMode = mode === 'viking' || mode === 'portals' ? mode : 'current'; const v = wallsMode === 'viking', po = wallsMode === 'portals';
   if (v && !vikTex) { vikTex = new THREE.TextureLoader().load('tex/viking_walls.jpg', () => spaceWin && spaceWin.dirty()); vikTex.colorSpace = THREE.SRGBColorSpace; vikTex.wrapS = THREE.RepeatWrapping; vikTex.wrapT = THREE.ClampToEdgeWrapping;
     vikTex.repeat.set(+(2 * HALF / (H * 928 / 576)).toFixed(3), 1); vikTex.anisotropy = renderer.capabilities.getMaxAnisotropy(); }   // one repeat = wall height
-  wallMat.map = v ? vikTex : wallTex; wallMat.color.setHex(v ? 0x8a7a70 : 0x2a1840); wallMat.roughness = v ? 0.95 : 0.85; wallMat.emissiveMap = v ? vikTex : null; wallMat.emissive.setHex(v ? 0xffffff : 0x000000); wallMat.emissiveIntensity = v ? 1.6 : 1; wallBands.forEach(m => { m.visible = !v; }); wallMat.needsUpdate = true;   // a little dark so the neon pops
+  wallMat.map = v ? vikTex : wallTex; wallMat.color.setHex(v ? 0x8a7a70 : 0x2a1840); wallMat.roughness = v ? 0.95 : 0.85; wallMat.emissiveMap = v ? vikTex : null; wallMat.emissive.setHex(v ? 0xffffff : 0x000000); wallMat.emissiveIntensity = v ? 1.6 : 1; wallBands.forEach(m => { m.visible = !v && !po; }); wallMat.needsUpdate = true;   // a little dark so the neon pops
+  for (let i = 0; i < 4; i++) { const w = room.getObjectByName('wall' + i); if (w) { w.material = po ? portalMat : wallMat; w.onBeforeRender = po ? () => { portalU.uT.value = performance.now() / 1000; } : () => {}; } }
   if (spaceWin) spaceWin.dirty();
   try { localStorage.setItem(WALLS_KEY, wallsMode); } catch (e) {}
   return wallsMode;
 }
-try { if (localStorage.getItem(WALLS_KEY) === 'viking') setWalls('viking'); } catch (e) {}
+try { const w = localStorage.getItem(WALLS_KEY); if (w === 'viking' || w === 'portals') setWalls(w); } catch (e) {}
 window.__setWalls = setWalls;
 ceil.rotation.x = Math.PI / 2; ceil.position.y = H; room.add(ceil);
 // ceiling beam grid (dark industrial)
@@ -189,7 +216,7 @@ for (let i = 0; i < 4; i++) {
 room.add(new THREE.Mesh(mergeGeometries(edge), neon(C.pink, 3 * PINK_K)));
 wallBands = [new THREE.Mesh(mergeGeometries(edgeLedge), neon(C.pink, 3 * PINK_K)), new THREE.Mesh(mergeGeometries(edgeAmber), neon(C.amber, 2.2)), new THREE.Mesh(mergeGeometries(edgeCyan), neon(C.cyan, 1.8))];
 wallBands.forEach((m, k) => { m.name = 'wallBand' + ['Pink', 'Amber', 'Cyan'][k]; room.add(m); });   // the 3 coloured horizontal wall bands (hidden with Viking walls)
-wallBands.forEach(m => { m.visible = wallsMode !== 'viking'; });
+wallBands.forEach(m => { m.visible = wallsMode === 'current'; });
 
 // ---------- hallway north of the doorway (z = -HALF .. -HALF-HALL_L) ----------
 const hall = new THREE.Group(); hall.name = 'hallway'; scene.add(hall);
@@ -706,7 +733,7 @@ monkey.position.set(0, 0, 5);
 const keys = {};
 const st = { yaw: 0, pitch: 0.28, dist: 4.2, fp: false, vel: new THREE.Vector3(), face: Math.PI, phase: 0, speed: 0, play: 0, t: 0, joy: { x: 0, y: 0, on: false } };
 monkey.rotation.y = st.face;
-addEventListener('keydown', e => { keys[e.code] = true; if (e.code === 'KeyV') toggleView(); if (e.code === 'KeyF') toggleFs(); if (/Arrow|Space/.test(e.code)) e.preventDefault(); });
+addEventListener('keydown', e => { keys[e.code] = true; if (e.code === 'KeyV') toggleView(); if (e.code === 'KeyF') toggleFs(); if (/Arrow|Space/.test(e.code)) e.preventDefault(); if (e.code === 'Space' && !e.repeat) st.jumpReq = st.t; });
 addEventListener('keyup', e => { keys[e.code] = false; });
 addEventListener('blur', () => { for (const k in keys) keys[k] = false; });
 const cv = renderer.domElement;
@@ -726,7 +753,7 @@ const touches = {};
 cv.addEventListener('touchstart', e => {
   for (const t of e.changedTouches) {
     if (t.clientX < innerWidth / 2 && !st.joy.on) { touches[t.identifier] = { kind: 'joy', x0: t.clientX, y0: t.clientY }; st.joy.on = true; joyEl.style.display = 'block'; joyEl.style.left = t.clientX + 'px'; joyEl.style.top = t.clientY + 'px'; }
-    else touches[t.identifier] = { kind: 'look', x: t.clientX, y: t.clientY };
+    else touches[t.identifier] = { kind: 'look', x: t.clientX, y: t.clientY, x0: t.clientX, y0: t.clientY, t0: e.timeStamp, moved: 0 };
   }
   e.preventDefault();
 }, { passive: false });
@@ -737,7 +764,7 @@ cv.addEventListener('touchmove', e => {
       let dx = t.clientX - T.x0, dy = t.clientY - T.y0; const L = Math.hypot(dx, dy), R = 45;
       if (L > R) { dx *= R / L; dy *= R / L; }
       st.joy.x = dx / R; st.joy.y = dy / R; knob.style.transform = `translate(${dx}px,${dy}px)`;
-    } else { look((t.clientX - T.x) * 1.4, (t.clientY - T.y) * 1.4); T.x = t.clientX; T.y = t.clientY; }
+    } else { T.moved = Math.max(T.moved, Math.hypot(t.clientX - T.x0, t.clientY - T.y0)); look((t.clientX - T.x) * 1.4, (t.clientY - T.y) * 1.4); T.x = t.clientX; T.y = t.clientY; }
   }
   e.preventDefault();
 }, { passive: false });
@@ -745,6 +772,7 @@ const endTouch = e => {
   for (const t of e.changedTouches) {
     const T = touches[t.identifier]; if (!T) continue;
     if (T.kind === 'joy') { st.joy = { x: 0, y: 0, on: false }; joyEl.style.display = 'none'; knob.style.transform = ''; }
+    else if (e.type === 'touchend' && T.moved < 14 && e.timeStamp - T.t0 < 350) st.jumpReq = st.t;   // a short tap on the right half = JUMP (a drag still turns the camera)
     delete touches[t.identifier];
   }
 };
@@ -853,6 +881,15 @@ function showcase(dt) {
 const tmp = new THREE.Vector3(), camTarget = new THREE.Vector3(), camPos = new THREE.Vector3();
 // ---------- LAVA falls (Dave: 'if the player steps off the path, it falls into the lava then respawns instantly back on the path') ----------
 // cosmetic + harmless: a 0.45 s sink with an orange flash and a sizzle, then he stands on the nearest free centre-line point of a cave path.
+// JUMP (t187, Dave: 'allow the player to jump by walking and tapping the right side'): 0.56 s arc, 0.8 m high, carries the run-up speed
+// (walk 2.4 m/s -> ~1.35 m, run 5.2 m/s -> ~2.9 m). Collision stays on (no hopping walls / cabinets); no double jump; lava only checked on landing.
+const JUMP_T = 0.56, JUMP_H = 0.8;
+let jumpAC = null;
+function thud() { try { const ac = jumpAC = jumpAC || window.__unlockAC || new (window.AudioContext || window.webkitAudioContext)(); if (window.__muted || (window.__mute && window.__mute.on)) return;
+  const o = ac.createOscillator(), g = ac.createGain(), t = ac.currentTime; o.type = 'sine'; o.frequency.setValueAtTime(140, t); o.frequency.exponentialRampToValueAtTime(55, t + 0.12);
+  g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.18, t + 0.01); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.16); o.connect(g).connect(ac.destination); o.start(t); o.stop(t + 0.18); } catch (e) {} }
+function canJump() { const S = window.__start, F = window.__floorBtn;
+  return !st.jump && !st.lavaFall && !st.seated && play.mode === 'walk' && !(tp && tp.locked) && !(shop && shop.open) && !(S && S.shown && !S.dismissed) && !(F && F.open) && !document.body.classList.contains('ingame'); }
 const LAVA_FALL = 0.45, lavaFx = document.createElement('div'); lavaFx.id = 'lavaFx'; document.body.appendChild(lavaFx);
 let lavaAC = null;
 function sizzle() { try { const ac = lavaAC = lavaAC || window.__unlockAC || new (window.AudioContext || window.webkitAudioContext)(); if (window.__muted || (window.__mute && window.__mute.on)) return;
@@ -880,15 +917,20 @@ function step(dt) {
   if (st.joy.on && Math.hypot(st.joy.x, st.joy.y) > 0.12) { ix = st.joy.x; iz = st.joy.y; mag = Math.min(1, Math.hypot(ix, iz)); run = mag > 0.85; }
   if (tp && tp.locked) { ix = iz = mag = 0; run = false; }   // teleporting: input locked
   st.inMag = mag; st.lastStep = st.t;
+  if (st.jumpReq != null) { const ok = st.t - st.jumpReq < 0.2 && canJump(); st.jumpReq = null;
+    if (ok) { st.jump = { t: 0, vx: st.vel.x, vz: st.vel.z }; st.jumps = (st.jumps || 0) + 1; } }
   const sy = Math.sin(st.yaw), cy = Math.cos(st.yaw);
   // camera forward on ground = (-sin yaw, -cos yaw)
   const wx = ix * cy + iz * sy, wz = -ix * sy + iz * cy;
   const n = Math.hypot(wx, wz) || 1;
   const vmax = (run ? 5.2 : 2.4) * mag;
   const tv = tmp.set(wx / n * vmax, 0, wz / n * vmax);
-  st.vel.lerp(tv, 1 - Math.exp(-dt * 10));
+  if (st.jump) st.vel.set(st.jump.vx, 0, st.jump.vz).lerp(tmp.set(tv.x, 0, tv.z), 0.08);   // mid-air: carry the run-up, only a touch of steering
+  else st.vel.lerp(tv, 1 - Math.exp(-dt * 10));
   monkey.position.addScaledVector(st.vel, dt); collide(monkey.position);
-  if (floorMode === 'lava' && !st.seated && !st.lavaFall && play.mode === 'walk' && !(tp && tp.locked) && !(shop && shop.open) && !LAVA.onPath(monkey.position.x, monkey.position.z)) lavaFallStart();
+  if (st.jump) { const J = st.jump; J.t += dt; J.vx = st.vel.x; J.vz = st.vel.z; const k = Math.min(1, J.t / JUMP_T); monkey.position.y = 4 * JUMP_H * k * (1 - k); st.airMax = Math.max(st.airMax || 0, monkey.position.y);
+    if (k >= 1) { monkey.position.y = 0; st.jump = null; st.landT = st.t; st.lands = (st.lands || 0) + 1; thud(); } }
+  if (!st.jump && floorMode === 'lava' && !st.seated && !st.lavaFall && play.mode === 'walk' && !(tp && tp.locked) && !(shop && shop.open) && !LAVA.onPath(monkey.position.x, monkey.position.z)) lavaFallStart();
   st.speed = Math.hypot(st.vel.x, st.vel.z);
   if (st.speed > 0.15) { const target = Math.atan2(st.vel.x, st.vel.z); let d = target - st.face; d = Math.atan2(Math.sin(d), Math.cos(d)); st.face += d * (1 - Math.exp(-dt * 12)); }
   monkey.rotation.y = st.face;
@@ -947,6 +989,11 @@ function animateMonkey(dt) {
     a.el.rotation.x = THREE.MathUtils.lerp(-0.3 - runK * 0.8, -0.65 + jitter, P);
   }
 
+  if (st.jump || st.t - (st.landT ?? -9) < 0.18) {   // jump pose: knees tucked, arms up; a short squash on landing
+    const k = st.jump ? Math.min(1, st.jump.t / JUMP_T) : 1, tuck = st.jump ? Math.sin(k * Math.PI) : 0, sq = st.jump ? 0 : 1 - (st.t - st.landT) / 0.18;
+    u.legs.forEach((l, i) => { l.leg.rotation.x = -0.9 * tuck + (i ? 0.25 : -0.25) * tuck - 0.5 * sq; l.knee.rotation.x = 1.3 * tuck + 0.9 * sq; });
+    u.arms.forEach(a => { a.sh.rotation.x = -2.2 * tuck - 0.3 * sq; a.sh.rotation.z = 0.35 * a.sd * tuck; a.el.rotation.x = -0.4 * tuck; });
+    u.hips.position.y = 0.8 - 0.12 * sq; u.torso.rotation.x = 0.15 * tuck + 0.25 * sq; }
   idlePose(dt, u, sw);
 }
 
@@ -1043,4 +1090,4 @@ const opts = setupOpts({ play, kiosk, shield, st, monkey, setFloor, getFloor: ()
 requestAnimationFrame(frame);
 
 // hooks for tests / future art work
-window.__arcade = { LAVA, lavaRespawnPoint, get spaceWin() { return spaceWin; }, get kiosk() { return kiosk; }, setFloor, get floor() { return floorMode; }, setWalls, get walls() { return wallsMode; }, wallMat, carpet, mirror, shield, room, room2, Z2, hall, DOOR_W, DOOR_H, HALL_L, berserkerCab, monkeyCab, orcCab, cyberCab, novaCab, roadsterCab, dsCab, play, get paused() { return paused; }, THREE, scene, camera, renderer, monkey, cabinets, strikeCab, ghostCab, featured, demo, ghostDemo, playables, blockers, st, stats, step, keys, get nearCab() { return nearCab; }, setArt: (i, part, tex, glow) => cabinets[i].userData.setArt(part, tex, glow) };
+window.__arcade = { get jumping() { return !!st.jump; }, canJump, LAVA, lavaRespawnPoint, get spaceWin() { return spaceWin; }, get kiosk() { return kiosk; }, setFloor, get floor() { return floorMode; }, setWalls, get walls() { return wallsMode; }, wallMat, carpet, mirror, shield, room, room2, Z2, hall, DOOR_W, DOOR_H, HALL_L, berserkerCab, monkeyCab, orcCab, cyberCab, novaCab, roadsterCab, dsCab, play, get paused() { return paused; }, THREE, scene, camera, renderer, monkey, cabinets, strikeCab, ghostCab, featured, demo, ghostDemo, playables, blockers, st, stats, step, keys, get nearCab() { return nearCab; }, setArt: (i, part, tex, glow) => cabinets[i].userData.setArt(part, tex, glow) };

@@ -14,4 +14,7 @@ const URL0 = process.argv[2] && process.argv[2] !== 'local' ? process.argv[2] : 
    const vh = L ? 390 : 844, onScreen = bb && bb.y >= 0 && bb.y + bb.height <= vh;
    const ok = now.every(v => v === f) && onScreen && !err; if (!ok) fail++;
    console.log((ok ? 'PASS ' : 'FAIL ') + f, JSON.stringify(bb), 'top:', top, 'now', now, err); }
+ { const tb = await p.locator('#tabWalls').boundingBox(); await p.touchscreen.tap(tb.x + tb.width / 2, tb.y + tb.height / 2); await p.waitForTimeout(1200); const el = await p.locator('#wlPor').boundingBox(); const vh = L ? 390 : 844;
+   await p.touchscreen.tap(el.x + el.width / 2, el.y + el.height / 2); await p.waitForTimeout(1500); const w = await p.evaluate(() => [localStorage.getItem('neonarcade.walls'), (document.querySelector('#wlTiles .sel') || {}).id]); const ok = w[0] === 'portals' && w[1] === 'wlPor' && el.y >= 0 && el.y + el.height <= vh; if (!ok) fail++; console.log((ok ? 'PASS ' : 'FAIL ') + 'walls portals', JSON.stringify(el), w);
+   await p.evaluate(() => localStorage.setItem('neonarcade.walls', 'current')); }
  await p.screenshot({ path: __dirname + '/../shots/floor_menu_phone' + (L ? '_land' : '') + '.png' }); await b.close(); if (srv) srv.close(); console.log(fail ? 'FAIL' : 'PASS all tiles'); process.exit(fail ? 1 : 0); })();

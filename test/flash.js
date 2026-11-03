@@ -2,10 +2,11 @@
 // Orbit the camera 360deg at four spots x two pitches and measure the near-white fraction (min(r,g,b) > 235, HUD row skipped)
 // of every frame. Before the fix the hallway peaked at ~5.6% (pink wall tube filling the screen) against a ~0.03% median.
 const { open } = require('./lib');
-const PHONE = process.argv[2] === 'phone', FLOOR = process.argv[3] || '', MAX = 1.0, JUMP = 0.8;
+const PHONE = process.argv[2] === 'phone', FLOOR = process.argv[3] && process.argv[3] !== '-' ? process.argv[3] : '', WALLS = process.argv[4] || '', MAX = 1.0, JUMP = 0.8;
 (async () => {
   const { page, errors, close } = await open(PHONE ? { phone: true, w: 412, h: 860, shieldOpen: true } : { shieldOpen: true });
   if (FLOOR) { await page.evaluate(f => window.__arcade.setFloor(f), FLOOR); console.log('floor ' + FLOOR); }   // node test/flash.js [desktop|phone] lava
+  if (WALLS) { await page.evaluate(w => window.__arcade.setWalls(w), WALLS); console.log('walls ' + WALLS); }   // node test/flash.js desktop - portals
   await page.evaluate(() => { window.__nearWhite = () => new Promise(res => requestAnimationFrame(() => requestAnimationFrame(() => {
     const src = window.__arcade.renderer ? window.__arcade.renderer.domElement : document.querySelector('canvas'), w = 320, h = Math.round(320 * src.height / src.width);
     const c = window.__nwc ||= document.createElement('canvas'); c.width = w; c.height = h; const g = c.getContext('2d', { willReadFrequently: true }); g.drawImage(src, 0, 0, w, h);
