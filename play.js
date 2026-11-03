@@ -68,6 +68,11 @@ export function setupPlay(A) {
       start(w) { w.__blaster.start(); },
       scene(w) { return w.__blaster.scene(); }, active(w) { return w.__blaster.S.mode === 'play'; },
       hold(w) { return w.__blaster.hold(); }, unhold(w) { w.__blaster.unhold(); }, overHold: 4500, scoresHold: 0 },
+    pip: { key: 'pip', cab: A.pipCab, src: 'pip-play/index.html', credits: 0, games: 0, aspect: (A.pipCab && A.pipCab.userData.aspect) || 4 / 3, cost: 5,   // SUPER PIP QUEST (#11, blank A): 5 tickets = 1 credit = one run of 5 lives
+      demo(w) { w.__demo.start(); }, stopDemo(w) { w.__demo.stop(); },
+      start(w) { w.__pip.start(); },
+      scene(w) { return w.__pip.scene(); }, active(w) { return w.__pip.active(); },
+      hold(w) { return w.__pip.hold(); }, unhold(w) { w.__pip.unhold(); }, overHold: 4500, scoresHold: 0 },
     nova: { key: 'nova', cab: A.novaCab, src: 'nova-play/index.html', credits: 0, games: 0, aspect: (A.novaCab && A.novaCab.userData.aspect) || 16 / 9, cost: 5,   // 5 tickets = 1 credit = one run
       demo(w) { w.__demo.start(); }, stopDemo(w) { w.__demo.stop(); },
       start(w) { w.__nova.start(); },

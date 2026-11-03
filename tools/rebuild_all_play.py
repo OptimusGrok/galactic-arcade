@@ -26,6 +26,7 @@ REGISTRY = [
     dict(name='nova', source='/workspace/nova-tether-pages/index.html', builder='tools_build_nova_play.py', out='nova-play/index.html', tests=['novaplay']),   # READ ONLY repo (Chief of Staff); the builder pins commit bde4704
     dict(name='roadster', source='/workspace/mars-roadster/index.html', builder='tools_build_mr_play.py', out='mr-play/index.html', tests=['marsroadster']),   # READ ONLY (Chief of Staff)
     dict(name='ds', source='/workspace/dead-signal-pages/index.html', builder='tools_build_ds_play.py', out='ds-play/index.html', tests=['deadsignal']),   # READ ONLY (First Person's published Dead Signal)
+    dict(name='pip', source='/workspace/platformer/game.html', builder='tools_build_pip_play.py', out='pip-play/index.html', tests=['pip']),   # READ ONLY (Side Scroller Platform's built Super Pip Quest)
 ]
 SHARED_TESTS = ['credits', 'tickets']          # cover every cabinet: demo, INSERT TICKET, credits, in-game tickets
 PHONE = True                                   # each test also runs with the 'phone' argument

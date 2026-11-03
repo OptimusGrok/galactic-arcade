@@ -18,7 +18,7 @@ const PHONE = process.argv[2] === 'phone';
   const bk = Object.fromEntries(slot.bs.map(([t, k]) => [k, t]));
   chk(slot.wall === 'west' && slot.idx === 1 && slot.x < -11 && slot.z === 4 && !slot.blank, 'BLASTER replaces blank B on the west wall (x=' + slot.x + ', z=' + slot.z + ')');
   chk(slot.parts && slot.bad.length === 0 && slot.over > 0, 'cabinet parts present, no neon on the body, wall edge glow outlines it (' + slot.over + ') ' + slot.bad);
-  chk(bk['1:1'] === '10' && bk['2:0'] === '8' && bk['r2:centre'] === '9' && bk['1:0'] === 'A' && bk['2:2'] === 'E' && bk['r2:0:0'] === 'H' && !slot.bs.some(b => b[0] === 'B'), 'NUMBERS: BLASTER = 10, ROADSTER 8, DEAD SIGNAL 9, letters A/E/H stay, B retired');
+  chk(bk['1:1'] === '10' && bk['2:0'] === '8' && bk['r2:centre'] === '9' && bk['1:0'] === '11' && bk['2:2'] === 'E' && bk['r2:0:0'] === 'H' && !slot.bs.some(b => b[0] === 'B'), 'NUMBERS: BLASTER = 10, ROADSTER 8, DEAD SIGNAL 9, PIP 11 in A, letters E/H stay, B retired');
   await page.evaluate(() => { const p = window.__arcade.play; p.tickets.total = 1; localStorage.setItem('neonarcade.tickets', '1'); p.machines.blaster.credits = 0; });
   await page.evaluate(PH => { window.__arcade.monkey.position.set(-6, 0, 1); window.__camOverride = { pos: PH ? [-7.0, 2.0, 0.6] : [-7.4, 2.0, 1.2], at: [-11.6, 1.25, 4.4] }; }, PHONE); await page.waitForTimeout(2500);
   await page.screenshot({ path: 'shots/blaster_room' + sfx + '.png' }); await page.evaluate(() => { window.__camOverride = null; });
