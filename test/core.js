@@ -2,8 +2,9 @@ const { open } = require('./lib');
 (async () => {
   const { page, errors, close } = await open(); let ok = true; const chk = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); if (!c) ok = false; };
   const cab = await page.evaluate(() => { const A = window.__arcade; const by = {}; let screens = 0, art = 0;
-    for (const c of A.playables) { by[c.userData.wall] = (by[c.userData.wall] || 0) + 1; const s = c.getObjectByName('screen'); if (s && !s.material.map) screens++; if (c.getObjectByName('marquee') && c.getObjectByName('sidePanelL') && c.getObjectByName('sidePanelR')) art++; }
-    return { n: A.playables.length, by, screens, art }; });
+    for (const c of A.playables.filter(c => c !== A.dsCab)) {   // DEAD SIGNAL (room 2 centre) is checked by test/deadsignal.js
+    by[c.userData.wall] = (by[c.userData.wall] || 0) + 1; const s = c.getObjectByName('screen'); if (s && !s.material.map) screens++; if (c.getObjectByName('marquee') && c.getObjectByName('sidePanelL') && c.getObjectByName('sidePanelR')) art++; }
+    return { n: A.playables.length - 1, by, screens, art }; });
   chk(cab.n === 13, 'cabinets=' + cab.n + ' (middle north slot is the doorway; east wall is the space window)'); chk(cab.by.north === 4 && cab.by.west === 5 && cab.by.south === 4 && !cab.by.east, 'per wall ' + JSON.stringify(cab.by));
   chk(cab.screens === 7, 'screen meshes without a texture map (7 = 5 blanks + STRIKE + GHOST; BERSERKER + MONKEY CROSSING + ORC ATTACK + NOVA TETHER draw attract screens) ' + cab.screens); chk(cab.art === 13, 'marquee+side panels ' + cab.art);
   // deterministic movement: stop RAF effects by stepping manually

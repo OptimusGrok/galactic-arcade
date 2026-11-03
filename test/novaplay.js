@@ -27,12 +27,12 @@ const PHONE = process.argv[2] === 'phone';
   await page.evaluate(PH => { window.__arcade.monkey.position.set(2, 0, 0); window.__camOverride = { pos: PH ? [6.4, 1.9, -7.4] : [5.2, 2.0, -7.6], at: [7.4, 1.25, -11.5] }; }, PHONE); await page.waitForTimeout(2500);
   await page.screenshot({ path: 'shots/nova_cab_room' + sfx + '.png' }); await page.evaluate(() => { window.__camOverride = null; });
   await H.goTo('novaCabinet'); await page.waitForFunction(() => document.getElementById('playUI').classList.contains('on'), null, { timeout: 8000 }).catch(() => {});
-  const p0 = await H.ui(); chk(p0.on && p0.txt === 'PLAY' && p0.near === 'novaCabinet' && /2 TICKETS TO PLAY/.test(p0.cr), 'PLAY prompt at NOVA TETHER with 2 TICKETS TO PLAY ' + JSON.stringify(p0));
+  const p0 = await H.ui(); chk(p0.on && p0.txt === 'PLAY' && p0.near === 'novaCabinet' && /5 TICKETS TO PLAY/.test(p0.cr), 'PLAY prompt at NOVA TETHER with 5 TICKETS TO PLAY ' + JSON.stringify(p0));
   await page.evaluate(() => { window.__camOverride = null; });
   await page.screenshot({ path: 'shots/nova_cab_prompt' + sfx + '.png' });
   await H.press(); await H.zoomToDemo(); await page.waitForTimeout(2500);
   const d = await page.evaluate(W => { const w = eval(W); return { src: w.location.pathname, demo: w.__DEMO, mode: w.NV.G.mode, god: w.NV.god, muted: w.NV.Audio.muted, ins: document.getElementById('dInsert').textContent, cost: document.getElementById('dCost').textContent, t: w.NV.G.stageT }; }, W);
-  chk(/nova-play/.test(d.src) && d.demo && d.mode === 'play' && d.t > 0.5 && d.ins === 'INSERT CREDIT' && d.cost === '2 TICKETS TO PLAY', 'zoom lands in the NOVA TETHER DEMO: INSERT CREDIT, 2 TICKETS TO PLAY ' + JSON.stringify(d));
+  chk(/nova-play/.test(d.src) && d.demo && d.mode === 'play' && d.t > 0.5 && d.ins === 'INSERT CREDIT' && d.cost === '5 TICKETS TO PLAY', 'zoom lands in the NOVA TETHER DEMO: INSERT CREDIT, 2 TICKETS TO PLAY ' + JSON.stringify(d));
   chk(d.muted, 'DEMO is silent');
   const t0 = await page.evaluate(() => localStorage.getItem('neonarcade.tickets'));
   const dk = await page.evaluate(W => { const w = eval(W), s0 = w.NV.G.score; w.NV.step(900); return { score: w.NV.G.score - s0, got: w.__TK.got, kills: w.__TK.kills }; }, W);
@@ -41,11 +41,11 @@ const PHONE = process.argv[2] === 'phone';
   // 1 ticket: NEED 2
   const n0 = (await H.state()).need; await H.insert();
   const b = await page.evaluate(() => ({ cr: window.__arcade.play.machines.nova.credits, t: window.__arcade.play.tickets.total, btn: document.getElementById('bTicket').textContent, need: window.__arcade.play.need }));
-  chk(b.cr === 0 && b.t === 1 && b.need > n0 && b.btn === 'NEED 2 TICKETS', 'with 1 ticket: NEED 2 TICKETS, no credit ' + JSON.stringify(b));
-  await page.evaluate(() => { const p = window.__arcade.play; p.tickets.total = 3; localStorage.setItem('neonarcade.tickets', '3'); });
+  chk(b.cr === 0 && b.t === 1 && b.need > n0 && b.btn === 'NEED 5 TICKETS', 'with 1 ticket: NEED 5 TICKETS, no credit ' + JSON.stringify(b));
+  await page.evaluate(() => { const p = window.__arcade.play; p.tickets.total = 6; localStorage.setItem('neonarcade.tickets', '6'); });
   await page.evaluate(() => window.__arcade.play.insertTicket());
   const c = await page.evaluate(() => ({ cr: window.__arcade.play.machines.nova.credits, t: window.__arcade.play.tickets.total }));
-  chk(c.cr === 1 && c.t === 1, 'INSERT 2 TICKETS -> CREDIT 1 (3 -> 1 tickets) ' + JSON.stringify(c));
+  chk(c.cr === 1 && c.t === 1, 'INSERT 5 TICKETS -> CREDIT 1 (6 -> 1 tickets) ' + JSON.stringify(c));
   if (PHONE) await page.tap('#dInsert'); else await page.keyboard.press('Enter'); await page.waitForTimeout(1200);
   const g = await page.evaluate(W => { const w = eval(W), s = w.NV.state(); return { mode: s.mode, stage: s.stage, score: s.score, lives: s.lives, demo: w.__DEMO, god: w.NV.god, muted: w.NV.Audio.muted, cr: window.__arcade.play.machines.nova.credits, sub: window.__arcade.play.sub, run: w.__TK.run }; }, W);
   chk(g.mode === 'play' && g.stage === 0 && g.lives === 3 && !g.demo && !g.god && g.cr === 0 && g.sub === 'play' && g.run === 0, 'credit starts a fresh run: stage 1, 3 lives (credit 1 -> 0) ' + JSON.stringify(g));
@@ -64,14 +64,14 @@ const PHONE = process.argv[2] === 'phone';
   let k = null; for (let i = 0; i < 60; i++) { k = await page.evaluate(W => { const w = eval(W); w.NV.god = true; for (let j = 0; j < 30; j++) { w.__nova.pilot(); w.NV.step(1); if (w.__TK.got) break; } w.NV.god = false; return { got: w.__TK.got, log: w.__TK.log.slice(-3), mode: w.NV.G.mode, t: w.NV.G.stageT }; }, W); if (k.got >= 1) break; }
   await page.waitForTimeout(250); await page.screenshot({ path: 'shots/nova_ticket' + sfx + '.png' });
   const a1 = await page.evaluate(() => ({ t: window.__arcade.play.tickets.total, ls: +localStorage.getItem('neonarcade.tickets') }));
-  chk(k.got >= 1 && a1.t === a0 + k.got && a1.ls === a1.t, 'kills drop gold tickets, banked in the arcade at once: +' + k.got + ' ' + JSON.stringify(k));
+  chk(k.got >= 1 && a1.t - a0 >= Math.floor(k.got * 2.5) && a1.t - a0 <= Math.ceil(k.got * 2.5) && a1.ls === a1.t, 'kills drop gold tickets, banked in the arcade at once: +' + k.got + ' ' + JSON.stringify(k));
   // a whole stage (warden + stage boss) and into stage 2 (test keeps the ship alive so the timeline completes)
   const run = await page.evaluate(W => { const w = eval(W), G = w.NV.G; w.NV.god = true; for (let i = 0; i < 60 * 260 && !(G.stage === 1 && G.mode === "play" && G.stageT > 30); i++) { if (i % 600 === 599) for (const b of w.NV.bosses) if (b.hp > 40) b.hp -= 40; w.__nova.pilot(); w.NV.step(1); }
     w.NV.god = false; const L = w.__TK.log; return { got: w.__TK.got, stage: G.stage + 1, kills: w.__TK.kills, killDrops: L.filter(x => /^kill/.test(x)).length, warden: L.filter(x => /^warden/.test(x)), boss: L.filter(x => /^boss/.test(x)), s1: L.filter(x => /^kill.*@s1:/.test(x)).length, s2: L.filter(x => /^kill.*@s2:/.test(x)).length, score: G.score }; }, W);
   const a2 = await page.evaluate(() => window.__arcade.play.tickets.total);
   console.log('RUN ' + JSON.stringify(run), a0, a1, JSON.stringify(await page.evaluate(W => { const w = eval(W); return { t: w.NV.G.stageT, m: w.NV.G.mode, b: w.NV.bosses.map(b => [b.type, b.hp, b.x|0, b.y|0]) }; }, W)));
-  chk(run.stage === 2 && run.warden.length >= 1 && run.boss.length === 1 && a2 === a0 + run.got, 'stage 1 cleared: WARDEN + stage-boss bonuses banked (' + run.warden + ' / ' + run.boss + '), arcade +' + run.got);
-  chk(run.got >= 6 && run.killDrops >= 2, 'a decent stage nets well over the 2-ticket cost (' + run.got + ' tickets, ' + run.killDrops + ' kill drops from ' + run.kills + ' kills)');
+  chk(run.stage === 2 && run.warden.length >= 1 && run.boss.length === 1 && Math.abs(a2 - a0 - run.got * 2.5) <= 1, 'stage 1 cleared: WARDEN + stage-boss bonuses banked (' + run.warden + ' / ' + run.boss + '), arcade +' + (a2 - a0) + ' for ' + run.got + ' pickups');
+  chk(run.got >= 6 && run.killDrops >= 2, 'a decent stage nets well over the old 2-ticket cost in pickups, each paying 2.5 ('  + run.got + ' tickets, ' + run.killDrops + ' kill drops from ' + run.kills + ' kills)');
   const ch = await page.evaluate(W => { const w = eval(W), G = w.NV.G, e = { type: 'drone' }, s = G.stage, l = G.loop, t = G.stageT; const r = [];
     G.stage = 0; G.loop = 0; G.stageT = 0; r.push(w.__TK.chance(e)); G.stageT = 50; r.push(w.__TK.chance(e)); G.stage = 1; r.push(w.__TK.chance(e)); G.loop = 1; r.push(w.__TK.chance(e)); r.push(w.__TK.chance({ type: 'hunter' }));
     G.stage = s; G.loop = l; G.stageT = t; return r.map(x => +x.toFixed(3)); }, W);

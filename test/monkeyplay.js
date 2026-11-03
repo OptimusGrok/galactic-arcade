@@ -34,9 +34,9 @@ const PHONE = process.argv[2] === 'phone';
   // blocked at 0 credits / 0 tickets
   const n0 = (await H.state()).need; await page.evaluate(() => window.__arcade.play.tryPlay()); await page.waitForTimeout(300); await H.insert();
   const b = await H.state(); chk(b.sub === 'demo' && b.need >= n0 + 2 && b.tickets === 0, 'with 0 tickets: no credit, the tap does not start a game ' + JSON.stringify(b));
-  await page.evaluate(() => { const p = window.__arcade.play; p.tickets.total = 3; localStorage.setItem('neonarcade.tickets', '3'); });
+  await page.evaluate(() => { const p = window.__arcade.play; p.tickets.total = 7; localStorage.setItem('neonarcade.tickets', '7'); });
   await H.insert(); const c = await page.evaluate(() => ({ cr: window.__arcade.play.machines.monkey.credits, t: window.__arcade.play.tickets.total, btn: document.getElementById('bTicket').textContent }));
-  chk(c.cr === 1 && c.t === 2, 'INSERT TICKET costs 1 ticket -> CREDIT 1 ' + JSON.stringify(c));
+  chk(c.cr === 1 && c.t === 2, 'INSERT 5 TICKETS costs 5 tickets -> CREDIT 1 (7 -> 2) ' + JSON.stringify(c));
   if (PHONE) await page.tap('#dInsert'); else await page.keyboard.press('Enter'); await page.waitForTimeout(700);
   const g = await page.evaluate(() => { const w = document.getElementById('game').contentWindow; return { st: w.__M.state, demo: w.__DEMO, cr: window.__arcade.play.machines.monkey.credits, sub: window.__arcade.play.sub, au: w.__M.audio() }; });
   chk(g.st === 'play' && !g.demo && g.cr === 0 && g.sub === 'play', 'credit starts a real game (credit 1 -> 0) ' + JSON.stringify(g));
@@ -47,14 +47,14 @@ const PHONE = process.argv[2] === 'phone';
   else await page.keyboard.press('ArrowUp');
   await page.waitForTimeout(400); const z1 = await page.evaluate(() => document.getElementById('game').contentWindow.__M.player.tz);
   chk(z1 === z0 + 1, (PHONE ? 'tap' : 'arrow key') + ' hops forward (' + z0 + ' -> ' + z1 + ')');
-  // ticket pickup -> arcade +1 exactly
+  // ticket pickup -> arcade +5 exactly (the machine now costs 5)
   const t0 = await page.evaluate(() => window.__arcade.play.tickets.total);
   const put = await page.evaluate(() => { const w = document.getElementById('game').contentWindow, M = w.__M, P = M.player, z = P.z + 1, r = M.rows[z], x = Math.round(P.fx);
     if (r.type === 'river' || r.type === 'road' || r.type === 'rail') { r.type = 'grass'; r.objs = []; } r.trees = r.trees.filter(c => c !== x); r.ticket = x; r.tkGot = 0; M.tryMove(0, 1); return { z, x }; });
   await page.waitForTimeout(600);
   const tk = await page.evaluate(() => { const w = document.getElementById('game').contentWindow; return { arcade: window.__arcade.play.tickets.total, ls: +localStorage.getItem('neonarcade.tickets'), run: w.__M.tickets, iso: localStorage.getItem('arcade_mc_tickets'), orig: localStorage.getItem('mc_tickets') }; });
   await page.screenshot({ path: 'shots/monkey_ticket' + sfx + '.png' });
-  chk(tk.arcade === t0 + 1 && tk.ls === t0 + 1 && tk.run === 1, 'a gold ticket pickup feeds neonarcade.tickets exactly +1 ' + JSON.stringify(tk));
+  chk(tk.arcade === t0 + 5 && tk.ls === t0 + 5 && tk.run === 1, 'a gold ticket pickup feeds neonarcade.tickets exactly +5 (5 / old 1-ticket price) ' + JSON.stringify(tk));
   chk(tk.iso === '1' && tk.orig === null, 'the copy keeps its own storage keys (arcade_mc_*), the standalone game\'s mc_* untouched');
   // game over -> back to the demo; Space does not restart
   await page.evaluate(() => document.getElementById('game').contentWindow.__mcDie('squish'));

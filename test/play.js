@@ -18,7 +18,7 @@ const PHONE = process.argv[2] === 'phone';
   await goTo('strikeCabinet'); await page.waitForTimeout(900);
   await page.screenshot({ path: 'shots/play_prompt' + (PHONE ? '_phone' : '') + '.png' });
   const p0 = await page.evaluate(() => ({ on: document.getElementById('playUI').classList.contains('on'), txt: document.getElementById('bPlay').textContent, cr: document.getElementById('credit').textContent }));
-  chk(p0.on && p0.txt === 'PLAY' && p0.cr.startsWith('CREDIT 1'), 'PLAY prompt + CREDIT 1 at STRIKE ' + JSON.stringify(p0));
+  chk(p0.on && p0.txt === 'PLAY' && /CREDIT 1/.test(p0.cr), 'PLAY prompt + CREDIT 1 at STRIKE ' + JSON.stringify(p0));
   if (PHONE) await page.tap('#bPlay'); else await page.keyboard.press('Enter');
   let midShot = false; const z = []; for (let i = 0; i < 120; i++) { await page.waitForTimeout(100); if (i > 2 && z[z.length - 1].m !== 'zoomIn') break; z.push(await page.evaluate(() => { const A = window.__arcade; return { m: A.play.mode, k: A.play.t, d: A.play.target ? A.camera.position.distanceTo(A.play.target) : 9, mv: A.monkey.visible }; }));
     if (!midShot && z[z.length - 1].m === 'zoomIn' && z[z.length - 1].k > 0.45) { midShot = true; await page.screenshot({ path: 'shots/play_midzoom' + (PHONE ? '_phone' : '') + '.png' }); } }

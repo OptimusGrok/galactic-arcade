@@ -6,7 +6,7 @@ const { open } = require('./lib');
     const neonCheck = cab => { const bad = []; cab.traverse(o => { if (!o.isMesh) return; const m = o.material;
       if (/neon/i.test(o.name) || m.isMeshBasicMaterial) bad.push(o.name || '?');
       if (/trim|molding|edge/i.test(o.name) && m.emissive && m.emissive.getHex() && m.emissiveIntensity > 0) bad.push(o.name + ':emissive'); }); return bad; };
-    const all = A.playables.filter(c => c !== A.roadsterCab), walls = {};   // MARS ROADSTER spans 2 south slots, checked by marsroadster.js
+    const all = A.playables.filter(c => c !== A.roadsterCab && c !== A.dsCab), walls = {};   // DEAD SIGNAL stands in room 2 (test/deadsignal.js); MARS ROADSTER spans 2 south slots, checked by marsroadster.js
     for (const c of all) (walls[c.userData.wall] = walls[c.userData.wall] || []).push(c);
     const rows = {}; for (const [w, cs] of Object.entries(walls)) { const u = cs.map(c => w === 'north' || w === 'south' ? c.position.x : c.position.z).sort((a, b) => a - b);
       const d = cs.map(c => w === 'north' || w === 'south' ? Math.abs(c.position.z) : Math.abs(c.position.x)); const gaps = u.slice(1).map((v, i) => +(v - u[i]).toFixed(4));

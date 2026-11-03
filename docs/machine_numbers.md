@@ -1,6 +1,6 @@
 # Machine numbers (hidden menu > DEV > NUMBERS)
 
-Cabinets with a game get yellow numbers; blank cabinets get cyan letters (see below). The numbers follow a walk around room 1: north wall (with the doorway) from left to right as you face it, then the west wall. Room 2 has only blank cabinets. Slot key = `FEATURED['wall:index']` in main.js (wall 0=north, 1=west, 2=south, 3=east/space window; index 0..4 along the wall, north 2 = doorway).
+Cabinets with a game get yellow numbers; blank cabinets get cyan letters (see below). The numbers follow a walk around room 1: north wall (with the doorway) from left to right as you face it, then the west wall. Room 2 has blank wall cabinets plus the free-standing DEAD SIGNAL VR station (#9) in its exact centre. Slot key = `FEATURED['wall:index']` in main.js (wall 0=north, 1=west, 2=south, 3=east/space window; index 0..4 along the wall, north 2 = doorway).
 
 | # | Slot key | Wall / position | Game (FEATURED value) |
 |---|----------|-----------------|-----------------------|
@@ -12,6 +12,7 @@ Cabinets with a game get yellow numbers; blank cabinets get cyan letters (see be
 | 6 | 1:3 | room 1 west, z=-4 | ORC ATTACK (`orcCab`, 'orc') |
 | 7 | 1:4 | room 1 west, z=-8 (NW corner) | GHOST 256 (`ghostCab`, 'ghost') |
 | 8 | 2:0 (+2:1) | room 1 south, x=+8 and x=+4 (C + D), runs 4 m into the room (z 11.55 to 7.55) | MARS ROADSTER (`roadsterCab`, 'roadster'): two-seat driving cabinet, 2 slots wide, 4 long. Not a normal FSCALE cabinet, so it is placed by its own branch in the ROWS loop (`ROADSTER_SLOTS`) |
+| 9 | r2:centre | room 2, exact middle (0, -29), free-standing (round platform r 2.05 + curved screen to the north) | DEAD SIGNAL VR STATION (`dsCab`, 'deadsignal'): not a wall slot; built by `dscab.js`, added as a room-2 child in main.js. Every machine costs 5 tickets |
 
 To swap machine A and B, swap their two `[cab, name]` values in `FEATURED`. Numbers are assigned by slot, so after a swap each number stays on its slot and the game shown under it changes. Free blank slots: north 0:2 is the doorway; west 1:0 and 1:1; south 2:2 to 2:4 (2:0 and 2:1 hold MARS ROADSTER). The east wall is the space window and has no cabinets.
 

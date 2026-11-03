@@ -1,0 +1,101 @@
+// DEAD SIGNAL VR STATION: machine #9 in the exact middle of room 2; solid round platform (doorway + walkway clear); PLAY -> the monkey steps on,
+// puts the headset on (visor glows), camera zooms into the visor -> Dead Signal; exit -> headset back on the pedestal. 5 tickets = 1 credit;
+// gold tickets only in the arcade copy (ds-play); arcade HUD. node test/deadsignal.js [phone]
+const { open } = require('./lib'); const { helpers } = require('./cabflow'); const fs = require('fs');
+const PHONE = process.argv[2] === 'phone';
+(async () => {
+  const { page, errors, close } = await open(PHONE ? { phone: true, w: 412, h: 860, shieldOpen: true } : { shieldOpen: true });
+  page.setDefaultTimeout(60000);
+  let ok = true; const chk = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); if (!c) ok = false; };
+  const sfx = PHONE ? '_phone' : '', H = helpers(page, PHONE), W = 'document.getElementById("game").contentWindow';
+  const pl = await page.evaluate(() => { const A = window.__arcade, T = A.THREE, c = A.dsCab; c.updateMatrixWorld(true);
+    const plat = c.getObjectByName('platform') || c, b = new T.Box3(); c.traverse(o => { if (o.isMesh && !/cable|fog/.test(o.name) && o.geometry.boundingBox !== undefined) { o.geometry.computeBoundingBox(); const bb = o.geometry.boundingBox.clone().applyMatrix4(o.matrixWorld); if (bb.max.y < 8) b.union(bb); } });
+    const bad = []; c.traverse(o => { if (o.isMesh && o.material.isMeshBasicMaterial && !/glow|led|screen|sign|visor|lens|proxy|Glow|Led/i.test(o.name)) bad.push(o.name || o.geometry.type); });
+    const circ = A.blockers.find(k => k.kind === 'circle' && k.name === 'deadsignal');
+    const others = A.blockers.filter(k => k.kind !== 'circle' && !/deadsignal/.test(k.name || '') && k.minZ < -17 && k.minX < b.max.x && k.maxX > b.min.x && k.minZ < b.max.z && k.maxZ > b.min.z).length;
+    const badge = window.__dev.badges.map(s => s.userData).find(u => u && u.game === 'deadsignal');
+    const parts = ['platform', 'hazardRim', 'ledRingPink', 'ledRingBlue', 'headset', 'pedTop', 'screen', 'sign', 'rigRing', 'cable', 'railL', 'railR'].filter(k => !c.getObjectByName(k)); let nc = 0; c.traverse(o => { if (o.name === 'controller') nc++; }); if (nc !== 2) parts.push('controllers ' + nc);
+    return { box: [b.min.x, b.max.x, b.min.z, b.max.z, b.max.y].map(v => +v.toFixed(2)), centre: [c.userData.centre.x, c.userData.centre.z], Z2: A.Z2, HALF: A.HALF || 12, circ, others, badge, parts, bad, playable: A.playables.includes(c) }; });
+  console.log(JSON.stringify(pl));
+  const [x0, x1, z0, z1] = pl.box;
+  chk(pl.centre[0] === 0 && pl.centre[1] === pl.Z2 && Math.abs((x0 + x1) / 2) < 0.3, 'stands in the exact middle of room 2 (centre 0,' + pl.Z2 + ')');
+  chk(z1 < -17 - 3 && x0 > -12 && x1 < 12 && z0 > pl.Z2 - 12, 'inside room 2, at least 3 m clear of the doorway (front z ' + z1 + ', doorway -17)');
+  chk(x0 > -12 + 4 && x1 < 12 - 4 && pl.others === 0, 'walkway round it: >= 4 m to the side walls, no other cabinet overlaps ' + x0 + '..' + x1);
+  chk(pl.parts.length === 0 && pl.playable, 'parts: platform + hazard rim, handrails, pedestal + headset + 2 controllers, curved screen, sign, rig ring + cable ' + pl.parts);
+  chk(pl.badge && pl.badge.n === 9, 'NUMBERS: #9 DEAD SIGNAL ' + JSON.stringify(pl.badge));
+  // collision: walk at it from the doorway, and along the side
+  const col = await page.evaluate(() => { const A = window.__arcade; window.__noAdapt = 1; A.st.fp = false; const r = {};
+    const walk = (x, z, yaw, key, n) => { A.monkey.position.set(x, 0, z); A.st.vel.set(0, 0, 0); for (let i = 0; i < n; i++) { A.keys[key] = true; A.st.yaw = yaw; A.step(1 / 60); } A.keys[key] = false; return [+A.monkey.position.x.toFixed(2), +A.monkey.position.z.toFixed(2)]; };
+    r.front = walk(0, -21, 0, 'KeyW', 200); r.side = walk(-6, -29, -Math.PI / 2, 'KeyW', 200); r.around = walk(-4.5, -22, 0, 'KeyW', 300); return r; });
+  console.log(JSON.stringify(col));
+  chk(Math.hypot(col.front[0], col.front[1] + 29) > 2.05 && Math.hypot(col.side[0], col.side[1] + 29) > 2.05, 'solid: walking into it stops at the platform rim ' + JSON.stringify(col));
+  chk(col.around[1] < -33, 'the walkway beside it stays open (walked past to z ' + col.around[1] + ')');
+  // room shot
+  await page.evaluate(() => { const p = window.__arcade.play; p.tickets.total = 2; localStorage.setItem('neonarcade.tickets', '2'); });
+  await page.evaluate(PH => { const A = window.__arcade; A.monkey.position.set(1.6, 0, -24); A.st.face = Math.PI; window.__camOverride = { pos: PH ? [3.2, 3.0, -19.6] : [4.6, 2.9, -21.2], at: [0, 1.7, -29.3] }; }, PHONE);
+  await page.waitForTimeout(2500); await page.screenshot({ path: 'shots/ds_room2' + sfx + '.png' }); await page.evaluate(() => { window.__camOverride = null; });
+  // prompt
+  const goFront = () => page.evaluate(() => { const A = window.__arcade; A.st.fp = false; A.st.vel.set(0, 0, 0); A.monkey.position.set(0.2, 0, -29 + 2.05 + 0.75); A.st.face = Math.PI; A.st.yaw = 0; A.st.lookT = -99; A.step(1 / 60); });
+  await goFront(); await page.waitForFunction(() => document.getElementById('playUI').classList.contains('on'), null, { timeout: 15000 }).catch(() => {});
+  const u0 = await H.ui();
+  chk(u0.on && u0.txt === 'PLAY' && u0.near === 'deadSignalStation' && /5 TICKETS TO PLAY/.test(u0.cr), 'close to the platform: PLAY, 5 TICKETS TO PLAY ' + JSON.stringify(u0));
+  await page.evaluate(() => { window.__arcade.monkey.position.set(6, 0, -24); window.__arcade.step(1 / 60); }); await page.waitForFunction(() => !document.getElementById('playUI').classList.contains('on'), null, { timeout: 8000 }).catch(() => {});
+  chk(!(await H.ui()).on, 'no prompt away from it');
+  // headset sequence
+  await goFront(); await page.waitForFunction(() => document.getElementById('playUI').classList.contains('on'), null, { timeout: 15000 }).catch(() => {});
+  await H.press();
+  await page.waitForFunction(() => window.__arcade.play.mode === 'prep' && window.__arcade.play.t > 0.45, null, { timeout: 15000 }).catch(() => {});
+  const p1 = await page.evaluate(() => { const A = window.__arcade, h = (A.monkey.getObjectByName('headset') || A.dsCab.getObjectByName('headset')), P = A.play; return { mode: P.mode, t: +P.t.toFixed(2), y: +A.monkey.position.y.toFixed(2), hpar: h.parent && h.parent.name }; });
+  await page.screenshot({ path: 'shots/ds_headset_lift' + sfx + '.png' });
+  await page.waitForFunction(() => window.__arcade.play.mode === 'zoomIn' && window.__arcade.play.t > 0.1, null, { timeout: 15000 }).catch(() => {});
+  const p2 = await page.evaluate(() => { const A = window.__arcade, h = (A.monkey.getObjectByName('headset') || A.dsCab.getObjectByName('headset')), v = (A.monkey.getObjectByName('hsVisor') || A.dsCab.getObjectByName('hsVisor')), T = A.THREE, w = h.getWorldPosition(new T.Vector3()), hd = A.monkey.userData.head.getWorldPosition(new T.Vector3());
+    return { mode: A.play.mode, onHead: h.parent === A.monkey.userData.head, d: +w.distanceTo(hd).toFixed(2), glow: v ? +v.material.emissiveIntensity.toFixed(2) : null, y: +A.monkey.position.y.toFixed(2), r: +Math.hypot(A.monkey.position.x, A.monkey.position.z + 29).toFixed(2) }; });
+  await page.screenshot({ path: 'shots/ds_headset' + sfx + '.png' });
+  console.log(JSON.stringify([p1, p2]));
+  chk(p1.mode === 'prep' && p2.y > 0.2 && p2.r < 1.2, 'PLAY walks the monkey up onto the platform ' + JSON.stringify(p2));
+  chk(p2.mode === 'zoomIn' && p2.onHead && p2.d < 0.3 && p2.glow > 1, 'he lifts the headset onto his head, the visor glows, camera zooms in');
+  await H.zoomToDemo(); await page.waitForTimeout(1500);
+  const d = await page.evaluate(W => { const w = eval(W); return { src: w.location.pathname, demo: w.__DEMO, ins: document.getElementById('dInsert').textContent, cost: document.getElementById('dCost').textContent, full: document.getElementById('game').getBoundingClientRect().width / innerWidth }; }, W);
+  chk(/ds-play/.test(d.src) && d.demo && d.ins === 'INSERT CREDIT' && d.cost === '5 TICKETS TO PLAY' && d.full > 0.9, 'Dead Signal fills the view: silent DEMO, INSERT CREDIT, 5 TICKETS TO PLAY ' + JSON.stringify(d));
+  await page.screenshot({ path: 'shots/ds_demo' + sfx + '.png' });
+  await H.insert();
+  const b = await page.evaluate(() => ({ cr: window.__arcade.play.machines.ds.credits, t: window.__arcade.play.tickets.total, btn: document.getElementById('bTicket').textContent }));
+  chk(b.cr === 0 && b.t === 2 && b.btn === 'NEED 5 TICKETS', 'with 2 tickets: NEED 5 TICKETS ' + JSON.stringify(b));
+  await page.evaluate(() => { const p = window.__arcade.play; p.tickets.total = 6; localStorage.setItem('neonarcade.tickets', '6'); p.insertTicket(); });
+  const c = await page.evaluate(() => ({ cr: window.__arcade.play.machines.ds.credits, t: window.__arcade.play.tickets.total }));
+  chk(c.cr === 1 && c.t === 1, 'INSERT 5 TICKETS -> CREDIT 1 (6 -> 1) ' + JSON.stringify(c));
+  if (PHONE) await page.tap('#dInsert'); else await page.keyboard.press('Enter');
+  await page.waitForFunction(W => { const w = eval(W); return w.__DS && w.__DS.G.state === 'play'; }, W, { timeout: 20000 }).catch(() => {});
+  await page.waitForTimeout(1500);
+  const g = await page.evaluate(W => { const w = eval(W); return { st: w.__DS.G.state, demo: w.__DEMO, cr: window.__arcade.play.machines.ds.credits, sub: window.__arcade.play.sub, n: w.__dsTest.near().length }; }, W);
+  chk(g.st === 'play' && !g.demo && g.cr === 0 && g.sub === 'play', 'credit starts a run ' + JSON.stringify(g));
+  chk(g.n >= 4 && g.n <= 10, 'gold ticket pickups lie in the level (' + g.n + ')');
+  await page.screenshot({ path: 'shots/ds_play' + sfx + '.png' });
+  // walk the player onto 2 tickets
+  const a0 = await page.evaluate(() => window.__arcade.play.tickets.total);
+  const hit = await page.evaluate(W => { const w = eval(W), G = w.__DS.G, ts = w.__dsTest.near().slice(0, 2); let n = 0; for (const t of ts) { G.P.x = t.x; G.P.y = t.y; n++; w.__dsTest.tick ? 0 : 0; } return ts.length; }, W);
+  await page.waitForTimeout(800);
+  const a1 = await page.evaluate(W => ({ t: window.__arcade.play.tickets.total, ls: +localStorage.getItem('neonarcade.tickets'), run: eval(W).__dsA.tickets() }), W);
+  chk(hit >= 1 && a1.run >= 1 && a1.t === a0 + a1.run && a1.ls === a1.t, 'walking over gold tickets banks them in the arcade (+' + a1.run + ')');
+  const hud = await page.evaluate(() => { const vis = id => { const e = document.getElementById(id); if (!e) return null; const s = getComputedStyle(e); return s.display !== 'none' && s.visibility !== 'hidden'; }; return { tix: vis('tix'), vix: vis('vix'), exit: vis('bExit') }; });
+  const ghud = await page.evaluate(W => { const w = eval(W), v = id => { const e = w.document.getElementById(id); return e ? getComputedStyle(e).display !== 'none' : null; }; return { retry: v('bRetry'), dq: v('bDeathQuit'), rs: v('bRestart'), q: v('bQuit') }; }, W);
+  chk(hud.tix && !hud.vix && hud.exit && !ghud.retry && !ghud.dq && !ghud.rs && !ghud.q, 'arcade HUD: one ticket counter, no Viking chip (none held), home/exit; copy hides RETRY / QUIT / RESTART ' + JSON.stringify([hud, ghud]));
+  const ov = await page.evaluate(W => { const w = eval(W), f = document.getElementById('game').getBoundingClientRect(), R = e => e.getBoundingClientRect();
+    const mine = ['tix', 'bExit', 'bBag', 'vix'].map(id => document.getElementById(id)).filter(e => e && getComputedStyle(e).display !== 'none' && e.offsetWidth).map(e => [e.id, R(e)]);
+    const theirs = [...w.document.querySelectorAll('#hud *, #touch .tb')].filter(e => e.offsetWidth && e.offsetWidth < w.innerWidth * 0.8 && getComputedStyle(e).visibility !== 'hidden' && (e.textContent.trim() || e.className === 'tb')).map(e => { const r = R(e); return [e.id || e.className, { left: r.left + f.left, right: r.right + f.left, top: r.top + f.top, bottom: r.bottom + f.top }]; });
+    const hits = []; for (const [a, r] of mine) for (const [b, s] of theirs) if (r.left < s.right && r.right > s.left && r.top < s.bottom && r.bottom > s.top) hits.push(a + '/' + b); return hits; }, W);
+  chk(ov.length === 0, 'arcade HUD does not overlap the game HUD ' + ov.slice(0, 6));
+  const iso = await page.evaluate(() => ({ o1: localStorage.getItem('deadsignal_save_v1'), o2: localStorage.getItem('deadsignal_opts_v1'), keys: Object.keys(localStorage).filter(k => !/^neonarcade\.|^arcade_/.test(k)) }));
+  chk(iso.o1 === null && iso.o2 === null && iso.keys.length === 0, 'own storage keys (arcade_ds_*); the original Dead Signal keys untouched ' + JSON.stringify(iso));
+  for (const f of ['/workspace/dead-signal-pages/index.html', '/workspace/deadsignal/build.js']) chk(!/TicketArt|__neonTicket|__dsA/.test(fs.readFileSync(f, 'utf8')), 'original has no tickets / arcade code: ' + f);
+  // exit -> zoom out -> headset back on the pedestal, monkey steps down
+  if (PHONE) await page.tap('#bExit'); else await page.click('#bExit');
+  await page.waitForFunction(() => window.__arcade.play.mode === 'post' && window.__arcade.play.t > 0.3, null, { timeout: 30000 }).catch(() => {});
+  await page.screenshot({ path: 'shots/ds_headset_off' + sfx + '.png' });
+  await page.waitForFunction(() => window.__arcade.play.mode === 'walk', null, { timeout: 30000 }).catch(() => {});
+  const ex = await page.evaluate(() => { const A = window.__arcade, h = (A.monkey.getObjectByName('headset') || A.dsCab.getObjectByName('headset')); return { mode: A.play.mode, onPed: h.parent === A.dsCab, hp: h.position.toArray().map(v => +v.toFixed(2)), y: A.monkey.position.y, r: +Math.hypot(A.monkey.position.x, A.monkey.position.z + 29).toFixed(2) }; });
+  chk(ex.mode === 'walk' && ex.onPed && Math.abs(ex.hp[1] - 1.185) < 0.02 && ex.y === 0 && ex.r > 2.1, 'exit: headset back on the pedestal, monkey steps off ' + JSON.stringify(ex));
+  const errs = errors.filter(e => !/supabase|Failed to load resource|net::ERR/i.test(e));
+  chk(errs.length === 0, 'no page errors ' + errs.slice(0, 3));
+  await close(); console.log(ok ? 'ALL PASS' : 'SOME FAILED'); process.exit(ok ? 0 : 1);
+})().catch(e => { console.error(e); process.exit(1); });

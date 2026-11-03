@@ -9,7 +9,7 @@ const PHONE = process.argv[2] === 'phone';
   const sfx = PHONE ? '_phone' : '', H = helpers(page, PHONE);
   const G = () => page.evaluate(() => { const w = document.getElementById('game').contentWindow; try { return { lv: w.eval('LEVEL'), stg: w.eval('ARC_STAGE'), q: w.location.search, st: w.__TD.G.state, wave: w.__TD.G.wave, gold: w.__TD.G.gold, demo: !!w.__DEMO, got: w.__orcTk.got, sub: window.__arcade.play.sub, go: window.__arcade.play.goShown, cr: window.__arcade.play.machines.orc.credits }; } catch (e) { return { err: String(e) }; } });
   const waitStage = n => page.waitForFunction(n => { try { const w = document.getElementById('game').contentWindow; return w.eval('ARC_STAGE') === n && w.__TD && w.__TD.G.state === 'play'; } catch (e) { return false; } }, n, { timeout: 30000 });
-  await page.evaluate(() => { const p = window.__arcade.play; p.tickets.total = 3; localStorage.setItem('neonarcade.tickets', '3'); });
+  await page.evaluate(() => { const p = window.__arcade.play; p.tickets.total = 5; localStorage.setItem('neonarcade.tickets', '5'); });
   await H.goTo('orcCabinet'); await page.waitForFunction(() => document.getElementById('playUI').classList.contains('on'), null, { timeout: 8000 }).catch(() => {});
   await H.press(); await H.zoomToDemo(); await page.waitForTimeout(2500);
   let s = await G(); chk(s.demo && s.stg === 1 && s.lv === 1 && s.st === 'play', 'attract DEMO plays stage 1, The Castle ' + JSON.stringify(s));

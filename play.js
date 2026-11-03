@@ -29,19 +29,19 @@ export function setupPlay(A) {
   const demoUI = document.getElementById('demoUI'), dInsert = document.getElementById('dInsert'), dCredit = document.getElementById('dCredit'), bTicket = document.getElementById('bTicket');
   const coarse = matchMedia('(pointer:coarse)').matches;
   const MACHINES = {
-    strike: { key: 'strike', cab: A.strikeCab, src: 'strike-play/index.html', credits: 0, games: 0, aspect: 9 / 16,
+    strike: { key: 'strike', cab: A.strikeCab, src: 'strike-play/index.html', credits: 0, games: 0, aspect: 9 / 16, cost: 5,
       start(w) { const S = w.STRIKE; S.start(0); S.G.credits = 0; },
       demo(w) { w.__demo.start(); }, stopDemo(w) { w.__demo.stop(); if (w.__board) w.__board.stop(); }, board(w) { if (w.__board) w.__board.start(); },   // credit loaded: live WORLD TOP 10;: one credit = one game
       scene(w) { const sc = w.STRIKE.G.scene; return sc === 'play' || sc === 'pause' ? 'play' : sc === 'gameover' ? 'over' : sc === 'entry' ? 'entry' : sc === 'scores' ? 'scores' : sc === 'title' ? 'title' : sc; },
       active(w) { return w.STRIKE.G.scene === 'play'; },
       hold(w) { if (w.STRIKE.G.scene !== 'play') return false; w.pauseGame(); return true; }, unhold(w) { if (w.STRIKE.G.scene === 'pause') w.resumeGame(); }, overHold: 0, scoresHold: 6000 },
-    ghost: { key: 'ghost', cab: A.ghostCab, src: 'ghost-play/index.html', credits: 0, games: 0, aspect: 152 / 276,
+    ghost: { key: 'ghost', cab: A.ghostCab, src: 'ghost-play/index.html', credits: 0, games: 0, aspect: 152 / 276, cost: 5,
       demo(w) { w.__demo.start(); }, stopDemo(w) { w.__demo.stop(); },
       start(w) { const g = w.__ghost; g.G.muted = false; try { g.Snd.setMuted(false); g.Snd.unlock && g.Snd.unlock(); } catch (e) {} g.startGame(); },
       scene(w) { const s = w.__ghost.G.state; return s === 'play' || s === 'dying' || s === 'pause' ? 'play' : s === 'over' ? 'over' : s; },
       active(w) { return w.__ghost.G.state === 'play'; },
       hold(w) { const s = w.__ghost.G.state; if (s !== 'play' && s !== 'dying') return false; w.__ghost.togglePause(); return true; }, unhold(w) { if (w.__ghost.G.state === 'pause') w.__ghost.togglePause(); }, overHold: 4500, scoresHold: 0 },
-    monkey: { key: 'monkey', cab: A.monkeyCab, src: 'monkey-play/index.html', credits: 0, games: 0, aspect: 9 / 16,
+    monkey: { key: 'monkey', cab: A.monkeyCab, src: 'monkey-play/index.html', credits: 0, games: 0, aspect: 9 / 16, cost: 5,
       demo(w) { w.__demo.start(); }, stopDemo(w) { w.__demo.stop(); },
       start(w) { w.__HOLD = 0; w.__M.startGame(); },
       scene(w) { return w.__M.state; }, active(w) { return w.__M.state === 'play'; },
@@ -52,18 +52,18 @@ export function setupPlay(A) {
       scene(w) { const s = w.__B.G().state; return s === 'dead' || s === 'win' ? 'over' : s === 'title' ? 'title' : 'play'; },
       active(w) { return w.__B.G().state === 'play'; },
       hold(w) { if (w.__B.G().state !== 'play') return false; w.togglePause(); return true; }, unhold(w) { if (w.__B.G().state === 'pause') w.togglePause(); }, overHold: 5000, scoresHold: 0 },
-    orc: { key: 'orc', cab: A.orcCab, src: 'orc-play/index.html', credits: 0, games: 0, aspect: (A.orcCab && A.orcCab.userData.aspect) || 4 / 3, cost: 3,   // 3 tickets = 1 credit = the whole run
+    orc: { key: 'orc', cab: A.orcCab, src: 'orc-play/index.html', credits: 0, games: 0, aspect: (A.orcCab && A.orcCab.userData.aspect) || 4 / 3, cost: 5,   // 5 tickets = 1 credit = the whole run
       demo(w) { w.__demo.start(); }, stopDemo(w) { w.__demo.stop(); },
       start(w) { w.__orc.start(); },
       scene(w) { if (w.__orcAdv) return 'play'; const s = w.__TD.G.state; return s === 'lost' || s === 'won' ? 'over' : s === 'title' ? 'title' : 'play'; },
       active(w) { return !!w.__TD && w.__TD.G.state === 'play'; },
       hold(w) { if (!w.__TD) return false; const G = w.__TD.G; if (G.state !== 'play' || G.paused) return false; G.paused = true; return true; }, unhold(w) { if (w.__TD) w.__TD.G.paused = false; }, overHold: 5000, scoresHold: 0 },
-    cyber: { key: 'cyber', cab: A.cyberCab, src: 'cybercity-play/index.html', credits: 0, games: 0, aspect: (A.cyberCab && A.cyberCab.userData.aspect) || 4 / 3, cost: 10,   // 10 tickets = 1 credit = one 15-minute run
+    cyber: { key: 'cyber', cab: A.cyberCab, src: 'cybercity-play/index.html', credits: 0, games: 0, aspect: (A.cyberCab && A.cyberCab.userData.aspect) || 4 / 3, cost: 5,   // 5 tickets = 1 credit = one 15-minute run
       start(w) { w.__cyber.start(); },
       demo(w) { w.__demo.start(); }, stopDemo(w) { w.__demo.stop(); },
       scene(w) { const s = w.__cyber.scene(); return s === 'over' ? 'over' : s === 'play' ? 'play' : 'title'; },
       hold(w) { if (!w.__cyber) return false; w.__cyber.pause(true); return true; }, unhold(w) { if (w.__cyber) w.__cyber.pause(false); }, overHold: 5000, scoresHold: 0 },
-    nova: { key: 'nova', cab: A.novaCab, src: 'nova-play/index.html', credits: 0, games: 0, aspect: (A.novaCab && A.novaCab.userData.aspect) || 16 / 9, cost: 2,   // 2 tickets = 1 credit = one run
+    nova: { key: 'nova', cab: A.novaCab, src: 'nova-play/index.html', credits: 0, games: 0, aspect: (A.novaCab && A.novaCab.userData.aspect) || 16 / 9, cost: 5,   // 5 tickets = 1 credit = one run
       demo(w) { w.__demo.start(); }, stopDemo(w) { w.__demo.stop(); },
       start(w) { w.__nova.start(); },
       scene(w) { const m = w.NV.G.mode; return m === 'over' ? 'over' : m === 'title' ? 'title' : 'play'; },
@@ -75,7 +75,16 @@ export function setupPlay(A) {
       scene(w) { return w.__mrA.scene(); }, active(w) { return w.__mrA.scene() === 'play'; },
       hold(w) { return w.__mrA.hold(); }, unhold(w) { w.__mrA.unhold(); }, overHold: 5000, scoresHold: 0,
       onStart() { seatMonkey(A.roadsterCab, true); }, onExit() { seatMonkey(A.roadsterCab, false); } },
+    // DEAD SIGNAL VR STATION: 5 tickets = 1 credit = one run. Before the zoom the monkey steps onto the platform and puts the headset on (prep),
+    // after the zoom out he takes it off, puts it back on the pedestal and steps down (post)
+    ds: { key: 'ds', cab: A.dsCab, src: 'ds-play/index.html', credits: 0, games: 0, aspect: 16 / 9, cost: 5,
+      demo(w) { w.__demo.start(); }, stopDemo(w) { w.__demo.stop(); },
+      start(w) { w.__dsA.start(); },
+      scene(w) { return w.__dsA.scene(); }, active(w) { return w.__dsA.scene() === 'play'; },
+      hold(w) { return w.__dsA.hold(); }, unhold(w) { w.__dsA.unhold(); }, overHold: 5000, scoresHold: 0,
+      prep: 2.6, post: 1.9, anim(phase, k) { A.dsCab.userData.anim(phase, k, monkey, st); } },
   };
+  if (!A.dsCab) delete MACHINES.ds;
   if (!A.roadsterCab) delete MACHINES.roadster;
   // MARS ROADSTER: sit the monkey in the chosen bucket seat (hands on the wheel) for the zoom, stand him up behind it on the way out
   function seatMonkey(cab, on) { const u = cab.userData, s = u.seats[u.seat], mu = monkey.userData;
@@ -141,13 +150,16 @@ export function setupPlay(A) {
   function start(m) {
     if (P.mode !== 'walk') { P.blocked++; return; }
     P.cur = m; refresh(); ui.classList.remove('on'); if (m.onStart) m.onStart();
-    P.mode = 'zoomIn'; P.t = 0; P.zooms++;
-    const head = monkey.position.clone().setY(1.25), e = endPos(m), mid = head.clone().lerp(e.p, 0.35);
-    P.target = e.c; P.end = e.p; curve = new THREE.CatmullRomCurve3([camera.position.clone(), head, mid, e.p]); look0.copy(head); look1.copy(e.c);
+    P.zooms++;
+    if (m.prep) { P.mode = 'prep'; P.t = 0; P.cam0 = camera.position.clone(); P.look0 = monkey.position.clone().setY(1.25); m.anim('on', 0); }   // walk-up + headset on first, then zoomIn()
+    else zoomIn(m);
     const f = P.frame = document.createElement('iframe'); f.id = 'game'; f.src = m.src; f.allow = 'autoplay; fullscreen'; f.title = m.cab.name;
     f.addEventListener('load', () => { P.loaded = true; try { f.contentWindow.addEventListener('keydown', ev => { if (TV.open) { ev.stopImmediatePropagation(); ev.preventDefault(); if (ev.code === 'Escape') closeView(); return; } if (ev.code === 'Escape') { ev.stopImmediatePropagation(); ev.preventDefault(); exit('esc'); return; } if (P.sub === 'demo') { ev.stopImmediatePropagation(); ev.preventDefault(); if (/^(Enter|Space|KeyE)$/.test(ev.code) && !ev.repeat) tryPlay(); } }, true); } catch (e) {} });
     P.loaded = false; document.body.appendChild(f);
   }
+  function zoomIn(m) { P.mode = 'zoomIn'; P.t = 0;
+    const head = monkey.position.clone().setY(monkey.position.y + 1.25), e = endPos(m), mid = head.clone().lerp(e.p, 0.35);
+    P.target = e.c; P.end = e.p; curve = new THREE.CatmullRomCurve3([camera.position.clone(), head, mid, e.p]); look0.copy(m.prep ? e.c : head); look1.copy(e.c); }
   function launch() {
     const f = P.frame, m = P.cur; P.mode = 'game'; document.body.dataset.cab = m ? m.key : ''; P.over = false; P.goShown = false; clearTimeout(P.holdT); P.holdT = 0; P.scene = null;
     const go = () => { P.sub = 'demo'; try { idle(m, f.contentWindow); } catch (e) { console.warn('demo start', e); } demoRefresh(); demoUI.classList.add('on'); f.classList.add('on'); bExit.style.display = 'block'; f.focus(); try { f.contentWindow.focus(); } catch (e) {}
@@ -167,7 +179,7 @@ export function setupPlay(A) {
     P.lastExit = why; P.sub = null; demoUI.classList.remove('on'); P.mode = 'zoomOut'; P.t = 0; bExit.style.display = 'none'; document.body.dataset.cab = '';
     const f = P.frame; f.classList.remove('on'); try { f.contentWindow.document.body.style.display = 'none'; } catch (e) {} setTimeout(() => f.remove(), 500); P.frame = null;
     if (P.cur.onExit) P.cur.onExit();
-    const m = P.cur, back = monkey.position.clone().setY(1.25), out = back.clone().addScaledVector(m.cab.userData.inward, 2.6).setY(2.1);
+    const m = P.cur, back = monkey.position.clone().setY(monkey.position.y + 1.25), out = back.clone().addScaledVector(m.cab.userData.inward, 2.6).setY(2.1);
     curve = new THREE.CatmullRomCurve3([camera.position.clone(), back.clone().lerp(camera.position, 0.4), back, out]); look0.copy(back); look1.copy(screenInfo(m).c);
     A.pause(false); window.focus(); showTix();
   }
@@ -207,13 +219,13 @@ export function setupPlay(A) {
     [1568, 2093, 2637].forEach((f, i) => { const o = tac.createOscillator(), g = tac.createGain(); o.type = 'triangle'; o.frequency.value = f; g.gain.setValueAtTime(0.09, t + i * 0.06); g.gain.exponentialRampToValueAtTime(0.001, t + i * 0.06 + 0.25); o.connect(g).connect(tac.destination); o.start(t + i * 0.06); o.stop(t + i * 0.06 + 0.3); }); } catch (e) {} }
   function award(n, game) {   // called by the game iframe when the ship / ghost picks up a ticket
     if (P.mode !== 'game' || P.sub !== 'play' || !P.frame || !P.cur || (game && P.cur.key !== game)) return false;
-    n = 1; T.total += n; T.got++; saveT(); showTix(); refresh(); demoRefresh(); ticketSound();
-    const r = tixEl.getBoundingClientRect(), d = document.createElement('div'); d.className = 'tpop'; d.textContent = '+1 🎟'; d.style.left = (r.left + 4) + 'px'; d.style.top = (r.bottom + 4) + 'px';
+    n = Math.max(1, Math.min(5, n | 0)); T.total += n; T.got += n; saveT(); showTix(); refresh(); demoRefresh(); ticketSound();   // one pickup = 1..5 tickets (each copy scales its payout to the 5-ticket price)
+    const r = tixEl.getBoundingClientRect(), d = document.createElement('div'); d.className = 'tpop'; d.textContent = '+' + n + ' 🎟'; d.style.left = (r.left + 4) + 'px'; d.style.top = (r.bottom + 4) + 'px';
     document.body.appendChild(d); setTimeout(() => d.remove(), 1500); return true; }
   window.__neonTicket = award;
   // SESSION TICKET API for cabinet copies: n tickets (1..20) for the cabinet that is zoomed in and playing; goes into the session
   // (in memory, kept only by a SAVE slot). Returns how many were added. Never writes storage itself.
-  window.__neonSession = { addTickets(n, game) { n = Math.max(0, Math.min(20, n | 0)); let k = 0; for (let i = 0; i < n; i++) if (award(1, game)) k++; return k; },
+  window.__neonSession = { addTickets(n, game) { n = Math.max(0, Math.min(20, n | 0)); let k = 0; while (k < n) { const c = Math.min(5, n - k); if (!award(c, game)) break; k += c; } return k; },
     get tickets() { return T.total; } };
   // ---- VIKING TICKET (from clearing BERSERKER Stage I): its own count, its own HUD chip and enlarged view; does nothing else yet ----
   const VKEY = 'neonarcade.vikingTickets', vixEl = document.getElementById('vix'), vixN = document.getElementById('vixN'), V = { total: 0, got: 0 };
@@ -259,12 +271,22 @@ export function setupPlay(A) {
     const m = P.mode === 'walk' && !st.fp ? Object.values(MACHINES).find(k => k.cab === nearCab) : null;
     if (m && (m !== near || (m.key === 'roadster' && P.seatShown !== m.cab.userData.seat))) { near = m; refresh(); } if (!m && P.mode === 'walk') near = null;
     ui.classList.toggle('on', !!m); document.body.classList.toggle('ingame', P.mode === 'game'); { const ck = P.mode === 'game' && P.cur ? P.cur.key : ''; if (document.body.dataset.cab !== ck) { document.body.dataset.cab = ck; try { showVix(); } catch (e) {} } }
+    if (P.mode === 'prep' || P.mode === 'post') {   // DEAD SIGNAL: headset on (before the zoom) / off (after it); the camera eases to a 3/4 view of the platform
+      const m = P.cur, dur = P.mode === 'prep' ? m.prep : m.post; P.t = Math.min(1, P.t + dt / dur); const k = ease(P.t);
+      m.anim(P.mode === 'prep' ? 'on' : 'off', P.t); monkey.visible = true;
+      const c = m.cab.userData.centre, head = monkey.position.clone().setY(monkey.position.y + 1.35);
+      if (P.mode === 'prep') { const v = new THREE.Vector3(c.x + 1.25, 1.95, c.z + 2.9); camera.position.lerpVectors(P.cam0, v, k); camera.lookAt(P.look0.clone().lerp(head, Math.min(1, k * 1.4))); }
+      else { const v = new THREE.Vector3(c.x + 0.6, 2.3, c.z + 5.6); camera.position.lerpVectors(P.cam0, v, k); camera.lookAt(head); }
+      if (P.t >= 1) { if (P.mode === 'prep') zoomIn(m); else { m.anim('reset', 1); P.mode = 'walk'; P.cur = null; near = null; monkey.position.y = 0; st.camInit = true; st.lookT = st.t; st.yaw = 0; } }
+      return true;
+    }
     if (P.mode === 'zoomIn' || P.mode === 'zoomOut') {
       const dur = P.mode === 'zoomIn' ? 1.6 : 1.4; P.t = Math.min(1, P.t + dt / dur); const k = ease(P.t);
       camera.position.copy(curve.getPointAt(k));
       camera.lookAt(P.mode === 'zoomIn' ? look0.clone().lerp(look1, Math.min(1, k * 1.6)) : look1.clone().lerp(look0, Math.min(1, k * 1.5)));
       monkey.visible = camera.position.distanceTo(monkey.position.clone().setY(1.0)) > 0.75 && !(P.mode === 'zoomIn' && k > 0.3) && !(P.mode === 'zoomOut' && k < 0.65);
-      if (P.t >= 1) { if (P.mode === 'zoomIn') launch(); else { P.mode = 'walk'; P.cur = null; near = null; monkey.visible = true; st.camInit = true; st.lookT = st.t; } }
+      if (P.cur && P.cur.prep) monkey.visible = P.mode === 'zoomIn' ? k < 0.85 : k > 0.3;   // headset sequence: he stays in shot until the camera is at the visor
+      if (P.t >= 1) { if (P.mode === 'zoomIn') launch(); else if (P.cur && P.cur.post) { P.mode = 'post'; P.t = 0; P.cam0 = camera.position.clone(); monkey.visible = true; } else { P.mode = 'walk'; P.cur = null; near = null; monkey.visible = true; st.camInit = true; st.lookT = st.t; } }
       return true;
     }
     return P.mode === 'game';

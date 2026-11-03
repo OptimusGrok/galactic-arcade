@@ -17,13 +17,13 @@ const PHONE = process.argv[2] === 'phone';
   chk(slot.parts && slot.bad.length === 0, 'cabinet parts present (6 buttons, joystick, coin door), no neon on the body ' + slot.bad);
   await page.evaluate(() => { const p = window.__arcade.play; p.tickets.total = 2; localStorage.setItem('neonarcade.tickets', '2'); p.machines.orc.credits = 0; });
   await H.goTo('orcCabinet'); await page.waitForFunction(() => document.getElementById('playUI').classList.contains('on'), null, { timeout: 8000 }).catch(() => {});
-  const p0 = await H.ui(); chk(p0.on && p0.txt === 'PLAY' && p0.near === 'orcCabinet' && /3 TICKETS TO PLAY/.test(p0.cr), 'PLAY prompt at ORC ATTACK with 3 TICKETS TO PLAY ' + JSON.stringify(p0));
+  const p0 = await H.ui(); chk(p0.on && p0.txt === 'PLAY' && p0.near === 'orcCabinet' && /5 TICKETS TO PLAY/.test(p0.cr), 'PLAY prompt at ORC ATTACK with 5 TICKETS TO PLAY ' + JSON.stringify(p0));
   await page.evaluate(() => { window.__camOverride = null; });
   await page.screenshot({ path: 'shots/orc_cab_prompt' + sfx + '.png' });
   await H.press(); await H.zoomToDemo();
   await page.waitForTimeout(3000);
   const d = await page.evaluate(W => { const w = eval(W); return { src: w.location.pathname, demo: w.__DEMO, st: w.__TD.G.state, ins: document.getElementById('dInsert').textContent, cost: document.getElementById('dCost').textContent, towers: w.__TD.G.towers.length, wave: w.__TD.G.wave }; }, W);
-  chk(/orc-play/.test(d.src) && d.demo && d.st === 'play' && d.ins === 'INSERT CREDIT' && d.cost === '3 TICKETS TO PLAY', 'zoom lands in the ORC ATTACK DEMO: INSERT CREDIT, 3 TICKETS TO PLAY ' + JSON.stringify(d));
+  chk(/orc-play/.test(d.src) && d.demo && d.st === 'play' && d.ins === 'INSERT CREDIT' && d.cost === '5 TICKETS TO PLAY', 'zoom lands in the ORC ATTACK DEMO: INSERT CREDIT, 3 TICKETS TO PLAY ' + JSON.stringify(d));
   chk(d.towers > 0 && d.wave >= 1, 'DEMO autopilot builds towers and calls waves (' + d.towers + ' towers, wave ' + d.wave + ')');
   const mu = await page.evaluate(W => eval(W).eval('AU.isMuted()'), W);
   chk(mu === true, 'DEMO is muted');
@@ -34,11 +34,11 @@ const PHONE = process.argv[2] === 'phone';
   // 2 tickets: NEED 3
   const n0 = (await H.state()).need; await H.insert();
   const b = await page.evaluate(() => ({ cr: window.__arcade.play.machines.orc.credits, t: window.__arcade.play.tickets.total, btn: document.getElementById('bTicket').textContent, need: window.__arcade.play.need }));
-  chk(b.cr === 0 && b.t === 2 && b.need > n0 && b.btn === 'NEED 3 TICKETS', 'with 2 tickets: NEED 3 TICKETS, no credit ' + JSON.stringify(b));
-  await page.evaluate(() => { const p = window.__arcade.play; p.tickets.total = 4; localStorage.setItem('neonarcade.tickets', '4'); p.toDemo && 0; });
+  chk(b.cr === 0 && b.t === 2 && b.need > n0 && b.btn === 'NEED 5 TICKETS', 'with 2 tickets: NEED 5 TICKETS, no credit ' + JSON.stringify(b));
+  await page.evaluate(() => { const p = window.__arcade.play; p.tickets.total = 6; localStorage.setItem('neonarcade.tickets', '6'); p.toDemo && 0; });
   await page.evaluate(() => document.getElementById('bTicket').textContent = 'x'); await page.evaluate(() => window.__arcade.play.insertTicket());
   const c = await page.evaluate(() => ({ cr: window.__arcade.play.machines.orc.credits, t: window.__arcade.play.tickets.total }));
-  chk(c.cr === 1 && c.t === 1, 'INSERT 3 TICKETS -> CREDIT 1 (4 -> 1 tickets) ' + JSON.stringify(c));
+  chk(c.cr === 1 && c.t === 1, 'INSERT 5 TICKETS -> CREDIT 1 (6 -> 1 tickets) ' + JSON.stringify(c));
   if (PHONE) await page.tap('#dInsert'); else await page.keyboard.press('Enter'); await page.waitForTimeout(1200);
   const g = await page.evaluate(W => { const w = eval(W); return { st: w.__TD.G.state, wave: w.__TD.G.wave, gold: w.__TD.G.gold, demo: w.__DEMO, cr: window.__arcade.play.machines.orc.credits, sub: window.__arcade.play.sub, muted: w.eval('AU.isMuted()'), title: w.document.getElementById('title').classList.contains('hidden') }; }, W);
   chk(g.st === 'play' && !g.demo && g.cr === 0 && g.sub === 'play' && g.wave === 0 && g.gold === 180 && g.title, 'credit starts a fresh run at wave 0 / 180 gold (credit 1 -> 0) ' + JSON.stringify(g));
@@ -51,12 +51,12 @@ const PHONE = process.argv[2] === 'phone';
   let k = null; for (let i = 0; i < 40; i++) { k = await page.evaluate(W => { const w = eval(W), T = w.__TD; T.autoBuild(); if (!T.G.queues.length && !T.G.enemies.some(e => !e.dead)) T.startWave(); T.sim(1.5); return { got: w.__orcTk.got, log: w.__orcTk.log.slice(-3), wave: T.G.wave, kills: T.G.stats.kills, st: T.G.state }; }, W); if (k.got >= 2 && k.wave >= 2) break; }
   await page.waitForTimeout(350); await page.screenshot({ path: 'shots/orc_ticket' + sfx + '.png' });
   const a1 = await page.evaluate(() => ({ t: window.__arcade.play.tickets.total, ls: +localStorage.getItem('neonarcade.tickets') }));
-  chk(k.got >= 1 && a1.t === a0 + k.got && a1.ls === a1.t, 'kills drop gold tickets, banked at once: +' + k.got + ' (' + JSON.stringify(k) + ')');
+  chk(k.got >= 1 && a1.t - a0 >= Math.floor(k.got * 5 / 3) && a1.t - a0 <= Math.ceil(k.got * 5 / 3) && a1.ls === a1.t, 'kills drop gold tickets, banked at once: +' + k.got + ' (' + JSON.stringify(k) + ')');
   // full run tuning: a decent run (autopilot, normal gold) nets clearly more than the 3-ticket cost
   const run = await page.evaluate(W => { const w = eval(W), T = w.__TD; for (let i = 0; i < 4000 && T.G.state === 'play'; i++) { T.autoBuild(); if (!T.G.queues.length && !T.G.enemies.some(e => !e.dead)) T.startWave(); T.sim(1); }
     const L = w.__orcTk.log; return { got: w.__orcTk.got, wave: T.G.wave, st: T.G.state, lives: T.G.lives, kills: T.G.stats.kills, boss: L.filter(x => /^boss/.test(x)).length, clears: L.filter(x => /^clear/.test(x)).length, bursts: w.__orcTk.bursts }; }, W);
   const a2 = await page.evaluate(() => window.__arcade.play.tickets.total);
-  chk(run.got >= 8 && a2 === a0 + run.got, 'a decent run nets well over 3 tickets: ' + JSON.stringify(run));
+  chk(run.got >= 8 && Math.abs(a2 - a0 - run.got * 5 / 3) <= 1, 'a decent run nets well over 3 tickets: ' + JSON.stringify(run));
   chk(run.clears >= 3 && run.kills > 20, 'kill drops plus wave-clear bonuses (' + run.clears + ' clears)');
   const iso = await page.evaluate(() => ({ best: localStorage.getItem('arcade_orc_best'), orig: localStorage.getItem('orcattack.best'), prog: localStorage.getItem('orcattack.progress') }));
   chk(iso.best !== null && iso.orig === null && iso.prog === null, 'the copy keeps its own storage keys (arcade_orc_*), the standalone keys untouched ' + JSON.stringify(iso));

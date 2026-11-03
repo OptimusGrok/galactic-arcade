@@ -47243,11 +47243,12 @@ function frame(ts) { if (window.__CYPAUSE) { last = ts; setTimeout(function () {
     add: function (n, why) { try { if (parent !== window && parent.__neonSession) return parent.__neonSession.addTickets(n, 'cyber'); } catch (e) {} return 0; }   // session ticket API: no storage writes here
   };
   var RUN_SECS = 15 * 60;
-  var TK = window.__TK = { got: 0, drops: 0, log: [], stepAcc: 0, run: false, left: RUN_SECS, over: false,
+  var TK = window.__TK = { PAYX: 0.5, acc: 0, got: 0, drops: 0, log: [], stepAcc: 0, run: false, left: RUN_SECS, over: false,
     P: { battle: 0.6, boss: 8, chest: 0.75, quest: 4, questExtra: 0.5, walkEvery: 40, walk: 0.3, runBonus: 5 } };   // tuned 'pays well': ~20-25 tickets per 10-ticket run (measured, test/cyberplay.js)
   function cheating() { try { return (typeof Auto !== 'undefined' && Auto.on) || (typeof Speed !== 'undefined' && Speed.mode !== 1); } catch (e) { return false; } }
   function give(n, why) {
     if (!n || window.__DEMO || !TK.run || TK.over || cheating()) return;
+    TK.acc = (TK.acc || 0) + n * TK.PAYX; n = Math.floor(TK.acc + 1e-9); TK.acc -= n; if (!n) return;   // 5-ticket price (was 10): every payout halves, fractions carry
     TK.got += n; TK.drops++; TK.log.push(why + ':' + n); TIX.add(n, why); chipN.textContent = TK.got; pop('+' + n + ' \u{1F39F}');
   }
   var R = function () { return Math.random(); };

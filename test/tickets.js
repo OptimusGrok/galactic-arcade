@@ -1,4 +1,4 @@
-// Tickets are collected inside the games (gold monkey tickets, +1 each), never paid for time. Persisted in localStorage.
+// Tickets are collected inside the games (gold monkey tickets, +5 each now that every machine costs 5), never paid for time. Persisted in localStorage.
 // node test/tickets.js [phone]
 const { open } = require('./lib'); const fs = require('fs');
 const PH = process.argv[2] === 'phone', SUF = PH ? '_phone' : '';
@@ -20,7 +20,7 @@ const PH = process.argv[2] === 'phone', SUF = PH ? '_phone' : '';
     await page.waitForFunction(() => window.__arcade.play.mode === 'game' && document.getElementById('game').classList.contains('on'), null, { timeout: 30000 });
     for (let k = 0; k < 3 && !(await page.evaluate(w => document.getElementById('game').src.includes(w), cab === 'strikeCabinet' ? 'strike-play' : 'ghost-play')); k++) { await page.evaluate(() => window.__arcade.play.exit('x')); await page.waitForFunction(() => window.__arcade.play.mode === 'walk', null, { timeout: 30000 }); await goTo(cab); await page.waitForTimeout(900); await press(); await page.waitForFunction(() => window.__arcade.play.mode === 'game' && document.getElementById('game').classList.contains('on'), null, { timeout: 30000 }); }
     chk(await page.evaluate(w => document.getElementById('game').src.includes(w), cab === 'strikeCabinet' ? 'strike-play' : 'ghost-play'), cab + ': launched the right game'); await page.waitForTimeout(300);
-    await page.evaluate(() => { const p = window.__arcade.play; if (p.tickets.total < 1) p.tickets.total = 1; p.insertTicket(); }); await page.waitForTimeout(450);   // demo: INSERT TICKET, then tap the screen
+    await page.evaluate(() => { const p = window.__arcade.play; if (p.tickets.total < 5) p.tickets.total = 5; p.insertTicket(); }); await page.waitForTimeout(450);   // demo: INSERT TICKET, then tap the screen
     await page.evaluate(() => window.__arcade.play.tryPlay());
     chk(await page.evaluate(() => window.__arcade.play.sub === 'play'), cab + ': ticket -> credit -> real game');
     const base = (await T()).total;
@@ -35,7 +35,7 @@ const PH = process.argv[2] === 'phone', SUF = PH ? '_phone' : '';
         for (let i = 0; i < 2400 && G.scene === 'play'; i++) { updPlay(); if (first < 0 && TK.spawned > n0) { first = i; var nextAfter = TK.next; } } return { first, nx, nextAfter, spawned: TK.spawned - n0, got: TK.got, missed: TK.missed }; });
       const a = await T();
       chk(ff.spawned >= 1 && ff.first === ff.nx - 1 && ff.nextAfter >= 1500 && ff.nextAfter <= 2100, cab + ': ticket spawned on its own when the 25-35 s play timer ran out; next one scheduled in ' + (ff.nextAfter / 60).toFixed(1) + ' s ' + JSON.stringify(ff));
-      chk(a.total === base + ff.got, cab + ': total moved only by collected tickets (' + a.total + ')');
+      chk(a.total === base + ff.got * 5, cab + ': total moved only by collected tickets (' + a.total + ')');
       const b0 = a.total;
       await W(w => { w.__TK.spawn(); const t = w.__TK.t; t.x0 = W / 2; t.y = H * 0.42; t.amp = 18; t.vy = 0.05; return 1; });
       await page.waitForTimeout(350); await page.screenshot({ path: 'shots/ticket_strike' + SUF + '.png' });
@@ -44,7 +44,7 @@ const PH = process.argv[2] === 'phone', SUF = PH ? '_phone' : '';
       const sb = await W(w => { const t = w.__TK.t; for (let i = 0; i < 20; i++) { const b = ebul.get(); if (!b) break; Object.assign(b, { x: t.x, y: t.y, vx: 0, vy: 0, ax: 0, ay: 0, life: 0, home: 0 }); } for (let i = 0; i < 3; i++) updPlay(); return !!w.__TK.t; });
       chk(sb, cab + ': enemy bullets do not destroy the ticket');
       await W(w => { const t = w.__TK.t; t.x0 = pl.x; t.amp = 0; t.y = pl.y; updPlay(); return 1; });
-      const c = await T(); chk(c.total === b0 + 1 && c.ls === String(b0 + 1) && c.pops.includes('+1 🎟'), cab + ': ship flies into ticket: +1 (' + b0 + ' -> ' + c.total + '), "+1 🎟" pop, saved');
+      const c = await T(); chk(c.total === b0 + 5 && c.ls === String(b0 + 5) && c.pops.includes('+5 🎟'), cab + ': ship flies into ticket: +5 (' + b0 + ' -> ' + c.total + '), "+1 🎟" pop, saved');
       // a missed ticket leaves after ~7 s
       const miss = await W(w => { w.__TK.spawn(); const t = w.__TK.t; t.x0 = 20; t.amp = 0; t.vy = 0; pl.x = W - 20; let n = 0; while (w.__TK.t && n < 900) { updPlay(); pl.x = W - 20; n++; } return n; });
       chk(miss >= 380 && miss <= 460, cab + ': missed ticket despawns after ' + (miss / 60).toFixed(1) + ' s');
@@ -60,9 +60,9 @@ const PH = process.argv[2] === 'phone', SUF = PH ? '_phone' : '';
       const f = await W(w => { clearInterval(w.__keepInv); w.__ghost.G.inv = 0; for (const e of w.__ghost.E) e.state = 0; return w.__TK.force(); }); await page.waitForTimeout(400); await page.screenshot({ path: 'shots/ticket_ghost' + SUF + '.png' });
       chk(!!f, cab + ': gold monkey ticket in the maze (shots/ticket_ghost' + SUF + '.png)');
       const got = await W('w => { const [x, y] = ' + JSON.stringify(f) + '; return w.__TK.stepOn(x, y); }');
-      const c = await T(); chk(got === 0 && c.total === b0 + 1 && c.ls === String(b0 + 1) && c.pops.includes('+1 🎟'), cab + ': ghost eats ticket: +1 (' + b0 + ' -> ' + c.total + '), "+1 🎟" pop, saved');
+      const c = await T(); chk(got === 0 && c.total === b0 + 5 && c.ls === String(b0 + 5) && c.pops.includes('+5 🎟'), cab + ': ghost eats ticket: +5 (' + b0 + ' -> ' + c.total + '), "+1 🎟" pop, saved');
       const ex = await W(w => { const n = w.__TK.expired; w.__TK.tick(31); return w.__TK.expired - n; });
-      chk(ex >= 1 && (await T()).total === b0 + 1, cab + ': uncollected maze tickets time out (30 s), no payout');
+      chk(ex >= 1 && (await T()).total === b0 + 5, cab + ': uncollected maze tickets time out (30 s), no payout');
       await W(w => { const g = w.__ghost.G; g.state = 'over'; g.overT = 0; return 1; });
     }
     const vis = await page.evaluate(() => { const t = document.getElementById('tix').getBoundingClientRect(), x = document.getElementById('bExit').getBoundingClientRect(); const cs = getComputedStyle(document.getElementById('tix'));

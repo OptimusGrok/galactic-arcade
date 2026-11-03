@@ -11,7 +11,7 @@ const PHONE = process.argv[2] === 'phone';
   const ui = () => page.evaluate(() => ({ on: document.getElementById('playUI').classList.contains('on'), txt: document.getElementById('bPlay').textContent, cr: document.getElementById('credit').textContent, near: window.__arcade.play.near() }));
   const press = async sel => { if (PHONE) await page.tap(sel || '#bPlay'); else await page.keyboard.press('Enter'); };
   await goTo('ghostCabinet'); await page.waitForFunction(() => document.getElementById('playUI').classList.contains('on'), null, { timeout: 8000 }).catch(() => {});
-  const p0 = await ui(); chk(p0.on && p0.txt === 'PLAY' && p0.cr.startsWith('CREDIT 1') && p0.near === 'ghostCabinet', 'PLAY prompt + CREDIT 1 at GHOST 256 ' + JSON.stringify(p0));
+  const p0 = await ui(); chk(p0.on && p0.txt === 'PLAY' && /CREDIT 1/.test(p0.cr) && p0.near === 'ghostCabinet', 'PLAY prompt + CREDIT 1 at GHOST 256 ' + JSON.stringify(p0));
   await page.screenshot({ path: 'shots/ghostplay_prompt' + sfx + '.png' });
   await press();
   let mid = false; const z = []; for (let i = 0; i < 120; i++) { await page.waitForTimeout(100);

@@ -129,7 +129,12 @@ window.TicketArt = (function () {
   function toCanvas(cv, cw, big) { const d = Math.min(3, window.devicePixelRatio || 1), ch = Math.round(cw * (big ? 0.62 : 0.66));
     cv.width = Math.round(cw * d); cv.height = Math.round(ch * d); cv.style.width = cw + 'px'; cv.style.height = ch + 'px';
     const g = cv.getContext('2d'); g.setTransform(d, 0, 0, d, 0, 0); g.clearRect(0, 0, cw, ch); paint(g, cw, ch, big); return cv; }
-  function collect(game) { if (window.__DEMO) return; window.__ticketsGot = (window.__ticketsGot || 0) + 1; try { parent !== window && parent.__neonTicket && parent.__neonTicket(1, game); } catch (e) {} }
+  // Every machine costs 5 tickets (was strike 1, ghost 1, monkey 1, orc 3, nova 2): one pickup pays 5 / old price tickets so each game's
+  // tickets-per-ticket-spent stays what it was. Fractions carry over between pickups (orc 5/3, nova 2.5).
+  const PAYX = { strike: 5, ghost: 5, monkey: 5, orc: 5 / 3, nova: 2.5 }, ACC = {};
+  function collect(game) { if (window.__DEMO) return; const x = PAYX[game] || 1; ACC[game] = (ACC[game] || 0) + x; const n = Math.floor(ACC[game] + 1e-9); ACC[game] -= n;
+    window.__ticketsGot = (window.__ticketsGot || 0) + n; if (!n) return; try { parent !== window && parent.__neonTicket && parent.__neonTicket(n, game); } catch (e) {} }
+  collect.PAYX = PAYX;
   return { sprite, draw, paint, toCanvas, monkey, collect };
 })();
 </script>
