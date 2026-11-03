@@ -385,47 +385,65 @@ export function setupShop({ scene, tp, play, monkey, camera, st } = {}) {
   const tillS = canvasTex(128, 96, g => { g.fillStyle = '#0c1a3a'; g.fillRect(0, 0, 128, 96); g.fillStyle = '#00e5ff'; g.font = '700 20px Arial'; g.fillText('GROK', 30, 40); g.fillStyle = '#7b5cff'; g.fillRect(14, 56, 100, 16); });
   { const s = new THREE.Mesh(new THREE.PlaneGeometry(0.36, 0.26), new THREE.MeshBasicMaterial({ map: tillS.t, toneMapped: false })); s.position.set(tx, 1.33, tz + 0.035); s.rotation.set(-0.35, -0.3, 0); G.add(s); }
   const GYAW = Math.atan2(0 - QX, 5.0 - QZ);
-  // ---- Grok clerk: 3D build of the robot from Dave's video (silver capsule armour, charcoal joints, black face screen) ----
+  // ---- Grok clerk (t569, Dave's turntable video): chibi robot, head ~50% of the height, symmetrical. Light cool-grey squircle shell,
+  // big curved glossy black visor with glowing white pixel eyes + smile, recessed ear dials, back slot, accordion neck, trapezoid torso with
+  // glowing "Grok", dark joints, blocky light-grey forearms / shins, flat boots. Parts are merged per material per moving piece (~16 draw calls).
   const grok = new THREE.Group(); grok.name = 'grokClerk'; grok.position.set(QX - 0.15, 0, QZ + 0.1); grok.rotation.y = GYAW; grok.scale.setScalar(0.6); G.add(grok);
-  const mSil = new THREE.MeshStandardMaterial({ color: 0xb6babe, roughness: 0.32, metalness: 0.35, emissive: 0x2c2e32 });
-  const mChr = new THREE.MeshStandardMaterial({ color: 0x2a2a2d, roughness: 0.85, metalness: 0.1, emissive: 0x0c0c0e });
-  const mScr = new THREE.MeshStandardMaterial({ color: 0x000000, roughness: 0.06, metalness: 0.5 });
-  const gm = (geo, m, par, x, y, z, sx = 1, sy = 1, sz = 1, rx = 0, ry = 0, rz = 0) => { const o = new THREE.Mesh(geo, m); o.position.set(x, y, z); o.scale.set(sx, sy, sz); o.rotation.set(rx, ry, rz); par.add(o); return o; };
-  const gSph = new THREE.SphereGeometry(1, 32, 20), gCyl = new THREE.CylinderGeometry(1, 1, 1, 24), gCap = new THREE.CapsuleGeometry(1, 1, 8, 24);
-  const gBox = new THREE.BoxGeometry(1, 1, 1);
-  // torso: rounded block chest tapering into a segmented abdomen + recessed hips
-  gm(gCap, mSil, grok, 0, 1.5, 0, 0.56, 0.22, 0.38);
-  gm(gSph, mSil, grok, 0, 1.68, 0.02, 0.6, 0.3, 0.4);
-  for (let k = 0; k < 3; k++) gm(gCyl, k % 2 ? mSil : mChr, grok, 0, 1.08 - k * 0.12, 0, 0.36 - k * 0.03, 0.1, 0.27 - k * 0.02);
-  gm(gCap, mSil, grok, 0, 0.66, 0, 0.36, 0.08, 0.26);
-  for (const sd of [-1, 1]) { gm(gCyl, mChr, grok, sd * 0.17, 0.42, 0, 0.11, 0.4, 0.11); gm(gCyl, mSil, grok, sd * 0.17, 0.18, 0, 0.13, 0.3, 0.13); gm(gBox, mChr, grok, sd * 0.17, 0.03, 0.05, 0.22, 0.06, 0.34); }
-  const chestTex = canvasTex(256, 96, (g) => { g.clearRect(0, 0, 256, 96); g.fillStyle = '#ffffff'; g.shadowColor = '#cfefff'; g.shadowBlur = 10; g.font = '700 58px "Arial Rounded MT Bold",Arial,sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('Grok', 128, 50); });
-  { const ch = new THREE.Mesh(new THREE.PlaneGeometry(0.42, 0.16), new THREE.MeshBasicMaterial({ map: chestTex.t, transparent: true, toneMapped: false })); ch.position.set(0.24, 1.66, 0.405); ch.rotation.y = 0.25; ch.name = 'grokChest'; grok.add(ch); }
-  // arms: spherical shoulders, cylinder upper arm, big elbow disc, forearm, dark 4-finger hand
+  const mSil = new THREE.MeshStandardMaterial({ color: 0xc9ccd1, roughness: 0.38, metalness: 0.08, emissive: 0x2a2c30 });    // semi-gloss light cool-grey armour
+  const mChr = new THREE.MeshStandardMaterial({ color: 0x3a3c40, roughness: 0.85, metalness: 0.05, emissive: 0x0e0e10 });    // matte dark-grey joints
+  const mScr = new THREE.MeshStandardMaterial({ color: 0x050506, roughness: 0.04, metalness: 0.6 });                         // high-gloss black visor
+  // superellipsoid: a unit sphere pushed toward a box (e < 1 = squarer), then scaled / placed
+  const sq = (e, ws = 28, hs = 20) => { const g = new THREE.SphereGeometry(1, ws, hs), p = g.attributes.position;
+    for (let i = 0; i < p.count; i++) { const f = v => Math.sign(v) * Math.pow(Math.abs(v), e); p.setXYZ(i, f(p.getX(i)), f(p.getY(i)), f(p.getZ(i))); } g.computeVertexNormals(); return g; };
+  const gSq = sq(0.55), gSq2 = sq(0.4, 16, 12), gSph = new THREE.SphereGeometry(1, 16, 12), gCyl = new THREE.CylinderGeometry(1, 1, 1, 20);
+  const T4 = new THREE.Matrix4(), Q4 = new THREE.Quaternion(), E4 = new THREE.Euler();
+  const bake = (geo, x, y, z, sx = 1, sy = 1, sz = 1, rx = 0, ry = 0, rz = 0) => { const g = geo.clone(); for (const k of Object.keys(g.attributes)) if (k !== 'position' && k !== 'normal') g.deleteAttribute(k);
+    return g.applyMatrix4(T4.compose(new THREE.Vector3(x, y, z), Q4.setFromEuler(E4.set(rx, ry, rz)), new THREE.Vector3(sx, sy, sz))); };
+  const build = (par, parts, name) => { const by = new Map(); for (const [m, g] of parts) { if (!by.has(m)) by.set(m, []); by.get(m).push(g); }
+    for (const [m, gs] of by) { const o = new THREE.Mesh(mergeGeometries(gs), m); o.name = name; par.add(o); } };
+  // body: short legs in a wide stance, boots, pelvis, trapezoid torso, accordion neck
+  { const L = [];
+    for (const sd of [-1, 1]) { const x = sd * 0.25;
+      L.push([mSil, bake(gSq2, x, 0.07, 0.06, 0.2, 0.08, 0.3)]);                                   // flat boot
+      L.push([mSil, bake(gSq2, x, 0.32, 0.01, 0.15, 0.22, 0.17)]);                                 // blocky shin widening into the boot
+      L.push([mChr, bake(gSph, x, 0.56, 0, 0.12, 0.1, 0.12)]);                                     // knee
+      L.push([mChr, bake(gCyl, x, 0.68, 0, 0.1, 0.18, 0.1)]); }                                    // thigh
+    L.push([mChr, bake(gSq2, 0, 0.82, 0, 0.32, 0.12, 0.22)]);                                      // dark pelvis block
+    const tor = new THREE.CylinderGeometry(1, 0.72, 1, 4, 1).rotateY(Math.PI / 4);                // trapezoid: wide shoulders -> narrow waist
+    L.push([mSil, bake(tor, 0, 1.2, 0, 0.5, 0.56, 0.36)]); L.push([mSil, bake(gSq, 0, 1.2, 0, 0.4, 0.3, 0.26)]);   // + rounded core
+    L.push([mChr, bake(gCyl, 0, 0.95, 0, 0.28, 0.06, 0.2)]);                                       // waist band
+    for (let k = 0; k < 4; k++) L.push([k % 2 ? mChr : mSil, bake(gCyl, 0, 1.52 + k * 0.045, 0, k % 2 ? 0.1 : 0.125, 0.045, k % 2 ? 0.1 : 0.125)]);   // accordion neck
+    build(grok, L, 'grokBody'); }
+  const chestTex = canvasTex(256, 96, (g) => { g.clearRect(0, 0, 256, 96); g.fillStyle = '#ffffff'; g.shadowColor = '#ffffff'; g.shadowBlur = 12; g.font = '700 62px Arial,Helvetica,sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('Grok', 128, 50); });
+  { const ch = new THREE.Mesh(new THREE.PlaneGeometry(0.44, 0.165), new THREE.MeshBasicMaterial({ map: chestTex.t, transparent: true, toneMapped: false })); ch.position.set(0, 1.3, 0.336); ch.name = 'grokChest'; grok.add(ch); }
+  // arms: light shoulder cap, dark upper arm + elbow, blocky light forearm, dark hand with segmented fingers. sh / el groups keep the wave
   const arms = [];
-  for (const sd of [-1, 1]) { const sh = new THREE.Group(); sh.position.set(sd * 0.68, 1.72, 0); grok.add(sh); gm(gSph, mSil, sh, 0, 0, 0, 0.2, 0.2, 0.2);
-    gm(gCyl, mSil, sh, 0, -0.28, 0, 0.1, 0.42, 0.1); const el = new THREE.Group(); el.position.set(0, -0.5, 0); sh.add(el);
-    gm(gCyl, mChr, el, 0, 0, 0, 0.12, 0.09, 0.12, 0, 0, Math.PI / 2); gm(gCyl, mSil, el, sd * 0.05, 0, 0, 0.08, 0.02, 0.08, 0, 0, Math.PI / 2);
-    gm(gCyl, mSil, el, 0, -0.24, 0, 0.09, 0.38, 0.09); gm(gSph, mChr, el, 0, -0.5, 0, 0.1, 0.11, 0.07);
-    for (let f = 0; f < 4; f++) gm(gCap, mChr, el, (f - 1.5) * 0.045, -0.63, 0.02, 0.02, 0.06, 0.02); gm(gCap, mChr, el, -sd * 0.09, -0.55, 0.03, 0.022, 0.04, 0.022, 0, 0, sd * 0.6);
-    sh.rotation.set(-0.15, 0, sd * 0.12); el.rotation.x = -1.2; arms.push({ sh, el, sd }); }
-  // neck + bobblehead capsule helmet with pivot ear caps and a flat glossy black screen
-  gm(gCyl, mChr, grok, 0, 1.97, 0, 0.13, 0.2, 0.13);
-  const head = new THREE.Group(); head.position.set(0, 2.42, 0); grok.add(head);
-  gm(gSph, mSil, head, 0, 0, 0, 0.66, 0.58, 0.6);
-  gm(gSph, mScr, head, 0, -0.02, 0.2, 0.55, 0.44, 0.44).name = 'grokScreen';
-  for (const sd of [-1, 1]) { gm(gCyl, mChr, head, sd * 0.64, 0, 0, 0.2, 0.08, 0.2, 0, 0, Math.PI / 2); gm(gCyl, mSil, head, sd * 0.69, 0, 0, 0.13, 0.06, 0.13, 0, 0, Math.PI / 2); gm(gCyl, mChr, head, sd * 0.72, 0, 0, 0.06, 0.03, 0.06, 0, 0, Math.PI / 2); }
+  for (const sd of [-1, 1]) { const sh = new THREE.Group(); sh.position.set(sd * 0.5, 1.4, 0); grok.add(sh); const el = new THREE.Group(); el.position.set(0, -0.3, 0); sh.add(el);
+    build(sh, [[mSil, bake(gSq, sd * 0.03, 0, 0, 0.14, 0.12, 0.14)], [mChr, bake(gCyl, 0, -0.15, 0, 0.065, 0.22, 0.065)]], 'grokArm');
+    const F = [[mChr, bake(gSph, 0, 0, 0, 0.08, 0.08, 0.08)], [mSil, bake(gSq2, 0, -0.14, 0, 0.085, 0.13, 0.085)], [mChr, bake(gSq2, 0, -0.3, 0.005, 0.06, 0.045, 0.045)]];
+    for (let f = 0; f < 3; f++) for (let j = 0; j < 2; j++) F.push([mChr, bake(gCyl, (f - 1) * 0.033, -0.355 - j * 0.04, 0.015, 0.013, 0.034, 0.013)]);
+    F.push([mChr, bake(gCyl, -sd * 0.06, -0.31, 0.03, 0.014, 0.05, 0.014, 0, 0, sd * 0.7)]); build(el, F, 'grokForearm');
+    sh.rotation.set(-0.1, 0, sd * 0.14); el.rotation.x = -1.0; arms.push({ sh, el, sd }); }
+  // head: big squircle shell, curved glossy visor, ear dials, back slot
+  const head = new THREE.Group(); head.position.set(0, 2.32, 0); grok.add(head);
+  { const H = [[mSil, bake(gSq, 0, 0, 0, 0.72, 0.66, 0.64)]];
+    for (const sd of [-1, 1]) { H.push([mChr, bake(gCyl, sd * 0.7, 0, -0.02, 0.24, 0.06, 0.24, 0, 0, Math.PI / 2)], [mSil, bake(gCyl, sd * 0.73, 0, -0.02, 0.17, 0.04, 0.17, 0, 0, Math.PI / 2)], [mChr, bake(gCyl, sd * 0.75, 0, -0.02, 0.08, 0.03, 0.08, 0, 0, Math.PI / 2)]); }   // recessed dial
+    H.push([mChr, bake(gSq2, 0, 0.12, -0.63, 0.2, 0.03, 0.03)]);                                   // back slot
+    build(head, H, 'grokHead');
+    // visor: a squircle cap slightly proud of the shell front
+    const vg = sq(0.55, 32, 22);
+    const vis = new THREE.Mesh(vg, mScr); vis.scale.set(0.62, 0.52, 0.6); vis.position.set(0, -0.03, 0.1); vis.name = 'grokScreen'; head.add(vis);
+  }
   const faceTex = canvasTex(256, 192, () => {});
   const rr = (g, x, y, w, h, r) => { g.beginPath(); g.roundRect(x, y, w, h, r); g.fill(); };
-  const drawFace = (g, blink, talk, happy) => { g.clearRect(0, 0, 256, 192); g.fillStyle = '#f0ffff'; g.strokeStyle = '#f0ffff'; g.shadowColor = '#7ff4ff'; g.shadowBlur = 16; g.lineCap = 'round';
-    for (const ex of [82, 174]) { if (happy) { g.lineWidth = 13; g.beginPath(); g.arc(ex, 98, 24, Math.PI * 1.12, Math.PI * 1.88); g.stroke(); }
-      else if (blink) rr(g, ex - 22, 82, 44, 9, 4); else rr(g, ex - 23, 50, 46, 70, 18); }
-    g.lineWidth = 9;
-    if (talk > 0) { g.beginPath(); g.ellipse(128, 140, 22, 6 + talk * 12, 0, 0, Math.PI * 2); g.fill(); }
-    else if (happy) { g.beginPath(); g.arc(128, 118, 30, Math.PI * 0.2, Math.PI * 0.8); g.stroke(); }
+  const drawFace = (g, blink, talk, happy) => { g.clearRect(0, 0, 256, 192); g.fillStyle = '#ffffff'; g.strokeStyle = '#ffffff'; g.shadowColor = '#e8f4ff'; g.shadowBlur = 18; g.lineCap = 'round';
+    for (const ex of [80, 176]) { if (blink) rr(g, ex - 27, 74, 54, 8, 3); else if (happy) rr(g, ex - 27, 62, 54, 28, 6); else rr(g, ex - 27, 58, 54, 36, 7); }   // wide rectangular pixel eyes
+    g.lineWidth = 11;
+    if (talk > 0) { g.beginPath(); g.ellipse(128, 136, 30, 5 + talk * 12, 0, 0, Math.PI * 2); g.fill(); }
+    else { g.beginPath(); g.arc(128, happy ? 102 : 108, 40, Math.PI * 0.22, Math.PI * 0.78); g.stroke(); }   // wide curved smile
     g.shadowBlur = 0; };
   drawFace(faceTex.g, 0, 0, 0); faceTex.t.needsUpdate = true;
-  { const f = new THREE.Mesh(new THREE.PlaneGeometry(0.72, 0.54), new THREE.MeshBasicMaterial({ map: faceTex.t, transparent: true, toneMapped: false, depthWrite: false })); f.position.set(0, -0.02, 0.645); f.name = 'grokFace'; head.add(f); }
+  { const f = new THREE.Mesh(new THREE.PlaneGeometry(0.74, 0.555), new THREE.MeshBasicMaterial({ map: faceTex.t, transparent: true, toneMapped: false, depthWrite: false })); f.position.set(0, -0.03, 0.705); f.name = 'grokFace'; head.add(f); }
 
   // ---------- glossy floor (fake reflections of the glowing wall, candy and counter) ----------
   { const fl = canvasTex(512, 512, (g, w, h) => { g.clearRect(0, 0, w, h); const X = x => (x + SXW) / (2 * SXW) * w, Zp = z => (z - ZW) / (ZF - ZW) * h;
