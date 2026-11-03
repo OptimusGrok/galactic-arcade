@@ -462,16 +462,35 @@ export function setupShop({ scene, tp, play, monkey, camera, st } = {}) {
 
   // ---------- voice ----------
   // recorded greeting (Dave's pick: voice 1), preloaded so it starts inside the tap gesture; speechSynthesis only as fallback
-  const GREET = "Hi, I'm Grok, what would you like?";
+  const GREET = "Hi! I'm Grok! What would you like?";
   const greetA = new Audio(new URL('./sfx/grok_hi.mp3', import.meta.url).href); greetA.preload = 'auto'; try { greetA.load(); } catch (e) {}
   let voice = null; const pickVoice = () => { try { const vs = speechSynthesis.getVoices().filter(v => /^en/i.test(v.lang)); voice = vs.find(v => /\bmale\b/i.test(v.name) && !/female/i.test(v.name)) || vs.find(v => /david|daniel|alex|guy|james|george|ryan|mark|tom/i.test(v.name)) || vs[0] || null; } catch (e) {} };
   try { pickVoice(); speechSynthesis.onvoiceschanged = pickVoice; } catch (e) {}
   const tts = (text) => { try { speechSynthesis.cancel(); const u = new SpeechSynthesisUtterance(text); if (voice) u.voice = voice; u.lang = (voice && voice.lang) || 'en-US'; u.pitch = 0.95; speechSynthesis.speak(u); } catch (e) {} };
   let talkT = 0, happyT = 0;
   function say(text) { talkT = Math.max(1.4, text.length * 0.065); happyT = talkT + 1.2; api.said.push(text);
-    if (window.__muted) return;
-    if (text === GREET) { api.voice = 'clip'; try { greetA.currentTime = 0; const pr = greetA.play(); if (pr && pr.catch) pr.catch(() => { api.voice = 'tts'; tts(text); }); } catch (e) { api.voice = 'tts'; tts(text); } }
-    else tts(text); }
+    if (text !== GREET) return;   // t559: buying (and not-enough-tickets) is silent - only the welcome is spoken
+    if (window.__muted || (window.__mute && window.__mute.on)) return;
+    greet(); }
+  // t559: the welcome must play on Android Chrome. Primary path: grok_hi.mp3 decoded into the arcade's shared, gesture-unlocked AudioContext
+  // (window.__unlockAC, also used by music/PA, routed through mute.js) - once that context runs, playback needs no fresh gesture.
+  // Fallback: the <audio> element played inside the tap, one retry on canplay, then speechSynthesis.
+  let greetBuf = null, greetLoading = false;
+  const actx = () => { try { const AC = window.AudioContext || window.webkitAudioContext; return window.__unlockAC = window.__unlockAC || new AC(); } catch (e) { return null; } };
+  function loadGreet() { if (greetBuf || greetLoading) return; greetLoading = true; const ac = actx(); if (!ac) return;
+    fetch(greetA.src).then(r => r.arrayBuffer()).then(b => new Promise((ok, no) => ac.decodeAudioData(b, ok, no))).then(buf => { greetBuf = buf; }).catch(() => { greetLoading = false; }); }
+  const unlock = () => { const ac = actx(); try { if (ac && ac.state !== 'running') ac.resume(); } catch (e) {} loadGreet(); };
+  for (const t of ['pointerdown', 'touchend', 'keydown']) addEventListener(t, unlock, { capture: true, passive: true });
+  loadGreet();
+  function greet() { api.greets = (api.greets || 0) + 1; const ac = actx();
+    try { if (ac && ac.state !== 'running') ac.resume(); } catch (e) {}
+    if (greetBuf && ac && ac.state === 'running') { try { const src = ac.createBufferSource(); src.buffer = greetBuf; src.connect(ac.destination); src.start(); api.voice = 'webaudio';
+        talkT = Math.max(talkT, greetBuf.duration); happyT = talkT + 1.2; api.greetPlayed = Promise.resolve('webaudio'); return; } catch (e) {} }
+    api.voice = 'clip'; let tried = 0;
+    const tryEl = () => { tried++; try { greetA.muted = false; greetA.currentTime = 0; } catch (e) {} let pr; try { pr = greetA.play(); } catch (e) { pr = Promise.reject(e); }
+      return Promise.resolve(pr).then(() => 'clip'); };
+    api.greetPlayed = tryEl().catch(() => new Promise(res => { try { greetA.load(); } catch (e) {} const go = () => tryEl().then(res, () => { api.voice = 'tts'; tts(GREET); res('tts'); });
+      greetA.addEventListener('canplay', go, { once: true }); setTimeout(() => { if (tried < 2) go(); }, 600); })); }
   greetA.addEventListener('playing', () => { talkT = Math.max(talkT, (greetA.duration || 2) - greetA.currentTime); happyT = talkT + 1.2; });
 
   // ---------- UI: SHOP button, holographic prize row (no speech bubble: voice only) ----------
@@ -502,6 +521,7 @@ export function setupShop({ scene, tp, play, monkey, camera, st } = {}) {
   function buy(id) { const it = byId[id]; if (!it) return false; const b = balance();
     if (b < it.price) { say(`Ah, the ${it.name} is ${it.price} tickets and you've got ${b}. Win a few more games and come back!`); return false; }
     spend(it.price); addPrize(id); api.buys++; setHeld(id); say(`Great choice! Enjoy your ${it.name}!`); fill(); return true; }
+  btn.addEventListener('pointerup', e => { e.stopPropagation(); unlock(); if (!api.open) holoTapT = performance.now(); openShop(); });   // t559: greet inside the tap gesture
   btn.addEventListener('click', e => { e.stopPropagation(); openShop(); });
   // Taps act on pointerup of the element that got the pointerdown. On Android Chrome the synthesized 'click' can be touch-adjusted onto a
   // neighbouring BUY button (seen: tapping ✕ fired click on a BUY), so the menu never closed and its full-screen overlay ate every joystick
@@ -509,8 +529,8 @@ export function setupShop({ scene, tp, play, monkey, camera, st } = {}) {
   const holoAct = t => { if (!t || !t.closest) return null; return t.closest('#holoX') || t.closest('[data-id]') || (t === holo ? holo : null); };
   const holoDo = a => { if (!a) return; if (a.id === 'holoX' || a === holo) closeShop(); else buy(a.dataset.id); };
   let holoDown = null, holoTapT = -1e9;
-  holo.addEventListener('pointerdown', e => { holoDown = holoAct(e.target); });
-  holo.addEventListener('pointerup', e => { const a = holoAct(e.target), d = holoDown; holoDown = null; if (!a || a !== d) return; holoTapT = performance.now(); holoDo(a); });
+  let holoXY = [0, 0]; holo.addEventListener('pointerdown', e => { holoDown = holoAct(e.target); holoXY = [e.clientX, e.clientY]; });
+  holo.addEventListener('pointerup', e => { const a = holoAct(e.target), d = holoDown; holoDown = null; if (!a || a !== d) return; if (Math.hypot(e.clientX - holoXY[0], e.clientY - holoXY[1]) > 12) { holoTapT = performance.now(); return; } holoTapT = performance.now(); holoDo(a); });
   holo.addEventListener('pointercancel', () => { holoDown = null; });
   holo.addEventListener('click', e => { e.stopPropagation(); if (performance.now() - holoTapT < 700) return; holoDo(holoAct(e.target)); });
   addEventListener('keydown', e => { if (api.open) { if (e.code === 'Escape' || e.code === 'Backspace') closeShop(); e.stopImmediatePropagation(); return; }
