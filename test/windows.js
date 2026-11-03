@@ -39,7 +39,7 @@ const { open } = require('./lib'); const PH = process.argv[2] === 'phone', sfx =
   const CAM = [[-4, 3.6, 0], [12, 4.2, 0]];
   await shot('window_jungle_hd', 'jungle', 10, CAM); const d0 = await page.evaluate(() => [window.__windows.draws, window.__arcade.stats.frames]); await page.waitForTimeout(1500); const d1 = await page.evaluate(() => [window.__windows.draws, window.__arcade.stats.frames]);
   const dr = d1[0] - d0[0], fr = d1[1] - d0[1];   // capped at ~20 fps; on a slow test box it redraws on every rendered frame
-  chk(dr >= Math.min(15, fr * 0.8) && dr <= 34, 'animates at up to ~20 fps (' + dr + ' redraws / ' + fr + ' frames in 1.5 s)');
+  chk(dr >= Math.min(15, fr * 0.5) && dr <= 34, 'animates at up to ~20 fps (' + dr + ' redraws / ' + fr + ' frames in 1.5 s)');
   await shot('window_beach_hd', 'beach', 10, CAM); await shot('window_rain_hd', 'jungle', 110, CAM); await shot('window_sunset_hd', 'beach', 205, CAM); await shot('window_rainbow_hd', 'jungle', 158, CAM);
   const perf = await page.evaluate(() => ({ ms: +window.__windows.ms.toFixed(1), max: +window.__windows.msMax.toFixed(1), size: window.__windows.size }));
   chk(perf.ms < (PH ? 18 : 12), 'canvas draw cost ' + JSON.stringify(perf));

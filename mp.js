@@ -97,7 +97,7 @@ body.ingame #mpPill,body.ingame #mpBar,body.ingame #mpChat,body.ingame #mpTags,b
     if (st.jump) return 'jump'; return st.speed > 0.15 ? 'walk' : 'idle'; }
   const r2 = v => Math.round(v * 100) / 100;
   function snap() { const p = monkey.position; return { i: id, x: r2(p.x), y: r2(p.y), z: r2(p.z), r: Math.round(monkey.rotation.y * 100) / 100, m: roomOf(p), a: animOf() }; }
-  let ch = null, lib = null, client = null, lastSent = '', lastAt = 0, sendTimer = 0, joinedAt = 0, retry = 0, retryT = 0, joinT = 0;
+  let ch = null, lib = null, client = null, lastSent = '', lastAt = 0, sendTimer = 0, joinedAt = 0, retry = 0, retryT = 0, joinT = 0, gen = 0;
   function send(event, payload) { if (!ch || M.state !== 'on') return false; try { const r = ch.send({ type: 'broadcast', event, payload }); if (r && r.catch) r.catch(() => {}); } catch (e) { return false; } M.sent++; M.bytes += JSON.stringify(payload).length; return true; }
   function tick() { if (M.state !== 'on') return; const s = snap(), j = JSON.stringify(s), now = performance.now();
     if (j !== lastSent || now - lastAt > 1000) { lastSent = j; lastAt = now; send('st', s); } }
@@ -144,7 +144,7 @@ body.ingame #mpPill,body.ingame #mpBar,body.ingame #mpChat,body.ingame #mpTags,b
     addLog(p ? p.name : String(c.n || 'Monkey').slice(0, 14), c.i, text); if (p && !M.chatMuted && !M.muted.has(c.i)) bubble(p, 'chat', text, 5000); }
   function onEmo(c) { const p = c && M.peers.get(c.i); if (p && EMO[c.e] && !M.muted.has(c.i)) bubble(p, 'emo', EMO[c.e], 2500); }
   // ---------- presence: count, cap, joins / leaves ----------
-  function onSync() { if (!ch) return; let st0; try { st0 = ch.presenceState(); } catch (e) { return; }
+  function onSync() { if (!ch || M.state !== 'on') return; let st0; try { st0 = ch.presenceState(); } catch (e) { return; }
     const all = []; for (const k in st0) { const m = st0[k] && st0[k][0]; if (m) all.push({ key: k, id: m.id || k, name: m.name, hue: m.hue, look: m.look, at: m.at || 0 }); }
     all.sort((a, b) => a.at - b.at || (a.id < b.id ? -1 : 1));
     const first = all.slice(0, CAP), mine = first.some(p => p.id === id);
@@ -155,10 +155,14 @@ body.ingame #mpPill,body.ingame #mpBar,body.ingame #mpChat,body.ingame #mpTags,b
     pillTxt(); }
   function goSolo(why) { M.full = why === 'full'; leave(); M.state = 'solo'; M.reason = why; pillTxt(); if (M.full) flash('Room full, playing solo', 0); }
   async function join() {
-    retryT = 0; if (M.state === 'on' || M.state === 'joining' || M.full || document.hidden) return; M.state = 'joining'; joinT = performance.now();
+    retryT = 0; if (M.state === 'on' || M.state === 'joining' || M.full || document.hidden) return; M.state = 'joining'; joinT = performance.now(); const g = ++gen;
     try { lib = lib || await getLib(); client = client || lib.createClient(SB_URL, SB_KEY, { auth: { persistSession: false, autoRefreshToken: false }, realtime: { params: { eventsPerSecond: 20 } } }); }
     catch (e) { M.state = 'off'; M.reason = 'offline: ' + (e && e.message); pillTxt(); return; }
     joinedAt = joinedAt || Date.now();
+    // t211: supabase-js hands back an existing channel with the same topic if removeChannel() has not finished; .on() on it throws
+    // "cannot add presence callbacks after subscribe()" and every rejoin then fails forever. Remove leftovers first; if it still throws, rebuild the client.
+    try { await Promise.all(client.getChannels().filter(c => c.topic === 'realtime:' + CHAN).map(c => client.removeChannel(c))); } catch (e) {}
+    if (g !== gen || M.state !== 'joining') return;   // a leave / newer join happened while we waited: that one owns the seat
     try {
       const mine = ch = client.channel(CHAN, { config: { presence: { key: id }, broadcast: { self: false, ack: false } } });
       M.joins = (M.joins || 0) + 1;
@@ -173,9 +177,9 @@ body.ingame #mpPill,body.ingame #mpBar,body.ingame #mpChat,body.ingame #mpTags,b
           if (ch !== mine) return; if (n >= CAP) { goSolo('full'); return; } track(); lastSent = ''; tick(); pillTxt(); }
         else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') { if (M.state === 'solo') return; M.reason = status; leave(); M.state = 'off'; pillTxt();
           clearTimeout(retryT); retryT = setTimeout(join, Math.min(15000, 1000 * Math.pow(2, retry++))); } });
-    } catch (e) { M.state = 'off'; M.reason = 'error: ' + (e && e.message); ch = null; pillTxt(); }
+    } catch (e) { M.state = 'off'; M.reason = 'error: ' + (e && e.message); ch = null; pillTxt(); if (/after `subscribe\(\)`/.test(M.reason)) { try { client.removeAllChannels(); } catch (x) {} client = null; } clearTimeout(retryT); retryT = setTimeout(join, Math.min(15000, 1000 * Math.pow(2, retry++))); }
   }
-  function leave() { if (ch) { try { send('bye', { i: id }); } catch (e) {} const c = ch; ch = null; try { c.untrack && c.untrack(); } catch (e) {} try { client.removeChannel(c); } catch (e) {} }
+  function leave() { gen++; if (ch) { try { send('bye', { i: id }); } catch (e) {} const c = ch; ch = null; try { c.untrack && c.untrack(); } catch (e) {} try { client.removeChannel(c); } catch (e) {} }
     for (const pid of [...M.peers.keys()]) drop(pid); if (M.state === 'on' || M.state === 'joining') M.state = 'off'; M.count = 1; pillTxt(); }
   M.join = join; M.leave = leave;
   // t208 robustness: leave while hidden / offline, and always come back (visible, online, watchdog), never give up after N retries
