@@ -1,0 +1,40 @@
+const { open } = require('./lib');
+const S = '/workspace/galactic-shop/shots/';
+(async () => {
+  const phone = process.argv[2] === 'phone';
+  const { page, errors, close } = await open(phone ? { phone: true } : {}); let ok = true; const chk = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); if (!c) ok = false; };
+  const put = (x, z, yaw, pitch = 0.2, dist = 4.2) => page.evaluate(([x, z, yaw, pitch, dist]) => { const A = window.__arcade; A.monkey.position.set(80 + x, 0, z); A.st.vel.set(0, 0, 0); A.st.yaw = yaw; A.st.face = yaw + Math.PI; A.st.pitch = pitch; A.st.dist = dist; }, [x, z, yaw, pitch, dist]);
+  const pre = phone ? 'phone_' : '';
+  await page.evaluate(() => { window.__arcade.st.fp = true; });
+  await put(0, 5.0, 0, 0.0, 4); await page.waitForTimeout(3000); await page.screenshot({ path: S + pre + 'pad_view.png' });
+  await page.evaluate(() => { window.__arcade.st.fp = false; });
+  await put(0, -1.3, 0, 0.05, 2.4); await page.waitForTimeout(1500); await page.screenshot({ path: S + pre + 'shelves_closeup.png' });
+  await put(-0.8, 2.6, 0.95, 0.12, 2.8); await page.waitForTimeout(1500); await page.screenshot({ path: S + pre + 'candy.png' });
+  await put(0.6, 3.4, -0.62, 0.08, 3.2); await page.waitForTimeout(1500); await page.screenshot({ path: S + pre + 'counter_grok.png' });
+  await put(3.0, 0.3, -0.62, 0.15, 3.5); await page.waitForTimeout(1500);
+  const n = await page.evaluate(() => ({ near: window.__shop.near, btn: document.getElementById('shopBtn').classList.contains('on'), x: window.__arcade.monkey.position.x }));
+  console.log(JSON.stringify(n)); chk(n.btn, 'SHOP button visible near Grok');
+
+  await page.evaluate(() => { window.__arcade.play.tickets.total = 300; });
+  await page.click('#shopBtn'); await page.waitForTimeout(800);
+  await page.screenshot({ path: S + pre + 'hologram_open.png' });
+  const window_items = await page.evaluate(() => window.__shop.ITEMS.length);
+  const r = await page.evaluate(() => { const sh = window.__shop; const rows = document.querySelectorAll('#holoL .hR').length; const said = sh.said.slice();
+    const b0 = sh.balance(); document.querySelector('#holoL button[data-id="monkeyBrown"]').click(); const b1 = sh.balance();
+    document.querySelector('#holoL button[data-id="grok"]').click(); const b2 = sh.balance();
+    return { rows, said, b0, b1, b2, ls: localStorage.getItem('neonarcade.tickets'), badge: document.getElementById('tixN').textContent, prizes: localStorage.getItem('neonarcade.prizes'), last: sh.said[sh.said.length - 1] }; });
+  console.log(JSON.stringify(r));
+  chk(r.rows === window_items, 'hologram lists every item (' + r.rows + ')'); chk(r.said[0] === "Hi, I'm Grok, what would you like?", 'greeting');
+  chk(r.b1 === 50 && r.ls === '50' && r.badge === '50', 'monkey plush purchase 300 -> 50'); chk(r.b2 === 50 && /tickets/.test(r.last), 'Grok plush refused when short');
+  chk(JSON.parse(r.prizes).monkeyBrown >= 1, 'prize stored');
+  await page.screenshot({ path: S + pre + 'hologram_after_buy.png' });
+  await page.click('#holoX'); const cl = await page.evaluate(() => !document.getElementById('holo').classList.contains('on')); chk(cl, 'close button');
+  // walls: walk east past the old 12 m limit
+  const w = await page.evaluate(() => { const A = window.__arcade; A.monkey.position.set(80, 0, 10); A.st.yaw = 0; A.keys.KeyS = true; for (let i = 0; i < 400; i++) A.step(1 / 60); A.keys.KeyS = false; return A.monkey.position.z; });
+  chk(w > 12.5 && w < 13.7, 'enlarged room walkable to z=' + w.toFixed(2));
+  await put(-1, 2, 1.0, 0.1, 3); await page.waitForTimeout(1500); await page.screenshot({ path: S + pre + 'mural_left.png' }); await put(1, 1, -0.6, 0.1, 3); await page.waitForTimeout(1500); await page.screenshot({ path: S + pre + 'mural_right.png' });
+  await put(0, -2, 0, 0.12, 5); await page.waitForTimeout(3000);
+  const s = await page.evaluate(() => { const r = window.__arcade.renderer.info.render; let m = 0, tri = 0; window.__shop.G.traverse(o => { if (o.isMesh) { m++; const g = o.geometry; tri += (g.index ? g.index.count : g.attributes.position.count) / 3; } }); return { shopMeshes: m, shopTris: tri | 0, items: window.__shop.stats, fps: window.__arcade.stats.gapAvg }; }); console.log('stats', JSON.stringify(s));
+  chk(errors.length === 0, 'no page errors ' + errors.join(' | '));
+  console.log(ok ? 'ALL OK' : 'SOME FAIL'); await close();
+})();

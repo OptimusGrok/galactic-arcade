@@ -19,6 +19,7 @@ import { setupShield } from './shield.js';
 import { setupKiosk } from './kiosk.js';
 import { setupOpts } from './opts.js';
 import { setupTeleport, WX } from './teleport.js';
+import { setupShop } from './shop.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 
 const MOBILE = matchMedia('(pointer:coarse)').matches || /Android|iPhone|iPad/i.test(navigator.userAgent);
@@ -699,7 +700,7 @@ function clampAreas(p, areas, pad = 0) {
   for (const a of areas) { const x = THREE.MathUtils.clamp(p.x, a.x0 - pad, a.x1 + pad), z = THREE.MathUtils.clamp(p.z, a.z0 - pad, a.z1 + pad), d = (x - p.x) ** 2 + (z - p.z) ** 2; if (d < bd) { bd = d; best = [x, z]; } if (!d) break; }
   p.x = best[0]; p.z = best[1]; return p;
 }
-let shield = null, kiosk = null, tp = null;   // red energy shield in the doorway (shield.js)
+let shield = null, kiosk = null, tp = null, shop = null;   // red energy shield in the doorway (shield.js)
 const CLIP_AREA = [{ x0: -LIM, x1: LIM, z0: Z2 - LIM, z1: LIM }, { x0: WX - LIM, x1: WX + LIM, z0: -LIM, z1: LIM }];   // noclip: outer building envelope only (both rooms + hallway span)
 function collide(p) {
   if (DEV.clip) { clampAreas(p, CLIP_AREA); collideCabs(p); return; }   // walls, doors, shield and plinths off; cabinets stay solid
@@ -903,6 +904,7 @@ function frame(now) {
   { const dtc = Math.min(gap / 1000, 0.05); if (play.update(dtc, kiosk && kiosk.mode !== 'walk' && kiosk.mode !== 'pick' ? null : nearCab) || (kiosk && kiosk.update(dtc))) stepClock(dtc); else step(dtc); }
   shield.update(Math.min(gap / 1000, 0.05));
   bloom.strength = camera.position.x > WX / 2 ? 0.12 : 0.75;   // white room: no glare
+  if (shop) shop.update(Math.min(gap / 1000, 0.05));
   if (tp) tp.update(Math.min(gap / 1000, 0.05), !!document.querySelector('#bPack.on') && !document.querySelector('#inv.on'));
   if (window.__camOverride) { const o = window.__camOverride; camera.position.set(...o.pos); camera.lookAt(...o.at); if (!o.showMonkey) monkey.visible = false; } // screenshots / tests
   camera.updateMatrixWorld();
@@ -931,6 +933,7 @@ function stepClock(dt) { st.t += dt; }
 const play = setupPlay({ camera, monkey, roadsterCab, strikeCab, ghostCab, berserkerCab, monkeyCab, orcCab, novaCab, cyberCab, st, pause(on) { paused = on; if (!on && !rafOn) { rafOn = true; last = performance.now(); requestAnimationFrame(frame); } } });
 shield = setupShield({ scene, play, st, monkey, HALF, DOOR_W, DOOR_H });
 tp = setupTeleport({ scene, monkey, st, HALF, H }); window.__tp = tp;
+shop = setupShop({ scene, tp, play, monkey, camera, st }); AREAS[3] = shop.extraBounds; CAM_AREAS[3] = shop.camBounds; CLIP_AREA[1] = shop.extraBounds;
 kiosk = setupKiosk({ room, camera, monkey, st, play, blockers });
 const opts = setupOpts({ play, kiosk, shield, st, monkey, setFloor, getFloor: () => floorMode, setWalls, getWalls: () => wallsMode, HALF, Z2 });
 requestAnimationFrame(frame);
