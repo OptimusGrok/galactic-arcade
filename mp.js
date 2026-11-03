@@ -23,7 +23,13 @@ async function getLib() {
 }
 export function setupMP({ scene, camera, monkey, makeMonkey, st, play, getTp, HALF, Z2, HALL_L, WX }) {
   const id = window.__mpId || (LSg('neonarcade.mpId') || (() => { const v = Math.random().toString(36).slice(2, 10); LSs('neonarcade.mpId', v); return v; })());
-  let name = LSg('neonarcade.mpName'); if (!name) { name = 'Monkey' + (100 + Math.floor(Math.random() * 900)); LSs('neonarcade.mpName', name); }
+  // name + look come from the start screen (player.js, key galacticarcade.player); neonarcade.mpName is only a fallback for no name yet
+  let fallback = LSg('neonarcade.mpName'); if (!fallback) { fallback = 'Monkey' + (100 + Math.floor(Math.random() * 900)); LSs('neonarcade.mpName', fallback); }
+  const LOOKS = { hat: ['cap', 'crown', 'helmet', 'none'], hoodie: ['navy', 'red', 'blue', 'green', 'yellow'], fur: ['brown', 'gold', 'silver'], shoes: ['red', 'blue', 'black'] };
+  function player() { let o = {}; try { o = JSON.parse(localStorage.getItem('galacticarcade.player') || '{}') || {}; } catch (e) {}
+    const n = String(o.name || '').replace(/[\u0000-\u001f<>]/g, '').trim().slice(0, 14), look = {}; for (const k in LOOKS) look[k] = LOOKS[k].includes(o[k]) ? o[k] : LOOKS[k][0]; return { name: n, look }; }
+  let name = player().name || fallback, look = player().look;
+  setInterval(() => { const pl = player(), n = pl.name || fallback; if (n !== name || JSON.stringify(pl.look) !== JSON.stringify(look)) { name = n; look = pl.look; track(); } }, 2000);
   const hue = parseInt(id.slice(0, 6), 36) % 360;
   const M = window.__mp = { id, get name() { return name; }, state: 'off', reason: '', peers: new Map(), count: 1, full: false, sent: 0, recv: 0, bytes: 0, chatMuted: LSg('neonarcade.mpChatMute') === '1',
     muted: new Set(JSON.parse(LSg('neonarcade.mpMuted') || '[]')), log: [], lastChat: -1e9, emote, chat: sendChat, roomOf, CAP, CHAN, filterText, escapeHtml, cleanMsg };
@@ -72,12 +78,12 @@ body.ingame #mpPill,body.ingame #mpBar,body.ingame #mpChat,body.ingame #mpTags,b
   const nameSet = () => LSg('neonarcade.mpNameSet') === '1';
   function showName(on) { if (!on) { nameP.classList.remove('on'); return; }
     nameP.innerHTML = ''; el('div', { textContent: 'PUBLIC ROOM · ' + (M.state === 'on' ? M.count + '/' + CAP + ' players' : M.full ? 'room full, playing solo' : 'offline, playing solo') }, nameP);
-    const row = el('div', { style: 'margin-top:6px' }, nameP); const ni = el('input', { value: name, maxLength: 14, readOnly: nameSet() }, row); ni.addEventListener('keydown', stop); ni.addEventListener('keyup', stop);
-    if (!nameSet()) { const sv = el('button', { textContent: 'SAVE NAME' }, nameP); sv.onclick = () => { const v = cleanMsg(ni.value).replace(/[^\w\- ]/g, '').slice(0, 14).trim(); if (v && !/\*/.test(v)) { name = v; LSs('neonarcade.mpName', v); LSs('neonarcade.mpNameSet', '1'); track(); } showName(false); }; el('div', { textContent: 'You can change your name once.', style: 'opacity:.7;margin-top:4px' }, nameP); }
+    if (player().name) el('div', { textContent: 'You are ' + name + ' (set on the start screen)', style: 'margin-top:6px' }, nameP); else { const row = el('div', { style: 'margin-top:6px' }, nameP); const ni = el('input', { value: name, maxLength: 14, readOnly: nameSet() }, row); ni.addEventListener('keydown', stop); ni.addEventListener('keyup', stop);
+    if (!nameSet()) { const sv = el('button', { textContent: 'SAVE NAME' }, nameP); sv.onclick = () => { const v = cleanMsg(ni.value).replace(/[^\w\- ]/g, '').slice(0, 14).trim(); if (v && !/\*/.test(v)) { name = v; LSs('neonarcade.mpName', v); LSs('neonarcade.mpNameSet', '1'); track(); } showName(false); }; el('div', { textContent: 'You can change your name once.', style: 'opacity:.7;margin-top:4px' }, nameP); } }
     const list = el('div', { style: 'margin-top:6px;max-height:120px;overflow:auto' }, nameP);
     for (const p of M.peers.values()) { const r = el('div', { textContent: (M.muted.has(p.id) ? '🔇 ' : '') + p.name, style: 'cursor:pointer;padding:2px 0' }, list); r.onclick = () => { toggleMute(p.id); showName(true); }; }
     el('button', { textContent: 'CLOSE' }, nameP).onclick = () => showName(false); nameP.classList.add('on'); }
-  M.showName = showName; M.setName = v => { name = v; LSs('neonarcade.mpName', v); track(); };
+  M.showName = showName; M.setName = v => { name = fallback = v; LSs('neonarcade.mpName', v); track(); };
   pill.addEventListener('click', e => { e.stopPropagation(); showName(!nameP.classList.contains('on')); });
   let flashT = 0; function flash(t, ms) { note.textContent = t; note.style.display = 'block'; clearTimeout(flashT); if (ms !== 0) flashT = setTimeout(() => { note.style.display = M.full ? 'block' : 'none'; if (M.full) note.textContent = 'Room full, playing solo'; }, ms || 2500); }
   function pillTxt() { pill.querySelector('#mpN').textContent = (M.state === 'on' ? M.count : 1) + '/' + CAP; pill.classList.toggle('off', M.state !== 'on'); }
@@ -93,15 +99,27 @@ body.ingame #mpPill,body.ingame #mpBar,body.ingame #mpChat,body.ingame #mpTags,b
   function send(event, payload) { if (!ch || M.state !== 'on') return false; try { const r = ch.send({ type: 'broadcast', event, payload }); if (r && r.catch) r.catch(() => {}); } catch (e) { return false; } M.sent++; M.bytes += JSON.stringify(payload).length; return true; }
   function tick() { if (M.state !== 'on') return; const s = snap(), j = JSON.stringify(s), now = performance.now();
     if (j !== lastSent || now - lastAt > 1000) { lastSent = j; lastAt = now; send('st', s); } }
-  function track() { if (ch && M.state === 'on') try { const r = ch.track({ id, name, hue, at: joinedAt }); if (r && r.catch) r.catch(() => {}); } catch (e) {} }
+  function track() { if (ch && M.state === 'on') try { const r = ch.track({ id, name, hue, look, at: joinedAt }); if (r && r.catch) r.catch(() => {}); } catch (e) {} }
   // ---------- remote monkeys ----------
-  const tint = (root, h) => { root.traverse(o => { if (o.isMesh && !o.userData.noTint && o.material && o.material.color) { o.material = o.material.clone(); const c = o.material.color, hsl = {}; c.getHSL(hsl);
-    if (hsl.s > 0.25) c.setHSL((hsl.h + h / 360) % 1, hsl.s, hsl.l); } }); };
+  // remote look: player.js palette (hoodie / fur / shoes recolour the monkey's original material colours; hat: cap or none);
+  // without a look, a hue tint. The backpack is never tinted.
+  const PAL = { hoodie: { navy: [0x1d2452, 0x141a3a], red: [0xd42a2a, 0x7a1414], blue: [0x2b62e8, 0x173a8a], green: [0x2fae3a, 0x16601c], yellow: [0xf2c418, 0x9a7a08] },
+    fur: { brown: [0x4e2a14, 0xd9a779], gold: [0xb7862a, 0xf3d79a], silver: [0x8d939c, 0xe4e7ec] }, shoes: { red: [0x8a1e2c, 0xf1e8d6], blue: [0x1f4fbf, 0xeaf0ff], black: [0x1a1a1e, 0x4a4a52] } };
+  function own(root) { root.traverse(o => { if (o.isMesh && o.material && o.material.color) { o.material = o.material.clone(); o.material.userData.orig = o.material.color.getHex(); } }); }
+  function paint(p, meta) { const lk = meta && meta.look && typeof meta.look === 'object' ? meta.look : null, key = lk ? JSON.stringify(lk) : 'h' + ((meta && meta.hue) || 0); if (p.lookKey === key) return; p.lookKey = key;
+    const map = {}; if (lk) { const H = PAL.hoodie[lk.hoodie] || PAL.hoodie.navy, F = PAL.fur[lk.fur] || PAL.fur.brown, S2 = PAL.shoes[lk.shoes] || PAL.shoes.red;
+      map[0x1d2452] = H[0]; map[0x141a3a] = H[1]; map[0x4e2a14] = F[0]; map[0xd9a779] = F[1]; map[0x8a1e2c] = S2[0]; map[0xf1e8d6] = S2[1]; }
+    const h = (meta && meta.hue) || 0; let cap = null;
+    p.g.traverse(o => { if (!o.isMesh || !o.material || o.material.userData.orig == null) return; const orig = o.material.userData.orig, c = o.material.color; c.setHex(orig);
+      if (orig === 0xff4f9e && o.parent && o.parent.isGroup) cap = o.parent; if (o.userData.noTint) return;
+      if (lk) { if (map[orig] != null) c.setHex(map[orig]); } else { const hsl = {}; c.getHSL(hsl); if (hsl.s > 0.25) c.setHSL((hsl.h + h / 360) % 1, hsl.s, hsl.l); } });
+    if (cap) cap.visible = !lk || lk.hat === 'cap'; p.look = lk; }
+  M.paint = paint;
   function peer(pid, meta) { let p = M.peers.get(pid);
-    if (!p) { const g = makeMonkey(); g.name = 'remoteMonkey_' + pid; tint(g, (meta && meta.hue) || 0); scene.add(g); g.visible = false;
+    if (!p) { const g = makeMonkey(); g.name = 'remoteMonkey_' + pid; own(g); scene.add(g); g.visible = false;
       const tag = el('div', { className: 'mpTag' }, tags); tag.addEventListener('click', e => { e.stopPropagation(); toggleMute(pid); });
       p = { id: pid, name: 'Monkey', g, tag, cur: null, tgt: null, a: 'idle', m: 'room1', last: performance.now(), phase: 0, bub: {} }; M.peers.set(pid, p); }
-    if (meta && meta.name) p.name = String(meta.name).slice(0, 14); p.tag.textContent = p.name; p.tag.classList.toggle('mute', M.muted.has(pid)); return p; }
+    if (meta) paint(p, meta); else if (!p.lookKey) paint(p, { hue: 0 }); if (meta && meta.name) p.name = String(meta.name).slice(0, 14); p.tag.textContent = p.name; p.tag.classList.toggle('mute', M.muted.has(pid)); return p; }
   function drop(pid) { const p = M.peers.get(pid); if (!p) return; scene.remove(p.g); p.g.traverse(o => { if (o.isMesh) o.material.dispose(); }); p.tag.remove(); for (const k in p.bub) p.bub[k].el.remove(); M.peers.delete(pid); }
   function toggleMute(pid) { if (M.muted.has(pid)) M.muted.delete(pid); else M.muted.add(pid); LSs('neonarcade.mpMuted', JSON.stringify([...M.muted])); const p = M.peers.get(pid); if (p) { p.tag.classList.toggle('mute', M.muted.has(pid)); if (M.muted.has(pid)) clearBub(p, 'chat'); } renderLog(); }
   M.toggleMute = toggleMute;
@@ -125,7 +143,7 @@ body.ingame #mpPill,body.ingame #mpBar,body.ingame #mpChat,body.ingame #mpTags,b
   function onEmo(c) { const p = c && M.peers.get(c.i); if (p && EMO[c.e] && !M.muted.has(c.i)) bubble(p, 'emo', EMO[c.e], 2500); }
   // ---------- presence: count, cap, joins / leaves ----------
   function onSync() { if (!ch) return; let st0; try { st0 = ch.presenceState(); } catch (e) { return; }
-    const all = []; for (const k in st0) { const m = st0[k] && st0[k][0]; if (m) all.push({ key: k, id: m.id || k, name: m.name, hue: m.hue, at: m.at || 0 }); }
+    const all = []; for (const k in st0) { const m = st0[k] && st0[k][0]; if (m) all.push({ key: k, id: m.id || k, name: m.name, hue: m.hue, look: m.look, at: m.at || 0 }); }
     all.sort((a, b) => a.at - b.at || (a.id < b.id ? -1 : 1));
     const first = all.slice(0, CAP), mine = first.some(p => p.id === id);
     if (!mine && all.length >= CAP && all.some(p => p.id === id)) { goSolo('full'); return; }

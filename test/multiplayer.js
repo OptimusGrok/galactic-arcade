@@ -18,6 +18,12 @@ const PHONE = process.argv[2] === 'phone';
   const s0 = await Promise.all([a, b].map(p => p.evaluate(() => ({ st: window.__mp.state, n: window.__mp.count, peers: [...window.__mp.peers.keys()], pill: document.getElementById('mpN').textContent, name: localStorage.getItem('neonarcade.mpName') }))));
   chk(s0[0].peers[0] === 'bbbb2222' && s0[1].peers[0] === 'aaaa1111' && s0[0].pill === '2/10' && s0[1].pill === '2/10', 'two peers see each other, HUD pill 2/10 ' + JSON.stringify(s0));
   chk(/^Monkey\d{3}$/.test(s0[0].name), 'default name MonkeyNNN stored in neonarcade.mpName (' + s0[0].name + ')');
+  // start-screen name + look (player.js galacticarcade.player) drive the tag and the remote monkey's colours
+  await a.evaluate(() => localStorage.setItem('galacticarcade.player', JSON.stringify({ name: 'Dave', hat: 'none', hoodie: 'red', fur: 'gold', shoes: 'black' })));
+  await b.waitForFunction(() => { const p = window.__mp.peers.get('aaaa1111'); return p && p.name === 'Dave' && p.look && p.look.fur === 'gold'; }, null, { timeout: 15000 }).catch(() => {});
+  const lk = await b.evaluate(() => { const p = window.__mp.peers.get('aaaa1111'), r = { name: p.name, tag: p.tag.textContent, cols: {}, cap: null };
+    p.g.traverse(o => { if (o.isMesh && o.material && o.material.userData.orig != null) { const k = o.material.userData.orig.toString(16); r.cols[k] = o.material.color.getHex().toString(16); if (o.material.userData.orig === 0xff4f9e) r.cap = o.parent.visible; } }); return r; });
+  chk(lk.name === 'Dave' && lk.tag === 'Dave' && lk.cols['4e2a14'] === 'b7862a' && lk.cols['1d2452'] === 'd42a2a' && lk.cols['8a1e2c'] === '1a1a1e' && lk.cap === false, 'remote tag uses galacticarcade.player name and look (gold fur, red hoodie, black shoes, no cap) ' + JSON.stringify({ n: lk.name, t: lk.tag, f: lk.cols['4e2a14'], h: lk.cols['1d2452'], cap: lk.cap }));
   // B walks: A's copy of B follows smoothly
   const pa = await a.evaluate(() => { const m = window.__arcade.monkey; return [m.position.x, m.position.z, m.rotation.y]; });
   await b.evaluate(pa => { const m = window.__arcade.monkey, f = pa[2]; m.position.set(pa[0] + Math.sin(f + Math.PI) * 2.2, 0, pa[1] + Math.cos(f + Math.PI) * 2.2); m.rotation.y = f; }, pa);
