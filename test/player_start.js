@@ -1,4 +1,4 @@
-// Our customisation start screen (player.js): PLAY hidden until a name, real taps/typing on a phone, choices apply to the
+// Our customisation start screen (player.js): PLAY hidden until a name (and 2 s after the first touch), real taps/typing on a phone, choices apply to the
 // real monkey, name tag, persisted in 'galacticarcade.player' across a reload, game starts and the monkey moves.
 const { open } = require('./lib');
 const { execSync } = require('child_process');
@@ -24,7 +24,7 @@ const OUT = '/workspace/galactic-shop/shots/';
   chk(!(await st()).dis, 'Enter with no name does not start');
   await tap('#gaIn'); await page.keyboard.type('   '); a = await st(); chk(!a.go, 'spaces only: still no button');
   await page.keyboard.press('Backspace'); await page.keyboard.press('Backspace'); await page.keyboard.press('Backspace');
-  const p0 = a.pos; await page.keyboard.type('wasd Dave Rocket 2026'); await page.waitForTimeout(400); a = await st();
+  const p0 = a.pos; await page.keyboard.type('wasd Dave Rocket 2026'); await page.waitForTimeout(2300); a = await st();   // PLAY waits 2 s after the first touch
   chk(a.go && a.val === 'wasd Dave Ro' && a.name === 'wasd Dave Ro', 'typed name (WASD letters) shows PLAY, capped at 12', a);
   chk(a.pos.join() === p0.join() && !a.dis, 'typing did not move the monkey or start the game', a.pos);
   // choices by tapping swatches / arrows
@@ -48,7 +48,8 @@ const OUT = '/workspace/galactic-shop/shots/';
   chk(/"name":"wasd Dave Ro"/.test(saved), 'saved under galacticarcade.player', saved);
   await page.reload({ timeout: 120000 }); await page.waitForFunction(() => window.__arcade && window.__arcade.stats.frames > 3 && window.__gaPlayer.tag, null, { timeout: 60000 }); await page.waitForTimeout(800);
   a = await st(); L = await look();
-  chk(a.val === 'wasd Dave Ro' && a.go && L.crown && L.cols['1d2452'] === 'd42a2a' && L.cols['4e2a14'] === 'b7862a' && L.cols['8a1e2c'] === '1f4fbf', 'after reload: name pre-filled, PLAY visible, look re-applied', { a, L });
+  chk(a.val === 'wasd Dave Ro' && !a.go && L.crown && L.cols['1d2452'] === 'd42a2a' && L.cols['4e2a14'] === 'b7862a' && L.cols['8a1e2c'] === '1f4fbf', 'after reload: name pre-filled, look re-applied, PLAY waits for a touch', { a, L });
+  await tap('#gaT'); await page.waitForTimeout(2300); a = await st(); chk(a.go, 'after reload: touch + 2 s shows PLAY', a);
   await tap('.gaRow[data-k=hat] .gaO[data-v=helmet]'); L = await look(); chk(L.helmet && !L.crown && !L.cap, 'helmet works'); await tap('.gaRow[data-k=hat] .gaO[data-v=none]'); L = await look(); chk(!L.helmet && !L.crown && !L.cap, 'no hat works');
   chk(errors.length === 0, 'no page errors', errors);
   await o.close(); process.exit(ok ? 0 : 1);
