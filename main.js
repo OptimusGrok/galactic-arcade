@@ -1,4 +1,5 @@
 // Galactic Arcade (formerly Neon Arcade) — walkable 3D arcade room with a playable monkey.
+import { setupWindows } from './windows.js';
 import * as THREE from 'three';
 import { Reflector } from 'three/addons/objects/Reflector.js';
 import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
@@ -119,6 +120,7 @@ for (let i = 0; i < 4; i++) { const g = room.getObjectByName('wall' + i).geometr
   for (let k = 0; k < P.count; k++) U.setXY(k, (P.getX(k) + HALF) / (2 * HALF), (P.getY(k) + H / 2) / H); U.needsUpdate = true; }
 // ---------- room 1 walls option: current (default) or Viking rune panels (Options > WALLS) ----------
 const WALLS_KEY = 'neonarcade.walls';
+const winds = setupWindows({ THREE, room, camera, HALF, H, DOOR_W, WX: 80 }); window.__windows = winds;
 let wallsMode = 'current', vikTex = null, wallBands = [], spaceWin = null;
 // PORTALS walls (t187, Dave: 'a wall of big and small multi colour swirling portals that are moving with the colours changing'):
 // one cheap unlit procedural shader - two layers of hashed cells (big + small), each a spiral vortex that turns, drifts, pulses and cycles hue.
@@ -147,16 +149,16 @@ const portalMat = new THREE.ShaderMaterial({ uniforms: portalU, vertexShader: 'v
     }` });
 portalMat.name = 'portalWalls';
 function setWalls(mode) {
-  wallsMode = mode === 'viking' || mode === 'portals' ? mode : 'current'; const v = wallsMode === 'viking', po = wallsMode === 'portals';
+  wallsMode = mode === 'viking' || mode === 'portals' || mode === 'windows' ? mode : 'current'; if (winds) winds.set(wallsMode === 'windows'); const v = wallsMode === 'viking', po = wallsMode === 'portals';
   if (v && !vikTex) { vikTex = new THREE.TextureLoader().load('tex/viking_walls.jpg', () => spaceWin && spaceWin.dirty()); vikTex.colorSpace = THREE.SRGBColorSpace; vikTex.wrapS = THREE.RepeatWrapping; vikTex.wrapT = THREE.ClampToEdgeWrapping;
     vikTex.repeat.set(+(2 * HALF / (H * 928 / 576)).toFixed(3), 1); vikTex.anisotropy = renderer.capabilities.getMaxAnisotropy(); }   // one repeat = wall height
-  wallMat.map = v ? vikTex : wallTex; wallMat.color.setHex(v ? 0x8a7a70 : 0x2a1840); wallMat.roughness = v ? 0.95 : 0.85; wallMat.emissiveMap = v ? vikTex : null; wallMat.emissive.setHex(v ? 0xffffff : 0x000000); wallMat.emissiveIntensity = v ? 1.6 : 1; wallBands.forEach(m => { m.visible = !v && !po; }); wallMat.needsUpdate = true;   // a little dark so the neon pops
+  wallMat.map = v ? vikTex : wallTex; wallMat.color.setHex(v ? 0x8a7a70 : 0x2a1840); wallMat.roughness = v ? 0.95 : 0.85; wallMat.emissiveMap = v ? vikTex : null; wallMat.emissive.setHex(v ? 0xffffff : 0x000000); wallMat.emissiveIntensity = v ? 1.6 : 1; wallBands.forEach(m => { m.visible = !v && !po && wallsMode !== 'windows'; }); wallMat.needsUpdate = true;   // a little dark so the neon pops
   for (let i = 0; i < 4; i++) { const w = room.getObjectByName('wall' + i); if (w) { w.material = po ? portalMat : wallMat; w.onBeforeRender = po ? () => { portalU.uT.value = performance.now() / 1000; } : () => {}; } }
   if (spaceWin) spaceWin.dirty();
   try { localStorage.setItem(WALLS_KEY, wallsMode); } catch (e) {}
   return wallsMode;
 }
-try { const w = localStorage.getItem(WALLS_KEY); if (w === 'viking' || w === 'portals') setWalls(w); } catch (e) {}
+try { const w = localStorage.getItem(WALLS_KEY); if (w === 'viking' || w === 'portals' || w === 'windows') setWalls(w); } catch (e) {}
 window.__setWalls = setWalls;
 ceil.rotation.x = Math.PI / 2; ceil.position.y = H; room.add(ceil);
 // ceiling beam grid (dark industrial)
@@ -1089,6 +1091,7 @@ function frame(now) {
   shield.update(Math.min(gap / 1000, 0.05));
   bloom.strength = camera.position.x > WX / 2 ? 0.12 : 0.75;   // white room: no glare
   if (shop) shop.update(Math.min(gap / 1000, 0.05));
+  winds.update();
   if (tp) tp.update(Math.min(gap / 1000, 0.05), !!document.querySelector('#bPack.on') && !document.querySelector('#inv.on'));
   if (window.__camOverride) { const o = window.__camOverride; camera.position.set(...o.pos); camera.lookAt(...o.at); if (!o.showMonkey) monkey.visible = false; } // screenshots / tests
   camera.updateMatrixWorld();
