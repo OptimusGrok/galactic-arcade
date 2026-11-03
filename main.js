@@ -13,6 +13,7 @@ import { setupSpaceWindow } from './spacewin.js';
 import { buildOrcCabinet } from './orccab.js';
 import { buildCyberCabinet } from './cybercitycab.js';
 import { buildNovaCabinet } from './novacab.js';
+import { buildRoadsterCabinet, MR } from './roadstercab.js';
 import { setupPlay } from './play.js';
 import { setupShield } from './shield.js';
 import { setupKiosk } from './kiosk.js';
@@ -266,6 +267,9 @@ const strikeCab = buildStrikeCabinet(), ghostCab = buildGhostCabinet();
 const berserkerCab = buildBerserkerCabinet(), monkeyCab = buildMonkeyCabinet(), orcCab = buildOrcCabinet(), novaCab = buildNovaCabinet(), cyberCab = buildCyberCabinet();
 const FEATURED = { '0:0': [strikeCab, 'strike'], '0:1': [berserkerCab, 'berserker'], '0:3': [monkeyCab, 'monkey'], '1:4': [ghostCab, 'ghost'], '1:3': [orcCab, 'orc'], '0:4': [novaCab, 'nova'], '1:2': [cyberCab, 'cyber'] };   // NOVA TETHER: north wall slot 4 (x=8), right of MONKEY CROSSING (Dave's pick)
    // ORC ATTACK: west wall slot 3 (z=-4), immediately left of GHOST 256 as you face it // north row corner end (x=-8), west row corner end (z=-8)
+// MARS ROADSTER: two-seat driving cabinet, 2 slots wide (south wall C + D = 2:0 x=8 and 2:1 x=4) and 4 cabinets long, into the room
+const roadsterCab = buildRoadsterCabinet(); FEATURED['2:0'] = [roadsterCab, 'roadster'];
+const ROADSTER_SLOTS = new Set(['2:0', '2:1']);
 const FSCALE = 2.0 / 2.08; // match the blank cabinets' 2.0 m height
 const featured = [];
 const WALL_GAP = 0.45, PLINTH = 1.45;
@@ -294,6 +298,18 @@ for (let w = 0; w < 4; w++) {
   ROW.forEach((u, i) => {
     if (w === 0 && i === 2) return; // removed: the doorway to the hallway is here
     slots.push({ w, i, pos: toWorld(u, WALL_GAP).setY(0.09), rotY, accent: (w * 5 + i) % 7 === 3 ? C.cyan : (w * 5 + i) % 5 === 2 ? C.purple : C.pink });
+    if (ROADSTER_SLOTS.has(w + ':' + i)) { if (i !== 0) return;   // one machine over both slots
+      const x0 = toWorld((ROW[0] + ROW[1]) / 2, WALL_GAP);         // (6, 0, 11.55): the wall end of the cabinet, centred between C and D
+      roadsterCab.position.set(x0.x, 0, x0.z); roadsterCab.rotation.y = Math.PI;   // local +z -> world -z (into the room)
+      const zEnd = x0.z - MR.DEP;
+      Object.assign(roadsterCab.userData, { wall: 'south', index: 0, slots: ['2:0', '2:1'], inward: inward.clone(), facing: inward.clone().negate(), front: new THREE.Vector3(x0.x, 0, zEnd - 0.4), centre: new THREE.Vector3(x0.x, 0, x0.z - MR.DEP / 2), zEnd, seat: 'L' });
+      const S = roadsterCab.userData.seats; for (const k in S) S[k].world = roadsterCab.localToWorld(S[k].local.clone());
+      room.add(roadsterCab); featured.push(roadsterCab); roadsterCab.updateMatrixWorld(true);
+      blockers.push({ minX: x0.x - MR.W / 2, maxX: x0.x + MR.W / 2, minZ: zEnd, maxZ: x0.z + 0.05, kind: 'cabinet', name: 'roadster' });
+      const spot = new THREE.SpotLight(0xffe6d8, 26, 11, 0.55, 0.7, 1.4); spot.name = 'roadsterSpot';
+      spot.position.set(x0.x, 5.6, zEnd - 1.2); spot.target.position.set(x0.x, 1.2, x0.z - 1.4); room.add(spot, spot.target); spots.push(spot, spot.target);
+      return;
+    }
     const F = FEATURED[w + ':' + i];
     if (F) { // featured cabinet replaces the blank in this slot: same wall offset, platform height and facing
       const [cab, name] = F;
@@ -365,7 +381,9 @@ const DEV = { numbers: localStorage.getItem('neonarcade.dev.numbers') === '1', c
     badge(String(n), '#ffe000', ctr.x, b.max.y + 0.55, ctr.z, { n, key, game: F[1] }); }
   // blank cabinets: cyan LETTER badges. Room 1 (west, south rows), then room 2 (its 19 instanced slots, slot order)
   let L = 0; const AB = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', letter = k => (k >= 26 ? AB[Math.floor(k / 26) - 1] : '') + AB[k % 26];
-  for (const cab of cabinets) { cab.updateMatrixWorld(true); const b = new THREE.Box3().setFromObject(cab.getObjectByName('body')), ctr = b.getCenter(new THREE.Vector3());
+  for (const cab of cabinets) { cab.updateMatrixWorld(true);
+    if (cab.userData.wall === 'south' && cab.userData.index === 2) L += 2;   // C and D retired (MARS ROADSTER, #8); letters stay stable
+    const b = new THREE.Box3().setFromObject(cab.getObjectByName('body')), ctr = b.getCenter(new THREE.Vector3());
     badge(letter(L), '#00e5ff', ctr.x, b.max.y + 0.55, ctr.z, { letter: letter(L), key: wallNames.indexOf(cab.userData.wall) + ':' + cab.userData.index, room: 1 }); L++; }
   for (const sl of slots) { const x = -sl.pos.x, z = Z2 - sl.pos.z;   // room 2 = room 1 rotated 180deg about (0, Z2)
     badge(letter(L), '#00e5ff', x, 2.65, z, { letter: letter(L), key: 'r2:' + sl.w + ':' + sl.i, room: 2 }); L++; }
@@ -774,6 +792,11 @@ function step(dt) {
   // nearest cabinet the monkey faces → play animation
   nearCab = null;
   for (const c of playables) {
+    if (c === roadsterCab) { const u = c.userData, mx = monkey.position.x, mz = monkey.position.z;   // pick the nearest seat at the open end
+      if (Math.abs(mx - c.position.x) < MR.W / 2 - 0.1 && mz < u.zEnd + 0.05 && mz > u.zEnd - 1.3 && Math.cos(st.face) > 0.5) {
+        const seat = Math.abs(mx - u.seats.L.world.x) < Math.abs(mx - u.seats.R.world.x) ? 'L' : 'R';
+        u.seat = seat; u.screen = u.screens[seat === 'L' ? 0 : 1]; nearCab = c; }
+      continue; }
     const f = c.userData.front, dx = c.position.x - monkey.position.x, dz = c.position.z - monkey.position.z;
     if (Math.hypot(monkey.position.x - f.x, monkey.position.z - f.z) < 0.9) { const dd = Math.hypot(dx, dz); if ((Math.sin(st.face) * dx + Math.cos(st.face) * dz) / dd > 0.75) nearCab = c; }
   }
@@ -889,7 +912,7 @@ function frame(now) {
     const vis = c => { const sc = c.userData.centre; return (_frus.intersectsSphere(_sph.set(_v.copy(sc).setY(1.2), 1.4)) && camera.position.distanceTo(sc) < 18) || !!window.__forceDemo; };
     const dts = Math.min(gap / 1000, 0.1);
     tickStrikeDemo(demo, dts, vis(strikeCab)); tickGhostDemo(ghostDemo, dts, vis(ghostCab));
-    if (now - (frame.attT || 0) > 120) { frame.attT = now; for (const c of [berserkerCab, monkeyCab, orcCab, novaCab, cyberCab]) if (vis(c)) c.userData.tick(now / 1000); }
+    if (now - (frame.attT || 0) > 120) { frame.attT = now; for (const c of [berserkerCab, monkeyCab, orcCab, novaCab, cyberCab, roadsterCab]) if (vis(c)) c.userData.tick(now / 1000); }
     strikeCab.userData.glow.intensity = demo.running ? 1.2 + Math.sin(now * 0.013) * 0.08 + Math.sin(now * 0.031) * 0.06 : 0.6;
     ghostCab.userData.glow.intensity = ghostDemo.running ? 1.1 + Math.sin(now * 0.017) * 0.08 : 0.5;
   }
@@ -905,7 +928,7 @@ function frame(now) {
   requestAnimationFrame(frame);
 }
 function stepClock(dt) { st.t += dt; }
-const play = setupPlay({ camera, monkey, strikeCab, ghostCab, berserkerCab, monkeyCab, orcCab, novaCab, cyberCab, st, pause(on) { paused = on; if (!on && !rafOn) { rafOn = true; last = performance.now(); requestAnimationFrame(frame); } } });
+const play = setupPlay({ camera, monkey, roadsterCab, strikeCab, ghostCab, berserkerCab, monkeyCab, orcCab, novaCab, cyberCab, st, pause(on) { paused = on; if (!on && !rafOn) { rafOn = true; last = performance.now(); requestAnimationFrame(frame); } } });
 shield = setupShield({ scene, play, st, monkey, HALF, DOOR_W, DOOR_H });
 tp = setupTeleport({ scene, monkey, st, HALF, H }); window.__tp = tp;
 kiosk = setupKiosk({ room, camera, monkey, st, play, blockers });
@@ -913,4 +936,4 @@ const opts = setupOpts({ play, kiosk, shield, st, monkey, setFloor, getFloor: ()
 requestAnimationFrame(frame);
 
 // hooks for tests / future art work
-window.__arcade = { get spaceWin() { return spaceWin; }, get kiosk() { return kiosk; }, setFloor, get floor() { return floorMode; }, setWalls, get walls() { return wallsMode; }, wallMat, carpet, mirror, shield, room, room2, Z2, hall, DOOR_W, DOOR_H, HALL_L, berserkerCab, monkeyCab, orcCab, cyberCab, novaCab, play, get paused() { return paused; }, THREE, scene, camera, renderer, monkey, cabinets, strikeCab, ghostCab, featured, demo, ghostDemo, playables, blockers, st, stats, step, keys, get nearCab() { return nearCab; }, setArt: (i, part, tex, glow) => cabinets[i].userData.setArt(part, tex, glow) };
+window.__arcade = { get spaceWin() { return spaceWin; }, get kiosk() { return kiosk; }, setFloor, get floor() { return floorMode; }, setWalls, get walls() { return wallsMode; }, wallMat, carpet, mirror, shield, room, room2, Z2, hall, DOOR_W, DOOR_H, HALL_L, berserkerCab, monkeyCab, orcCab, cyberCab, novaCab, roadsterCab, play, get paused() { return paused; }, THREE, scene, camera, renderer, monkey, cabinets, strikeCab, ghostCab, featured, demo, ghostDemo, playables, blockers, st, stats, step, keys, get nearCab() { return nearCab; }, setArt: (i, part, tex, glow) => cabinets[i].userData.setArt(part, tex, glow) };

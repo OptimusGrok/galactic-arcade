@@ -12,8 +12,8 @@ const { open } = require('./lib'); const PH = process.argv[2] === 'phone', sfx =
     return { glass: !!W && W.glass.visible, east, feat, eastN, eastTop: +eastTop.toFixed(3), bandEast, wall3: A.room.getObjectByName('wall3').visible, r2east, cube: !!W.cube, envU: 'uEnv' in W.mat.uniforms, total: A.cabinets.length + A.featured.length }; });
   console.log(JSON.stringify(r));
   chk(r.glass && !r.wall3, 'room 1 east wall replaced by the glass window');
-  chk(r.east === 0 && r.total === 14, 'no blank cabinets on the east wall (14 cabinets left in room 1)');
-  chk(r.feat.every(f => !/^east/.test(f)) && r.feat.length === 7, 'featured cabinets untouched (none was on the east wall) ' + r.feat);
+  chk(r.east === 0 && r.total === 13, 'no blank cabinets on the east wall (13 cabinets left in room 1)');
+  chk(r.feat.every(f => !/^east/.test(f)) && r.feat.length === 8, 'featured cabinets untouched (none was on the east wall) ' + r.feat);
   chk(r.eastN > 0 && r.eastTop < 0.08, 'pink tube runs flat along the bottom of the glass (max y ' + r.eastTop + ')');
   chk(r.bandEast === 0, 'coloured wall bands do not cross the glass');
   chk(r.r2east, 'room 2 keeps its wall');

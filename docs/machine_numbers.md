@@ -11,19 +11,20 @@ Cabinets with a game get yellow numbers; blank cabinets get cyan letters (see be
 | 5 | 1:2 | room 1 west, z=0 (middle) | CYBER CITY (`cyberCab`, 'cyber') |
 | 6 | 1:3 | room 1 west, z=-4 | ORC ATTACK (`orcCab`, 'orc') |
 | 7 | 1:4 | room 1 west, z=-8 (NW corner) | GHOST 256 (`ghostCab`, 'ghost') |
+| 8 | 2:0 (+2:1) | room 1 south, x=+8 and x=+4 (C + D), runs 4 m into the room (z 11.55 to 7.55) | MARS ROADSTER (`roadsterCab`, 'roadster'): two-seat driving cabinet, 2 slots wide, 4 long. Not a normal FSCALE cabinet, so it is placed by its own branch in the ROWS loop (`ROADSTER_SLOTS`) |
 
-To swap machine A and B, swap their two `[cab, name]` values in `FEATURED`. Numbers are assigned by slot, so after a swap each number stays on its slot and the game shown under it changes. Free blank slots: north 0:2 is the doorway; west 1:0 and 1:1; south 2:0 to 2:4. The east wall is the space window and has no cabinets.
+To swap machine A and B, swap their two `[cab, name]` values in `FEATURED`. Numbers are assigned by slot, so after a swap each number stays on its slot and the game shown under it changes. Free blank slots: north 0:2 is the doorway; west 1:0 and 1:1; south 2:2 to 2:4 (2:0 and 2:1 hold MARS ROADSTER). The east wall is the space window and has no cabinets.
 
 ## Letters (blank cabinets)
 
-Blank cabinets get cyan letter badges when NUMBERS is on. Letters run through room 1 first (west row, then south row), then the 19 slots in room 2. Each letter belongs to its slot.
+Blank cabinets get cyan letter badges when NUMBERS is on. Letters run through room 1 first (west row, then south row), then the 19 slots in room 2. Each letter belongs to its slot, so C and D are skipped now that MARS ROADSTER covers them (E-Z keep their letters).
 
 | Letter | Slot key | Where (world x, z) |
 |---|---|---|
 | A | `1:0` | room 1 west wall, (-12, 8) |
 | B | `1:1` | room 1 west wall, (-12, 4) |
-| C | `2:0` | room 1 south wall, (8, 12) |
-| D | `2:1` | room 1 south wall, (4, 12) |
+| ~~C~~ | `2:0` | retired: MARS ROADSTER (#8) |
+| ~~D~~ | `2:1` | retired: MARS ROADSTER (#8) |
 | E | `2:2` | room 1 south wall, (0, 12) |
 | F | `2:3` | room 1 south wall, (-4, 12) |
 | G | `2:4` | room 1 south wall, (-8, 12) |
@@ -48,5 +49,5 @@ Blank cabinets get cyan letter badges when NUMBERS is on. Letters run through ro
 | Z | `r2:3:4` | room 2 west wall, (-12, -37) |
 
 ### Putting a game in a lettered cabinet
-- **Room 1 letters (A-G):** add the slot key to `FEATURED` in main.js, e.g. "put ORC in B" becomes `'1:1': [orcCab, 'orc']`. To move a game out of a numbered slot, delete its old key. The badge then becomes a number automatically, and plinth, neon and collision all follow.
+- **Room 1 letters (A, B, E-G):** add the slot key to `FEATURED` in main.js, e.g. "put ORC in B" becomes `'1:1': [orcCab, 'orc']`. To move a game out of a numbered slot, delete its old key. The badge then becomes a number automatically, and plinth, neon and collision all follow.
 - **Room 2 letters (H-Z):** room 2 cabinets are copies of room 1's blank layout (rotated 180 degrees), and the code can't yet put a game there. The first time it's needed, add a small hook: a `FEATURED2` map keyed by `w:i` that hides that copy and places the cabinet in `room2` at the slot's position, with a blocker and world-space front/facing. Slot `w:i` in room 2 sits at world (-x, Z2 - z) of room 1's slot `w:i`.

@@ -16,7 +16,7 @@ const PH = process.argv[2] === 'phone', sfx = PH ? '_phone' : '';
   chk(await ev(() => document.getElementById('tkNum').textContent === 'NUMBERS: OFF' && window.__dev.badges.every(b => !b.visible)), 'NUMBERS off by default, no badges');
   await tap('#tkNum'); await page.screenshot({ path: `shots/menu_tabs${sfx}.png` });
   let s = await ev(() => ({ t: document.getElementById('tkNum').textContent, ls: localStorage.getItem('neonarcade.dev.numbers'), n: window.__dev.badges.filter(b => b.userData.n).length, nl: window.__dev.badges.filter(b => b.userData.letter).length, L: window.__dev.badges.filter(b => b.userData.letter).map(b => b.userData.letter + '=' + b.userData.key).join(','), vis: window.__dev.badges.every(b => b.visible), games: window.__dev.badges.map(b => b.userData.n + '=' + b.userData.game).join(',') }));
-  chk(s.t === 'NUMBERS: ON' && s.ls === '1' && s.n === 7 && s.nl === 26 && s.vis, 'NUMBERS on: 7 game cabinets numbered + 26 blanks lettered A-Z, persisted ' + JSON.stringify(s));
+  chk(s.t === 'NUMBERS: ON' && s.ls === '1' && s.n === 8 && s.nl === 24 && !/\b[CD]=/.test(s.L) && s.vis, 'NUMBERS on: 8 game cabinets numbered (8 = MARS ROADSTER over C+D) + 24 blanks lettered A-Z without C/D, persisted ' + JSON.stringify(s));
   await tap('#tkDone'); await tap('#stStart'); await page.waitForFunction(() => !document.getElementById('start'), null, { timeout: 8000 }).catch(() => {});
   await page.waitForTimeout(800);
   await ev(() => { window.__camOverride = { pos: [5, 5.5, 7], at: [-4, 1.6, -5], showMonkey: true }; }); await page.waitForTimeout(1800);

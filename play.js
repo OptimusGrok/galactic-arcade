@@ -69,7 +69,20 @@ export function setupPlay(A) {
       scene(w) { const m = w.NV.G.mode; return m === 'over' ? 'over' : m === 'title' ? 'title' : 'play'; },
       active(w) { return w.NV.G.mode === 'play'; },
       hold(w) { const G = w.NV.G; if (G.mode !== 'play') return false; G.mode = 'pause'; return true; }, unhold(w) { const G = w.NV.G; if (G.mode === 'pause') G.mode = 'play'; }, overHold: 4500, scoresHold: 0 },
+    roadster: { key: 'roadster', cab: A.roadsterCab, src: 'mr-play/index.html', credits: 0, games: 0, aspect: 16 / 9, cost: 5,   // MARS ROADSTER: 5 tickets = 1 credit = one race; two seats, each with its own screen
+      demo(w) { w.__demo.start(); }, stopDemo(w) { w.__demo.stop(); },
+      start(w) { w.__mrA.start(); },
+      scene(w) { return w.__mrA.scene(); }, active(w) { return w.__mrA.scene() === 'play'; },
+      hold(w) { return w.__mrA.hold(); }, unhold(w) { w.__mrA.unhold(); }, overHold: 5000, scoresHold: 0,
+      onStart() { seatMonkey(A.roadsterCab, true); }, onExit() { seatMonkey(A.roadsterCab, false); } },
   };
+  if (!A.roadsterCab) delete MACHINES.roadster;
+  // MARS ROADSTER: sit the monkey in the chosen bucket seat (hands on the wheel) for the zoom, stand him up behind it on the way out
+  function seatMonkey(cab, on) { const u = cab.userData, s = u.seats[u.seat], mu = monkey.userData;
+    if (on) { monkey.position.set(s.world.x, 0, s.world.z + 0.12); st.face = 0; monkey.rotation.y = 0; st.vel.set(0, 0, 0); st.speed = 0; st.seated = u.seat;
+      mu.hips.position.y = 0.86; mu.legs.forEach(l => { l.leg.rotation.x = -1.5; l.knee.rotation.x = 1.45; }); mu.torso.rotation.set(0.08, 0, 0); mu.neck.rotation.x = 0;
+      mu.arms.forEach(a => { a.sh.rotation.x = -1.05; a.sh.rotation.z = 0.32 * a.sd; a.el.rotation.x = -0.55; }); }
+    else { monkey.position.set(s.world.x, 0, u.zEnd - 0.55); st.face = 0; monkey.rotation.y = 0; st.seated = null; mu.hips.position.y = 0.8; mu.legs.forEach(l => { l.leg.rotation.x = 0; l.knee.rotation.x = 0; }); } }
   const P = { need: 0, sub: null, demoReturns: 0, plays: 0, mode: 'walk', t: 0, frame: null, zooms: 0, coinSfx: 0, blocked: 0, cur: null, machines: MACHINES };
   const TKEY = 'neonarcade.tickets', tixEl = document.getElementById('tix'), dCost = document.getElementById('dCost');
   function toast(msg) { const d = document.createElement('div'); d.className = 'ntoast'; d.textContent = msg; document.body.appendChild(d); P.lastToast = msg; setTimeout(() => d.remove(), 2200); }
@@ -82,7 +95,7 @@ export function setupPlay(A) {
     for (const [f, d] of [[988, 0], [1319, 0.08]]) { const o = ac.createOscillator(), g = ac.createGain(); o.type = 'square'; o.frequency.value = f; g.gain.setValueAtTime(0.12, t + d); g.gain.exponentialRampToValueAtTime(0.001, t + d + 0.35); o.connect(g).connect(ac.destination); o.start(t + d); o.stop(t + d + 0.4); } } catch (e) {} }
   const costOf = m => m.cost || 1;
   function refresh() { const m = near || MACHINES.strike;   // the room prompt: always PLAY (zooms into the demo)
-    bPlay.textContent = 'PLAY'; credit.textContent = (costOf(m) > 1 ? costOf(m) + ' TICKETS TO PLAY  ·  ' : '') + 'CREDIT ' + m.credits + '  ·  YOU HAVE ' + T.total + ' 🎟';
+    bPlay.textContent = m.key === 'roadster' ? (m.cab.userData.seat === 'R' ? 'RIGHT SEAT' : 'LEFT SEAT') : 'PLAY'; P.seatShown = m.key === 'roadster' ? m.cab.userData.seat : null; credit.textContent = (costOf(m) > 1 ? costOf(m) + ' TICKETS TO PLAY  ·  ' : '') + 'CREDIT ' + m.credits + '  ·  YOU HAVE ' + T.total + ' 🎟';
     hint.textContent = coarse ? 'TAP TO PLAY' : 'ENTER / E / SPACE'; }
   function demoRefresh() { const m = P.cur; if (!m) return; const c = costOf(m), has = T.total >= c;
     dInsert.textContent = m.credits > 0 ? (coarse ? 'TAP TO PLAY' : 'TAP / ENTER TO PLAY') : 'INSERT CREDIT'; dInsert.classList.toggle('ready', m.credits > 0);
@@ -127,7 +140,7 @@ export function setupPlay(A) {
   }
   function start(m) {
     if (P.mode !== 'walk') { P.blocked++; return; }
-    P.cur = m; refresh(); ui.classList.remove('on');
+    P.cur = m; refresh(); ui.classList.remove('on'); if (m.onStart) m.onStart();
     P.mode = 'zoomIn'; P.t = 0; P.zooms++;
     const head = monkey.position.clone().setY(1.25), e = endPos(m), mid = head.clone().lerp(e.p, 0.35);
     P.target = e.c; P.end = e.p; curve = new THREE.CatmullRomCurve3([camera.position.clone(), head, mid, e.p]); look0.copy(head); look1.copy(e.c);
@@ -153,6 +166,7 @@ export function setupPlay(A) {
     if (P.mode !== 'game') return; clearInterval(P.poll); clearTimeout(P.holdT); P.holdT = 0; over.style.display = 'none';
     P.lastExit = why; P.sub = null; demoUI.classList.remove('on'); P.mode = 'zoomOut'; P.t = 0; bExit.style.display = 'none'; document.body.dataset.cab = '';
     const f = P.frame; f.classList.remove('on'); try { f.contentWindow.document.body.style.display = 'none'; } catch (e) {} setTimeout(() => f.remove(), 500); P.frame = null;
+    if (P.cur.onExit) P.cur.onExit();
     const m = P.cur, back = monkey.position.clone().setY(1.25), out = back.clone().addScaledVector(m.cab.userData.inward, 2.6).setY(2.1);
     curve = new THREE.CatmullRomCurve3([camera.position.clone(), back.clone().lerp(camera.position, 0.4), back, out]); look0.copy(back); look1.copy(screenInfo(m).c);
     A.pause(false); window.focus(); showTix();
@@ -243,7 +257,7 @@ export function setupPlay(A) {
   // called every arcade frame; returns true when it owns the camera
   P.update = (dt, nearCab) => {
     const m = P.mode === 'walk' && !st.fp ? Object.values(MACHINES).find(k => k.cab === nearCab) : null;
-    if (m && m !== near) { near = m; refresh(); } if (!m && P.mode === 'walk') near = null;
+    if (m && (m !== near || (m.key === 'roadster' && P.seatShown !== m.cab.userData.seat))) { near = m; refresh(); } if (!m && P.mode === 'walk') near = null;
     ui.classList.toggle('on', !!m); document.body.classList.toggle('ingame', P.mode === 'game'); { const ck = P.mode === 'game' && P.cur ? P.cur.key : ''; if (document.body.dataset.cab !== ck) { document.body.dataset.cab = ck; try { showVix(); } catch (e) {} } }
     if (P.mode === 'zoomIn' || P.mode === 'zoomOut') {
       const dur = P.mode === 'zoomIn' ? 1.6 : 1.4; P.t = Math.min(1, P.t + dt / dur); const k = ease(P.t);
