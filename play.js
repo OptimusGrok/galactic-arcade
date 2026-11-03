@@ -101,10 +101,10 @@ export function setupPlay(A) {
   if (!A.roadsterCab) delete MACHINES.roadster;
   // MARS ROADSTER: sit the monkey in the chosen bucket seat (hands on the wheel) for the zoom, stand him up behind it on the way out
   function seatMonkey(cab, on) { const u = cab.userData, s = u.seats[u.seat], mu = monkey.userData;
-    if (on) { monkey.position.set(s.world.x, 0, s.world.z + 0.12); st.face = 0; monkey.rotation.y = 0; st.vel.set(0, 0, 0); st.speed = 0; st.seated = u.seat;
+    if (on) { monkey.position.set(s.world.x, 0, s.world.z + 0.12); st.face = 0; monkey.rotation.y = 0; st.vel.set(0, 0, 0); st.speed = 0; st.seated = u.seat; if (monkey.userData.pack) monkey.userData.pack.visible = monkey.userData.tail.visible = false;
       mu.hips.position.y = 0.86; mu.legs.forEach(l => { l.leg.rotation.x = -1.5; l.knee.rotation.x = 1.45; }); mu.torso.rotation.set(0.08, 0, 0); mu.neck.rotation.x = 0;
       mu.arms.forEach(a => { a.sh.rotation.x = -1.05; a.sh.rotation.z = 0.32 * a.sd; a.el.rotation.x = -0.55; }); }
-    else { monkey.position.set(s.world.x, 0, u.zEnd - 0.55); st.face = 0; monkey.rotation.y = 0; st.seated = null; mu.hips.position.y = 0.8; mu.legs.forEach(l => { l.leg.rotation.x = 0; l.knee.rotation.x = 0; }); } }
+    else { monkey.position.set(s.world.x, 0, u.zEnd - 0.55); st.face = 0; monkey.rotation.y = 0; st.seated = null; if (mu.pack) mu.pack.visible = mu.tail.visible = true; mu.hips.position.y = 0.8; mu.legs.forEach(l => { l.leg.rotation.x = 0; l.knee.rotation.x = 0; }); } }
   const SI = {};
   function stepIn(cab, k) { const u = cab.userData, s = u.seats[u.seat].world, mu = monkey.userData, sx = Math.sign(s.x - cab.position.x) || 1;
     if (k === 0 || !SI.p0) { SI.p0 = monkey.position.clone(); SI.f0 = st.face; SI.side = new THREE.Vector3(cab.position.x + sx * (2.5 + 0.3), 0, s.z + 0.12); SI.done = false; }
@@ -123,6 +123,10 @@ export function setupPlay(A) {
       if (k >= 1 && !SI.done) { SI.done = true; SI.p0 = null; seatMonkey(cab, true); } }
     monkey.rotation.y = st.face; P.stepIn = k; }
   const P = { need: 0, sub: null, demoReturns: 0, plays: 0, mode: 'walk', t: 0, frame: null, zooms: 0, coinSfx: 0, blocked: 0, cur: null, machines: MACHINES };
+  // AUTOSAVE (t194u): machine credits survive a reload on this device (neonarcade.credits); polled, so every credit change is covered
+  { const CK = 'neonarcade.credits'; try { const c = JSON.parse(localStorage.getItem(CK) || '{}'); for (const k in c) if (MACHINES[k] && c[k] > 0) MACHINES[k].credits = c[k] | 0; } catch (e) {}
+    let last = ''; const save = () => { const o = {}; for (const k in MACHINES) if (MACHINES[k].credits) o[k] = MACHINES[k].credits; const j = JSON.stringify(o); if (j !== last) { last = j; try { localStorage.setItem(CK, j); } catch (e) {} } };
+    P.saveCredits = save; setInterval(save, 1000); addEventListener('pagehide', save); document.addEventListener('visibilitychange', save); }
   const TKEY = 'neonarcade.tickets', tixEl = document.getElementById('tix'), dCost = document.getElementById('dCost');
   function toast(msg) { const d = document.createElement('div'); d.className = 'ntoast'; d.textContent = msg; document.body.appendChild(d); P.lastToast = msg; setTimeout(() => d.remove(), 2200); }
   const T = { total: 0, got: 0 };

@@ -14,6 +14,7 @@ import { buildOrcCabinet } from './orccab.js';
 import { buildCyberCabinet } from './cybercitycab.js';
 import { buildBlasterCabinet } from './blastercab.js';
 import { buildPipCabinet } from './pipcab.js';
+import { setupMP } from './mp.js';
 import { buildNovaCabinet } from './novacab.js';
 import { buildRoadsterCabinet, MR } from './roadstercab.js';
 import { buildDeadSignalStation, DS } from './dscab.js';
@@ -727,7 +728,30 @@ function makeMonkey() { // "Arcade Kid": cartoon monkey, no tail, pink cap, tie-
   part(phone, new THREE.BoxGeometry(0.075, 0.14, 0.009), mk(0x111116, { roughness: 0.3, metalness: 0.6 }));
   const scr = new THREE.Mesh(new THREE.PlaneGeometry(0.066, 0.128), new THREE.MeshBasicMaterial({ map: ptex, color: 0xe0e8f4 })); scr.position.z = 0.0052; phone.add(scr);
   arms[1].el.add(phone); phone.position.set(0.0, -0.36, 0.06); phone.rotation.set(-0.2, 0.75, -2.1);   // screen tipped up toward his eyes (angled a little outward, as people hold them), top pointing away
-  root.userData = { hips, torso, neck, head, legs, arms, phone, pcv, ptex };
+  // backpack (matches the HUD backpack icon: charcoal pack, top loop, grey cartoon-monkey face on the front pocket) - never hue-tinted
+  const pack = new THREE.Group(); pack.name = 'backpack'; pack.position.set(0, 0.3, -0.27); torso.add(pack);
+  const bpD = mk(0x1c1c22, { roughness: 0.85 }), bpM = mk(0x3a3a44, { roughness: 0.8 }), bpS = mk(0x55555f, { roughness: 0.7 });
+  const bag = part(pack, new THREE.BoxGeometry(0.4, 0.44, 0.16), bpD, 0, 0, -0.06); bag.name = 'backpackBag';
+  part(pack, S(0.2, 18, 10), bpD, 0, 0.2, -0.06, 1, 0.35, 0.4);                                   // rounded top
+  const loop = part(pack, new THREE.TorusGeometry(0.05, 0.012, 6, 16, Math.PI), bpS, 0, 0.27, -0.06); loop.name = 'backpackLoop';
+  const pkt = part(pack, new THREE.BoxGeometry(0.3, 0.26, 0.05), bpM, 0, -0.06, -0.16); pkt.name = 'backpackPocket';
+  const fcv = document.createElement('canvas'); fcv.width = fcv.height = 128; const fx = fcv.getContext('2d');
+  fx.fillStyle = '#3a3a44'; fx.fillRect(0, 0, 128, 128); fx.fillStyle = '#9a9aa4'; fx.beginPath(); fx.ellipse(64, 66, 46, 42, 0, 0, 7); fx.fill();
+  fx.fillStyle = '#c4c4cc'; fx.beginPath(); fx.ellipse(64, 82, 30, 20, 0, 0, 7); fx.fill();
+  for (const sx of [-1, 1]) { fx.fillStyle = '#fff'; fx.beginPath(); fx.arc(64 + sx * 18, 52, 13, 0, 7); fx.fill(); fx.fillStyle = '#111'; fx.beginPath(); fx.arc(64 + sx * 17, 54, 6, 0, 7); fx.fill(); fx.fillStyle = '#555'; fx.beginPath(); fx.arc(64 + sx * 5, 78, 3, 0, 7); fx.fill(); }
+  fx.strokeStyle = '#222'; fx.lineWidth = 3; fx.beginPath(); fx.arc(64, 84, 10, 0.3, Math.PI - 0.3); fx.stroke();
+  const ftex = new THREE.CanvasTexture(fcv); ftex.colorSpace = THREE.SRGBColorSpace;
+  const pface = new THREE.Mesh(new THREE.PlaneGeometry(0.24, 0.22), new THREE.MeshStandardMaterial({ map: ftex, roughness: 0.8 })); pface.name = 'backpackFace'; pface.position.set(0, -0.06, -0.186); pface.rotation.y = Math.PI; pack.add(pface);
+  for (const sd of [-1, 1]) { const strap = part(torso, new THREE.BoxGeometry(0.05, 0.5, 0.03), bpD, 0.13 * sd, 0.32, 0); strap.name = 'backpackStrap';   // shoulder straps over the bomber
+    strap.scale.set(1, 1, 1); strap.position.set(0.14 * sd, 0.36, 0.0); strap.rotation.x = 0; const a = part(torso, new THREE.TorusGeometry(0.2, 0.018, 6, 20, Math.PI * 0.9), bpD, 0.15 * sd, 0.42, -0.02); a.rotation.set(0, Math.PI / 2, Math.PI * 0.55); }
+  pack.traverse(o => { if (o.isMesh) o.userData.noTint = true; });
+  torso.traverse(o => { if (o.isMesh && o.material === bpD) o.userData.noTint = true; });
+  // curly brown tail from below the backpack, swayed in the animation loop
+  const tail = new THREE.Group(); tail.name = 'tail'; tail.position.set(0, 0.02, -0.2); hips.add(tail);
+  const tc = [[0, 0, 0], [0.02, -0.12, -0.12], [0.08, -0.12, -0.3], [0.17, 0.02, -0.42], [0.22, 0.2, -0.42], [0.18, 0.33, -0.34], [0.1, 0.32, -0.28], [0.09, 0.24, -0.3], [0.14, 0.22, -0.35]].map(v => new THREE.Vector3(...v));
+  const tailM = new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(tc), 40, 0.028, 8, false), fur); tailM.name = 'tailMesh'; tail.add(tailM);
+  part(tail, S(0.03, 8, 6), fur, tc[8].x, tc[8].y, tc[8].z);
+  root.userData = { hips, torso, neck, head, legs, arms, phone, pcv, ptex, pack, tail };
   return root;
 }
 const monkey = makeMonkey(); scene.add(monkey);
@@ -986,6 +1010,8 @@ function animateMonkey(dt) {
   u.legs[0].leg.rotation.x = s * amp; u.legs[1].leg.rotation.x = -s * amp;
   u.legs[0].knee.rotation.x = Math.max(0, -c) * amp * 1.3 + P * 0.25; u.legs[1].knee.rotation.x = Math.max(0, c) * amp * 1.3 + P * 0.25;
   u.legs[0].leg.rotation.x -= P * 0.2; u.legs[1].leg.rotation.x += P * 0.05;
+  if (u.tail) { const k = 0.15 + sw * 0.35 + (st.jump ? 0.4 : 0); u.tail.rotation.z = Math.sin(t * 1.6 + (sp > 0.05 ? st.phase : 0)) * k; u.tail.rotation.x = (st.jump ? -0.35 : 0) + Math.sin(t * 1.1) * 0.06;
+    const seat = !!st.seated; u.pack.visible = !seat; u.tail.visible = !seat; }   // seated in the Roadster: pack + tail tucked away so they don't clip the seat
   u.torso.rotation.x = 0.06 + runK * 0.22 + P * 0.38; u.torso.rotation.y = s * 0.1 * sw;
   u.neck.rotation.x = -u.torso.rotation.x * 0.6; u.head.rotation.y = Math.sin(t * 0.7) * 0.15 * (1 - sw);
   for (const a of u.arms) {
@@ -1098,3 +1124,5 @@ requestAnimationFrame(frame);
 
 // hooks for tests / future art work
 window.__arcade = { get jumping() { return !!st.jump; }, canJump, LAVA, lavaRespawnPoint, get spaceWin() { return spaceWin; }, get kiosk() { return kiosk; }, setFloor, get floor() { return floorMode; }, setWalls, get walls() { return wallsMode; }, wallMat, carpet, mirror, shield, room, room2, Z2, hall, DOOR_W, DOOR_H, HALL_L, berserkerCab, monkeyCab, orcCab, cyberCab, novaCab, blasterCab, pipCab, roadsterCab, dsCab, play, get paused() { return paused; }, THREE, scene, camera, renderer, monkey, cabinets, strikeCab, ghostCab, featured, demo, ghostDemo, playables, blockers, st, stats, step, keys, get nearCab() { return nearCab; }, setArt: (i, part, tex, glow) => cabinets[i].userData.setArt(part, tex, glow) };
+const mp = setupMP({ scene, camera, monkey, makeMonkey, st, play, getTp: () => tp, HALF, Z2, HALL_L, WX: 80 }); window.__arcade.mp = mp;   // multiplayer step 1: public room, 10 players
+try { setTimeout(() => { if (window.__shop && window.__shop.reloadPrizes) window.__shop.reloadPrizes(); }, 0); } catch (e) {}   // AUTOSAVE: restore bought prizes + held plush from this device on load (shop.js reads neonarcade.prizes / .held)
