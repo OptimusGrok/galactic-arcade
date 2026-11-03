@@ -92,7 +92,6 @@
   var css = '#gaP{position:absolute;inset:0;z-index:1;display:flex;flex-direction:column;align-items:center;gap:6px;box-sizing:border-box;padding:max(10px,env(safe-area-inset-top)) 10px max(10px,env(safe-area-inset-bottom));overflow-y:auto;overflow-x:hidden;font-family:"Courier New",monospace;color:#fff;touch-action:pan-y;'
     + 'background:radial-gradient(ellipse at 20% 30%,#5a1f8f88,transparent 55%),radial-gradient(ellipse at 85% 45%,#7a2bb066,transparent 50%),radial-gradient(ellipse at 50% 90%,#1d2a8a66,transparent 60%),#070214}'
     + '#gaStars{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:-1}'
-    + '#gaTk{position:absolute;top:max(10px,env(safe-area-inset-top));left:10px;font:900 14px "Courier New",monospace;color:#ffe08a;background:#0a0418cc;border:2px solid #ffb000aa;border-radius:10px;padding:5px 9px;text-shadow:0 0 6px #ffb000}'
     + '#gaT{text-align:center;font:900 clamp(30px,10vw,54px)/0.95 "Arial Black",Impact,sans-serif;letter-spacing:.04em;margin-top:24px;flex:none}#gaT b{display:block;color:#bff8ff;text-shadow:0 0 6px #00e5ff,0 0 18px #00e5ff,0 0 34px #0090ff}#gaT i{display:block;font-style:normal;color:#ffd0fa;text-shadow:0 0 6px #ff3cf0,0 0 18px #ff3cf0,0 0 34px #c000ff}'
     + '#gaStage{position:relative;flex:1 1 auto;min-height:130px;width:100%;max-width:460px}#gaCv{position:absolute;inset:0;width:100%;height:100%;touch-action:none;cursor:grab}'
     + '.gaAr{position:absolute;top:50%;transform:translateY(-50%);width:48px;height:64px;border:none;background:none;color:#7fe8ff;font:900 46px/1 Arial;text-shadow:0 0 10px #00c8ff;cursor:pointer;-webkit-tap-highlight-color:transparent}#gaL{left:2px}#gaR{right:2px}'
@@ -104,7 +103,6 @@
     + '.gaO{width:42px;height:38px;border-radius:8px;border:2px solid #ffffff33;background:#151030;font:20px/1 sans-serif;color:#fff;padding:0;cursor:pointer}.gaO.sel{border-color:#ffd98a;box-shadow:0 0 10px #ffb000cc}'
     + '#gaGo{flex:none;font:900 clamp(26px,8vw,38px)/1 "Arial Black",Impact,sans-serif;letter-spacing:.1em;color:#dffbff;padding:12px 54px;border-radius:14px;border:3px solid #00e5ff;background:linear-gradient(#0c1a3aee,#050a1aee);text-shadow:0 0 8px #00e5ff,0 0 20px #00a0ff;box-shadow:0 0 18px #00e5ffaa,inset 0 0 14px #00e5ff44;cursor:pointer;animation:pp 1.6s ease-in-out infinite}'
     + '#gaGo[hidden]{display:none}#gaHint{flex:none;font:700 12px system-ui;color:#ffd0fa;opacity:.85;min-height:48px;display:flex;align-items:center}#gaHint[hidden]{display:none}'
-    + '#gaOpt{position:absolute;top:max(10px,env(safe-area-inset-top));right:76px;font:900 11px "Courier New",monospace;letter-spacing:.1em;color:#dffbff;background:#0a0418cc;border:2px solid #00e5ff88;border-radius:10px;padding:7px 9px}'
     + '#start.ga #stBtns{display:none!important}#start.ga #stBox{visibility:hidden}'
     + '@media (max-height:640px){#gaT{font-size:clamp(24px,7vw,40px);margin-top:18px}.gaRow{padding:3px 4px}.gaO{height:32px}#gaNm{padding:5px 10px}}';
   var ov = null;
@@ -115,7 +113,7 @@
     return h + '</div><button class="gaA" data-step="1" aria-label="next">›</button></div>'; }
   function build() { var st = document.getElementById('start'); if (!st || ov) return; var sty = document.createElement('style'); sty.textContent = css; document.head.appendChild(sty);
     ov = document.createElement('div'); ov.id = 'gaP';
-    ov.innerHTML = '<canvas id="gaStars"></canvas><div id="gaTk">🎟 <b id="gaTkN">0</b> TICKETS</div><button id="gaOpt">OPTIONS</button><div id="gaT"><b>GALACTIC</b><i>ARCADE</i></div>'
+    ov.innerHTML = '<canvas id="gaStars"></canvas><div id="gaT"><b>GALACTIC</b><i>ARCADE</i></div>'
       + '<div id="gaStage"><canvas id="gaCv"></canvas><button class="gaAr" id="gaL" aria-label="rotate left">‹</button><button class="gaAr" id="gaR" aria-label="rotate right">›</button></div>'
       + '<div class="gaBox" id="gaNm"><label for="gaIn">YOUR NAME</label><input id="gaIn" maxlength="' + MAXN + '" placeholder="Enter your name..." autocomplete="nickname" autocapitalize="words" spellcheck="false" enterkeyhint="go"></div>'
       + '<div class="gaBox">' + row('hat', 'HAT') + row('hoodie', 'HOODIE COLOUR') + row('fur', 'FUR COLOUR') + row('shoes', 'SHOES') + '</div>'
@@ -154,7 +152,6 @@
     if (e.type !== 'click') return;
     var b;
     if (t.closest('#gaGo')) play();
-    else if (t.closest('#gaOpt')) opts();
     else if (t.closest('#gaL')) { prev.auto = false; prev.want -= Math.PI / 4; }
     else if (t.closest('#gaR')) { prev.auto = false; prev.want += Math.PI / 4; }
     else if ((b = t.closest('.gaO'))) pick(b.closest('.gaRow').dataset.k, b.dataset.v);
