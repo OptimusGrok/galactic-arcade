@@ -17,6 +17,9 @@ export function lavaPaths(Z2, WX) {
   // room 1: two stones in the west-middle lava between the centre spoke (x=0) and the west cabinet path (x=-9.9);
   // room 2: two stones in its south-east lava between the centre spoke and the east path.
   D.push(...ISLANDS(Z2));
+  // t189: Chief of Staff's shop.js moves the white-room teleporter pad (tp.PAD2) to the corner (WX-12, 12); give it the same ring + safe disc,
+  // and a short spur from the cabinet-path corner (test/lava.js reads the live pad position and checks it is on a path).
+  const P2 = [WX - 12, 12]; S.push([WX - 9.9, 9.9, P2[0] + 1.2, P2[1] - 1.2]); R.push([P2[0], P2[1], 1.8]); D.push([P2[0], P2[1], 1.3]);
   function dist(x, z) { let d = 1e9;
     for (const [ax, az, bx, bz] of S) { const ex = bx - ax, ez = bz - az, h = Math.max(0, Math.min(1, ((x - ax) * ex + (z - az) * ez) / Math.max(ex * ex + ez * ez, 1e-6))); d = Math.min(d, Math.hypot(x - ax - ex * h, z - az - ez * h)); }
     for (const [cx, cz, r] of R) d = Math.min(d, Math.abs(Math.hypot(x - cx, z - cz) - r));

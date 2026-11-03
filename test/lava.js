@@ -4,7 +4,7 @@ const { open } = require('./lib');
 const PH = process.argv[2] === 'phone';
 (async () => { const { page, errors, close } = await open({ phone: PH, shieldOpen: true }); let ok = true; const chk = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); if (!c) ok = false; };
   const spots = await page.evaluate(() => { const A = window.__arcade, L = A.LAVA, out = {};
-    const S = { spawn: [0, 5], kioskFront: [0, 2.3], doorN: [0, -12], hall: [0, -18], doorS2: [0, -17.1], room2: [0, -22], pad1: [-10.75, -10.75], dsFront: [0, -29 + 2.6], whitePad: [80, 0], shopNP: [83.1, 0.16] };
+    const S = { spawn: [0, 5], kioskFront: [0, 2.3], doorN: [0, -12], hall: [0, -18], doorS2: [0, -17.1], room2: [0, -22], pad1: [-10.75, -10.75], dsFront: [0, -29 + 2.6], whitePad: [80, 0], movedPad: (() => { const p = window.__tp && window.__tp.PAD2; return p ? [p.x, p.z] : [999, 999]; })(), shopNP: [83.1, 0.16] };
     A.playables.forEach((c, i) => { if (c === A.roadsterCab || c === A.dsCab || c.name === 'deadSignalStation') return; let x = c.position.x, z = c.position.z;   // stand 0.8 m in front of the cabinet face (10.55 from centre)
       if (Math.abs(x) > 11) x = Math.sign(x) * 9.75; else z = Math.sign(z) * 9.75; S['front_' + c.name] = [x, z]; });
     S.roadsterL = [6 + 2.95, 8.55]; S.roadsterR = [6 - 2.95, 8.55];
@@ -30,6 +30,16 @@ const PH = process.argv[2] === 'phone';
   // walking along a path on lava never falls
   const w = await page.evaluate(() => { const A = window.__arcade, st = A.st; A.setFloor('lava'); st.lavaFalls = 0; A.monkey.position.set(0, 0, 5); st.vel.set(0, 0, 0); st.yaw = 0; st.face = 0; for (let i = 0; i < 90; i++) { A.keys.KeyW = true; A.step(1 / 60); } A.keys.KeyW = false; return { falls: st.lavaFalls, z: +A.monkey.position.z.toFixed(2) }; });
   chk(w.falls === 0 && w.z < 3, 'walking along the spawn path on LAVA does not fall ' + JSON.stringify(w));
+  // teleport arrival on LAVA (pad position read live): arrive, then stand still - never falls
+  const ta = await page.evaluate(async () => { const A = window.__arcade, tp = window.__tp, st = A.st; A.setFloor('lava'); st.lavaFalls = 0; const p = tp.PAD2;
+    const out = { pad: [p.x, p.z], onPad: A.LAVA.onPath(p.x, p.z, 0) }; A.monkey.position.set(-10.75, 0, -10.75); st.vel.set(0, 0, 0);
+    tp.go(); const t0 = performance.now(); while (!(tp.state === 'idle' && tp.where === 2) && performance.now() - t0 < 120000) await new Promise(r => setTimeout(r, 200)); for (let i = 0; i < 60; i++) A.step(1 / 60);
+    out.where = tp.where; out.at = [+A.monkey.position.x.toFixed(2), +A.monkey.position.z.toFixed(2)]; out.falls = st.lavaFalls; out.onAt = A.LAVA.onPath(A.monkey.position.x, A.monkey.position.z, 0); return out; });
+  chk(ta.onPad && ta.where === 2 && ta.falls === 0 && ta.onAt, 'teleporting to the moved white-room pad lands on rock, no lava fall ' + JSON.stringify(ta));
+  // on foot from the arrival point to the white-room spawn along paths: march the centre-line samples from pad to (WX,0)
+  const wk = await page.evaluate(() => { const A = window.__arcade, L = A.LAVA, p = window.__tp.PAD2, pts = [[p.x, p.z], [p.x + 1.2, p.z - 1.2], [p.x + 2.1, p.z - 2.1]]; for (let x = p.x + 2.1; x <= 80; x += 0.25) pts.push([x, p.z - 2.1]); for (let z = p.z - 2.1; z >= 0; z -= 0.25) pts.push([80 - 9.9, z]); for (let x = 80 - 9.9; x <= 80; x += 0.25) pts.push([x, 0]);
+    return pts.filter(q => !L.onPath(q[0], q[1], 0)).length; });
+  chk(wk === 0, 'the moved pad joins the white-room paths on foot (pad -> cabinet path -> centre spoke -> old pad spot)');
   await page.evaluate(() => window.__arcade.setFloor('neon'));
   chk(errors.length === 0, 'no page errors ' + errors.join('|'));
   await close(); process.exit(ok ? 0 : 1); })();
