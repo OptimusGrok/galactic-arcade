@@ -376,7 +376,7 @@ export function setupShop({ scene, tp, play, monkey, camera, st } = {}) {
   ledCy.push(ring(RO + 0.03, RO - 0.01, 0.04).translate(QX, 0.02, QZ), ring(RO + 0.1, RO + 0.06, 0.025).translate(QX, 1.04, QZ));
   const glowT = canvasTex(128, 128, (g) => { const r = g.createRadialGradient(64, 64, 30, 64, 64, 64); r.addColorStop(0, 'rgba(40,220,255,0)'); r.addColorStop(0.55, 'rgba(40,220,255,.9)'); r.addColorStop(1, 'rgba(40,220,255,0)'); g.fillStyle = r; g.fillRect(0, 0, 128, 128); });
   const glowM = new THREE.MeshBasicMaterial({ map: glowT.t, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false });
-  { const gl = []; gl.push(new THREE.PlaneGeometry(2 * RO + 1.0, 2 * RO + 1.0).rotateX(-Math.PI / 2).translate(QX, 0.007, QZ), new THREE.PlaneGeometry(3.6, 3.6).rotateX(-Math.PI / 2).translate(0, 0.008, 0)); add(gl, glowM, 'cyanGlow', 1); }
+  { const gl = []; gl.push(new THREE.PlaneGeometry(2 * RO + 1.0, 2 * RO + 1.0).rotateX(-Math.PI / 2).translate(QX, 0.007, QZ)); add(gl, glowM, 'cyanGlow', 1); }   // t568: the 3.6 m halo that sat under the old centre pad (0,0) is gone (pad moved to the corner in t563)
   const cnt = [], at = (a, r) => [QX + Math.cos(a) * r, QZ - Math.sin(a) * r];
   const [tx, tz] = at(Math.PI * 1.02, 1.85), [rx, rz] = at(Math.PI * 1.5, 1.85);
   part(cnt, BOX, 0x22262e, tx, 1.33, tz, 0.4, 0.3, 0.06, -0.35, -0.3, 0); part(cnt, BOX, 0x444a54, tx, 1.12, tz, 0.22, 0.04, 0.22); part(cnt, CYL, 0x444a54, tx, 1.17, tz, 0.03, 0.1, 0.03);

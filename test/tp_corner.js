@@ -9,6 +9,14 @@ const { open } = require('./lib');
   const tapBtn = async () => { const [x, y] = await ev(() => { const b = document.getElementById('tpBtn').getBoundingClientRect(); return [b.left + b.width / 2, b.top + b.height / 2]; }); await page.touchscreen.tap(x, y); };
   const g = await ev(() => { const t = window.__tp, W = t.whiteRoom.position.x, P = t.PAD2, G = t.pads[1].G.position; return { lx: P.x - W, lz: P.z, gx: G.x - W, gz: G.z, R: t.R }; });
   chk(g.lx < -11 && g.lz > 11 && Math.abs(g.gx - g.lx) < 1e-6 && Math.abs(g.gz - g.lz) < 1e-6 && 14 - Math.max(-g.lx, g.lz) - g.R > 0.5, 'shop pad + glow group in the left/title-wall corner with clearance ' + JSON.stringify(g));
+  // t568: nothing glows at the old centre pad spot (shop-local 0,0): no additive/emissive floor mesh covers it (the old 3.6 m cyanGlow halo is gone)
+  const og = await ev(() => { const A = window.__arcade, T = A.THREE, W = window.__tp.whiteRoom.position.x, hit = [], b = new T.Box3();
+    A.scene.traverse(o => { if (!o.isMesh || !o.visible || !o.material) return; const m = [].concat(o.material)[0]; if (m.blending !== T.AdditiveBlending && !(m.toneMapped === false && m.transparent)) return;
+      const pos = o.geometry.attributes.position; if (!pos) return; o.updateWorldMatrix(true, false); const v = new T.Vector3();
+      const c = new T.Vector3(); for (let i = 0; i + 3 < pos.count; i += 4) { c.set(0, 0, 0); for (let j = 0; j < 4; j++) c.add(v.fromBufferAttribute(pos, i + j).applyMatrix4(o.matrixWorld)); c.multiplyScalar(0.25);   // each floor glow quad's centre
+        if (c.y < 0.3 && Math.hypot(c.x - W, c.z) < 1.5) { hit.push(o.name || o.type); break; } } });
+    return { hit, glowName: !!window.__shop.G.getObjectByName('cyanGlow') }; });
+  chk(og.hit.length === 0, 'nothing glows on the floor at the old pad spot ' + JSON.stringify(og));
   // go to the shop with the room-1 pad
   await ev(() => { const A = window.__arcade, P = window.__tp.PAD1; A.monkey.position.set(P.x + 0.6, 0, P.z + 0.6); A.st.vel.set(0, 0, 0); });
   await page.waitForFunction(() => !!document.querySelector('#tpBtn.on'), null, { timeout: 20000 }); await ev(() => { window.__tpTimeScale = 3; }); await tapBtn();
