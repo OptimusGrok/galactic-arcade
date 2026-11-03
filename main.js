@@ -149,7 +149,7 @@ const portalMat = new THREE.ShaderMaterial({ uniforms: portalU, vertexShader: 'v
     }` });
 portalMat.name = 'portalWalls';
 function setWalls(mode) {
-  wallsMode = mode === 'viking' || mode === 'portals' || mode === 'windows' ? mode : 'current'; if (winds) winds.set(wallsMode === 'windows'); const v = wallsMode === 'viking', po = wallsMode === 'portals';
+  wallsMode = mode === 'viking' || mode === 'portals' ? mode : 'current'; if (mode === 'windows') setWindow('jungle'); const v = wallsMode === 'viking', po = wallsMode === 'portals';
   if (v && !vikTex) { vikTex = new THREE.TextureLoader().load('tex/viking_walls.jpg', () => spaceWin && spaceWin.dirty()); vikTex.colorSpace = THREE.SRGBColorSpace; vikTex.wrapS = THREE.RepeatWrapping; vikTex.wrapT = THREE.ClampToEdgeWrapping;
     vikTex.repeat.set(+(2 * HALF / (H * 928 / 576)).toFixed(3), 1); vikTex.anisotropy = renderer.capabilities.getMaxAnisotropy(); }   // one repeat = wall height
   wallMat.map = v ? vikTex : wallTex; wallMat.color.setHex(v ? 0x8a7a70 : 0x2a1840); wallMat.roughness = v ? 0.95 : 0.85; wallMat.emissiveMap = v ? vikTex : null; wallMat.emissive.setHex(v ? 0xffffff : 0x000000); wallMat.emissiveIntensity = v ? 1.6 : 1; wallBands.forEach(m => { m.visible = !v && !po }); wallMat.needsUpdate = true;   // a little dark so the neon pops
@@ -158,7 +158,11 @@ function setWalls(mode) {
   try { localStorage.setItem(WALLS_KEY, wallsMode); } catch (e) {}
   return wallsMode;
 }
-try { const w = localStorage.getItem(WALLS_KEY); if (w === 'viking' || w === 'portals' || w === 'windows') setWalls(w); } catch (e) {}
+// WINDOW option (t209): what the big east space window shows, separate from walls: space (default), jungle or beach
+const WINDOW_KEY = 'neonarcade.window'; let windowMode = 'space';
+function setWindow(mode) { windowMode = mode === 'jungle' || mode === 'beach' ? mode : 'space'; winds.set(windowMode); try { localStorage.setItem(WINDOW_KEY, windowMode); } catch (e) {} return windowMode; }
+window.__setWindow = setWindow;
+try { const w0 = localStorage.getItem(WINDOW_KEY); if (w0) setWindow(w0); const w = localStorage.getItem(WALLS_KEY); if (w === 'windows') { setWalls('current'); setWindow('jungle'); } else if (w === 'viking' || w === 'portals') setWalls(w); } catch (e) {}
 window.__setWalls = setWalls;
 ceil.rotation.x = Math.PI / 2; ceil.position.y = H; room.add(ceil);
 // ceiling beam grid (dark industrial)
@@ -1122,10 +1126,10 @@ shield = setupShield({ scene, play, st, monkey, HALF, DOOR_W, DOOR_H });
 tp = setupTeleport({ scene, monkey, st, HALF, H }); window.__tp = tp;
 shop = setupShop({ scene, tp, play, monkey, camera, st }); AREAS[3] = shop.extraBounds; CAM_AREAS[3] = shop.camBounds; CLIP_AREA[1] = shop.extraBounds; setFloor(floorMode);   // white-room carpet now that the shop has sized the floor
 kiosk = setupKiosk({ room, camera, monkey, st, play, blockers });
-const opts = setupOpts({ play, kiosk, shield, st, monkey, setFloor, getFloor: () => floorMode, setWalls, getWalls: () => wallsMode, HALF, Z2 });
+const opts = setupOpts({ play, kiosk, shield, st, monkey, setFloor, getFloor: () => floorMode, setWalls, getWalls: () => wallsMode, setWindow, getWindow: () => windowMode, HALF, Z2 });
 requestAnimationFrame(frame);
 
 // hooks for tests / future art work
-window.__arcade = { get jumping() { return !!st.jump; }, canJump, LAVA, lavaRespawnPoint, get spaceWin() { return spaceWin; }, get kiosk() { return kiosk; }, setFloor, get floor() { return floorMode; }, setWalls, get walls() { return wallsMode; }, wallMat, carpet, mirror, shield, room, room2, Z2, hall, DOOR_W, DOOR_H, HALL_L, berserkerCab, monkeyCab, orcCab, cyberCab, novaCab, blasterCab, pipCab, roadsterCab, dsCab, play, get paused() { return paused; }, THREE, scene, camera, renderer, monkey, cabinets, strikeCab, ghostCab, featured, demo, ghostDemo, playables, blockers, st, stats, step, keys, get nearCab() { return nearCab; }, setArt: (i, part, tex, glow) => cabinets[i].userData.setArt(part, tex, glow) };
+window.__arcade = { get window() { return windowMode; }, setWindow, get jumping() { return !!st.jump; }, canJump, LAVA, lavaRespawnPoint, get spaceWin() { return spaceWin; }, get kiosk() { return kiosk; }, setFloor, get floor() { return floorMode; }, setWalls, get walls() { return wallsMode; }, wallMat, carpet, mirror, shield, room, room2, Z2, hall, DOOR_W, DOOR_H, HALL_L, berserkerCab, monkeyCab, orcCab, cyberCab, novaCab, blasterCab, pipCab, roadsterCab, dsCab, play, get paused() { return paused; }, THREE, scene, camera, renderer, monkey, cabinets, strikeCab, ghostCab, featured, demo, ghostDemo, playables, blockers, st, stats, step, keys, get nearCab() { return nearCab; }, setArt: (i, part, tex, glow) => cabinets[i].userData.setArt(part, tex, glow) };
 const mp = setupMP({ scene, camera, monkey, makeMonkey, st, play, getTp: () => tp, HALF, Z2, HALL_L, WX: 80 }); window.__arcade.mp = mp;   // multiplayer step 1: public room, 10 players
 try { setTimeout(() => { if (window.__shop && window.__shop.reloadPrizes) window.__shop.reloadPrizes(); }, 0); } catch (e) {}   // AUTOSAVE: restore bought prizes + held plush from this device on load (shop.js reads neonarcade.prizes / .held)

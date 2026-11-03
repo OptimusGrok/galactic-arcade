@@ -155,7 +155,8 @@ body[data-cab=roadster] #tix.ingame{top:calc(max(10px,env(safe-area-inset-top)) 
 #flTiles,#wlTiles{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}#flTiles .flT,#wlTiles .flT{max-width:none;min-width:0;padding:4px;font-size:clamp(9px,2.6vmin,13px);letter-spacing:.06em}#flTiles .flT img,#wlTiles .flT img{aspect-ratio:1;max-height:22dvh}#flTiles .flT .now,#wlTiles .flT .now{font-size:clamp(7px,1.9vmin,10px)}
 #optP{max-height:calc(100dvh - 12px);overflow-y:auto;box-sizing:border-box}
 @media (max-height:500px){#optP{padding:8px 12px 10px}#optHd{margin-bottom:6px}#optTabs{margin-bottom:8px}#optBack{margin-top:8px}#musBtn{margin-top:8px!important}}
-#opt.wl #flTiles,#opt:not(.wl) #wlTiles{display:none}
+@media (max-width:460px){#optTabs{gap:6px}.optTab{padding:7px 9px;font-size:12px;letter-spacing:.08em}}
+#opt.wl #flTiles,#opt.wn #flTiles,#opt:not(.wl) #wlTiles,#opt:not(.wn) #wnTiles{display:none}#wnTiles{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}#wnTiles .flT{max-width:none;min-width:0;padding:4px;font-size:clamp(9px,2.6vmin,13px);letter-spacing:.06em}#wnTiles .flT img{aspect-ratio:1;max-height:22dvh}#wnTiles .flT .now{font-size:clamp(7px,1.9vmin,10px)}
 .optTab.off{border-color:#663a66;background:#12040f;color:#a888a8;text-shadow:none}
 .flT{flex:1;max-width:240px;border-radius:12px;border:3px solid #444;background:#0a0612;padding:6px;cursor:pointer;color:#bbb;font:900 13px 'Courier New',monospace;letter-spacing:.14em;text-align:center}
 .flT img{display:block;width:100%;aspect-ratio:16/11;object-fit:cover;border-radius:8px;margin-bottom:6px}
@@ -180,9 +181,10 @@ body[data-cab=roadster] #tix.ingame{top:calc(max(10px,env(safe-area-inset-top)) 
 </head><body>
 <div id="start" role="dialog" aria-label="Galactic Arcade start screen"><div id="stBg"></div><div id="stBox"><picture><source srcset="img/start.webp" type="image/webp"><img src="img/start.jpg" alt="Galactic Arcade — tap to start" draggable="false"></picture><div id="stBtns"><button class="stB" id="stStart">START</button><button class="stB" id="stOpt">OPTIONS</button></div></div>
 <div id="opt" aria-hidden="true"><div id="optP"><div id="optHd"><div id="optT">OPTIONS</div><button id="optX" title="Back">✕</button></div>
-<div id="optTabs"><button class="optTab" id="tabFloor">FLOOR</button><button class="optTab off" id="tabWalls">WALLS</button></div>
+<div id="optTabs"><button class="optTab" id="tabFloor">FLOOR</button><button class="optTab off" id="tabWalls">WALLS</button><button class="optTab off" id="tabWin">WINDOW</button></div>
 <div id="optNote"></div><div id="flTiles"><div class="flT" data-floor="neon" id="flNeon"><img src="img/floor_neon.webp" alt="" draggable="false">CURRENT<span class="now">NEON</span></div><div class="flT" data-floor="carpet" id="flCarpet"><img src="img/floor_carpet.webp" alt="" draggable="false">ARCADE<span class="now">CHARACTER CARPET</span></div><div class="flT" data-floor="checkers" id="flChk"><img src="img/floor_checkers.webp" alt="" draggable="false">CHECKERS<span class="now">BLACK + GOLD</span></div><div class="flT" data-floor="lava" id="flLava"><img src="img/floor_lava.webp" alt="" draggable="false">LAVA<span class="now">CAVE PATHS</span></div></div>
-<div id="wlTiles"><div class="flT wlT" data-walls="current" id="wlCur"><img src="img/walls_current.webp" alt="" draggable="false">CURRENT<span class="now">NEON PANELS</span></div><div class="flT wlT" data-walls="viking" id="wlVik"><img src="img/walls_viking.webp" alt="" draggable="false">VIKING<span class="now">RUNE WALLS</span></div><div class="flT wlT" data-walls="portals" id="wlPor"><img src="img/walls_portals.webp" alt="" draggable="false">PORTALS<span class="now">SWIRLING VORTEX</span></div><div class="flT wlT" data-walls="windows" id="wlWin"><img src="img/walls_windows.webp" alt="" draggable="false">WINDOWS<span class="now">JUNGLE + BEACH</span></div></div>
+<div id="wlTiles"><div class="flT wlT" data-walls="current" id="wlCur"><img src="img/walls_current.webp" alt="" draggable="false">CURRENT<span class="now">NEON PANELS</span></div><div class="flT wlT" data-walls="viking" id="wlVik"><img src="img/walls_viking.webp" alt="" draggable="false">VIKING<span class="now">RUNE WALLS</span></div><div class="flT wlT" data-walls="portals" id="wlPor"><img src="img/walls_portals.webp" alt="" draggable="false">PORTALS<span class="now">SWIRLING VORTEX</span></div></div>
+<div id="wnTiles"><div class="flT wnT" data-win="space" id="wnSpace"><img src="img/window_space.webp" alt="" draggable="false">SPACE<span class="now">NEBULA VIEW</span></div><div class="flT wnT" data-win="jungle" id="wnJungle"><img src="img/window_jungle.webp" alt="" draggable="false">JUNGLE<span class="now">RAINFOREST</span></div><div class="flT wnT" data-win="beach" id="wnBeach"><img src="img/window_beach.webp" alt="" draggable="false">BEACH<span class="now">SAND + SEA</span></div></div>
 <button class="flT" id="musBtn" style="display:block;margin:14px auto 0;width:min(100%,300px)">MUSIC: <span id="musSt">ON</span></button><button class="stB" id="optBack">BACK</button></div></div><div id="secHot" aria-hidden="true"></div>
 <div id="sec" aria-hidden="true"><div id="secP"><button id="secX" title="Cancel">✕</button><canvas id="secCv"></canvas></div></div>
 <div id="tk" aria-hidden="true"><div id="optP"><div id="optHd"><div id="optT">TICKETS</div><button id="tkX" class="optXb" title="Done" style="width:42px;height:42px;border-radius:50%;border:2px solid #ff3cf0aa;background:#120208;color:#ffd0fa;font:700 20px sans-serif">✕</button></div>
@@ -200,13 +202,17 @@ body[data-cab=roadster] #tix.ingame{top:calc(max(10px,env(safe-area-inset-top)) 
   function floorNow() { try { var f = localStorage.getItem('neonarcade.floor'); return ['carpet', 'checkers', 'lava'].indexOf(f) >= 0 ? f : 'neon'; } catch (e) { return 'neon'; } }
   function showFloor() { var f = floorNow(); ['flNeon', 'flCarpet', 'flChk', 'flLava'].forEach(function (id) { var t = document.getElementById(id); t.classList.toggle('sel', t.dataset.floor === f); }); }
   function pickFloor(f) { if (window.__setFloor) window.__setFloor(f); else try { localStorage.setItem('neonarcade.floor', f); } catch (e) {} S.floor = f; showFloor(); }
-  function wallsNow() { try { var w = localStorage.getItem('neonarcade.walls'); return w === 'viking' || w === 'portals' || w === 'windows' ? w : 'current'; } catch (e) { return 'current'; } }
+  function wallsNow() { try { var w = localStorage.getItem('neonarcade.walls'); return w === 'viking' || w === 'portals' ? w : 'current'; } catch (e) { return 'current'; } }
   function showWalls() { var f = wallsNow(); [].forEach.call(opt.querySelectorAll('.wlT'), function (t) { t.classList.toggle('sel', t.dataset.walls === f); }); }
   function pickWalls(f) { if (window.__setWalls) window.__setWalls(f); else try { localStorage.setItem('neonarcade.walls', f); } catch (e) {} S.walls = f; showWalls(); }
-  function tab(w) { opt.classList.toggle('wl', w); document.getElementById('tabFloor').classList.toggle('off', w); document.getElementById('tabWalls').classList.toggle('off', !w); S.tab = w ? 'walls' : 'floor'; }
-  function openOpt(on) { opt.classList.toggle('on', on); opt.setAttribute('aria-hidden', on ? 'false' : 'true'); if (on) { S.opts++; tab(false); showFloor(); showWalls(); showMus(); } }
+  function winNow() { try { var w = localStorage.getItem('neonarcade.window'); if (!w && localStorage.getItem('neonarcade.walls') === 'windows') return 'jungle'; return w === 'jungle' || w === 'beach' ? w : 'space'; } catch (e) { return 'space'; } }
+  function showWin() { var f = winNow(); [].forEach.call(opt.querySelectorAll('.wnT'), function (t) { t.classList.toggle('sel', t.dataset.win === f); }); }
+  function pickWin(f) { if (window.__setWindow) window.__setWindow(f); else try { localStorage.setItem('neonarcade.window', f); } catch (e) {} S.window = f; showWin(); }
+  function tab(w) { var k = w === 'window' ? 'window' : w ? 'walls' : 'floor'; opt.classList.toggle('wl', k === 'walls'); opt.classList.toggle('wn', k === 'window');
+    document.getElementById('tabFloor').classList.toggle('off', k !== 'floor'); document.getElementById('tabWalls').classList.toggle('off', k !== 'walls'); document.getElementById('tabWin').classList.toggle('off', k !== 'window'); S.tab = k; }
+  function openOpt(on) { opt.classList.toggle('on', on); opt.setAttribute('aria-hidden', on ? 'false' : 'true'); if (on) { S.opts++; tab(false); showFloor(); showWalls(); showWin(); showMus(); } }
   function showMus() { var m = window.__music; document.getElementById('musSt').textContent = !m || m.on ? 'ON' : 'OFF'; document.getElementById('musBtn').classList.toggle('sel', !m || m.on); }
-  window.__startUI = { openOpt: openOpt, pickFloor: pickFloor, pickWalls: pickWalls, tab: tab, opt: opt };
+  window.__startUI = { openOpt: openOpt, pickFloor: pickFloor, pickWalls: pickWalls, pickWin: pickWin, tab: tab, opt: opt };
   // ---- hidden ticket menu: triple-tap top-right -> 3x3 unlock pattern -> TICKETS panel ----
   var sec = document.getElementById('sec'), tk = document.getElementById('tk'), sP = document.getElementById('secP'), cv = document.getElementById('secCv'), taps = [], pat = [], drawing = false, cur = null;
   function hsh(a) { var h = 7; for (var i = 0; i < a.length; i++) h = (h * 31 + a.charCodeAt(i)) % 1000003; return h; }
@@ -254,6 +260,8 @@ body[data-cab=roadster] #tix.ingame{top:calc(max(10px,env(safe-area-inset-top)) 
         else if (hit('#musBtn')) { if (window.__music) window.__music.setOn(!window.__music.on); showMus(); }
         else if (hit('#tabFloor')) tab(false);
         else if (hit('#tabWalls')) tab(true);
+        else if (hit('#tabWin')) tab('window');
+        else if (hit('.wnT')) pickWin(hit('.wnT').dataset.win);
         else if (hit('.wlT')) pickWalls(hit('.wlT').dataset.walls);
         else if (hit('.flT')) pickFloor(hit('.flT').dataset.floor);
         else S.ignored++;
@@ -285,8 +293,8 @@ body[data-cab=roadster] #tix.ingame{top:calc(max(10px,env(safe-area-inset-top)) 
 // (re-picking the current one is free; tickets only reach storage through SAVE, see session.js). The start-screen picker stays free.
 function flBtnInit() {
   var btn = document.getElementById('flBtn'), A = document.getElementById('flBtnA'), B = document.getElementById('flBtnB'), opt = null, note = null, home = null,
-    FL = ['neon', 'carpet', 'checkers', 'lava', 'windows'], i = 0, G = window.__floorBtn = { opens: 0, spent: 0, need: 0, cycles: 0, img: 'neon', open: false };
-  function cycle() { i = (i + 1) % FL.length; var on = A.classList.contains('off') ? A : B, off = on === A ? B : A; on.src = FL[i] === 'windows' ? 'img/walls_windows.webp' : 'img/floor_' + FL[i] + '.webp'; on.classList.remove('off'); off.classList.add('off'); G.img = FL[i]; G.cycles++; }
+    FL = ['neon', 'carpet', 'checkers', 'lava', 'jungle', 'beach'], i = 0, G = window.__floorBtn = { opens: 0, spent: 0, need: 0, cycles: 0, img: 'neon', open: false };
+  function cycle() { i = (i + 1) % FL.length; var on = A.classList.contains('off') ? A : B, off = on === A ? B : A; on.src = FL[i] === 'jungle' || FL[i] === 'beach' ? 'img/window_' + FL[i] + '.webp' : 'img/floor_' + FL[i] + '.webp'; on.classList.remove('off'); off.classList.add('off'); G.img = FL[i]; G.cycles++; }
   G.cycle = cycle; setInterval(cycle, 30000);
   function grab() { if (opt) return true; var U = window.__startUI; if (!U || !U.opt) return false; opt = U.opt; note = opt.querySelector('#optNote'); home = opt.parentNode; wire(); return true; }
   function tickets() { var p = window.__arcade && window.__arcade.play; return p ? p.tickets.total : 0; }
@@ -296,11 +304,11 @@ function flBtnInit() {
     else { U.openOpt(false); opt.classList.remove('game'); if (home && opt.parentNode !== home) home.appendChild(opt); } }
   setTimeout(grab, 0);
   G.openMenu = openG;
-  function cur(kind) { var a = window.__arcade; return kind === 'floor' ? (a ? a.floor : 'neon') : (a ? a.walls : 'current'); }
+  function cur(kind) { var a = window.__arcade; return kind === 'floor' ? (a ? a.floor : 'neon') : kind === 'window' ? (a ? a.window : 'space') : (a ? a.walls : 'current'); }
   function pick(kind, v) { var U = window.__startUI; if (v === cur(kind)) return;
     if (tickets() < 1) { G.need++; showNote(true); return; }
     try { localStorage.setItem('neonarcade.tickets', String(tickets() - 1)); } catch (e) {} if (window.__neonSync) window.__neonSync(); G.spent++;
-    if (kind === 'floor') U.pickFloor(v); else U.pickWalls(v); showNote(false); }
+    if (kind === 'floor') U.pickFloor(v); else if (kind === 'window') U.pickWin(v); else U.pickWalls(v); showNote(false); }
   function swallow(e) { e.stopPropagation(); }
   ['pointerdown', 'mousedown', 'touchstart', 'click'].forEach(function (t) { btn.addEventListener(t, swallow, { passive: true }); });
   btn.addEventListener('pointerup', function (e) { e.stopPropagation(); var p = window.__arcade && window.__arcade.play; if (p && p.mode !== 'walk') return; openG(true); });
@@ -309,8 +317,8 @@ function flBtnInit() {
   opt.addEventListener('pointerup', function (e) { if (!opt.classList.contains('game')) return; e.stopPropagation(); var t = e.target, h = function (s) { return t && t.closest && t.closest(s); }, U = window.__startUI;
     if (h('#optX') || h('#optBack') || !h('#optP')) openG(false);
     else if (h('#musBtn')) { if (window.__music) window.__music.setOn(!window.__music.on); U.openOpt(true); showNote(false); }
-    else if (h('#tabFloor')) U.tab(false); else if (h('#tabWalls')) U.tab(true);
-    else if (h('.wlT')) pick('walls', h('.wlT').dataset.walls); else if (h('.flT')) pick('floor', h('.flT').dataset.floor); }); }
+    else if (h('#tabFloor')) U.tab(false); else if (h('#tabWalls')) U.tab(true); else if (h('#tabWin')) U.tab('window');
+    else if (h('.wnT')) pick('window', h('.wnT').dataset.win); else if (h('.wlT')) pick('walls', h('.wlT').dataset.walls); else if (h('.flT')) pick('floor', h('.flT').dataset.floor); }); }
   addEventListener('keydown', function (e) { if (G.open && (e.code === 'Escape' || e.code === 'Backspace')) { e.stopImmediatePropagation(); openG(false); } }, true);
 }
 if (document.getElementById('flBtn')) flBtnInit(); else document.addEventListener('DOMContentLoaded', flBtnInit);
