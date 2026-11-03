@@ -1,7 +1,7 @@
 // GALACTIC ARCADE PRIZE SHOP (white teleporter room). Self-contained: setupShop({ scene, tp, play, monkey, camera, st })
 // Enlarges the white room (24 -> 28 m), adds a white-glass prize wall (Grok plush + monkey plushes on top, cheap toys below,
 // one "NAME · N TICKETS" label under every item), a candy stand, a checkout counter with a life-size Grok robot, anime wall art
-// (one atlas, one draw call). Near Grok a SHOP button appears -> Grok greets you (speechSynthesis + bubble) and a holographic
+// (one atlas, one draw call). Near Grok a SHOP button appears -> Grok greets you (recorded clip sfx/grok_hi.mp3 + bubble) and a holographic
 // price list of every item opens. Buying spends play.tickets.total (persisted to 'neonarcade.tickets'); prizes -> 'neonarcade.prizes'.
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
@@ -74,16 +74,15 @@ export function setupShop({ scene, tp, play, monkey, camera, st } = {}) {
     p(SPH, grey, 0, 0, 0, .3, .28, .27); p(SPH, 0x07080c, 0, -.01, .08, .24, .21, .21);
     for (const sd of [-1, 1]) { p(SPH, dark, sd * .29, 0, 0, .07, .11, .11); p(SPH, grey, sd * .335, 0, 0, .04, .075, .075); }
   }
-  const faceTex = canvasTex(256, 192, () => {}); const drawFace = (g, blink, talk) => { g.fillStyle = '#05060a'; g.fillRect(0, 0, 256, 192);
+  const pFaceTex = canvasTex(256, 192, () => {}); const pDrawFace = (g, blink, talk) => { g.fillStyle = '#05060a'; g.fillRect(0, 0, 256, 192);
     g.fillStyle = '#e9fbff'; g.shadowColor = '#9ff4ff'; g.shadowBlur = 14;
     for (const ex of [80, 176]) { if (blink) g.fillRect(ex - 22, 80, 44, 10); else for (const [dx, dy] of [[-1, -2], [0, -2], [-2, -1], [-1, -1], [0, -1], [1, -1], [-2, 0], [-1, 0], [0, 0], [1, 0], [-1, 1], [0, 1]]) g.fillRect(ex + dx * 11, 78 + dy * 11, 10, 10); }
     if (talk) { g.fillRect(104, 130, 48, 10 + talk * 12); } else for (const [dx, dy] of [[-3, 0], [-2, 1], [-1, 1], [0, 1], [1, 1], [2, 0]]) g.fillRect(128 + dx * 11 - 5, 124 + dy * 11, 10, 10);
     g.shadowBlur = 0; };
-  drawFace(faceTex.g, 0, 0); faceTex.t.needsUpdate = true;
-  const faceMat = new THREE.MeshBasicMaterial({ map: faceTex.t, toneMapped: false });
-  const chestTex = canvasTex(256, 96, (g) => { g.fillStyle = '#50545c'; g.fillRect(0, 0, 256, 96); g.fillStyle = '#ffffff'; g.font = '900 60px Arial'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('Grok', 128, 50); });
-  const chestMat = new THREE.MeshBasicMaterial({ map: chestTex.t });
-  const facePlane = (parent, s, y, z) => { const f = new THREE.Mesh(new THREE.CircleGeometry(.2 * s, 24).scale(1.12, .9, 1), faceMat); f.position.set(0, y, z); parent.add(f); return f; };
+  pDrawFace(pFaceTex.g, 0, 0); pFaceTex.t.needsUpdate = true;
+  const pFaceMat = new THREE.MeshBasicMaterial({ map: pFaceTex.t, toneMapped: false });
+  const chestMat = new THREE.MeshBasicMaterial({ map: canvasTex(256, 96, (g) => { g.fillStyle = '#50545c'; g.fillRect(0, 0, 256, 96); g.fillStyle = '#ffffff'; g.font = '900 60px Arial'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('Grok', 128, 50); }).t });
+  const facePlane = (parent, s, y, z) => { const f = new THREE.Mesh(new THREE.CircleGeometry(.2 * s, 24).scale(1.12, .9, 1), pFaceMat); f.position.set(0, y, z); parent.add(f); return f; };
   function toy(L, kind, x, y, z, k = 1.55) {
     const p = (geo, c, a, b, d, sx, sy, sz, rx = 0, ry = 0, rz = 0) => part(L, geo, c, x + a * k, y + b * k, z + d * k, sx * k, sy * k, sz * k, rx, ry, rz);
     const S = SPHl;
@@ -120,30 +119,24 @@ export function setupShop({ scene, tp, play, monkey, camera, st } = {}) {
   const mg = geos => mergeGeometries(geos.some(g => !g.index) ? geos.map(g => g.index ? g.toNonIndexed() : g) : geos);
   const add = (geos, mat, name, ro) => { const m = new THREE.Mesh(mg(geos), mat); m.name = name; if (ro) m.renderOrder = ro; G.add(m); return m; };
 
-  // ---------- SHOP SHELL (framed like the concept from the pad): back wall close, side walls, low ceiling + light strips ----------
-  const ZW = -3.2, SXW = 6.8, CH = 5.4, ZF = 4.6, shell = [];
-  part(shell, BOX, 0xf7f8fb, 0, 4.25, ZW - 0.05, 2 * HS, 8.5, 0.1);                                        // back wall (full width)
-  for (const sd of [-1, 1]) part(shell, BOX, 0xf3f4f7, sd * (SXW + 0.05), CH / 2, (ZW + ZF) / 2, 0.1, CH, ZF - ZW);
-  part(shell, BOX, 0xfbfcfe, 0, CH + 0.05, (ZW + ZF) / 2, 2 * SXW + 0.2, 0.1, ZF - ZW);                      // ceiling
-  part(shell, BOX, 0xf2f3f6, 0, CH - 0.2, ZF, 2 * SXW + 0.2, 0.4, 0.12);                                     // front fascia
+  // ---------- SHOP SHELL: one big square room - back wall partition (full height), the white room's own flat ceiling + side walls, neon trim only ----------
+  const ZW = -3.2, SXW = HS, CH = 8.5, ZF = HS, shell = [];
+  part(shell, BOX, 0xf7f8fb, 0, CH / 2, ZW - 0.05, 2 * HS, CH, 0.1);                                        // back wall (full width, floor to ceiling)
   mesh(shell, new THREE.MeshBasicMaterial({ vertexColors: true }), 'shopShell');
-  // bright ceiling light frame (white) + cyan coves
-  lit.push(new THREE.BoxGeometry(2 * SXW - 1.0, 0.03, 0.34).translate(0, CH - 0.02, ZW + 0.75), new THREE.BoxGeometry(2 * SXW - 1.0, 0.03, 0.34).translate(0, CH - 0.02, ZF - 1.0));
-  for (const sd of [-1, 1]) lit.push(new THREE.BoxGeometry(0.34, 0.03, ZF - ZW - 1.4).translate(sd * (SXW - 0.67), CH - 0.02, (ZW + ZF) / 2 - 0.1));
-  ledCy.push(new THREE.BoxGeometry(2 * SXW, 0.04, 0.04).translate(0, CH - 0.42, ZF + 0.07));
-  for (const sd of [-1, 1]) { ledCy.push(new THREE.BoxGeometry(0.04, 0.04, ZF - ZW).translate(sd * (SXW - 0.03), CH - 0.04, (ZW + ZF) / 2)); ledP.push(new THREE.BoxGeometry(0.04, 0.04, ZF - ZW).translate(sd * (SXW - 0.03), 0.06, (ZW + ZF) / 2)); }
-  // ---------- MURALS ----------
+  // flush ceiling light panels (lie on the ceiling, nothing hangs) + neon trim where walls meet the ceiling / floor
+  lit.push(new THREE.BoxGeometry(2 * SXW - 2.0, 0.02, 0.34).translate(0, CH - 0.012, ZW + 0.9), new THREE.BoxGeometry(2 * SXW - 2.0, 0.02, 0.34).translate(0, CH - 0.012, ZF - 1.2));
+  for (const sd of [-1, 1]) lit.push(new THREE.BoxGeometry(0.34, 0.02, ZF - ZW - 2.4).translate(sd * (SXW - 1.0), CH - 0.012, (ZW + ZF) / 2));
+  ledCy.push(new THREE.BoxGeometry(2 * SXW, 0.04, 0.04).translate(0, CH - 0.03, ZF - 0.03), new THREE.BoxGeometry(2 * SXW, 0.04, 0.04).translate(0, CH - 0.03, ZW + 0.03));
+  for (const sd of [-1, 1]) { ledCy.push(new THREE.BoxGeometry(0.04, 0.04, ZF - ZW).translate(sd * (SXW - 0.03), CH - 0.03, (ZW + ZF) / 2)); ledP.push(new THREE.BoxGeometry(0.04, 0.04, ZF - ZW).translate(sd * (SXW - 0.03), 0.06, (ZW + ZF) / 2)); }
+  // ---------- MURALS: painted straight onto the walls, edge to edge, floor to ceiling ----------
   const loadT = f => { const t = new THREE.TextureLoader().load(new URL('./tex/' + f, import.meta.url).href); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 8; return t; };
-  const SW = 9.2, MB = 0.15, MT = CH - 0.12, MHh = MT - MB, xL = -SW / 2 - 0.2;
-  { const g1 = setUV(new THREE.PlaneGeometry(SXW + xL, MHh), 0, 0.36, 0, 1).translate((-SXW + xL) / 2, MB + MHh / 2, ZW + 0.012);   // back-left: Viking
-    const g2 = setUV(new THREE.PlaneGeometry(ZF - ZW - 0.3, MHh), 0.36, 1, 0, 1).rotateY(Math.PI / 2).translate(-SXW + 0.012, MB + MHh / 2, ZW + (ZF - ZW - 0.3) / 2);   // left wall: monkey, orc, castle
-    add([g1, g2], new THREE.MeshBasicMaterial({ map: loadT('shop_mural_left.jpg'), toneMapped: false }), 'muralLeft'); }
-  const xS0 = SW / 2 + 0.1, xS1 = xS0, xR0 = xS0;
-  { const rd = setUV(new THREE.PlaneGeometry(SXW - xS0, 3.0), 0.56, 0.92, 0.38, 0.92).translate((xS0 + SXW) / 2, 2.35 + 1.5, ZW + 0.012);   // Roadster over Mars, above + behind Grok
-    const sp = setUV(new THREE.PlaneGeometry(SXW - xS0, 2.2), 0.14, 0.3, 0.45, 0.8).translate((xS0 + SXW) / 2, 0.15 + 1.1, ZW + 0.012);   // dark space panel with the ship (below, behind the counter)
-    const rw = setUV(new THREE.PlaneGeometry(ZF - ZW - 0.3, MHh), 0.0, 0.55, 0, 1).rotateY(-Math.PI / 2).translate(SXW - 0.012, MB + MHh / 2, ZW + (ZF - ZW - 0.3) / 2);   // right wall: space
-    add([sp, rd, rw], new THREE.MeshBasicMaterial({ map: loadT('shop_mural_right.jpg'), toneMapped: false }), 'muralRight');
-    ledB.push(new THREE.BoxGeometry(0.03, 4.1, 0.03).translate(xS0 - 0.02, 3.05, ZW + 0.03), new THREE.BoxGeometry(0.03, 4.1, 0.03).translate(xS1 + 0.02, 3.05, ZW + 0.03), new THREE.BoxGeometry(SXW - xR0, 0.03, 0.03).translate((xR0 + SXW) / 2, 1.33, ZW + 0.03)); }
+  const SW = 9.2, MB = 0.0, MT = CH - 0.06, MHh = MT - MB, xE = SW / 2 + 0.15, TB = 5.08, zm = ZW + 0.012;
+  const mat = f => new THREE.MeshBasicMaterial({ map: loadT(f), toneMapped: false });
+  add([setUV(new THREE.PlaneGeometry(HS - xE, MHh), 0.38, 1, 0, 1).translate(-(HS + xE) / 2, MB + MHh / 2, zm)], mat('shop_mural_left.jpg'), 'muralLeft');      // back wall left of the shelves
+  add([setUV(new THREE.PlaneGeometry(HS - xE, MHh), 0.4, 1, 0, 1).translate((HS + xE) / 2, MB + MHh / 2, zm)], mat('shop_mural_right.jpg'), 'muralRight');     // back wall behind Grok
+  add([new THREE.PlaneGeometry(2 * xE, MT - TB).translate(0, (TB + MT) / 2, zm)], mat('shop_mural_top.jpg'), 'muralTop');                                       // above the prize shelves
+  add([new THREE.PlaneGeometry(ZF - ZW, MHh).rotateY(Math.PI / 2).translate(-HS + 0.012, MB + MHh / 2, (ZW + ZF) / 2)], mat('shop_mural_side.jpg'), 'muralSide');    // left wall
+  add([new THREE.PlaneGeometry(ZF - ZW, MHh).rotateY(-Math.PI / 2).translate(HS - 0.012, MB + MHh / 2, (ZW + ZF) / 2)], mat('shop_mural_side2.jpg'), 'muralSide2'); // right wall
 
   // ---------- PRIZE WALL: 4 bays x 5 shelves, glowing back, LED on every shelf edge + upright ----------
   const SD = 0.55, Z0 = ZW + SD / 2 + 0.02, SY = [0.42, 1.2, 1.98, 2.76, 3.54], TOP = 5.0, BAYS = 4, BW = SW / BAYS;
@@ -257,12 +250,47 @@ export function setupShop({ scene, tp, play, monkey, camera, st } = {}) {
   const tillS = canvasTex(128, 96, g => { g.fillStyle = '#0c1a3a'; g.fillRect(0, 0, 128, 96); g.fillStyle = '#00e5ff'; g.font = '700 20px Arial'; g.fillText('GROK', 30, 40); g.fillStyle = '#7b5cff'; g.fillRect(14, 56, 100, 16); });
   { const s = new THREE.Mesh(new THREE.PlaneGeometry(0.36, 0.26), new THREE.MeshBasicMaterial({ map: tillS.t, toneMapped: false })); s.position.set(tx, 1.33, tz + 0.035); s.rotation.set(-0.35, -0.3, 0); G.add(s); }
   const GYAW = Math.atan2(0 - QX, 5.0 - QZ);
+  // ---- Grok clerk: 3D build of the robot from Dave's video (silver capsule armour, charcoal joints, black face screen) ----
   const grok = new THREE.Group(); grok.name = 'grokClerk'; grok.position.set(QX - 0.15, 0, QZ + 0.1); grok.rotation.y = GYAW; grok.scale.setScalar(0.6); G.add(grok);
-  { const b = []; grokBody(b, 0, -0.05, 0, 3.4); for (const sd of [-1, 1]) { part(b, SPH, 0xa2a6ae, sd * 0.78, 1.12, 0.55, 0.15, 0.13, 0.42, 0.5, 0, 0); part(b, SPH, 0x50545c, sd * 0.74, 1.08, 0.98, 0.17, 0.12, 0.16); }   // forearms + hands resting on the counter
-    grok.add(new THREE.Mesh(mergeGeometries(b), new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.45, metalness: 0.2, emissive: 0x3a3c42 })));
-    const ch = new THREE.Mesh(new THREE.PlaneGeometry(0.62, 0.22), chestMat); ch.position.set(0, 1.28, 0.69); grok.add(ch); }
-  const head = new THREE.Group(); head.position.set(0, 2.3, 0); grok.add(head);
-  { const h = []; grokHead(h, 0, 0, 0, 2.6); head.add(new THREE.Mesh(mergeGeometries(h), new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.4, metalness: 0.2, emissive: 0x3a3c42 }))); facePlane(head, 2.6, -0.02, 0.74).name = 'grokFace'; }
+  const mSil = new THREE.MeshStandardMaterial({ color: 0xb6babe, roughness: 0.32, metalness: 0.35, emissive: 0x2c2e32 });
+  const mChr = new THREE.MeshStandardMaterial({ color: 0x2a2a2d, roughness: 0.85, metalness: 0.1, emissive: 0x0c0c0e });
+  const mScr = new THREE.MeshStandardMaterial({ color: 0x000000, roughness: 0.06, metalness: 0.5 });
+  const gm = (geo, m, par, x, y, z, sx = 1, sy = 1, sz = 1, rx = 0, ry = 0, rz = 0) => { const o = new THREE.Mesh(geo, m); o.position.set(x, y, z); o.scale.set(sx, sy, sz); o.rotation.set(rx, ry, rz); par.add(o); return o; };
+  const gSph = new THREE.SphereGeometry(1, 32, 20), gCyl = new THREE.CylinderGeometry(1, 1, 1, 24), gCap = new THREE.CapsuleGeometry(1, 1, 8, 24);
+  const gBox = new THREE.BoxGeometry(1, 1, 1);
+  // torso: rounded block chest tapering into a segmented abdomen + recessed hips
+  gm(gCap, mSil, grok, 0, 1.5, 0, 0.56, 0.22, 0.38);
+  gm(gSph, mSil, grok, 0, 1.68, 0.02, 0.6, 0.3, 0.4);
+  for (let k = 0; k < 3; k++) gm(gCyl, k % 2 ? mSil : mChr, grok, 0, 1.08 - k * 0.12, 0, 0.36 - k * 0.03, 0.1, 0.27 - k * 0.02);
+  gm(gCap, mSil, grok, 0, 0.66, 0, 0.36, 0.08, 0.26);
+  for (const sd of [-1, 1]) { gm(gCyl, mChr, grok, sd * 0.17, 0.42, 0, 0.11, 0.4, 0.11); gm(gCyl, mSil, grok, sd * 0.17, 0.18, 0, 0.13, 0.3, 0.13); gm(gBox, mChr, grok, sd * 0.17, 0.03, 0.05, 0.22, 0.06, 0.34); }
+  const chestTex = canvasTex(256, 96, (g) => { g.clearRect(0, 0, 256, 96); g.fillStyle = '#ffffff'; g.shadowColor = '#cfefff'; g.shadowBlur = 10; g.font = '700 58px "Arial Rounded MT Bold",Arial,sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('Grok', 128, 50); });
+  { const ch = new THREE.Mesh(new THREE.PlaneGeometry(0.42, 0.16), new THREE.MeshBasicMaterial({ map: chestTex.t, transparent: true, toneMapped: false })); ch.position.set(0.24, 1.66, 0.405); ch.rotation.y = 0.25; ch.name = 'grokChest'; grok.add(ch); }
+  // arms: spherical shoulders, cylinder upper arm, big elbow disc, forearm, dark 4-finger hand
+  const arms = [];
+  for (const sd of [-1, 1]) { const sh = new THREE.Group(); sh.position.set(sd * 0.68, 1.72, 0); grok.add(sh); gm(gSph, mSil, sh, 0, 0, 0, 0.2, 0.2, 0.2);
+    gm(gCyl, mSil, sh, 0, -0.28, 0, 0.1, 0.42, 0.1); const el = new THREE.Group(); el.position.set(0, -0.5, 0); sh.add(el);
+    gm(gCyl, mChr, el, 0, 0, 0, 0.12, 0.09, 0.12, 0, 0, Math.PI / 2); gm(gCyl, mSil, el, sd * 0.05, 0, 0, 0.08, 0.02, 0.08, 0, 0, Math.PI / 2);
+    gm(gCyl, mSil, el, 0, -0.24, 0, 0.09, 0.38, 0.09); gm(gSph, mChr, el, 0, -0.5, 0, 0.1, 0.11, 0.07);
+    for (let f = 0; f < 4; f++) gm(gCap, mChr, el, (f - 1.5) * 0.045, -0.63, 0.02, 0.02, 0.06, 0.02); gm(gCap, mChr, el, -sd * 0.09, -0.55, 0.03, 0.022, 0.04, 0.022, 0, 0, sd * 0.6);
+    sh.rotation.set(-0.15, 0, sd * 0.12); el.rotation.x = -1.2; arms.push({ sh, el, sd }); }
+  // neck + bobblehead capsule helmet with pivot ear caps and a flat glossy black screen
+  gm(gCyl, mChr, grok, 0, 1.97, 0, 0.13, 0.2, 0.13);
+  const head = new THREE.Group(); head.position.set(0, 2.42, 0); grok.add(head);
+  gm(gSph, mSil, head, 0, 0, 0, 0.66, 0.58, 0.6);
+  gm(gSph, mScr, head, 0, -0.02, 0.2, 0.55, 0.44, 0.44).name = 'grokScreen';
+  for (const sd of [-1, 1]) { gm(gCyl, mChr, head, sd * 0.64, 0, 0, 0.2, 0.08, 0.2, 0, 0, Math.PI / 2); gm(gCyl, mSil, head, sd * 0.69, 0, 0, 0.13, 0.06, 0.13, 0, 0, Math.PI / 2); gm(gCyl, mChr, head, sd * 0.72, 0, 0, 0.06, 0.03, 0.06, 0, 0, Math.PI / 2); }
+  const faceTex = canvasTex(256, 192, () => {});
+  const rr = (g, x, y, w, h, r) => { g.beginPath(); g.roundRect(x, y, w, h, r); g.fill(); };
+  const drawFace = (g, blink, talk, happy) => { g.clearRect(0, 0, 256, 192); g.fillStyle = '#f0ffff'; g.strokeStyle = '#f0ffff'; g.shadowColor = '#7ff4ff'; g.shadowBlur = 16; g.lineCap = 'round';
+    for (const ex of [82, 174]) { if (happy) { g.lineWidth = 13; g.beginPath(); g.arc(ex, 98, 24, Math.PI * 1.12, Math.PI * 1.88); g.stroke(); }
+      else if (blink) rr(g, ex - 22, 82, 44, 9, 4); else rr(g, ex - 23, 50, 46, 70, 18); }
+    g.lineWidth = 9;
+    if (talk > 0) { g.beginPath(); g.ellipse(128, 140, 22, 6 + talk * 12, 0, 0, Math.PI * 2); g.fill(); }
+    else if (happy) { g.beginPath(); g.arc(128, 118, 30, Math.PI * 0.2, Math.PI * 0.8); g.stroke(); }
+    g.shadowBlur = 0; };
+  drawFace(faceTex.g, 0, 0, 0); faceTex.t.needsUpdate = true;
+  { const f = new THREE.Mesh(new THREE.PlaneGeometry(0.72, 0.54), new THREE.MeshBasicMaterial({ map: faceTex.t, transparent: true, toneMapped: false, depthWrite: false })); f.position.set(0, -0.02, 0.645); f.name = 'grokFace'; head.add(f); }
 
   // ---------- glossy floor (fake reflections of the glowing wall, candy and counter) ----------
   { const fl = canvasTex(512, 512, (g, w, h) => { g.clearRect(0, 0, w, h); const X = x => (x + SXW) / (2 * SXW) * w, Zp = z => (z - ZW) / (ZF - ZW) * h;
@@ -298,11 +326,18 @@ export function setupShop({ scene, tp, play, monkey, camera, st } = {}) {
   function addPrize(id) { const p = prizes(); p[id] = (p[id] || 0) + 1; try { localStorage.setItem(PK, JSON.stringify(p)); } catch (e) {} }
 
   // ---------- voice ----------
-  let voice = null; const pickVoice = () => { try { const vs = speechSynthesis.getVoices().filter(v => /^en/i.test(v.lang)); voice = vs.find(v => /\bmale\b/i.test(v.name) && !/female/i.test(v.name)) || vs.find(v => /david|daniel|alex|fred|guy|james|george|ryan|aaron|arthur|mark|tom/i.test(v.name)) || vs.find(v => /en-GB/i.test(v.lang)) || vs[0] || null; } catch (e) {} };
+  // recorded greeting (Dave's pick: voice 1), preloaded so it starts inside the tap gesture; speechSynthesis only as fallback
+  const GREET = "Hi, I'm Grok, what would you like?";
+  const greetA = new Audio(new URL('./sfx/grok_hi.mp3', import.meta.url).href); greetA.preload = 'auto'; try { greetA.load(); } catch (e) {}
+  let voice = null; const pickVoice = () => { try { const vs = speechSynthesis.getVoices().filter(v => /^en/i.test(v.lang)); voice = vs.find(v => /\bmale\b/i.test(v.name) && !/female/i.test(v.name)) || vs.find(v => /david|daniel|alex|guy|james|george|ryan|mark|tom/i.test(v.name)) || vs[0] || null; } catch (e) {} };
   try { pickVoice(); speechSynthesis.onvoiceschanged = pickVoice; } catch (e) {}
-  let talkT = 0;
-  function say(text) { bubble.textContent = text; bubble.classList.add('on'); clearTimeout(say.h); say.h = setTimeout(() => bubble.classList.remove('on'), 3800); talkT = Math.max(1.4, text.length * 0.065); api.said.push(text);
-    try { if (window.__muted) return; speechSynthesis.cancel(); const u = new SpeechSynthesisUtterance(text); if (voice) u.voice = voice; u.lang = (voice && voice.lang) || 'en-US'; u.pitch = 0.95; u.rate = 1; u.volume = 1; speechSynthesis.speak(u); } catch (e) {} }
+  const tts = (text) => { try { speechSynthesis.cancel(); const u = new SpeechSynthesisUtterance(text); if (voice) u.voice = voice; u.lang = (voice && voice.lang) || 'en-US'; u.pitch = 0.95; speechSynthesis.speak(u); } catch (e) {} };
+  let talkT = 0, happyT = 0;
+  function say(text) { bubble.textContent = text; bubble.classList.add('on'); clearTimeout(say.h); say.h = setTimeout(() => bubble.classList.remove('on'), 3800); talkT = Math.max(1.4, text.length * 0.065); happyT = talkT + 1.2; api.said.push(text);
+    if (window.__muted) return;
+    if (text === GREET) { api.voice = 'clip'; try { greetA.currentTime = 0; const pr = greetA.play(); if (pr && pr.catch) pr.catch(() => { api.voice = 'tts'; tts(text); }); } catch (e) { api.voice = 'tts'; tts(text); } }
+    else tts(text); }
+  greetA.addEventListener('playing', () => { talkT = Math.max(talkT, (greetA.duration || 2) - greetA.currentTime); happyT = talkT + 1.2; });
 
   // ---------- UI: SHOP button, speech bubble, holographic list ----------
   const css = document.createElement('style'); css.textContent =
@@ -328,7 +363,7 @@ export function setupShop({ scene, tp, play, monkey, camera, st } = {}) {
   const stop = e => { e.stopPropagation(); };
   for (const el of [btn, holo]) { el.addEventListener('pointerdown', stop); el.addEventListener('touchstart', stop, { passive: true }); }
   const api = { open: false, near: false, said: [], buys: 0, stats, G, grok, extraBounds, camBounds, ITEMS, balance, openShop, closeShop, buy };
-  function openShop() { if (api.open) return; api.open = true; btn.classList.remove('on'); fill(); holo.classList.add('on'); say("Hi, I'm Grok, what would you like?");
+  function openShop() { if (api.open) return; api.open = true; btn.classList.remove('on'); fill(); holo.classList.add('on'); say(GREET);
     const k = window.__arcade && window.__arcade.keys; if (k) for (const c in k) k[c] = false; }
   function closeShop() { if (!api.open) return; api.open = false; holo.classList.remove('on'); }
   function buy(id) { const it = byId[id]; if (!it) return false; const b = balance();
@@ -361,9 +396,14 @@ export function setupShop({ scene, tp, play, monkey, camera, st } = {}) {
     grok.getWorldPosition(tmp); const want = Math.atan2(m.position.x - tmp.x, m.position.z - tmp.z) - grok.rotation.y - 0 ;
     const yaw = THREE.MathUtils.clamp(((want + Math.PI) % (Math.PI * 2) + Math.PI * 2) % (Math.PI * 2) - Math.PI, -0.7, 0.7);
     head.rotation.y += ((api.near || api.open ? yaw : Math.sin(t * 0.4) * 0.35) - head.rotation.y) * Math.min(1, dt * 4); head.rotation.x = Math.sin(t * 1.1) * 0.04;
-    blinkT -= dt; if (blinkT < -0.12) blinkT = 2 + Math.random() * 3; talkT = Math.max(0, talkT - dt);
-    const fs = (blinkT < 0 ? 'b' : 'o') + (talkT > 0 ? (Math.floor(t * 9) % 2 ? 1 : 0.2) : 0);
-    if (fs !== faceState) { faceState = fs; drawFace(faceTex.g, blinkT < 0, talkT > 0 ? (Math.floor(t * 9) % 2 ? 1 : 0.2) : 0); faceTex.t.needsUpdate = true; }
+    blinkT -= dt; if (blinkT < -0.12) blinkT = 2 + Math.random() * 3; talkT = Math.max(0, talkT - dt); happyT = Math.max(0, happyT - dt);
+    const playing = !greetA.paused && !greetA.ended; const talking = talkT > 0 || playing, happy = happyT > 0 || playing || api.open;
+    const tk = talking ? [0.15, 0.7, 1, 0.4][Math.floor(t * 11) % 4] : 0;
+    // small wave while greeting
+    const wv = arms[1]; if (happyT > 0.8 && talking) { wv.sh.rotation.z += (2.4 - wv.sh.rotation.z) * Math.min(1, dt * 6); wv.el.rotation.z = Math.sin(t * 9) * 0.45; wv.el.rotation.x += (-0.3 - wv.el.rotation.x) * Math.min(1, dt * 6); }
+    else { wv.sh.rotation.z += (0.12 - wv.sh.rotation.z) * Math.min(1, dt * 4); wv.el.rotation.z *= 0.9; wv.el.rotation.x += (-1.2 - wv.el.rotation.x) * Math.min(1, dt * 4); }
+    const fs = (happy ? 'h' : blinkT < 0 ? 'b' : 'o') + tk;
+    if (fs !== faceState) { faceState = fs; drawFace(faceTex.g, blinkT < 0, tk, happy); faceTex.t.needsUpdate = true; }
   };
   window.__shop = api;
   return api;
