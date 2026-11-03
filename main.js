@@ -481,20 +481,64 @@ let carpetW = null;
 function carpetWhite() {   // white room floor plane lives in teleport.js (shop.js only scales it); the carpet rides on it as a child so it follows the shop's size
   if (carpetW || !tp) return carpetW; const fl = tp.whiteRoom.children.find(o => o.isMesh && o.geometry.type === 'PlaneGeometry' && o.rotation.x < -1.5 && Math.abs(o.position.y) < 1e-3); if (!fl) return null;
   const t = carpetTex.clone(); t.repeat.set(3 * fl.scale.x, 3 * fl.scale.y); t.needsUpdate = true;
-  const m = carpet.material.clone(); m.map = m.emissiveMap = t;
-  carpetW = new THREE.Mesh(fl.geometry, m); carpetW.position.z = 0.005; carpetW.name = 'carpetW'; carpetW.visible = false; fl.add(carpetW); return carpetW; }
+  const m = floorMats.carpet.clone(); m.map = m.emissiveMap = t;
+  carpetW = new THREE.Mesh(fl.geometry, m); carpetW.position.z = 0.005; carpetW.name = 'carpetW'; carpetW.userData.carpetMat = m; carpetW.visible = false; fl.add(carpetW); return carpetW; }
+// ---------- CHECKERS (black + gold 1 m checkerboard, slight gloss) and LAVA ('floor is lava' with cave-rock paths) ----------
+// both tile by WORLD x/z in the shader, so one material covers room 1 + hallway, room 2 and the white room at the same scale.
+const floorWP = (sh, head) => { sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nvarying vec3 vFW;').replace('#include <project_vertex>', '#include <project_vertex>\nvFW = (modelMatrix * vec4(transformed, 1.0)).xyz;');
+  sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nvarying vec3 vFW;\n' + head); };
+const checkMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.4, metalness: 0.2 });
+checkMat.onBeforeCompile = sh => { floorWP(sh, '');
+  sh.fragmentShader = sh.fragmentShader.replace('#include <map_fragment>', `vec2 cq = floor(vFW.xz + 0.5); float ck = mod(cq.x + cq.y, 2.0);
+    vec2 fe = abs(fract(vFW.xz + 0.5) - 0.5); float gr = smoothstep(0.485, 0.5, max(fe.x, fe.y));
+    diffuseColor.rgb = mix(vec3(0.015, 0.013, 0.012), vec3(0.26, 0.15, 0.02), ck) * (1.0 - 0.55 * gr); float fCk = ck * (1.0 - gr);`)
+    .replace('#include <emissivemap_fragment>', 'totalEmissiveRadiance = vec3(0.40, 0.22, 0.025) * fCk;'); };   // gold is self-lit so the pink neon doesn't turn it pink
+checkMat.emissive.setHex(0xffffff);
+const lavaU = { uT: { value: 0 } };
+// cave paths (world x, z): capsule segments [x1, z1, x2, z2] and rings [cx, cz, r]; half width 0.8 m
+const LS = [], LR = [], rect = (cx, cz, h) => LS.push([cx - h, cz - h, cx + h, cz - h], [cx + h, cz - h, cx + h, cz + h], [cx + h, cz + h, cx - h, cz + h], [cx - h, cz + h, cx - h, cz - h]);
+rect(0, 0, 9.9); rect(0, Z2, 9.9); rect(WX, 0, 9.9);                                  // along the cabinet fronts of each room
+LS.push([0, 9.9, 0, 1.9], [0, -1.9, 0, Z2 + 2.7], [0, Z2 - 2.7, 0, Z2 - 9.9], [-9.9, Z2, -2.7, Z2], [2.7, Z2, 9.9, Z2],   // doorways, hallway centre, room 2 spokes
+  [-9.9, -9.9, -10.75 + 1.2, -10.75 + 1.2], [WX - 9.9, 0, WX - 1.8, 0], [WX + 1.8, 0, WX + 9.9, 0], [WX, 1.8, WX, 9.9], [WX, -1.8, WX, -9.9]);
+LR.push([0, 0, 1.9], [-10.75, -10.75, 1.75], [0, Z2, 2.7], [WX, 0, 1.8]);                 // round the kiosk, teleporter pads, Dead Signal station
+const v4 = a => new THREE.Vector4(a[0], a[1], a[2], a[3] || 0);
+lavaU.uS = { value: LS.map(v4) }; lavaU.uR = { value: LR.map(v4) };
+const lavaMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
+lavaMat.onBeforeCompile = sh => { Object.assign(sh.uniforms, lavaU);
+  floorWP(sh, `uniform float uT; uniform vec4 uS[${LS.length}]; uniform vec4 uR[${LR.length}];
+    float lh(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+    float ln(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f); return mix(mix(lh(i), lh(i + vec2(1, 0)), f.x), mix(lh(i + vec2(0, 1)), lh(i + vec2(1, 1)), f.x), f.y); }
+    float lf(vec2 p) { return ln(p) * 0.55 + ln(p * 2.1 + 3.7) * 0.3 + ln(p * 4.3 + 9.1) * 0.15; }`);
+  sh.fragmentShader = sh.fragmentShader.replace('#include <map_fragment>', `vec2 p = vFW.xz; float d = 1e3;
+    for (int i = 0; i < ${LS.length}; i++) { vec2 a = uS[i].xy, b = uS[i].zw, ab = b - a; float h = clamp(dot(p - a, ab) / max(dot(ab, ab), 1e-4), 0.0, 1.0); d = min(d, length(p - a - ab * h)); }
+    for (int i = 0; i < ${LR.length}; i++) d = min(d, abs(length(p - uR[i].xy) - uR[i].z));
+    d += (lf(p * 1.6) - 0.5) * 0.45;                                                     // rough, irregular rock edges
+    float rock = 1.0 - smoothstep(0.9, 0.98, d);
+    float fl = lf(p * 0.7 + vec2(uT * 0.05, uT * 0.03)) + 0.5 * lf(p * 1.9 - vec2(uT * 0.08, -uT * 0.04));
+    float crust = smoothstep(0.62, 0.78, lf(p * 2.3 + vec2(0.0, uT * 0.02)));            // dark cooled crust cracks floating on the lava
+    float pulse = 0.88 + 0.12 * sin(uT * 1.3 + fl * 4.0);
+    vec3 lava = mix(vec3(0.32, 0.03, 0.005), vec3(0.88, 0.32, 0.03), smoothstep(0.7, 1.3, fl)) * pulse;
+    lava = mix(lava, vec3(0.05, 0.02, 0.015), crust * 0.9);
+    float rn = lf(p * 3.0), rs = lf(p * 9.0);
+    vec3 stone = vec3(0.075, 0.065, 0.06) * (0.55 + 0.7 * rn) * (0.7 + 0.5 * rs);
+    stone *= 0.75 + 0.35 * smoothstep(0.95, 0.5, d);                                       // edges sink toward the lava: raised look
+    stone += vec3(0.5, 0.12, 0.02) * smoothstep(0.7, 0.96, d) * 0.3;                       // heat glow on the rim
+    diffuseColor.rgb = mix(lava, stone, rock);`); };
+const floorMats = { carpet: carpet.material, checkers: checkMat, lava: lavaMat };
+for (const m of [carpet, carpet2]) m.onBeforeRender = () => { lavaU.uT.value = performance.now() / 1000 % 1000; };
 // with the carpet on, the reflector / hex overlay only cover the hallway (room 1 no longer pays for a mirror pass there)
 let floorMode = 'neon';
 function setFloor(mode) {
-  floorMode = mode === 'carpet' ? 'carpet' : 'neon'; const c = floorMode === 'carpet';
+  floorMode = floorMats[mode] ? mode : 'neon'; const c = floorMode !== 'neon';
+  if (c) carpet.material = carpet2.material = floorMats[floorMode];
   carpet.visible = carpet2.visible = c; floorTop.visible = room2.getObjectByName('floorHex2').visible = !c;   // mirrors/bases are hidden per frame in cullRooms
-  const cw = carpetWhite(); if (cw) cw.visible = c;
+  const cw = carpetWhite(); if (cw) { cw.visible = c; if (c) cw.material = floorMode === 'carpet' ? cw.userData.carpetMat : floorMats[floorMode]; cw.onBeforeRender = carpet.onBeforeRender; }
   if (c) mirror.visible = floorBase1.visible = room2.userData.mirror.visible = room2.userData.base.visible = false;   // right away (cullRooms keeps them off every frame)
   if (spaceWin) spaceWin.dirty();
   try { localStorage.setItem(FLOOR_KEY, floorMode); } catch (e) {}
   return floorMode;
 }
-try { if (localStorage.getItem(FLOOR_KEY) === 'carpet') setFloor('carpet'); } catch (e) {}
+try { const f = localStorage.getItem(FLOOR_KEY); if (floorMats[f]) setFloor(f); } catch (e) {}
 window.__setFloor = setFloor;   // the start screen's Options menu calls this
 
 // which room is the camera in, and can it see the other one through a doorway?
@@ -513,7 +557,7 @@ function cullRooms(fr) {
   room2.visible = !in1 || fr.intersectsBox(doorBox1);
   const deep = !in1; room2.userData.mirror.visible = deep; room2.userData.base.visible = !deep; // far room seen through the door: no second reflector pass
   mirror.visible = !in2; floorBase1.visible = in2;
-  if (floorMode === 'carpet') mirror.visible = floorBase1.visible = room2.userData.mirror.visible = room2.userData.base.visible = false;   // carpet everywhere: no reflector passes
+  if (floorMode !== 'neon') mirror.visible = floorBase1.visible = room2.userData.mirror.visible = room2.userData.base.visible = false;   // carpet everywhere: no reflector passes
   const want = monkey.position.z < -HALF - HALL_L / 2 ? 2 : 1; // the 6 room lights follow the monkey (constant light count: no shader recompiles)
   if (want !== lightsIn) { lightsIn = want; for (const l of roomLights) { const [x, y, zz] = l.userData.p1; if (want === 1) l.position.set(x, y, zz); else l.position.set(-x, y, Z2 - zz); } }
 }

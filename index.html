@@ -130,6 +130,7 @@ body[data-cab=roadster] #tix.ingame{top:calc(max(10px,env(safe-area-inset-top)) 
 #optTabs{display:flex;gap:8px;margin-bottom:14px}
 .optTab{font:900 14px 'Courier New',monospace;letter-spacing:.14em;padding:8px 16px;border-radius:10px;border:2px solid #ff3cf0;background:#2a0628;color:#fff;text-shadow:0 0 6px #ff3cf0}
 #flTiles,#wlTiles{display:flex;gap:14px;justify-content:center}
+#flTiles{flex-wrap:wrap}#flTiles .flT{flex:1 1 40%;max-width:200px}
 #opt.wl #flTiles,#opt:not(.wl) #wlTiles{display:none}
 .optTab.off{border-color:#663a66;background:#12040f;color:#a888a8;text-shadow:none}
 .flT{flex:1;max-width:240px;border-radius:12px;border:3px solid #444;background:#0a0612;padding:6px;cursor:pointer;color:#bbb;font:900 13px 'Courier New',monospace;letter-spacing:.14em;text-align:center}
@@ -156,7 +157,7 @@ body[data-cab=roadster] #tix.ingame{top:calc(max(10px,env(safe-area-inset-top)) 
 <div id="start" role="dialog" aria-label="Galactic Arcade start screen"><div id="stBg"></div><div id="stBox"><picture><source srcset="img/start.webp" type="image/webp"><img src="img/start.jpg" alt="Galactic Arcade — tap to start" draggable="false"></picture><div id="stBtns"><button class="stB" id="stStart">START</button><button class="stB" id="stOpt">OPTIONS</button></div></div>
 <div id="opt" aria-hidden="true"><div id="optP"><div id="optHd"><div id="optT">OPTIONS</div><button id="optX" title="Back">✕</button></div>
 <div id="optTabs"><button class="optTab" id="tabFloor">FLOOR</button><button class="optTab off" id="tabWalls">WALLS</button></div>
-<div id="flTiles"><div class="flT" data-floor="neon" id="flNeon"><img src="img/floor_neon.webp" alt="" draggable="false">CURRENT<span class="now">NEON</span></div><div class="flT" data-floor="carpet" id="flCarpet"><img src="img/floor_carpet.webp" alt="" draggable="false">CARPET<span class="now">CREAM</span></div></div>
+<div id="flTiles"><div class="flT" data-floor="neon" id="flNeon"><img src="img/floor_neon.webp" alt="" draggable="false">CURRENT<span class="now">NEON</span></div><div class="flT" data-floor="carpet" id="flCarpet"><img src="img/floor_carpet.webp" alt="" draggable="false">CARPET<span class="now">CREAM</span></div><div class="flT" data-floor="checkers" id="flChk"><img src="img/floor_checkers.webp" alt="" draggable="false">CHECKERS<span class="now">BLACK + GOLD</span></div><div class="flT" data-floor="lava" id="flLava"><img src="img/floor_lava.webp" alt="" draggable="false">LAVA<span class="now">CAVE PATHS</span></div></div>
 <div id="wlTiles"><div class="flT wlT" data-walls="current" id="wlCur"><img src="img/walls_current.webp" alt="" draggable="false">CURRENT<span class="now">NEON PANELS</span></div><div class="flT wlT" data-walls="viking" id="wlVik"><img src="img/walls_viking.webp" alt="" draggable="false">VIKING<span class="now">RUNE WALLS</span></div></div>
 <button class="flT" id="musBtn" style="display:block;margin:14px auto 0;width:min(100%,300px)">MUSIC: <span id="musSt">ON</span></button><button class="stB" id="optBack">BACK</button></div></div><div id="secHot" aria-hidden="true"></div>
 <div id="sec" aria-hidden="true"><div id="secP"><button id="secX" title="Cancel">✕</button><canvas id="secCv"></canvas></div></div>
@@ -172,8 +173,8 @@ body[data-cab=roadster] #tix.ingame{top:calc(max(10px,env(safe-area-inset-top)) 
 (function () {
   var el = document.getElementById('start'), opt = document.getElementById('opt'), S = window.__start = { shown: true, dismissed: false, at: 0, how: '', opts: 0, ignored: 0 };
   function off() { S.shown = false; if (el.isConnected) el.remove(); }
-  function floorNow() { try { return localStorage.getItem('neonarcade.floor') === 'carpet' ? 'carpet' : 'neon'; } catch (e) { return 'neon'; } }
-  function showFloor() { var f = floorNow(); ['flNeon', 'flCarpet'].forEach(function (id) { var t = document.getElementById(id); t.classList.toggle('sel', t.dataset.floor === f); }); }
+  function floorNow() { try { var f = localStorage.getItem('neonarcade.floor'); return ['carpet', 'checkers', 'lava'].indexOf(f) >= 0 ? f : 'neon'; } catch (e) { return 'neon'; } }
+  function showFloor() { var f = floorNow(); ['flNeon', 'flCarpet', 'flChk', 'flLava'].forEach(function (id) { var t = document.getElementById(id); t.classList.toggle('sel', t.dataset.floor === f); }); }
   function pickFloor(f) { if (window.__setFloor) window.__setFloor(f); else try { localStorage.setItem('neonarcade.floor', f); } catch (e) {} S.floor = f; showFloor(); }
   function wallsNow() { try { return localStorage.getItem('neonarcade.walls') === 'viking' ? 'viking' : 'current'; } catch (e) { return 'current'; } }
   function showWalls() { var f = wallsNow(); ['wlCur', 'wlVik'].forEach(function (id) { var t = document.getElementById(id); t.classList.toggle('sel', t.dataset.walls === f); }); }

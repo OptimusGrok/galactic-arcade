@@ -24,7 +24,7 @@ const PH = process.argv[2] === 'phone', sfx = PH ? '_phone' : '';
   // OPTIONS -> FLOOR tab
   await tap('#stOpt'); await page.waitForTimeout(500);
   const fl = await ev(() => { const im = [...document.querySelectorAll('#flTiles .flT img')]; return { on: !!document.querySelector('#opt.on'), n: im.length, loaded: im.every(i => i.complete && i.naturalWidth > 100), sel: document.querySelector('#flTiles .flT.sel').dataset.floor, tab: document.getElementById('tabFloor').textContent }; });
-  chk(fl.on && fl.tab === 'FLOOR' && fl.n === 2 && fl.loaded && fl.sel === 'neon', 'OPTIONS opens the menu: FLOOR tab with CURRENT + CARPET previews, neon selected');
+  chk(fl.on && fl.tab === 'FLOOR' && fl.n === 4 && fl.loaded && fl.sel === 'neon', 'OPTIONS opens the menu: FLOOR tab with CURRENT, CARPET, CHECKERS, LAVA previews, neon selected');
   await page.screenshot({ path: `shots/options_floor${sfx}.png` });
   await tap('#flCarpet'); await page.waitForTimeout(400);
   b = await ev(() => ({ sel: document.querySelector('#flTiles .flT.sel').dataset.floor, floor: window.__arcade.floor, carpet: window.__arcade.carpet.visible, ls: localStorage.getItem('neonarcade.floor'), mg: window.__arcade.mirror.visible, all: ['carpet2', 'carpetW'].map(n => { const o = window.__arcade.room.parent.getObjectByName(n); return !!o && o.visible; }),
@@ -53,6 +53,14 @@ const PH = process.argv[2] === 'phone', sfx = PH ? '_phone' : '';
   await tap('#flNeon'); await page.waitForTimeout(300);
   b = await ev(() => ({ floor: window.__arcade.floor, carpet: window.__arcade.carpet.visible, ls: localStorage.getItem('neonarcade.floor'), mg: (window.__arcade.mirror.geometry.parameters || {}).width }));
   chk(b.floor === 'neon' && !b.carpet && b.ls === 'neon' && !(b.mg < 5), 'switching back to NEON restores the reflective floor');
+  for (const f of ['checkers', 'lava']) {   // CHECKERS (black + gold) and LAVA (cave paths): tiles in the menu, applied to every floor, saved, no reflectors
+    const r = await ev(f => { const A = window.__arcade, S = A.room.parent; A.setFloor(f); const t = document.querySelector(`#flTiles .flT[data-floor="${f}"] img`);
+      return { floor: A.floor, ls: localStorage.getItem('neonarcade.floor'), tile: !!t && t.complete && t.naturalWidth > 100, all: ['carpet1', 'carpet2', 'carpetW'].map(n => { const o = S.getObjectByName(n) || (n === 'carpet1' && A.carpet); return !!o && o.visible && o.material === A.carpet.material; }),
+        mg: A.mirror.visible || S.getObjectByName('floorMirror2').visible }; }, f);
+    chk(r.floor === f && r.ls === f && r.tile && r.all.every(Boolean) && !r.mg, `${f.toUpperCase()}: menu tile, applied to room 1 + hallway, room 2 and the white room, saved, reflectors off ` + JSON.stringify(r)); }
+  await page.reload(); await page.waitForFunction(() => window.__arcade && window.__arcade.stats.frames > 3, null, { timeout: 60000 });
+  chk(await ev(() => window.__arcade.floor === 'lava' && window.__arcade.carpet.visible), 'LAVA persists after a reload');
+  await ev(() => window.__arcade.setFloor('neon'));
   if (!PH) { await page.keyboard.press('Escape'); await page.waitForTimeout(200); await page.keyboard.press('Enter'); await page.waitForFunction(() => !document.getElementById('start'), null, { timeout: 5000 }).catch(() => {});
     b = await st(); chk(!b.ex && b.s.how === 'enter' && b.mode === 'walk', 'Esc closes the menu, Enter starts'); }
   // ---- WALLS tab: CURRENT (default) / VIKING ----
