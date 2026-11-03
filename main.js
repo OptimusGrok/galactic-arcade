@@ -20,6 +20,7 @@ import { setupShield } from './shield.js';
 import { setupKiosk } from './kiosk.js';
 import { setupOpts } from './opts.js';
 import { setupTeleport, WX } from './teleport.js';
+import { lavaPaths, PATH_HW } from './lavapaths.js';
 import { setupShop } from './shop.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 
@@ -495,25 +496,22 @@ checkMat.onBeforeCompile = sh => { floorWP(sh, '');
     .replace('#include <emissivemap_fragment>', 'totalEmissiveRadiance = vec3(0.40, 0.22, 0.025) * fCk;'); };   // gold is self-lit so the pink neon doesn't turn it pink
 checkMat.emissive.setHex(0xffffff);
 const lavaU = { uT: { value: 0 } };
-// cave paths (world x, z): capsule segments [x1, z1, x2, z2] and rings [cx, cz, r]; half width 0.8 m
-const LS = [], LR = [], rect = (cx, cz, h) => LS.push([cx - h, cz - h, cx + h, cz - h], [cx + h, cz - h, cx + h, cz + h], [cx + h, cz + h, cx - h, cz + h], [cx - h, cz + h, cx - h, cz - h]);
-rect(0, 0, 9.9); rect(0, Z2, 9.9); rect(WX, 0, 9.9);                                  // along the cabinet fronts of each room
-LS.push([0, 9.9, 0, 1.9], [0, -1.9, 0, Z2 + 2.7], [0, Z2 - 2.7, 0, Z2 - 9.9], [-9.9, Z2, -2.7, Z2], [2.7, Z2, 9.9, Z2],   // doorways, hallway centre, room 2 spokes
-  [-9.9, -9.9, -10.75 + 1.2, -10.75 + 1.2], [WX - 9.9, 0, WX - 1.8, 0], [WX + 1.8, 0, WX + 9.9, 0], [WX, 1.8, WX, 9.9], [WX, -1.8, WX, -9.9]);
-LR.push([0, 0, 1.9], [-10.75, -10.75, 1.75], [0, Z2, 2.7], [WX, 0, 1.8]);                 // round the kiosk, teleporter pads, Dead Signal station
+// cave paths: one source of truth (lavapaths.js) shared with the lava-fall check in step()
+const LAVA = lavaPaths(Z2, WX), LS = LAVA.S, LR = LAVA.R, LD = LAVA.D;
 const v4 = a => new THREE.Vector4(a[0], a[1], a[2], a[3] || 0);
-lavaU.uS = { value: LS.map(v4) }; lavaU.uR = { value: LR.map(v4) };
+lavaU.uS = { value: LS.map(v4) }; lavaU.uR = { value: LR.map(v4) }; lavaU.uD = { value: LD.map(v4) };
 const lavaMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
 lavaMat.onBeforeCompile = sh => { Object.assign(sh.uniforms, lavaU);
-  floorWP(sh, `uniform float uT; uniform vec4 uS[${LS.length}]; uniform vec4 uR[${LR.length}];
+  floorWP(sh, `uniform float uT; uniform vec4 uS[${LS.length}]; uniform vec4 uR[${LR.length}]; uniform vec4 uD[${LD.length}];
     float lh(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
     float ln(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f); return mix(mix(lh(i), lh(i + vec2(1, 0)), f.x), mix(lh(i + vec2(0, 1)), lh(i + vec2(1, 1)), f.x), f.y); }
     float lf(vec2 p) { return ln(p) * 0.55 + ln(p * 2.1 + 3.7) * 0.3 + ln(p * 4.3 + 9.1) * 0.15; }`);
   sh.fragmentShader = sh.fragmentShader.replace('#include <map_fragment>', `vec2 p = vFW.xz; float d = 1e3;
     for (int i = 0; i < ${LS.length}; i++) { vec2 a = uS[i].xy, b = uS[i].zw, ab = b - a; float h = clamp(dot(p - a, ab) / max(dot(ab, ab), 1e-4), 0.0, 1.0); d = min(d, length(p - a - ab * h)); }
     for (int i = 0; i < ${LR.length}; i++) d = min(d, abs(length(p - uR[i].xy) - uR[i].z));
+    for (int i = 0; i < ${LD.length}; i++) d = min(d, max(0.0, length(p - uD[i].xy) - uD[i].z));
     d += (lf(p * 1.6) - 0.5) * 0.45;                                                     // rough, irregular rock edges
-    float rock = 1.0 - smoothstep(0.9, 0.98, d);
+    float rock = 1.0 - smoothstep(${(PATH_HW - 0.04).toFixed(2)}, ${(PATH_HW + 0.04).toFixed(2)}, d);
     float fl = lf(p * 0.7 + vec2(uT * 0.05, uT * 0.03)) + 0.5 * lf(p * 1.9 - vec2(uT * 0.08, -uT * 0.04));
     float crust = smoothstep(0.62, 0.78, lf(p * 2.3 + vec2(0.0, uT * 0.02)));            // dark cooled crust cracks floating on the lava
     float pulse = 0.88 + 0.12 * sin(uT * 1.3 + fl * 4.0);
@@ -853,9 +851,28 @@ function showcase(dt) {
   st.yaw += dy * k; st.pitch += (0.22 - st.pitch) * k; st.dist += (3.4 - st.dist) * k;
 }
 const tmp = new THREE.Vector3(), camTarget = new THREE.Vector3(), camPos = new THREE.Vector3();
+// ---------- LAVA falls (Dave: 'if the player steps off the path, it falls into the lava then respawns instantly back on the path') ----------
+// cosmetic + harmless: a 0.45 s sink with an orange flash and a sizzle, then he stands on the nearest free centre-line point of a cave path.
+const LAVA_FALL = 0.45, lavaFx = document.createElement('div'); lavaFx.id = 'lavaFx'; document.body.appendChild(lavaFx);
+let lavaAC = null;
+function sizzle() { try { const ac = lavaAC = lavaAC || window.__unlockAC || new (window.AudioContext || window.webkitAudioContext)(); if (window.__muted || (window.__mute && window.__mute.on)) return;
+  const n = Math.floor(ac.sampleRate * 0.5), b = ac.createBuffer(1, n, ac.sampleRate), d = b.getChannelData(0); for (let i = 0; i < n; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / n, 1.6);
+  const src = ac.createBufferSource(), f = ac.createBiquadFilter(), g = ac.createGain(); src.buffer = b; f.type = 'highpass'; f.frequency.value = 2400; g.gain.value = 0.22;
+  src.connect(f).connect(g).connect(ac.destination); src.start(); } catch (e) {} }
+function lavaRespawnPoint(x, z) {   // nearest centre-line sample that is not inside a wall, cabinet, the kiosk or a closed shield
+  const pts = LAVA.samples().map(p => [p[0], p[1], (p[0] - x) ** 2 + (p[1] - z) ** 2]).filter(p => p[2] < 400).sort((a, b) => a[2] - b[2]), q = new THREE.Vector3();
+  for (const p of pts) { q.set(p[0], 0, p[1]); collide(q); if (Math.hypot(q.x - p[0], q.z - p[1]) < 0.01 && LAVA.onPath(q.x, q.z, 0)) return q; }
+  return new THREE.Vector3(0, 0, 5); }   // spawn point (always on the path)
+function lavaFallStart() { st.lavaFall = { t: 0, x: monkey.position.x, z: monkey.position.z }; st.lavaFalls = (st.lavaFalls || 0) + 1; st.vel.set(0, 0, 0); st.speed = 0;
+  lavaFx.classList.remove('on'); void lavaFx.offsetWidth; lavaFx.classList.add('on'); sizzle(); }
+function lavaFallStep(dt) { const f = st.lavaFall; f.t += dt; const k = Math.min(1, f.t / LAVA_FALL);
+  monkey.position.y = -0.95 * k * k; monkey.rotation.y = st.face;
+  if (k >= 1) { const p = lavaRespawnPoint(f.x, f.z); monkey.position.set(p.x, 0, p.z); st.vel.set(0, 0, 0); st.lavaFall = null; st.lastRespawn = [p.x, p.z]; return false; }
+  return true; }
 let nearCab = null;
 function step(dt) {
   st.t += dt;
+  if (st.lavaFall && lavaFallStep(dt)) return;   // LAVA floor: sinking into the lava, then back on the nearest path
   let ix = (keys.KeyD || keys.ArrowRight ? 1 : 0) - (keys.KeyA || keys.ArrowLeft ? 1 : 0);
   let iz = (keys.KeyS || keys.ArrowDown ? 1 : 0) - (keys.KeyW || keys.ArrowUp ? 1 : 0);
   let mag = Math.min(1, Math.hypot(ix, iz)); if (mag) { ix /= Math.hypot(ix, iz); iz /= Math.hypot(ix, iz) || 1; }
@@ -871,6 +888,7 @@ function step(dt) {
   const tv = tmp.set(wx / n * vmax, 0, wz / n * vmax);
   st.vel.lerp(tv, 1 - Math.exp(-dt * 10));
   monkey.position.addScaledVector(st.vel, dt); collide(monkey.position);
+  if (floorMode === 'lava' && !st.seated && !st.lavaFall && play.mode === 'walk' && !(tp && tp.locked) && !(shop && shop.open) && !LAVA.onPath(monkey.position.x, monkey.position.z)) lavaFallStart();
   st.speed = Math.hypot(st.vel.x, st.vel.z);
   if (st.speed > 0.15) { const target = Math.atan2(st.vel.x, st.vel.z); let d = target - st.face; d = Math.atan2(Math.sin(d), Math.cos(d)); st.face += d * (1 - Math.exp(-dt * 12)); }
   monkey.rotation.y = st.face;
@@ -880,10 +898,9 @@ function step(dt) {
     if (c === dsCab) { const u = c.userData, dx = u.centre.x - monkey.position.x, dz = u.centre.z - monkey.position.z, d = Math.hypot(dx, dz);   // walk up to the open front
       if (d < DS.R + 1.25 && -dz > DS.R - 0.2 && Math.abs(dx) < 1.6 && (Math.sin(st.face) * dx + Math.cos(st.face) * dz) / d > 0.6) nearCab = c;
       continue; }
-    if (c === roadsterCab) { const u = c.userData, mx = monkey.position.x, mz = monkey.position.z;   // pick the nearest seat at the open end
-      if (Math.abs(mx - c.position.x) < MR.W / 2 - 0.1 && mz < u.zEnd + 0.05 && mz > u.zEnd - 1.3 && Math.cos(st.face) > 0.5) {
-        const seat = Math.abs(mx - u.seats.L.world.x) < Math.abs(mx - u.seats.R.world.x) ? 'L' : 'R';
-        u.seat = seat; u.screen = u.screens[seat === 'L' ? 0 : 1]; nearCab = c; }
+    if (c === roadsterCab) { const u = c.userData, mx = monkey.position.x, mz = monkey.position.z;   // PLAY only beside the car, next to a seat (Dave: 'when the player is at the side of the machine')
+      for (const seat of ['L', 'R']) { const s = u.seats[seat].world, sx = Math.sign(s.x - c.position.x) || 1, side = c.position.x + sx * MR.W / 2, out = (mx - side) * sx;
+        if (out > -0.05 && out < 1.25 && Math.abs(mz - s.z) < 1.0 && -sx * Math.sin(st.face) > 0.3) { u.seat = seat; u.screen = u.screens[seat === 'L' ? 0 : 1]; nearCab = c; } }
       continue; }
     const f = c.userData.front, dx = c.position.x - monkey.position.x, dz = c.position.z - monkey.position.z;
     if (Math.hypot(monkey.position.x - f.x, monkey.position.z - f.z) < 0.9) { const dd = Math.hypot(dx, dz); if ((Math.sin(st.face) * dx + Math.cos(st.face) * dz) / dd > 0.75) nearCab = c; }
@@ -1026,4 +1043,4 @@ const opts = setupOpts({ play, kiosk, shield, st, monkey, setFloor, getFloor: ()
 requestAnimationFrame(frame);
 
 // hooks for tests / future art work
-window.__arcade = { get spaceWin() { return spaceWin; }, get kiosk() { return kiosk; }, setFloor, get floor() { return floorMode; }, setWalls, get walls() { return wallsMode; }, wallMat, carpet, mirror, shield, room, room2, Z2, hall, DOOR_W, DOOR_H, HALL_L, berserkerCab, monkeyCab, orcCab, cyberCab, novaCab, roadsterCab, dsCab, play, get paused() { return paused; }, THREE, scene, camera, renderer, monkey, cabinets, strikeCab, ghostCab, featured, demo, ghostDemo, playables, blockers, st, stats, step, keys, get nearCab() { return nearCab; }, setArt: (i, part, tex, glow) => cabinets[i].userData.setArt(part, tex, glow) };
+window.__arcade = { LAVA, lavaRespawnPoint, get spaceWin() { return spaceWin; }, get kiosk() { return kiosk; }, setFloor, get floor() { return floorMode; }, setWalls, get walls() { return wallsMode; }, wallMat, carpet, mirror, shield, room, room2, Z2, hall, DOOR_W, DOOR_H, HALL_L, berserkerCab, monkeyCab, orcCab, cyberCab, novaCab, roadsterCab, dsCab, play, get paused() { return paused; }, THREE, scene, camera, renderer, monkey, cabinets, strikeCab, ghostCab, featured, demo, ghostDemo, playables, blockers, st, stats, step, keys, get nearCab() { return nearCab; }, setArt: (i, part, tex, glow) => cabinets[i].userData.setArt(part, tex, glow) };

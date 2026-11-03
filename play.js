@@ -74,7 +74,10 @@ export function setupPlay(A) {
       start(w) { w.__mrA.start(); },
       scene(w) { return w.__mrA.scene(); }, active(w) { return w.__mrA.scene() === 'play'; },
       hold(w) { return w.__mrA.hold(); }, unhold(w) { w.__mrA.unhold(); }, overHold: 5000, scoresHold: 0,
-      onStart() { seatMonkey(A.roadsterCab, true); }, onExit() { seatMonkey(A.roadsterCab, false); } },
+      onExit() { seatMonkey(A.roadsterCab, false); },
+      // step-in (Dave: 'animating the player stepping into the seat'): walk to the side panel by the seat, swing a leg over, drop in, sit down
+      prep: 1.8, anim(phase, k) { if (phase === 'on') stepIn(A.roadsterCab, k); },
+      prepCam() { const u = A.roadsterCab.userData, s = u.seats[u.seat].world, sx = Math.sign(s.x - A.roadsterCab.position.x) || 1; return new THREE.Vector3(s.x + sx * 4.2, 2.5, s.z - 3.6); } },
     // DEAD SIGNAL VR STATION: 5 tickets = 1 credit = one run. Before the zoom the monkey steps onto the platform and puts the headset on (prep),
     // after the zoom out he takes it off, puts it back on the pedestal and steps down (post)
     ds: { key: 'ds', cab: A.dsCab, src: 'ds-play/index.html', credits: 0, games: 0, aspect: 16 / 9, cost: 5,
@@ -92,6 +95,23 @@ export function setupPlay(A) {
       mu.hips.position.y = 0.86; mu.legs.forEach(l => { l.leg.rotation.x = -1.5; l.knee.rotation.x = 1.45; }); mu.torso.rotation.set(0.08, 0, 0); mu.neck.rotation.x = 0;
       mu.arms.forEach(a => { a.sh.rotation.x = -1.05; a.sh.rotation.z = 0.32 * a.sd; a.el.rotation.x = -0.55; }); }
     else { monkey.position.set(s.world.x, 0, u.zEnd - 0.55); st.face = 0; monkey.rotation.y = 0; st.seated = null; mu.hips.position.y = 0.8; mu.legs.forEach(l => { l.leg.rotation.x = 0; l.knee.rotation.x = 0; }); } }
+  const SI = {};
+  function stepIn(cab, k) { const u = cab.userData, s = u.seats[u.seat].world, mu = monkey.userData, sx = Math.sign(s.x - cab.position.x) || 1;
+    if (k === 0 || !SI.p0) { SI.p0 = monkey.position.clone(); SI.f0 = st.face; SI.side = new THREE.Vector3(cab.position.x + sx * (2.5 + 0.3), 0, s.z + 0.12); SI.done = false; }
+    st.vel.set(0, 0, 0); st.speed = 0; const ang = (a, b, t) => a + Math.atan2(Math.sin(b - a), Math.cos(b - a)) * t, faceIn = Math.atan2(-sx, 0), sm = t => t * t * (3 - 2 * t);
+    const rest = () => { mu.hips.position.y = 0.8; mu.torso.rotation.set(0, 0, 0); mu.legs.forEach(l => { l.leg.rotation.set(0, 0, 0); l.knee.rotation.x = 0; }); mu.arms.forEach(a => { a.sh.rotation.set(0, 0, 0); a.el.rotation.x = 0; }); };
+    if (k < 0.35) { const t = sm(k / 0.35); rest(); monkey.position.lerpVectors(SI.p0, SI.side, t); st.face = ang(SI.f0, faceIn, Math.min(1, t * 1.6));   // walk up to the side
+      const w = Math.sin(k / 0.35 * Math.PI * 4) * 0.5; mu.legs.forEach((l, i) => { l.leg.rotation.x = i ? -w : w; l.knee.rotation.x = Math.abs(w) * 0.6; }); mu.arms.forEach((a, i) => { a.sh.rotation.x = i ? w * 0.7 : -w * 0.7; }); }
+    else if (k < 0.75) { const t = (k - 0.35) / 0.4, e = sm(t); rest(); st.face = faceIn;   // lift the leg over the side panel and step in
+      monkey.position.set(SI.side.x + (s.x - SI.side.x) * e, Math.sin(t * Math.PI) * 0.42, SI.side.z);
+      const lead = mu.legs[sx > 0 ? 1 : 0], trail = mu.legs[sx > 0 ? 0 : 1]; lead.leg.rotation.x = -1.35 * Math.sin(Math.min(1, t * 1.6) * Math.PI / 2) * (1 - Math.max(0, t - 0.7) / 0.3 * 0.6); lead.knee.rotation.x = 1.2 * Math.sin(Math.min(1, t * 1.4) * Math.PI);
+      trail.leg.rotation.x = t > 0.5 ? -1.1 * Math.sin((t - 0.5) / 0.5 * Math.PI) : 0; trail.knee.rotation.x = t > 0.5 ? 1.1 * Math.sin((t - 0.5) / 0.5 * Math.PI) : 0;
+      mu.torso.rotation.x = 0.22 * Math.sin(t * Math.PI); mu.arms.forEach(a => { a.sh.rotation.z = 0.6 * a.sd * Math.sin(t * Math.PI); }); }
+    else { const t = sm(Math.min(1, (k - 0.75) / 0.25)); monkey.position.set(s.x, 0, s.z + 0.12 * t); st.face = ang(faceIn, 0, t);   // turn to the wheel and sit down
+      mu.hips.position.y = 0.8 + 0.06 * t; mu.legs.forEach(l => { l.leg.rotation.set(-1.5 * t, 0, 0); l.knee.rotation.x = 1.45 * t; }); mu.torso.rotation.set(0.08 * t, 0, 0);
+      mu.arms.forEach(a => { a.sh.rotation.x = -1.05 * t; a.sh.rotation.z = 0.32 * a.sd * t; a.el.rotation.x = -0.55 * t; });
+      if (k >= 1 && !SI.done) { SI.done = true; SI.p0 = null; seatMonkey(cab, true); } }
+    monkey.rotation.y = st.face; P.stepIn = k; }
   const P = { need: 0, sub: null, demoReturns: 0, plays: 0, mode: 'walk', t: 0, frame: null, zooms: 0, coinSfx: 0, blocked: 0, cur: null, machines: MACHINES };
   const TKEY = 'neonarcade.tickets', tixEl = document.getElementById('tix'), dCost = document.getElementById('dCost');
   function toast(msg) { const d = document.createElement('div'); d.className = 'ntoast'; d.textContent = msg; document.body.appendChild(d); P.lastToast = msg; setTimeout(() => d.remove(), 2200); }
@@ -151,7 +171,7 @@ export function setupPlay(A) {
     if (P.mode !== 'walk') { P.blocked++; return; }
     P.cur = m; refresh(); ui.classList.remove('on'); if (m.onStart) m.onStart();
     P.zooms++;
-    if (m.prep) { P.mode = 'prep'; P.t = 0; P.cam0 = camera.position.clone(); P.look0 = monkey.position.clone().setY(1.25); m.anim('on', 0); }   // walk-up + headset on first, then zoomIn()
+    if (m.prep) { P.mode = 'prep'; P.t = 0; P.pcam = null; P.cam0 = camera.position.clone(); P.look0 = monkey.position.clone().setY(1.25); m.anim('on', 0); }   // walk-up + headset on first, then zoomIn()
     else zoomIn(m);
     const f = P.frame = document.createElement('iframe'); f.id = 'game'; f.src = m.src; f.allow = 'autoplay; fullscreen'; f.title = m.cab.name;
     f.addEventListener('load', () => { P.loaded = true; try { f.contentWindow.addEventListener('keydown', ev => { if (TV.open) { ev.stopImmediatePropagation(); ev.preventDefault(); if (ev.code === 'Escape') closeView(); return; } if (ev.code === 'Escape') { ev.stopImmediatePropagation(); ev.preventDefault(); exit('esc'); return; } if (P.sub === 'demo') { ev.stopImmediatePropagation(); ev.preventDefault(); if (/^(Enter|Space|KeyE)$/.test(ev.code) && !ev.repeat) tryPlay(); } }, true); } catch (e) {} });
@@ -159,7 +179,7 @@ export function setupPlay(A) {
   }
   function zoomIn(m) { P.mode = 'zoomIn'; P.t = 0;
     const head = monkey.position.clone().setY(monkey.position.y + 1.25), e = endPos(m), mid = head.clone().lerp(e.p, 0.35);
-    P.target = e.c; P.end = e.p; curve = new THREE.CatmullRomCurve3([camera.position.clone(), head, mid, e.p]); look0.copy(m.prep ? e.c : head); look1.copy(e.c); }
+    P.target = e.c; P.end = e.p; curve = new THREE.CatmullRomCurve3([camera.position.clone(), head, mid, e.p]); look0.copy(m.post ? e.c : head); look1.copy(e.c); }
   function launch() {
     const f = P.frame, m = P.cur; P.mode = 'game'; document.body.dataset.cab = m ? m.key : ''; P.over = false; P.goShown = false; clearTimeout(P.holdT); P.holdT = 0; P.scene = null;
     const go = () => { P.sub = 'demo'; try { idle(m, f.contentWindow); } catch (e) { console.warn('demo start', e); } demoRefresh(); demoUI.classList.add('on'); f.classList.add('on'); bExit.style.display = 'block'; f.focus(); try { f.contentWindow.focus(); } catch (e) {}
@@ -275,7 +295,7 @@ export function setupPlay(A) {
       const m = P.cur, dur = P.mode === 'prep' ? m.prep : m.post; P.t = Math.min(1, P.t + dt / dur); const k = ease(P.t);
       m.anim(P.mode === 'prep' ? 'on' : 'off', P.t); monkey.visible = true;
       const c = m.cab.userData.centre, head = monkey.position.clone().setY(monkey.position.y + 1.35);
-      if (P.mode === 'prep') { const v = new THREE.Vector3(c.x + 1.25, 1.95, c.z + 2.9); camera.position.lerpVectors(P.cam0, v, k); camera.lookAt(P.look0.clone().lerp(head, Math.min(1, k * 1.4))); }
+      if (P.mode === 'prep') { const v = m.prepCam ? (P.pcam = P.pcam || m.prepCam()) : new THREE.Vector3(c.x + 1.25, 1.95, c.z + 2.9); camera.position.lerpVectors(P.cam0, v, k); camera.lookAt(P.look0.clone().lerp(head, Math.min(1, k * 1.4))); }
       else { const v = new THREE.Vector3(c.x + 0.6, 2.3, c.z + 5.6); camera.position.lerpVectors(P.cam0, v, k); camera.lookAt(head); }
       if (P.t >= 1) { if (P.mode === 'prep') zoomIn(m); else { m.anim('reset', 1); P.mode = 'walk'; P.cur = null; near = null; monkey.position.y = 0; st.camInit = true; st.lookT = st.t; st.yaw = 0; } }
       return true;
@@ -285,7 +305,7 @@ export function setupPlay(A) {
       camera.position.copy(curve.getPointAt(k));
       camera.lookAt(P.mode === 'zoomIn' ? look0.clone().lerp(look1, Math.min(1, k * 1.6)) : look1.clone().lerp(look0, Math.min(1, k * 1.5)));
       monkey.visible = camera.position.distanceTo(monkey.position.clone().setY(1.0)) > 0.75 && !(P.mode === 'zoomIn' && k > 0.3) && !(P.mode === 'zoomOut' && k < 0.65);
-      if (P.cur && P.cur.prep) monkey.visible = P.mode === 'zoomIn' ? k < 0.85 : k > 0.3;   // headset sequence: he stays in shot until the camera is at the visor
+      if (P.cur && P.cur.post) monkey.visible = P.mode === 'zoomIn' ? k < 0.85 : k > 0.3;   // headset sequence: he stays in shot until the camera is at the visor
       if (P.t >= 1) { if (P.mode === 'zoomIn') launch(); else if (P.cur && P.cur.post) { P.mode = 'post'; P.t = 0; P.cam0 = camera.position.clone(); monkey.visible = true; } else { P.mode = 'walk'; P.cur = null; near = null; monkey.visible = true; st.camInit = true; st.lookT = st.t; } }
       return true;
     }

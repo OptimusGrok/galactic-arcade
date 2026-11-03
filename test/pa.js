@@ -14,6 +14,7 @@ const PH = process.argv[2] === 'phone';
     await page.waitForFunction(() => window.__pa.played > 0, null, { timeout: 8000 }).catch(() => {});
     p = await page.evaluate(() => ({ ...window.__pa, since: window.__pa.at - window.__start.at, music: { t: window.__music.target, room1: window.__music.room1 }, dur: window.__pa.dur }));
     chk(p.played === 1 && p.playing && p.since > 2900 && p.since < 4500 && !p.err, label + ': PA plays once ~3 s after START ' + JSON.stringify({ since: Math.round(p.since), src: p.src, dur: p.dur, err: p.err }));
+    chk(p.dur > 6 && p.dur < 7, label + ': trimmed announcement (no chime, no "Have fun!") lasts ~6.6 s, dur=' + p.dur);
     await page.waitForTimeout(400); const m = await page.evaluate(() => window.__music.target); chk(m < 0.42 * 0.31, label + ': room music ducked while PA speaks (target ' + m.toFixed(3) + ')');
     await page.evaluate(() => window.__mute.set(true)); const g = await page.evaluate(() => window.__mute.gains.map(x => x.gain.value)); chk(g.length && g.every(v => v === 0), label + ': mute zeroes the master gain the PA goes through'); await page.evaluate(() => window.__mute.set(false));
     if (!PH && label === 'load 1') { await page.evaluate(() => window.__startUI.show()); await page.waitForTimeout(500); await pressStart(); await page.waitForTimeout(5000);

@@ -1,5 +1,5 @@
-// PA welcome announcement: ~3 s after the player presses START (first time per page load only), a ding-dong chime + female PA voice
-// "Welcome to Galactic Arcade. You can purchase tickets from the ticket machine in the center of the room. Have fun!"
+// PA welcome announcement: ~3 s after the player presses START (first time per page load only), a female PA voice (no chime, t184)
+// "Welcome to Galactic Arcade. You can purchase tickets from the ticket machine in the center of the room."
 // Not replayed on returning to the start screen, re-entering from a cabinet or loading a save. Goes through the global mute hook
 // (mute.js) and ducks the room music (music.js reads __pa.playing).
 (function () {

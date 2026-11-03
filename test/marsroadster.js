@@ -42,7 +42,10 @@ const PHONE = process.argv[2] === 'phone';
   await page.evaluate(PH => { window.__camOverride = { pos: PH ? [11, 2.2, 6.5] : [11.2, 2.4, 7.5], at: [6, 1.1, 10] }; }, PHONE); await page.waitForTimeout(1500);
   await page.screenshot({ path: 'shots/mr_room_side' + sfx + '.png' }); await page.evaluate(() => { window.__camOverride = null; });
   // seat selection
-  const seatAt = x => page.evaluate(x => { const A = window.__arcade; A.st.fp = false; A.st.vel.set(0, 0, 0); A.monkey.position.set(x, 0, A.roadsterCab.userData.zEnd - 0.45); A.st.face = 0; A.st.yaw = Math.PI; A.st.lookT = -99; }, x);
+  // t184: the PLAY prompt shows only standing beside the car's side, next to a seat, facing the car
+  const seatAt = x => page.evaluate(x => { const A = window.__arcade, c = A.roadsterCab, sx = Math.sign(x - c.position.x) || 1, s = Object.values(c.userData.seats).find(q => Math.sign(q.world.x - c.position.x) === sx).world; A.st.fp = false; A.st.vel.set(0, 0, 0); A.monkey.position.set(c.position.x + sx * 2.95, 0, s.z); A.st.face = sx > 0 ? -Math.PI / 2 : Math.PI / 2; A.st.yaw = A.st.face; A.st.lookT = -99; }, x);
+  await page.evaluate(() => { const A = window.__arcade; A.st.vel.set(0, 0, 0); A.monkey.position.set(6, 0, A.roadsterCab.userData.zEnd - 0.45); A.st.face = 0; A.st.yaw = Math.PI; for (let i = 0; i < 30; i++) A.step(1 / 60); }); await page.waitForTimeout(600);
+  chk(!(await H.ui()).on, 'no PLAY prompt at the open (rear) end any more');
   const waitTxt = t => page.waitForFunction(t => document.getElementById('playUI').classList.contains('on') === !!t && (!t || document.getElementById('bPlay').textContent === t), t, { timeout: 15000 }).catch(() => {});
   await seatAt(pl.seats.L[0] + 0.2); await waitTxt('LEFT SEAT');
   const sL = await H.ui();
@@ -50,12 +53,16 @@ const PHONE = process.argv[2] === 'phone';
   const sR = await H.ui();
   chk(sL.on && sL.txt === 'LEFT SEAT' && sL.near === 'roadsterCabinet' && /5 TICKETS TO PLAY/.test(sL.cr), 'nearest seat prompt: LEFT SEAT (x=' + pl.seats.L[0] + ') ' + JSON.stringify(sL));
   chk(sR.on && sR.txt === 'RIGHT SEAT', 'nearest seat prompt: RIGHT SEAT (x=' + pl.seats.R[0] + ') ' + JSON.stringify(sR));
-  await page.screenshot({ path: 'shots/mr_seat_prompt' + sfx + '.png' });
+  await page.screenshot({ path: 'shots/mr_seat_prompt' + sfx + '.png' }); if (PHONE) await page.screenshot({ path: 'shots/mr_side_prompt_phone.png' });
   await page.evaluate(() => { window.__arcade.monkey.position.x += 20; window.__arcade.step(1 / 60); }); await waitTxt('');
   chk(!(await H.ui()).on, 'no prompt away from the cabinet');
   // sit in the RIGHT seat: seated pose + zoom into the right screen
   await seatAt(pl.seats.R[0]); await waitTxt('RIGHT SEAT');
-  await H.press(); await page.waitForFunction(() => window.__arcade.play.mode === 'zoomIn' && window.__arcade.play.t > 0.15, null, { timeout: 15000 }).catch(() => {});
+  await H.press(); await page.waitForFunction(() => window.__arcade.play.mode === 'prep' && window.__arcade.play.stepIn > 0.5, null, { timeout: 15000 }).catch(() => {});
+  const si = await page.evaluate(() => { const A = window.__arcade; return { mode: A.play.mode, k: +(A.play.stepIn || 0).toFixed(2), y: +A.monkey.position.y.toFixed(2), x: +A.monkey.position.x.toFixed(2) }; });
+  if (PHONE) await page.screenshot({ path: 'shots/mr_stepin_phone.png' });
+  chk(si.mode === 'prep' && si.k > 0.4 && si.k < 1, 'PLAY runs the step-in animation (walk to the seat, leg over, sit) ' + JSON.stringify(si));
+  await page.waitForFunction(() => window.__arcade.play.mode === 'zoomIn' && window.__arcade.play.t > 0.15, null, { timeout: 15000 }).catch(() => {});
   const z = await page.evaluate(() => { const A = window.__arcade, u = A.monkey.userData, P = A.play; return { mode: P.mode, seated: A.st.seated, x: +A.monkey.position.x.toFixed(2), z: +A.monkey.position.z.toFixed(2), hips: +u.hips.position.y.toFixed(2), leg: +u.legs[0].leg.rotation.x.toFixed(2), knee: +u.legs[0].knee.rotation.x.toFixed(2), end: P.end && [+P.end.x.toFixed(2), +P.end.y.toFixed(2), +P.end.z.toFixed(2)], scr: A.roadsterCab.userData.screen.name }; });
   await page.screenshot({ path: 'shots/mr_seated_zoom' + sfx + '.png' });
   chk(z.mode === 'zoomIn' && z.seated === 'R' && Math.abs(z.x - pl.seats.R[0]) < 0.05 && z.leg < -1.2 && z.knee > 1.2, 'monkey sits in the RIGHT bucket seat (seated pose: thighs forward, knees bent) ' + JSON.stringify(z));

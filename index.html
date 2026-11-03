@@ -53,6 +53,7 @@ body.ingame #ui{top:calc(max(10px,env(safe-area-inset-top)) + 58px)}
 #homeB{display:flex;gap:14px;justify-content:center;margin-top:14px}
 #homeYes{border:3px solid #ff3cf0}#homeNo{border:3px solid #00e5ff}
 #joy{position:fixed;width:110px;height:110px;margin:-55px 0 0 -55px;border-radius:50%;border:2px solid #ff2bd688;background:radial-gradient(#ff2bd622,#0000 70%);display:none;pointer-events:none;z-index:4}
+#joy,#joy *{visibility:hidden!important}   /* Dave: 'hide the joystick' - invisible, the touch zone + drag still drive the monkey */
 #knob{position:absolute;left:35px;top:35px;width:40px;height:40px;border-radius:50%;background:#ff2bd6aa;box-shadow:0 0 14px #ff2bd6}
 #playUI{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%) scale(.85);z-index:6;display:flex;flex-direction:column;align-items:center;gap:10px;opacity:0;pointer-events:none;transition:opacity .35s ease,transform .35s ease}
 #playUI.on{opacity:1;pointer-events:auto;transform:translate(-50%,-50%) scale(1)}
@@ -81,6 +82,9 @@ body.ingame #ui{top:calc(max(10px,env(safe-area-inset-top)) + 58px)}
 #bExit{position:fixed;top:calc(max(10px,env(safe-area-inset-top)) + 54px);left:max(8px,env(safe-area-inset-left));z-index:24;width:38px;height:38px;border-radius:50%;border:1px solid #fff5;background:#000a;color:#fff;font:700 18px system-ui;display:none;cursor:pointer}
 #over{position:fixed;inset:0;z-index:22;display:none;align-items:center;justify-content:center;font:900 clamp(34px,8vw,64px) 'Courier New',monospace;color:#ff3b3b;text-shadow:0 0 14px #ff2050;background:#0008;letter-spacing:.1em}
 #tix{position:fixed;top:max(8px,env(safe-area-inset-top));left:max(8px,env(safe-area-inset-left));z-index:23;font:700 13px 'Courier New',monospace;color:#ffe08a;background:#0a0612cc;border:1px solid #ffb00066;border-radius:8px;padding:5px 9px;letter-spacing:.08em;text-shadow:0 0 6px #ffb000;cursor:pointer;display:flex;align-items:center;gap:6px;touch-action:none;user-select:none;-webkit-user-select:none}
+#lavaFx{position:fixed;inset:0;z-index:30;pointer-events:none;opacity:0;background:radial-gradient(circle at 50% 62%,#ffb02088,#ff4a0a66 45%,#80100044 80%)}
+#lavaFx.on{animation:lavafx .55s ease-out}
+@keyframes lavafx{0%{opacity:0}25%{opacity:1}100%{opacity:0}}
 #tix:hover{border-color:#ffd040;box-shadow:0 0 10px #ffb00066}
 #tixIco{display:block;filter:drop-shadow(0 0 3px #ffb000aa)}
 #tview{position:fixed;inset:0;z-index:40;display:none;flex-direction:column;align-items:center;justify-content:center;gap:18px;background:radial-gradient(circle at 50% 50%,#2a1a0099,#000000d8);touch-action:none;user-select:none;-webkit-user-select:none;cursor:pointer}
@@ -93,6 +97,22 @@ body.ingame #ui{top:calc(max(10px,env(safe-area-inset-top)) + 58px)}
 #tvCount{font:900 22px 'Courier New',monospace;color:#ffe08a;text-shadow:0 0 10px #ffb000;letter-spacing:.12em}
 #tvHint{font:700 11px 'Courier New',monospace;color:#c8a860;opacity:.8;letter-spacing:.1em}
 #tvX{position:fixed;top:max(10px,env(safe-area-inset-top));right:max(10px,env(safe-area-inset-right));z-index:41;width:40px;height:40px;border-radius:50%;border:1px solid #ffd04088;background:#120a02cc;color:#ffe08a;font:700 18px sans-serif;cursor:pointer}
+/* FLOOR & WALL HUD button (Dave: 'square floor & wall button top left ... image of a floor that rotates every 30 seconds, the ticket close next to on the right') */
+#flBtn{--fb:60px;position:fixed;top:max(8px,env(safe-area-inset-top));left:max(8px,env(safe-area-inset-left));z-index:23;width:var(--fb);height:var(--fb);box-sizing:border-box;border-radius:10px;border:2px solid #ffb000aa;background:#0a0612;overflow:hidden;cursor:pointer;padding:0;box-shadow:0 0 10px #ffb00055;touch-action:none;-webkit-tap-highlight-color:transparent}
+#flBtn img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;transition:opacity .45s ease}
+#flBtn img.off{opacity:0}
+#flBtn span{position:absolute;left:0;right:0;bottom:0;font:900 8px/1.5 'Courier New',monospace;letter-spacing:.06em;color:#ffe08a;background:#000a;text-align:center;pointer-events:none}
+@media (min-width:900px) and (min-height:500px){#flBtn{--fb:76px}#flBtn span{font-size:10px}}
+#tix{left:calc(max(8px,env(safe-area-inset-left)) + var(--fbw,60px) + 6px)}
+@media (min-width:900px) and (min-height:500px){#tix{--fbw:76px}}
+body.ingame #flBtn{display:none}
+#tix.ingame{left:max(8px,env(safe-area-inset-left))}
+#opt.game{position:fixed;z-index:95}
+#opt.game .flT:not(.sel):not(#musBtn)::after{content:'1 🎟';display:block;margin-top:3px;font-size:10px;color:#ffe08a}
+#optNote{display:none;text-align:center;margin:-6px 0 10px;font-size:12px;color:#ffe08a;letter-spacing:.08em}
+#opt.game #optNote{display:block}
+#optNote.need{color:#ff5a6e;animation:shk .35s}
+@keyframes shk{25%{transform:translateX(-6px)}75%{transform:translateX(6px)}}
 #tix.ingame{top:calc(max(10px,env(safe-area-inset-top)) + 100px);opacity:.85}
 #vix{position:fixed;box-sizing:border-box;top:max(8px,env(safe-area-inset-top));left:calc(max(8px,env(safe-area-inset-left)) + 112px);z-index:23;font:700 13px 'Courier New',monospace;color:#e2e8ee;background:#0a0612cc;border:1px solid #c8a06a88;border-radius:8px;padding:5px 9px;display:flex;align-items:center;gap:6px;cursor:pointer;text-shadow:0 0 6px #c8a06a}
 #vix.ingame{opacity:.85}
@@ -160,7 +180,7 @@ body[data-cab=roadster] #tix.ingame{top:calc(max(10px,env(safe-area-inset-top)) 
 <div id="start" role="dialog" aria-label="Galactic Arcade start screen"><div id="stBg"></div><div id="stBox"><picture><source srcset="img/start.webp" type="image/webp"><img src="img/start.jpg" alt="Galactic Arcade — tap to start" draggable="false"></picture><div id="stBtns"><button class="stB" id="stStart">START</button><button class="stB" id="stOpt">OPTIONS</button></div></div>
 <div id="opt" aria-hidden="true"><div id="optP"><div id="optHd"><div id="optT">OPTIONS</div><button id="optX" title="Back">✕</button></div>
 <div id="optTabs"><button class="optTab" id="tabFloor">FLOOR</button><button class="optTab off" id="tabWalls">WALLS</button></div>
-<div id="flTiles"><div class="flT" data-floor="neon" id="flNeon"><img src="img/floor_neon.webp" alt="" draggable="false">CURRENT<span class="now">NEON</span></div><div class="flT" data-floor="carpet" id="flCarpet"><img src="img/floor_carpet.webp" alt="" draggable="false">ARCADE<span class="now">CHARACTER CARPET</span></div><div class="flT" data-floor="checkers" id="flChk"><img src="img/floor_checkers.webp" alt="" draggable="false">CHECKERS<span class="now">BLACK + GOLD</span></div><div class="flT" data-floor="lava" id="flLava"><img src="img/floor_lava.webp" alt="" draggable="false">LAVA<span class="now">CAVE PATHS</span></div></div>
+<div id="optNote"></div><div id="flTiles"><div class="flT" data-floor="neon" id="flNeon"><img src="img/floor_neon.webp" alt="" draggable="false">CURRENT<span class="now">NEON</span></div><div class="flT" data-floor="carpet" id="flCarpet"><img src="img/floor_carpet.webp" alt="" draggable="false">ARCADE<span class="now">CHARACTER CARPET</span></div><div class="flT" data-floor="checkers" id="flChk"><img src="img/floor_checkers.webp" alt="" draggable="false">CHECKERS<span class="now">BLACK + GOLD</span></div><div class="flT" data-floor="lava" id="flLava"><img src="img/floor_lava.webp" alt="" draggable="false">LAVA<span class="now">CAVE PATHS</span></div></div>
 <div id="wlTiles"><div class="flT wlT" data-walls="current" id="wlCur"><img src="img/walls_current.webp" alt="" draggable="false">CURRENT<span class="now">NEON PANELS</span></div><div class="flT wlT" data-walls="viking" id="wlVik"><img src="img/walls_viking.webp" alt="" draggable="false">VIKING<span class="now">RUNE WALLS</span></div></div>
 <button class="flT" id="musBtn" style="display:block;margin:14px auto 0;width:min(100%,300px)">MUSIC: <span id="musSt">ON</span></button><button class="stB" id="optBack">BACK</button></div></div><div id="secHot" aria-hidden="true"></div>
 <div id="sec" aria-hidden="true"><div id="secP"><button id="secX" title="Cancel">✕</button><canvas id="secCv"></canvas></div></div>
@@ -185,7 +205,7 @@ body[data-cab=roadster] #tix.ingame{top:calc(max(10px,env(safe-area-inset-top)) 
   function tab(w) { opt.classList.toggle('wl', w); document.getElementById('tabFloor').classList.toggle('off', w); document.getElementById('tabWalls').classList.toggle('off', !w); S.tab = w ? 'walls' : 'floor'; }
   function openOpt(on) { opt.classList.toggle('on', on); opt.setAttribute('aria-hidden', on ? 'false' : 'true'); if (on) { S.opts++; tab(false); showFloor(); showWalls(); showMus(); } }
   function showMus() { var m = window.__music; document.getElementById('musSt').textContent = !m || m.on ? 'ON' : 'OFF'; document.getElementById('musBtn').classList.toggle('sel', !m || m.on); }
-  window.__startUI = { openOpt: openOpt, pickFloor: pickFloor, pickWalls: pickWalls, tab: tab };
+  window.__startUI = { openOpt: openOpt, pickFloor: pickFloor, pickWalls: pickWalls, tab: tab, opt: opt };
   // ---- hidden ticket menu: triple-tap top-right -> 3x3 unlock pattern -> TICKETS panel ----
   var sec = document.getElementById('sec'), tk = document.getElementById('tk'), sP = document.getElementById('secP'), cv = document.getElementById('secCv'), taps = [], pat = [], drawing = false, cur = null;
   function hsh(a) { var h = 7; for (var i = 0; i < a.length; i++) h = (h * 31 + a.charCodeAt(i)) % 1000003; return h; }
@@ -253,16 +273,51 @@ body[data-cab=roadster] #tix.ingame{top:calc(max(10px,env(safe-area-inset-top)) 
   }
   function on() { evs.forEach(function (t) { window.addEventListener(t, eat, { capture: true, passive: false }); }); }
   window.__startUI.show = function () {   // back to the start screen (from the HUD home button)
-    release(); openOpt(false); openSec(false); openTk(false); el.classList.remove('out'); if (!el.isConnected) document.body.appendChild(el);
+    if (window.__floorBtn && window.__floorBtn.open) window.__floorBtn.openMenu(false); release(); openOpt(false); openSec(false); openTk(false); el.classList.remove('out'); if (!el.isConnected) document.body.appendChild(el);
     S.shown = true; S.dismissed = false; S.how = ''; S.returns = (S.returns || 0) + 1; on(); };
   if (window.__skipStart) { off(); return; }
   on();
 })();
 </script>
+<script>
+// In-game FLOOR & WALL button: opens the start screen's FLOOR / WALLS menu during play; changing floor or walls costs 1 ticket
+// (re-picking the current one is free; tickets only reach storage through SAVE, see session.js). The start-screen picker stays free.
+function flBtnInit() {
+  var btn = document.getElementById('flBtn'), A = document.getElementById('flBtnA'), B = document.getElementById('flBtnB'), opt = null, note = null, home = null,
+    FL = ['neon', 'carpet', 'checkers', 'lava'], i = 0, G = window.__floorBtn = { opens: 0, spent: 0, need: 0, cycles: 0, img: 'neon', open: false };
+  function cycle() { i = (i + 1) % FL.length; var on = A.classList.contains('off') ? A : B, off = on === A ? B : A; on.src = 'img/floor_' + FL[i] + '.webp'; on.classList.remove('off'); off.classList.add('off'); G.img = FL[i]; G.cycles++; }
+  G.cycle = cycle; setInterval(cycle, 30000);
+  function grab() { if (opt) return true; var U = window.__startUI; if (!U || !U.opt) return false; opt = U.opt; note = opt.querySelector('#optNote'); home = opt.parentNode; wire(); return true; }
+  function tickets() { var p = window.__arcade && window.__arcade.play; return p ? p.tickets.total : 0; }
+  function showNote(need) { note.classList.toggle('need', !!need); note.textContent = need ? 'NEED 1 TICKET · YOU HAVE 0 🎟' : 'CHANGING COSTS 1 🎟 · YOU HAVE ' + tickets() + ' 🎟'; if (need) { note.style.animation = 'none'; void note.offsetWidth; note.style.animation = ''; } }
+  function openG(on) { var U = window.__startUI; if (!U || !grab()) return; G.open = on;
+    if (on) { G.opens++; document.body.appendChild(opt); opt.classList.add('game'); U.openOpt(true); showNote(false); try { var k = window.__arcade.keys; for (var c in k) k[c] = false; } catch (e) {} }
+    else { U.openOpt(false); opt.classList.remove('game'); if (home && opt.parentNode !== home) home.appendChild(opt); } }
+  setTimeout(grab, 0);
+  G.openMenu = openG;
+  function cur(kind) { var a = window.__arcade; return kind === 'floor' ? (a ? a.floor : 'neon') : (a ? a.walls : 'current'); }
+  function pick(kind, v) { var U = window.__startUI; if (v === cur(kind)) return;
+    if (tickets() < 1) { G.need++; showNote(true); return; }
+    try { localStorage.setItem('neonarcade.tickets', String(tickets() - 1)); } catch (e) {} if (window.__neonSync) window.__neonSync(); G.spent++;
+    if (kind === 'floor') U.pickFloor(v); else U.pickWalls(v); showNote(false); }
+  function swallow(e) { e.stopPropagation(); }
+  ['pointerdown', 'mousedown', 'touchstart', 'click'].forEach(function (t) { btn.addEventListener(t, swallow, { passive: true }); });
+  btn.addEventListener('pointerup', function (e) { e.stopPropagation(); var p = window.__arcade && window.__arcade.play; if (p && p.mode !== 'walk') return; openG(true); });
+  function wire() {
+  ['pointerdown', 'mousedown', 'touchstart', 'touchend', 'click', 'wheel'].forEach(function (t) { opt.addEventListener(t, function (e) { if (opt.classList.contains('game')) e.stopPropagation(); }, { passive: true }); });
+  opt.addEventListener('pointerup', function (e) { if (!opt.classList.contains('game')) return; e.stopPropagation(); var t = e.target, h = function (s) { return t && t.closest && t.closest(s); }, U = window.__startUI;
+    if (h('#optX') || h('#optBack') || !h('#optP')) openG(false);
+    else if (h('#musBtn')) { if (window.__music) window.__music.setOn(!window.__music.on); U.openOpt(true); showNote(false); }
+    else if (h('#tabFloor')) U.tab(false); else if (h('#tabWalls')) U.tab(true);
+    else if (h('.wlT')) pick('walls', h('.wlT').dataset.walls); else if (h('.flT')) pick('floor', h('.flT').dataset.floor); }); }
+  addEventListener('keydown', function (e) { if (G.open && (e.code === 'Escape' || e.code === 'Backspace')) { e.stopImmediatePropagation(); openG(false); } }, true);
+}
+if (document.getElementById('flBtn')) flBtnInit(); else document.addEventListener('DOMContentLoaded', flBtnInit);
+</script>
 <div id="ui"><button id="bView" title="First / third person (V)">V</button><button id="bFs" title="Fullscreen">⛶</button><button id="bOpt" title="Options"><canvas></canvas></button></div>
 <div id="homeQ" aria-hidden="true"><div id="homeP"><div id="homeT">BACK TO START SCREEN?</div><div id="homeN"></div><div id="homeB"><button class="stB" id="homeYes">YES</button><button class="stB" id="homeNo">NO</button></div></div></div>
 <div id="playUI"><button id="bPlay">PLAY</button><div id="credit">CREDIT 1</div><div id="hint">ENTER / E / SPACE</div></div>
-<div id="demoUI"><div id="dTag">DEMO</div><div id="dInsert">INSERT CREDIT</div><div id="dCredit">CREDIT 0</div><div id="dCost" style="display:none"></div><button id="bTicket">INSERT TICKET · 1 🎟</button></div><button id="bExit" title="Exit (Esc)">✕</button><div id="tix" role="button" tabindex="0" title="Show ticket"><canvas id="tixIco"></canvas><span id="tixN">0</span></div><div id="vix" role="button" tabindex="0" title="Show Viking ticket" style="display:none"><canvas id="vixIco"></canvas><span id="vixN">0</span></div><div id="tview" aria-hidden="true"><button id="tvX" title="Close (Esc)">✕</button><div id="tvWrap"><canvas id="tvCv"></canvas><div id="tvShine"></div></div><div id="tvCount">🎟 0 TICKETS</div><div id="tvHint">TAP OR ESC TO CLOSE</div></div><div id="over">GAME OVER</div>
+<div id="demoUI"><div id="dTag">DEMO</div><div id="dInsert">INSERT CREDIT</div><div id="dCredit">CREDIT 0</div><div id="dCost" style="display:none"></div><button id="bTicket">INSERT TICKET · 1 🎟</button></div><button id="bExit" title="Exit (Esc)">✕</button><button id="flBtn" title="Floor &amp; walls (1 ticket to change)"><img id="flBtnA" src="img/floor_neon.webp" alt=""><img id="flBtnB" class="off" alt=""><span>FLOOR·WALLS</span></button><div id="tix" role="button" tabindex="0" title="Show ticket"><canvas id="tixIco"></canvas><span id="tixN">0</span></div><div id="vix" role="button" tabindex="0" title="Show Viking ticket" style="display:none"><canvas id="vixIco"></canvas><span id="vixN">0</span></div><div id="tview" aria-hidden="true"><button id="tvX" title="Close (Esc)">✕</button><div id="tvWrap"><canvas id="tvCv"></canvas><div id="tvShine"></div></div><div id="tvCount">🎟 0 TICKETS</div><div id="tvHint">TAP OR ESC TO CLOSE</div></div><div id="over">GAME OVER</div>
 <button id="bUse">USE</button><button id="bPick">PICK UP 🎟</button><div id="cash"></div>
 <div id="kview"><div id="kHd"><b>TICKET EXCHANGE</b><button id="kX" title="Exit (Esc)">✕</button></div>
 <button class="kOff">$1 = 10 TICKETS</button><button class="kOff">$5 = 60 TICKETS</button><button class="kOff">$10 = 150 TICKETS</button>
