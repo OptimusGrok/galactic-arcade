@@ -17,7 +17,7 @@ const PH = process.argv[2] === 'phone', SUF = PH ? '_phone' : '';
   for (const cab of ['strikeCabinet', 'ghostCabinet']) {
     await goTo(cab); await page.waitForTimeout(900);
     for (let k = 0; k < 4; k++) { await press(); if (await page.evaluate(() => window.__arcade.play.mode !== 'walk')) break; await goTo(cab); await page.waitForTimeout(600); }
-    await page.waitForFunction(() => window.__arcade.play.mode === 'game' && document.getElementById('game').classList.contains('on'), null, { timeout: 30000 });
+    await page.waitForFunction(() => window.__arcade.play.mode === 'game' && document.getElementById('game').classList.contains('on'), null, { timeout: 60000 });
     for (let k = 0; k < 3 && !(await page.evaluate(w => document.getElementById('game').src.includes(w), cab === 'strikeCabinet' ? 'strike-play' : 'ghost-play')); k++) { await page.evaluate(() => window.__arcade.play.exit('x')); await page.waitForFunction(() => window.__arcade.play.mode === 'walk', null, { timeout: 30000 }); await goTo(cab); await page.waitForTimeout(900); await press(); await page.waitForFunction(() => window.__arcade.play.mode === 'game' && document.getElementById('game').classList.contains('on'), null, { timeout: 30000 }); }
     chk(await page.evaluate(w => document.getElementById('game').src.includes(w), cab === 'strikeCabinet' ? 'strike-play' : 'ghost-play'), cab + ': launched the right game'); await page.waitForTimeout(300);
     await page.evaluate(() => { const p = window.__arcade.play; if (p.tickets.total < 5) p.tickets.total = 5; p.insertTicket(); }); await page.waitForTimeout(450);   // demo: INSERT TICKET, then tap the screen

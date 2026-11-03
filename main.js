@@ -43,7 +43,16 @@ const camera = new THREE.PerspectiveCamera(60, innerWidth / innerHeight, 0.05, 1
 
 const HALF = 12, H = 8.5;                   // room is 24 x 24 x 8.5
 const DOOR_W = 3.2, DOOR_H = 3.0, HALL_L = 5, Z2 = -(2 * HALF + HALL_L);   // room 2 centre (rotated 180deg, its doorway faces ours)   // doorway in the north wall (x=0) + hallway to room 2
-const neon = (hex, k = 3) => { const m = new THREE.MeshBasicMaterial({ color: new THREE.Color(hex).multiplyScalar(k), fog: false }); return m; };
+// Neon tubes are over-bright (colour x k) so bloom gives the glow. Seen from very close (camera swinging against a wall or into the
+// hallway) a tube filled the screen at k x colour and ACES + bloom turned it into a white flash. nearGlare() fades a tube's brightness
+// down to ~1.3x its colour (still coloured, never white) when it is within ~1 m of the camera.
+function nearGlare(m, k) { const nk = Math.min(1, 1.3 / Math.max(k, 1e-3)); m.userData.nearK = nk;
+  m.onBeforeCompile = sh => { sh.uniforms.nearK = { value: nk };
+    sh.vertexShader = 'varying float vNG;\n' + sh.vertexShader.replace('#include <project_vertex>', '#include <project_vertex>\n  vNG = -mvPosition.z;');
+    sh.fragmentShader = 'uniform float nearK;\nvarying float vNG;\n' + sh.fragmentShader.replace('vec4 diffuseColor = vec4( diffuse, opacity );', 'vec4 diffuseColor = vec4( diffuse * mix( nearK, 1.0, smoothstep( 0.3, 1.1, vNG ) ), opacity );'); };
+  m.customProgramCacheKey = () => 'nearGlare'; return m; }
+const neon = (hex, k = 3) => nearGlare(new THREE.MeshBasicMaterial({ color: new THREE.Color(hex).multiplyScalar(k), fog: false }), k);
+const PINK_K = 0.7;   // Dave: 'make the pink neon strips a bit less bright' - pink/magenta strip tubes at 70% (other colours unchanged)
 const C = { pink: 0xff2bd6, mag: 0xff1fa8, cyan: 0x22d8ff, purple: 0x9b4dff, amber: 0xffa53a };
 
 // ---------- procedural textures ----------
@@ -176,8 +185,8 @@ for (let i = 0; i < 4; i++) {
   const ledge = new THREE.Mesh(new THREE.BoxGeometry(20.4, 0.5, 1.6), new THREE.MeshStandardMaterial({ color: 0x140c20, roughness: 0.7 }));
   ledge.position.copy(P(0, 3.38, 0.8)); ledge.rotation.y = a; ledge.name = 'ledge' + i; ledges.push(ledge); room.add(ledge);
 }
-room.add(new THREE.Mesh(mergeGeometries(edge), neon(C.pink, 3)));
-wallBands = [new THREE.Mesh(mergeGeometries(edgeLedge), neon(C.pink, 3)), new THREE.Mesh(mergeGeometries(edgeAmber), neon(C.amber, 2.2)), new THREE.Mesh(mergeGeometries(edgeCyan), neon(C.cyan, 1.8))];
+room.add(new THREE.Mesh(mergeGeometries(edge), neon(C.pink, 3 * PINK_K)));
+wallBands = [new THREE.Mesh(mergeGeometries(edgeLedge), neon(C.pink, 3 * PINK_K)), new THREE.Mesh(mergeGeometries(edgeAmber), neon(C.amber, 2.2)), new THREE.Mesh(mergeGeometries(edgeCyan), neon(C.cyan, 1.8))];
 wallBands.forEach((m, k) => { m.name = 'wallBand' + ['Pink', 'Amber', 'Cyan'][k]; room.add(m); });   // the 3 coloured horizontal wall bands (hidden with Viking walls)
 wallBands.forEach(m => { m.visible = wallsMode !== 'viking'; });
 
@@ -201,15 +210,15 @@ const hall = new THREE.Group(); hall.name = 'hallway'; scene.add(hall);
   }
   // door frame trim on the room side (pink), same bar style
   topP.push(polyBars([new THREE.Vector3(-hw, 0.0, z0 + 0.03), new THREE.Vector3(-hw, DOOR_H, z0 + 0.03), new THREE.Vector3(hw, DOOR_H, z0 + 0.03), new THREE.Vector3(hw, 0.0, z0 + 0.03)], 0.06, false));
-  const nb = new THREE.Mesh(mergeGeometries(bot), neon(C.pink, 3.5)); nb.name = 'hallNeonBottom';
-  const nt = new THREE.Mesh(mergeGeometries(topP), neon(C.pink, 3)); nt.name = 'hallNeonTop';
+  const nb = new THREE.Mesh(mergeGeometries(bot), neon(C.pink, 3.5 * PINK_K)); nb.name = 'hallNeonBottom';
+  const nt = new THREE.Mesh(mergeGeometries(topP), neon(C.pink, 3 * PINK_K)); nt.name = 'hallNeonTop';
   const nc = new THREE.Mesh(mergeGeometries(topC), neon(C.cyan, 1.8)); nc.name = 'hallNeonTopCyan';
   hall.add(nb, nt, nc);
 }
 
 // real lights: only a handful
 scene.add(new THREE.HemisphereLight(0x3a2060, 0x080410, 0.35));
-const lights = [[0, 5.5, 0, C.pink, 22], [0, 2.6, -8.6, C.mag, 14], [0, 2.6, 8.6, C.purple, 14], [-8.6, 2.6, 0, C.cyan, 12], [8.6, 2.6, 0, C.mag, 14], [6, 6, 6, C.amber, 6]];
+const lights = [[0, 5.5, 0, C.pink, 22], [0, 2.6, -8.6, C.mag, 14 * PINK_K], [0, 2.6, 8.6, C.purple, 14], [-8.6, 2.6, 0, C.cyan, 12], [8.6, 2.6, 0, C.mag, 14 * PINK_K], [6, 6, 6, C.amber, 6]];
 const roomLights = [];
 for (const [x, y, z, c, i] of lights) { const l = new THREE.PointLight(c, i, 22, 1.6); l.position.set(x, y, z); l.userData.p1 = [x, y, z]; scene.add(l); roomLights.push(l); }
 
@@ -292,8 +301,8 @@ for (let w = 0; w < 4; w++) {
     plinth.position.copy(toWorld(um, PLINTH / 2)).setY(0.045); plinth.rotation.y = a; plinth.name = 'plinth_' + wallNames[w]; room.add(plinth);
     const lipG = [barGeo(toWorld(u0, PLINTH).setY(0.09), toWorld(u1, PLINTH).setY(0.09), 0.035)];
     if (w === 0) lipG.push(barGeo(toWorld(u0 < 0 ? u1 : u0, PLINTH).setY(0.09), toWorld(u0 < 0 ? u1 : u0, 0).setY(0.09), 0.035)); // return along the door edge
-    { const lp = new THREE.Mesh(mergeGeometries(lipG), neon(C.pink, 3.5)); lp.name = 'plinthLip_' + wallNames[w]; room.add(lp); }
-    const lip2 = new THREE.Mesh(barGeo(toWorld(u0, PLINTH + 0.02).setY(0.012), toWorld(u1, PLINTH + 0.02).setY(0.012), 0.02), neon(C.mag, 2)); lip2.name = 'plinthLip2_' + wallNames[w]; room.add(lip2);
+    { const lp = new THREE.Mesh(mergeGeometries(lipG), neon(C.pink, 3.5 * PINK_K)); lp.name = 'plinthLip_' + wallNames[w]; room.add(lp); }
+    const lip2 = new THREE.Mesh(barGeo(toWorld(u0, PLINTH + 0.02).setY(0.012), toWorld(u1, PLINTH + 0.02).setY(0.012), 0.02), neon(C.mag, 2 * PINK_K)); lip2.name = 'plinthLip2_' + wallNames[w]; room.add(lip2);
     const pc = toWorld(um, PLINTH / 2);
     blockers.push({ minX: pc.x - (Math.abs(c) * hh + Math.abs(s) * PLINTH / 2), maxX: pc.x + (Math.abs(c) * hh + Math.abs(s) * PLINTH / 2), minZ: pc.z - (Math.abs(s) * hh + Math.abs(c) * PLINTH / 2), maxZ: pc.z + (Math.abs(s) * hh + Math.abs(c) * PLINTH / 2), kind: 'plinth', wall: wallNames[w] });
   }
@@ -371,7 +380,7 @@ function wallTubeGeo(cabList, flatEast) {
   }
   return mergeGeometries(segs);
 }
-const wn = new THREE.Mesh(wallTubeGeo([...cabinets, ...featured, ...eastGhostCabs], false), neon(C.pink, 3.5)); wn.name = 'wallNeonRun'; room.add(wn);
+const wn = new THREE.Mesh(wallTubeGeo([...cabinets, ...featured, ...eastGhostCabs], false), neon(C.pink, 3.5 * PINK_K)); wn.name = 'wallNeonRun'; room.add(wn);
 const playables = [...cabinets, ...featured];   // (+ dsCab, pushed once room 2 exists)
 // ---------- dev toggles (hidden ticket menu): NUMBERS badges over game cabinets, CLIPPING (walk through walls/doors) ----------
 const DEV = { numbers: localStorage.getItem('neonarcade.dev.numbers') === '1', clip: localStorage.getItem('neonarcade.dev.clip') === '1', badges: [] };
@@ -460,15 +469,27 @@ const FLOOR_KEY = 'neonarcade.floor';
 const carpetTex = new THREE.TextureLoader().load('tex/carpet.webp', () => spaceWin && floorMode === 'carpet' && spaceWin.dirty());
 carpetTex.colorSpace = THREE.SRGBColorSpace; carpetTex.wrapS = carpetTex.wrapT = THREE.RepeatWrapping;   // seamless tile (edge-cut figures removed): plain repeat, never mirrored (mirroring put copies head to head)
 carpetTex.repeat.set(3, 3); carpetTex.anisotropy = renderer.capabilities.getMaxAnisotropy();
-const carpet = new THREE.Mesh(new THREE.PlaneGeometry(HALF * 2, HALF * 2), new THREE.MeshStandardMaterial({
+// the carpet covers every walkable floor (Dave: 'when a floor is selected have it cover all floors'): room 1 + hallway (one mesh,
+// UVs in metres so the tile keeps room 1's scale), room 2 (carpet2) and the teleporter white room (carpetW, added in carpetWhite()).
+const worldUV = g => { const p = g.attributes.position, uv = g.attributes.uv; for (let i = 0; i < p.count; i++) uv.setXY(i, p.getX(i) / (HALF * 2) + 0.5, p.getY(i) / (HALF * 2) + 0.5); return g; };
+const carpetGeo = mergeGeometries([worldUV(new THREE.PlaneGeometry(HALF * 2, HALF * 2)), worldUV(new THREE.PlaneGeometry(DOOR_W, HALL_L + 0.02).translate(0, HALF + HALL_L / 2, 0))]);
+const carpet = new THREE.Mesh(carpetGeo, new THREE.MeshStandardMaterial({
   map: carpetTex, color: 0xe8ded0, roughness: 1, metalness: 0, emissive: 0xfff0dc, emissiveMap: carpetTex, emissiveIntensity: 0.3 }));   // matte; a little self-light keeps cream warm under the neon
 carpet.rotation.x = -Math.PI / 2; carpet.position.y = 0.005; carpet.name = 'carpet1'; carpet.visible = false; room.add(carpet);
+const carpet2 = new THREE.Mesh(new THREE.PlaneGeometry(HALF * 2, HALF * 2), carpet.material); carpet2.rotation.x = -Math.PI / 2; carpet2.position.y = 0.005; carpet2.name = 'carpet2'; carpet2.visible = false; room2.add(carpet2);
+let carpetW = null;
+function carpetWhite() {   // white room floor plane lives in teleport.js (shop.js only scales it); the carpet rides on it as a child so it follows the shop's size
+  if (carpetW || !tp) return carpetW; const fl = tp.whiteRoom.children.find(o => o.isMesh && o.geometry.type === 'PlaneGeometry' && o.rotation.x < -1.5 && Math.abs(o.position.y) < 1e-3); if (!fl) return null;
+  const t = carpetTex.clone(); t.repeat.set(3 * fl.scale.x, 3 * fl.scale.y); t.needsUpdate = true;
+  const m = carpet.material.clone(); m.map = m.emissiveMap = t;
+  carpetW = new THREE.Mesh(fl.geometry, m); carpetW.position.z = 0.005; carpetW.name = 'carpetW'; carpetW.visible = false; fl.add(carpetW); return carpetW; }
 // with the carpet on, the reflector / hex overlay only cover the hallway (room 1 no longer pays for a mirror pass there)
-const hallFloorGeo = new THREE.PlaneGeometry(DOOR_W, HALL_L + 0.02).translate(0, HALF + HALL_L / 2, 0);
 let floorMode = 'neon';
 function setFloor(mode) {
   floorMode = mode === 'carpet' ? 'carpet' : 'neon'; const c = floorMode === 'carpet';
-  carpet.visible = c; for (const m of [mirror, floorTop, floorBase1]) m.geometry = c ? hallFloorGeo : floorGeo;
+  carpet.visible = carpet2.visible = c; floorTop.visible = room2.getObjectByName('floorHex2').visible = !c;   // mirrors/bases are hidden per frame in cullRooms
+  const cw = carpetWhite(); if (cw) cw.visible = c;
+  if (c) mirror.visible = floorBase1.visible = room2.userData.mirror.visible = room2.userData.base.visible = false;   // right away (cullRooms keeps them off every frame)
   if (spaceWin) spaceWin.dirty();
   try { localStorage.setItem(FLOOR_KEY, floorMode); } catch (e) {}
   return floorMode;
@@ -492,6 +513,7 @@ function cullRooms(fr) {
   room2.visible = !in1 || fr.intersectsBox(doorBox1);
   const deep = !in1; room2.userData.mirror.visible = deep; room2.userData.base.visible = !deep; // far room seen through the door: no second reflector pass
   mirror.visible = !in2; floorBase1.visible = in2;
+  if (floorMode === 'carpet') mirror.visible = floorBase1.visible = room2.userData.mirror.visible = room2.userData.base.visible = false;   // carpet everywhere: no reflector passes
   const want = monkey.position.z < -HALF - HALL_L / 2 ? 2 : 1; // the 6 room lights follow the monkey (constant light count: no shader recompiles)
   if (want !== lightsIn) { lightsIn = want; for (const l of roomLights) { const [x, y, zz] = l.userData.p1; if (want === 1) l.position.set(x, y, zz); else l.position.set(-x, y, Z2 - zz); } }
 }
@@ -691,7 +713,7 @@ if (matchMedia('(display-mode: fullscreen), (display-mode: standalone)').matches
 const rt = new THREE.WebGLRenderTarget(innerWidth * dpr, innerHeight * dpr, { type: THREE.HalfFloatType, samples: MOBILE ? 2 : 4 });
 const composer = new EffectComposer(renderer, rt);
 composer.addPass(new RenderPass(scene, camera));
-const bloom = new UnrealBloomPass(new THREE.Vector2(innerWidth * Q.bloom, innerHeight * Q.bloom), 0.75, 0.5, 0.85);
+const bloom = new UnrealBloomPass(new THREE.Vector2(innerWidth * Q.bloom, innerHeight * Q.bloom), 0.75, 0.5, 0.4); bloom.highPassUniforms.smoothWidth.value = 0.6;   // soft knee 0.4..1.0 (was a hard cut at 0.85): cyan/amber tubes (lum >= 1) bloom as before, the 70% pink strips (lum ~0.68) keep a weaker halo instead of losing it
 composer.addPass(bloom);
 composer.addPass(new OutputPass());
 function resize() {
@@ -749,7 +771,7 @@ function collideCabs(p, onlyCabs = true) {
 }
 // furthest clear distance along dir from the target (walls with margin, and the STRIKE cabinet's box)
 const _cp = new THREE.Vector3();
-const CAM_AREAS = [{ x0: -(HALF - 0.3), x1: HALF - 0.3, z0: -(HALF - 0.3), z1: HALF - 0.3 }, { x0: -DOOR_W / 2 + 0.3, x1: DOOR_W / 2 - 0.3, z0: -HALF - HALL_L - 0.35, z1: -HALF + 0.35 }, { x0: -(HALF - 0.3), x1: HALF - 0.3, z0: Z2 - (HALF - 0.3), z1: Z2 + HALF - 0.3 }, { x0: WX - (HALF - 0.3), x1: WX + HALF - 0.3, z0: -(HALF - 0.3), z1: HALF - 0.3 }];
+const CAM_AREAS = [{ x0: -(HALF - 0.3), x1: HALF - 0.3, z0: -(HALF - 0.3), z1: HALF - 0.3 }, { x0: -DOOR_W / 2 + 0.5, x1: DOOR_W / 2 - 0.5, z0: -HALF - HALL_L - 0.35, z1: -HALF + 0.35 }, { x0: -(HALF - 0.3), x1: HALF - 0.3, z0: Z2 - (HALF - 0.3), z1: Z2 + HALF - 0.3 }, { x0: WX - (HALF - 0.3), x1: WX + HALF - 0.3, z0: -(HALF - 0.3), z1: HALF - 0.3 }];
 const inHallZ = z => z < -HALF + 0.3 && z > -HALF - HALL_L - 0.3;
 function camClamp(q) { clampAreas(q, CAM_AREAS); if (inHallZ(q.z)) q.y = Math.min(q.y, DOOR_H - 0.25); return q; }
 function camPush(q) { if (DEV.clip) { clampAreas(q, [{ x0: -HALF + 0.3, x1: HALF - 0.3, z0: Z2 - HALF + 0.3, z1: HALF - 0.3 }, CAM_AREAS[3]]); return q; } // keep the camera inside the walls and outside the STRIKE cabinet (continuous push-out, no ray snapping)
@@ -950,7 +972,7 @@ function stepClock(dt) { st.t += dt; }
 const play = setupPlay({ camera, monkey, dsCab, roadsterCab, strikeCab, ghostCab, berserkerCab, monkeyCab, orcCab, novaCab, cyberCab, st, pause(on) { paused = on; if (!on && !rafOn) { rafOn = true; last = performance.now(); requestAnimationFrame(frame); } } });
 shield = setupShield({ scene, play, st, monkey, HALF, DOOR_W, DOOR_H });
 tp = setupTeleport({ scene, monkey, st, HALF, H }); window.__tp = tp;
-shop = setupShop({ scene, tp, play, monkey, camera, st }); AREAS[3] = shop.extraBounds; CAM_AREAS[3] = shop.camBounds; CLIP_AREA[1] = shop.extraBounds;
+shop = setupShop({ scene, tp, play, monkey, camera, st }); AREAS[3] = shop.extraBounds; CAM_AREAS[3] = shop.camBounds; CLIP_AREA[1] = shop.extraBounds; setFloor(floorMode);   // white-room carpet now that the shop has sized the floor
 kiosk = setupKiosk({ room, camera, monkey, st, play, blockers });
 const opts = setupOpts({ play, kiosk, shield, st, monkey, setFloor, getFloor: () => floorMode, setWalls, getWalls: () => wallsMode, HALF, Z2 });
 requestAnimationFrame(frame);

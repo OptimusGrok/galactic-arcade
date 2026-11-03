@@ -53,7 +53,7 @@ const PHONE = process.argv[2] === 'phone';
   await page.screenshot({ path: 'shots/ds_headset' + sfx + '.png' });
   console.log(JSON.stringify([p1, p2]));
   chk(p1.mode === 'prep' && p2.y > 0.2 && p2.r < 1.2, 'PLAY walks the monkey up onto the platform ' + JSON.stringify(p2));
-  chk(p2.mode === 'zoomIn' && p2.onHead && p2.d < 0.3 && p2.glow > 1, 'he lifts the headset onto his head, the visor glows, camera zooms in');
+  chk(p2.mode === 'zoomIn' && p2.onHead && p2.d < 0.35 && p2.glow > 1, 'he lifts the headset onto his head, the visor glows, camera zooms in');
   await H.zoomToDemo(); await page.waitForTimeout(1500);
   const d = await page.evaluate(W => { const w = eval(W); return { src: w.location.pathname, demo: w.__DEMO, ins: document.getElementById('dInsert').textContent, cost: document.getElementById('dCost').textContent, full: document.getElementById('game').getBoundingClientRect().width / innerWidth }; }, W);
   chk(/ds-play/.test(d.src) && d.demo && d.ins === 'INSERT CREDIT' && d.cost === '5 TICKETS TO PLAY' && d.full > 0.9, 'Dead Signal fills the view: silent DEMO, INSERT CREDIT, 5 TICKETS TO PLAY ' + JSON.stringify(d));

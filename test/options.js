@@ -1,4 +1,4 @@
-// start screen START / OPTIONS buttons, taps elsewhere ignored, Options > FLOOR (neon / cream carpet) applied to room 1 and saved
+// start screen START / OPTIONS buttons, taps elsewhere ignored, Options > FLOOR (neon / cream carpet) applied to every floor (room 1, hallway, room 2, white room) and saved
 // node test/options.js [phone]
 const { open } = require('./lib');
 const PH = process.argv[2] === 'phone', sfx = PH ? '_phone' : '';
@@ -27,16 +27,18 @@ const PH = process.argv[2] === 'phone', sfx = PH ? '_phone' : '';
   chk(fl.on && fl.tab === 'FLOOR' && fl.n === 2 && fl.loaded && fl.sel === 'neon', 'OPTIONS opens the menu: FLOOR tab with CURRENT + CARPET previews, neon selected');
   await page.screenshot({ path: `shots/options_floor${sfx}.png` });
   await tap('#flCarpet'); await page.waitForTimeout(400);
-  b = await ev(() => ({ sel: document.querySelector('#flTiles .flT.sel').dataset.floor, floor: window.__arcade.floor, carpet: window.__arcade.carpet.visible, ls: localStorage.getItem('neonarcade.floor'), mg: window.__arcade.mirror.geometry.parameters && window.__arcade.mirror.geometry.parameters.width }));
+  b = await ev(() => ({ sel: document.querySelector('#flTiles .flT.sel').dataset.floor, floor: window.__arcade.floor, carpet: window.__arcade.carpet.visible, ls: localStorage.getItem('neonarcade.floor'), mg: window.__arcade.mirror.visible, all: ['carpet2', 'carpetW'].map(n => { const o = window.__arcade.room.parent.getObjectByName(n); return !!o && o.visible; }),
+    hall: (() => { const g = window.__arcade.carpet.geometry; g.computeBoundingBox(); return +(g.boundingBox.max.y - g.boundingBox.min.y).toFixed(1); })(), m2: window.__arcade.room.parent.getObjectByName('floorMirror2').visible }));
   chk(b.sel === 'carpet' && b.floor === 'carpet' && b.carpet && b.ls === 'carpet', 'tapping CARPET selects it and applies it to room 1 straight away (saved)');
-  chk(b.mg < 5, 'room 1 reflector dropped: mirror only covers the hallway (width ' + b.mg + ')');
+  chk(!b.mg && !b.m2, 'carpet: both floor reflectors switched off');
+  chk(b.all.every(Boolean) && b.hall > 25, 'carpet covers room 1 + hallway (length ' + b.hall + ' m), room 2 and the white room ' + JSON.stringify(b.all));
   await page.screenshot({ path: `shots/options_floor_carpet${sfx}.png` });
   await tap('#optBack'); await page.waitForTimeout(300);
   b = await st(); chk(b.ex && !b.opt && !b.s.dismissed, 'BACK returns to the start screen');
   await tap('#stStart'); await page.waitForFunction(() => !document.getElementById('start'), null, { timeout: 5000 }).catch(() => {});
   b = await st(); chk(!b.ex && b.s.how === 'start' && b.s.audio && b.mode === 'walk' && b.t === a.t && JSON.stringify(b.pos) === JSON.stringify(a.pos), 'START enters (audio unlocked), no tap leaked into the game');
   // carpet room shots + wall strips kept
-  const keep = await ev(() => { const A = window.__arcade; let neon = 0; A.room.traverse(o => { if (o.isMesh && o.visible && o.material && o.material.type === 'MeshBasicMaterial' && o.position.y < 0.2 && o.parent === A.room) neon++; }); return { neon, shield: A.shield.group.visible || A.shield.open, hex: A.room.getObjectByName('floorHex').geometry.parameters.width }; });
+  const keep = await ev(() => { const A = window.__arcade; let neon = 0; A.room.traverse(o => { if (o.isMesh && o.visible && o.material && o.material.type === 'MeshBasicMaterial' && o.position.y < 0.2 && o.parent === A.room) neon++; }); return { neon, shield: A.shield.group.visible || A.shield.open, hex: A.room.getObjectByName('floorHex').visible }; });
   chk(keep.neon >= 8, 'neon wall-bottom / plinth strips still visible in room 1 (' + keep.neon + ')');
   await ev(() => { const A = window.__arcade; A.monkey.position.set(0, 0, 9); A.step(1 / 60); window.__camOverride = { pos: [0, 2.6, 10.5], at: [0, 0.6, -6] }; });
   await page.waitForTimeout(2500); await page.screenshot({ path: `shots/carpet_room1${sfx}.png` });
