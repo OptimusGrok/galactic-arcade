@@ -438,6 +438,9 @@ export function setupShop({ scene, tp, play, monkey, camera, st } = {}) {
   add(ledB, ledM, 'shopLedBlue'); add(ledP, ledM2, 'shopLedPurple'); add(ledCy, ledC, 'shopLedCyan'); add(lit, litM, 'ceilingLight');
   lab.t.needsUpdate = true; add(labelGeos, new THREE.MeshBasicMaterial({ map: lab.t, toneMapped: false }), 'priceLabels'); add(cardGeos, new THREE.MeshBasicMaterial({ color: 0x1b1f2e }), 'priceCards');
 
+  // t563: teleporter pad moved from the room centre to the far-left corner (title wall's car end meets the left wall's Viking end),
+  // 2 m clear of both walls. teleport.js reads tp.PAD2 live (proximity button, beam, arrival), so moving the vector + the pad group moves it all.
+  if (tp && tp.PAD2 && tp.pads && tp.pads[1]) { tp.PAD2.set(WXp - (HS - 2.0), 0, HS - 2.0); tp.pads[1].G.position.copy(tp.PAD2); }
   // ---------- bounds + obstacles ----------
   const R = 0.3, L = HS - 0.35, KX = 0, KZ = 0;
   const extraBounds = { x0: WXp - L, x1: WXp + L, z0: Z0 + SD / 2 + R, z1: L };
@@ -614,7 +617,9 @@ export function setupShop({ scene, tp, play, monkey, camera, st } = {}) {
   const tmp = new THREE.Vector3();
   // t552: shop.update runs inside main.js's rAF frame before the next requestAnimationFrame, so any throw here froze the whole game.
   api.update = (dt) => { try { updateShop(dt); } catch (e) { if (!api._err) { api._err = 1; console.warn('shop.update', e); } } };
+  let tpWhere = tp ? tp.where : 1;
   const updateShop = (dt) => {
+    if (tp && st && tp.where !== tpWhere) { tpWhere = tp.where; if (tp.where === 2) { const yaw = -Math.PI / 4; st.yaw = yaw; st.face = yaw + Math.PI; st.camInit = false; } }   // t563: arrive in the corner facing into the room
     t += dt; if (api_sky) api_sky.uniforms.uT.value = t; const m = getMonkey(); if (!m) return;
     syncHeld(); if (heldObj) { const pm = play && play.mode, A = window.__arcade, sStat = A && A.st;
       heldObj.visible = (!pm || pm === 'walk') && !(sStat && (sStat.seated || sStat.fp)) && !(tp && tp.locked) && m.visible; if (m.userData) holdPose(m.userData, dt); }

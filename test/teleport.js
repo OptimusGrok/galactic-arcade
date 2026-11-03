@@ -28,13 +28,14 @@ const PH = process.argv[2] === 'phone', sfx = PH ? '_phone' : '';
   await page.waitForFunction(() => window.__tp.state === 'idle', null, { timeout: 20000 }); await page.waitForTimeout(800);
   await page.screenshot({ path: `shots/tp_whiteroom${sfx}.png` });
   s = await ev(() => { const A = window.__arcade, t = window.__tp; return { where: t.where, x: A.monkey.position.x, z: A.monkey.position.z, vis: A.monkey.visible, wr: t.whiteRoom.visible, room: A.room.visible, btn: document.getElementById('tpBtn').textContent, on: !!document.querySelector('#tpBtn.on') }; });
-  chk(s.where === 2 && Math.abs(s.x - 80) < 0.05 && Math.abs(s.z) < 0.05 && s.vis && s.wr && !s.room, 'ends in the white room centre on the pad ' + JSON.stringify(s));
+  const window_P2 = await ev(() => ({ x: window.__tp.PAD2.x, z: window.__tp.PAD2.z }));   // t563: shop pad is in the corner now
+  chk(s.where === 2 && Math.abs(s.x - window_P2.x) < 0.05 && Math.abs(s.z - window_P2.z) < 0.05 && s.vis && s.wr && !s.room, 'ends on the white-room (shop) pad ' + JSON.stringify(s));
   chk(s.on && s.btn === 'ARCADE', 'ARCADE button shown on the white-room pad');
   chk(await ev(() => !!document.querySelector('#bPack.on') && !!document.getElementById('tixN')), 'backpack / tickets still there');
-  await ev(() => { const A = window.__arcade; A.keys.KeyD = true; }); await page.waitForTimeout(2500); await ev(() => { window.__arcade.keys.KeyD = false; });
-  s = await ev(() => ({ x: window.__arcade.monkey.position.x }));
-  chk(s.x > 80.2 && s.x < 92, 'can walk in the white room, stays inside ' + s.x.toFixed(2));
-  await ev(() => { const A = window.__arcade; A.monkey.position.set(81.2, 0, 0); }); await page.waitForFunction(() => !!document.querySelector('#tpBtn.on'), null, { timeout: 20000 });
+  await ev(() => { const A = window.__arcade; A.keys.KeyW = true; for (let i = 0; i < 90; i++) A.step(1 / 60); A.keys.KeyW = false; });   // t563: arrival faces into the room from the corner pad, so walk forward
+  s = await ev(() => ({ x: window.__arcade.monkey.position.x, z: window.__arcade.monkey.position.z }));
+  chk(Math.hypot(s.x - window_P2.x, s.z - window_P2.z) > 1 && s.x > 80 - 14 && s.x < 94 && Math.abs(s.z) < 14, 'can walk in the white room, stays inside ' + s.x.toFixed(2) + ',' + s.z.toFixed(2));
+  await ev(() => { const A = window.__arcade; A.monkey.position.set(window.__tp.PAD2.x + 1.2, 0, window.__tp.PAD2.z); }); await page.waitForFunction(() => !!document.querySelector('#tpBtn.on'), null, { timeout: 20000 });
   await tapBtn(); await page.waitForFunction(() => window.__tp.state === 'idle' && window.__tp.where === 1, null, { timeout: 120000 }); await page.waitForTimeout(500);
   s = await ev(() => { const A = window.__arcade, P = window.__tp.PAD1; return { d: Math.hypot(A.monkey.position.x - P.x, A.monkey.position.z - P.z), room: A.room.visible, wr: window.__tp.whiteRoom.visible, btn: document.getElementById('tpBtn').textContent }; });
   chk(s.d < 0.05 && s.room && !s.wr && s.btn === 'SHOP', 'ARCADE returns to room 1 pad ' + JSON.stringify(s));
