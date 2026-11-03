@@ -5,6 +5,7 @@
 import * as THREE from 'three';
 const SB_URL = 'https://kfupqtafhaflzaoqtenf.supabase.co', SB_KEY = 'sb_publishable_IAXEXd619Dq0g50CY-UNRQ_IqWDU4-2';
 const CDN = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.118.0/dist/umd/supabase.js', LOCAL = 'vendor/supabase.js';
+export const PV = 2;   // mp protocol version, sent in presence (t208)
 export const CHAN = 'galactic-arcade-public', CAP = 10, MAXLEN = 100, RATE_MS = 2000;
 const BAD = ['fuck', 'shit', 'bitch', 'cunt', 'dick', 'pussy', 'asshole', 'bastard', 'slut', 'whore', 'fag', 'nigger', 'nigga', 'retard', 'wank', 'twat', 'cock', 'piss'];
 const BADRE = new RegExp('\\b\\w*(' + BAD.join('|') + ')\\w*\\b', 'gi');
@@ -86,7 +87,8 @@ body.ingame #mpPill,body.ingame #mpBar,body.ingame #mpChat,body.ingame #mpTags,b
   M.showName = showName; M.setName = v => { name = fallback = v; LSs('neonarcade.mpName', v); track(); };
   pill.addEventListener('click', e => { e.stopPropagation(); showName(!nameP.classList.contains('on')); });
   let flashT = 0; function flash(t, ms) { note.textContent = t; note.style.display = 'block'; clearTimeout(flashT); if (ms !== 0) flashT = setTimeout(() => { note.style.display = M.full ? 'block' : 'none'; if (M.full) note.textContent = 'Room full, playing solo'; }, ms || 2500); }
-  function pillTxt() { pill.querySelector('#mpN').textContent = (M.state === 'on' ? M.count : 1) + '/' + CAP; pill.classList.toggle('off', M.state !== 'on'); }
+  function liveCount() { const now = performance.now(); let n = 1; for (const p of M.peers.values()) if (now - p.last < 12000) n++; return Math.min(CAP, n); }
+  function pillTxt() { if (M.state === 'on') M.count = liveCount(); pill.querySelector('#mpN').textContent = (M.state === 'on' ? M.count : 1) + '/' + CAP; pill.classList.toggle('off', M.state !== 'on'); }
   pillTxt();
   // ---------- local state -> wire ----------
   function roomOf(p) { if (p.x > WX / 2) return 'white'; if (p.z > -HALF) return 'room1'; if (p.z < -(HALF + HALL_L)) return 'room2'; return 'hall'; }
@@ -95,11 +97,11 @@ body.ingame #mpPill,body.ingame #mpBar,body.ingame #mpChat,body.ingame #mpTags,b
     if (st.jump) return 'jump'; return st.speed > 0.15 ? 'walk' : 'idle'; }
   const r2 = v => Math.round(v * 100) / 100;
   function snap() { const p = monkey.position; return { i: id, x: r2(p.x), y: r2(p.y), z: r2(p.z), r: Math.round(monkey.rotation.y * 100) / 100, m: roomOf(p), a: animOf() }; }
-  let ch = null, lib = null, client = null, lastSent = '', lastAt = 0, sendTimer = 0, joinedAt = 0, retry = 0;
+  let ch = null, lib = null, client = null, lastSent = '', lastAt = 0, sendTimer = 0, joinedAt = 0, retry = 0, retryT = 0, joinT = 0;
   function send(event, payload) { if (!ch || M.state !== 'on') return false; try { const r = ch.send({ type: 'broadcast', event, payload }); if (r && r.catch) r.catch(() => {}); } catch (e) { return false; } M.sent++; M.bytes += JSON.stringify(payload).length; return true; }
   function tick() { if (M.state !== 'on') return; const s = snap(), j = JSON.stringify(s), now = performance.now();
     if (j !== lastSent || now - lastAt > 1000) { lastSent = j; lastAt = now; send('st', s); } }
-  function track() { if (ch && M.state === 'on') try { const r = ch.track({ id, name, hue, look, at: joinedAt }); if (r && r.catch) r.catch(() => {}); } catch (e) {} }
+  function track() { if (ch && M.state === 'on') try { const r = ch.track({ id, name, hue, look, at: joinedAt, pv: PV }); if (r && r.catch) r.catch(() => {}); } catch (e) {} }
   // ---------- remote monkeys ----------
   // remote look: player.js palette (hoodie / fur / shoes recolour the monkey's original material colours; hat: cap or none);
   // without a look, a hue tint. The backpack is never tinted.
@@ -150,33 +152,50 @@ body.ingame #mpPill,body.ingame #mpBar,body.ingame #mpChat,body.ingame #mpTags,b
     if (!all.some(p => p.id === id) && all.length >= CAP) { goSolo('full'); return; }
     const keep = new Set(); for (const p of first) if (p.id !== id) { keep.add(p.id); peer(p.id, p); }
     for (const pid of [...M.peers.keys()]) if (!keep.has(pid)) drop(pid);
-    M.count = Math.min(CAP, Math.max(1, first.length)); pillTxt(); }
+    pillTxt(); }
   function goSolo(why) { M.full = why === 'full'; leave(); M.state = 'solo'; M.reason = why; pillTxt(); if (M.full) flash('Room full, playing solo', 0); }
   async function join() {
-    if (M.state === 'on' || M.state === 'joining' || M.full) return; M.state = 'joining';
+    retryT = 0; if (M.state === 'on' || M.state === 'joining' || M.full || document.hidden) return; M.state = 'joining'; joinT = performance.now();
     try { lib = lib || await getLib(); client = client || lib.createClient(SB_URL, SB_KEY, { auth: { persistSession: false, autoRefreshToken: false }, realtime: { params: { eventsPerSecond: 20 } } }); }
     catch (e) { M.state = 'off'; M.reason = 'offline: ' + (e && e.message); pillTxt(); return; }
     joinedAt = joinedAt || Date.now();
     try {
-      ch = client.channel(CHAN, { config: { presence: { key: id }, broadcast: { self: false, ack: false } } });
+      const mine = ch = client.channel(CHAN, { config: { presence: { key: id }, broadcast: { self: false, ack: false } } });
+      M.joins = (M.joins || 0) + 1;
       ch.on('presence', { event: 'sync' }, onSync)
         .on('broadcast', { event: 'st' }, m => onState(m && m.payload)).on('broadcast', { event: 'chat' }, m => onChat(m && m.payload)).on('broadcast', { event: 'emo' }, m => onEmo(m && m.payload))
         .on('broadcast', { event: 'bye' }, m => { if (m && m.payload) drop(m.payload.i); });
       // peek at presence before taking a seat: if 10 are already in, stay solo without counting as an 11th
       ch.subscribe(async status => {
+        if (ch !== mine) return;   // t208: a late CLOSED / error from a channel we already removed must not tear down the new one
         if (status === 'SUBSCRIBED') { M.state = 'on'; M.reason = ''; retry = 0; await new Promise(r => setTimeout(r, window.__mpMock ? 50 : 700));
           let n = 0; try { const s0 = ch.presenceState(); n = Object.keys(s0).filter(k => k !== id).length; } catch (e) {}
-          if (n >= CAP) { goSolo('full'); return; } track(); lastSent = ''; tick(); pillTxt(); }
+          if (ch !== mine) return; if (n >= CAP) { goSolo('full'); return; } track(); lastSent = ''; tick(); pillTxt(); }
         else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') { if (M.state === 'solo') return; M.reason = status; leave(); M.state = 'off'; pillTxt();
-          if (status !== 'CLOSED' && retry < 5 && !document.hidden) setTimeout(join, 4000 * ++retry); } });
+          clearTimeout(retryT); retryT = setTimeout(join, Math.min(15000, 1000 * Math.pow(2, retry++))); } });
     } catch (e) { M.state = 'off'; M.reason = 'error: ' + (e && e.message); ch = null; pillTxt(); }
   }
   function leave() { if (ch) { try { send('bye', { i: id }); } catch (e) {} const c = ch; ch = null; try { c.untrack && c.untrack(); } catch (e) {} try { client.removeChannel(c); } catch (e) {} }
     for (const pid of [...M.peers.keys()]) drop(pid); if (M.state === 'on' || M.state === 'joining') M.state = 'off'; M.count = 1; pillTxt(); }
   M.join = join; M.leave = leave;
-  document.addEventListener('visibilitychange', () => { if (document.hidden) { if (M.state === 'on') { leave(); M.paused = true; } } else if (M.paused) { M.paused = false; join(); } });
+  // t208 robustness: leave while hidden / offline, and always come back (visible, online, watchdog), never give up after N retries
+  const disabled = () => M.reason === 'disabled';
+  const want = () => !disabled() && !M.full && !document.hidden && navigator.onLine !== false;
+  function rejoin(why) { if (!want()) return; M.rejoins = (M.rejoins || 0) + 1; M.lastRejoin = why; if (ch || M.state === 'on' || M.state === 'joining') leave(); M.state = 'off'; retry = 0; join(); }
+  document.addEventListener('visibilitychange', () => { if (document.hidden) { if (M.state === 'on' || M.state === 'joining') { leave(); M.paused = true; } } else { M.paused = false; if (M.state !== 'on') rejoin('visible'); } });
+  addEventListener('online', () => rejoin('online'));
+  addEventListener('offline', () => { if (ch) { leave(); M.state = 'off'; M.reason = 'offline'; pillTxt(); } });
+  addEventListener('pageshow', e => { if (e.persisted) rejoin('bfcache'); });
+  setInterval(() => { if (!want()) return; const now = performance.now();
+    if (M.state === 'off' && !retryT) { if (/^offline:|^error:/.test(M.reason) && now - joinT < 30000) return; return rejoin('watchdog-off'); }
+    if (M.state === 'joining' && now - joinT > 15000) return rejoin('watchdog-stuck');
+    if (M.state !== 'on' || !ch) return;
+    if (ch.state && ch.state !== 'joined' && ch.state !== 'joining') return rejoin('watchdog-' + ch.state);
+    let st0 = null; try { st0 = ch.presenceState(); } catch (e) {}
+    if (st0 && !st0[id]) track();   // our own presence went missing (server restart / socket swap): re-track
+  }, window.__mpMock ? 1000 : 4000);
   addEventListener('pagehide', () => leave());
-  setInterval(tick, 100);
+  setInterval(tick, 100); setInterval(pillTxt, 1000);
   // ---------- per frame: interpolate, animate, place tags + bubbles ----------
   const V = new THREE.Vector3(); let lt = performance.now();
   function place(node, obj, h, dy) { V.set(obj.position.x, obj.position.y + h, obj.position.z).project(camera);

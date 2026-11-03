@@ -86,6 +86,17 @@ const PHONE = process.argv[2] === 'phone';
   const gone = await a.evaluate(() => window.__mp.peers.size);
   await b.evaluate(() => { Object.defineProperty(document, 'hidden', { configurable: true, get: () => false }); document.dispatchEvent(new Event('visibilitychange')); }); await a.waitForTimeout(800);
   chk(gone === 0 && await a.evaluate(() => window.__mp.peers.size) === 1, 'tab hidden -> leaves (peer gone), visible again -> rejoins');
+  // t208 robustness: every interruption must end with both players seeing each other again within a few seconds
+  const seen = async (x, pid) => x.waitForFunction(pid => { const p = window.__mp.peers.get(pid); return window.__mp.state === 'on' && window.__mp.peers.size === 1 && p && p.cur && performance.now() - p.last < 3000 && p.g.visible && document.getElementById('mpN').textContent === '2/10'; }, pid, { timeout: 8000 }).then(() => true, () => false);
+  const backAgain = async (label, t0) => { const ok1 = await seen(a, 'bbbb2222'), ok2 = await seen(b, 'aaaa1111'); const st = await Promise.all([a, b].map(x => x.evaluate(() => ({ st: window.__mp.state, why: window.__mp.reason, n: document.getElementById('mpN').textContent, peers: window.__mp.peers.size, re: window.__mp.lastRejoin })))); chk(ok1 && ok2, label + ' -> both see each other again in ' + ((Date.now() - t0) / 1000).toFixed(1) + ' s ' + JSON.stringify(st)); };
+  const vis = (x, h) => x.evaluate(h => { Object.defineProperty(document, 'hidden', { configurable: true, get: () => h }); document.dispatchEvent(new Event('visibilitychange')); }, h);
+  await vis(b, true); await a.waitForTimeout(30000); let t0 = Date.now(); await vis(b, false); await backAgain('backgrounded 30 s, then back', t0);
+  await vis(b, true); await vis(b, false); await vis(b, true); t0 = Date.now(); await vis(b, false); await backAgain('quick hide/show x2 (late CLOSED from the old channel must not kill the new one)', t0);
+  await b.evaluate(() => { Object.defineProperty(navigator, 'onLine', { configurable: true, get: () => false }); dispatchEvent(new Event('offline')); }); await a.waitForTimeout(3000);
+  t0 = Date.now(); await b.evaluate(() => { Object.defineProperty(navigator, 'onLine', { configurable: true, get: () => true }); dispatchEvent(new Event('online')); }); await backAgain('offline 3 s, then online', t0);
+  await b.evaluate(() => window.__mpMockKill()); await a.waitForTimeout(3000); t0 = Date.now(); await b.evaluate(() => { window.__mpMockDead = 0; }); await backAgain('socket died silently (phone sleep, no events), watchdog rejoins', t0);
+  for (let i = 1; i <= 3; i++) { await b.reload(); await b.waitForFunction(() => window.__arcade && window.__arcade.stats.frames > 3 && window.__mp, null, { timeout: 60000 }); t0 = Date.now(); await backAgain('reload #' + i + ' (one entry per device, no ghost)', t0); }
+  chk(await a.evaluate(() => [...window.__mp.peers.keys()].join()) === 'bbbb2222', 'after reloads A still has exactly one B');
   const errs = [...A.errors, ...B.errors]; chk(errs.length === 0, 'no page errors (two peers) ' + errs.join(' | '));
   chk([...A.requests, ...B.requests].filter(u => !u.startsWith('http://localhost')).length === 0, 'zero off-site requests (mocked)');
   await A.close(); await B.close(); pages.length = 0;

@@ -152,7 +152,7 @@ body[data-cab=roadster] #tix.ingame{top:calc(max(10px,env(safe-area-inset-top)) 
 .optTab{font:900 14px 'Courier New',monospace;letter-spacing:.14em;padding:8px 16px;border-radius:10px;border:2px solid #ff3cf0;background:#2a0628;color:#fff;text-shadow:0 0 6px #ff3cf0}
 #flTiles,#wlTiles{display:flex;gap:14px;justify-content:center}
 /* 4 floors in ONE row (a wrapped 2nd row fell below the visible screen on phones, esp. landscape / with browser bars) */
-#flTiles{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}#flTiles .flT{max-width:none;min-width:0;padding:4px;font-size:clamp(9px,2.6vmin,13px);letter-spacing:.06em}#flTiles .flT img{aspect-ratio:1;max-height:22dvh}#flTiles .flT .now{font-size:clamp(7px,1.9vmin,10px)}
+#flTiles,#wlTiles{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}#flTiles .flT,#wlTiles .flT{max-width:none;min-width:0;padding:4px;font-size:clamp(9px,2.6vmin,13px);letter-spacing:.06em}#flTiles .flT img,#wlTiles .flT img{aspect-ratio:1;max-height:22dvh}#flTiles .flT .now,#wlTiles .flT .now{font-size:clamp(7px,1.9vmin,10px)}
 #optP{max-height:calc(100dvh - 12px);overflow-y:auto;box-sizing:border-box}
 @media (max-height:500px){#optP{padding:8px 12px 10px}#optHd{margin-bottom:6px}#optTabs{margin-bottom:8px}#optBack{margin-top:8px}#musBtn{margin-top:8px!important}}
 #opt.wl #flTiles,#opt:not(.wl) #wlTiles{display:none}
