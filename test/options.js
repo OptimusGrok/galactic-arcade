@@ -1,4 +1,4 @@
-// start screen START / OPTIONS buttons, taps elsewhere ignored, Options > FLOOR (neon / cream carpet) applied to every floor (room 1, hallway, room 2, white room) and saved
+// start screen START / OPTIONS buttons, taps elsewhere ignored, Options > FLOOR (neon / ARCADE light-grey character carpet ('carpet') / checkers / lava) applied to every floor (room 1, hallway, room 2, white room) and saved
 // node test/options.js [phone]
 const { open } = require('./lib');
 const PH = process.argv[2] === 'phone', sfx = PH ? '_phone' : '';
@@ -24,15 +24,16 @@ const PH = process.argv[2] === 'phone', sfx = PH ? '_phone' : '';
   // OPTIONS -> FLOOR tab
   await tap('#stOpt'); await page.waitForTimeout(500);
   const fl = await ev(() => { const im = [...document.querySelectorAll('#flTiles .flT img')]; return { on: !!document.querySelector('#opt.on'), n: im.length, loaded: im.every(i => i.complete && i.naturalWidth > 100), sel: document.querySelector('#flTiles .flT.sel').dataset.floor, tab: document.getElementById('tabFloor').textContent }; });
-  chk(fl.on && fl.tab === 'FLOOR' && fl.n === 4 && fl.loaded && fl.sel === 'neon', 'OPTIONS opens the menu: FLOOR tab with CURRENT, CARPET, CHECKERS, LAVA previews, neon selected');
+  chk(fl.on && fl.tab === 'FLOOR' && fl.n === 4 && fl.loaded && fl.sel === 'neon', 'OPTIONS opens the menu: FLOOR tab with CURRENT, ARCADE, CHECKERS, LAVA previews, neon selected');
   await page.screenshot({ path: `shots/options_floor${sfx}.png` });
   await tap('#flCarpet'); await page.waitForTimeout(400);
   b = await ev(() => ({ sel: document.querySelector('#flTiles .flT.sel').dataset.floor, floor: window.__arcade.floor, carpet: window.__arcade.carpet.visible, ls: localStorage.getItem('neonarcade.floor'), mg: window.__arcade.mirror.visible, all: ['carpet2', 'carpetW'].map(n => { const o = window.__arcade.room.parent.getObjectByName(n); return !!o && o.visible; }),
     hall: (() => { const g = window.__arcade.carpet.geometry; g.computeBoundingBox(); return +(g.boundingBox.max.y - g.boundingBox.min.y).toFixed(1); })(), m2: window.__arcade.room.parent.getObjectByName('floorMirror2').visible }));
-  chk(b.sel === 'carpet' && b.floor === 'carpet' && b.carpet && b.ls === 'carpet', 'tapping CARPET selects it and applies it to room 1 straight away (saved)');
+  chk(b.sel === 'carpet' && b.floor === 'carpet' && b.carpet && b.ls === 'carpet', 'tapping ARCADE selects it and applies it to room 1 straight away (saved)');
   chk(!b.mg && !b.m2, 'carpet: both floor reflectors switched off');
   chk(b.all.every(Boolean) && b.hall > 25, 'carpet covers room 1 + hallway (length ' + b.hall + ' m), room 2 and the white room ' + JSON.stringify(b.all));
   await page.screenshot({ path: `shots/options_floor_carpet${sfx}.png` });
+  chk(await ev(() => /^ARCADE/.test(document.getElementById('flCarpet').textContent) && !/CREAM/.test(document.getElementById('flTiles').textContent)), 'carpet tile is labelled ARCADE (no CREAM)');
   await tap('#optBack'); await page.waitForTimeout(300);
   b = await st(); chk(b.ex && !b.opt && !b.s.dismissed, 'BACK returns to the start screen');
   await tap('#stStart'); await page.waitForFunction(() => !document.getElementById('start'), null, { timeout: 5000 }).catch(() => {});
@@ -49,7 +50,7 @@ const PH = process.argv[2] === 'phone', sfx = PH ? '_phone' : '';
   b = await ev(() => ({ floor: window.__arcade.floor, carpet: window.__arcade.carpet.visible }));
   chk(b.floor === 'carpet' && b.carpet, 'carpet choice persists after a reload');
   await tap('#stOpt'); await page.waitForTimeout(400);
-  chk(await ev(() => document.querySelector('#flTiles .flT.sel').dataset.floor === 'carpet'), 'menu shows CARPET selected after reload');
+  chk(await ev(() => document.querySelector('#flTiles .flT.sel').dataset.floor === 'carpet'), 'menu shows ARCADE selected after reload');
   await tap('#flNeon'); await page.waitForTimeout(300);
   b = await ev(() => ({ floor: window.__arcade.floor, carpet: window.__arcade.carpet.visible, ls: localStorage.getItem('neonarcade.floor'), mg: (window.__arcade.mirror.geometry.parameters || {}).width }));
   chk(b.floor === 'neon' && !b.carpet && b.ls === 'neon' && !(b.mg < 5), 'switching back to NEON restores the reflective floor');

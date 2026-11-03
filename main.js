@@ -464,7 +464,7 @@ const dsCab = buildDeadSignalStation(); dsCab.rotation.y = Math.PI; room2.add(ds
   wn.geometry = wallTubeGeo([...cabinets, ...featured], true);                       // pink tube runs flat along the bottom of the glass
   spaceWin = setupSpaceWindow({ scene, room, renderer, HALF, H, isMobile: MOBILE, getMonkey: () => monkey, getCamera: () => camera });
 }
-// ---------- room 1 floor option: neon reflective (default) or cream character carpet (Options > FLOOR) ----------
+// ---------- room 1 floor option: neon reflective (default) or light-grey ARCADE character carpet (Options > FLOOR) ----------
 const FLOOR_KEY = 'neonarcade.floor';
 const carpetTex = new THREE.TextureLoader().load('tex/carpet.webp', () => spaceWin && floorMode === 'carpet' && spaceWin.dirty());
 carpetTex.colorSpace = THREE.SRGBColorSpace; carpetTex.wrapS = carpetTex.wrapT = THREE.RepeatWrapping;   // seamless tile (edge-cut figures removed): plain repeat, never mirrored (mirroring put copies head to head)
@@ -474,7 +474,7 @@ carpetTex.repeat.set(3, 3); carpetTex.anisotropy = renderer.capabilities.getMaxA
 const worldUV = g => { const p = g.attributes.position, uv = g.attributes.uv; for (let i = 0; i < p.count; i++) uv.setXY(i, p.getX(i) / (HALF * 2) + 0.5, p.getY(i) / (HALF * 2) + 0.5); return g; };
 const carpetGeo = mergeGeometries([worldUV(new THREE.PlaneGeometry(HALF * 2, HALF * 2)), worldUV(new THREE.PlaneGeometry(DOOR_W, HALL_L + 0.02).translate(0, HALF + HALL_L / 2, 0))]);
 const carpet = new THREE.Mesh(carpetGeo, new THREE.MeshStandardMaterial({
-  map: carpetTex, color: 0xe8ded0, roughness: 1, metalness: 0, emissive: 0xfff0dc, emissiveMap: carpetTex, emissiveIntensity: 0.3 }));   // matte; a little self-light keeps cream warm under the neon
+  map: carpetTex, color: 0xb4b4b4, roughness: 1, metalness: 0, emissive: 0xc8c8c8, emissiveMap: carpetTex, emissiveIntensity: 0.22 }));   // matte light grey (ARCADE); a little self-light keeps the prints readable under the neon
 carpet.rotation.x = -Math.PI / 2; carpet.position.y = 0.005; carpet.name = 'carpet1'; carpet.visible = false; room.add(carpet);
 const carpet2 = new THREE.Mesh(new THREE.PlaneGeometry(HALF * 2, HALF * 2), carpet.material); carpet2.rotation.x = -Math.PI / 2; carpet2.position.y = 0.005; carpet2.name = 'carpet2'; carpet2.visible = false; room2.add(carpet2);
 let carpetW = null;
@@ -540,6 +540,10 @@ function setFloor(mode) {
 }
 try { const f = localStorage.getItem(FLOOR_KEY); if (floorMats[f]) setFloor(f); } catch (e) {}
 window.__setFloor = setFloor;   // the start screen's Options menu calls this
+// pre-compile the CHECKERS / LAVA shaders a few seconds after load so the first tap on those tiles doesn't stall the phone
+setTimeout(() => { try { const m0 = carpet.material, v0 = carpet.visible; carpet.visible = true;
+  for (const m of [checkMat, lavaMat]) if (m !== m0) { carpet.material = m; renderer.compile(scene, camera); }
+  carpet.material = m0; carpet.visible = v0; } catch (e) {} }, 4000);
 
 // which room is the camera in, and can it see the other one through a doorway?
 const doorBox1 = new THREE.Box3(new THREE.Vector3(-DOOR_W / 2, 0, -HALF - 0.05), new THREE.Vector3(DOOR_W / 2, DOOR_H, -HALF + 0.05));
