@@ -49,6 +49,30 @@ const { open } = require('./lib');
   // can't walk into the table
   const p2 = await ev(() => { const A = window.__arcade, W = window.__tp.whiteRoom.position.x, P = window.__pool; A.monkey.position.set(W + P.PX, 0, P.PZ); A.st.vel.set(0, 0, 0); window.__shop.update(1 / 60); return [A.monkey.position.x - W - P.PX, A.monkey.position.z - P.PZ]; });
   chk(Math.abs(p2[0]) > 0.9 || Math.abs(p2[1]) > 1.5, 'table is solid ' + JSON.stringify(p2));
+  // ---- table 2 (t567): identical, shares geometry + materials, own button, solid, opens the same game ----
+  const g2 = await ev(() => { const G = window.__shop.G, a = G.getObjectByName('poolTable'), b = G.getObjectByName('poolTable2'), W = window.__tp.whiteRoom.position.x, P = window.__tp.PAD2;
+    const share = ['poolWood', 'poolFelt', 'poolBalls', 'poolCue'].every(n => { const x = a.getObjectByName(n), y = b.getObjectByName(n); return x && y && x !== y && (x.geometry === y.geometry || n === 'poolCue') && (x.material === y.material || n === 'poolCue'); });
+    const gap = (b.position.z - a.position.z) - 2 * (1.42 + 0.16); return { x: b.position.x, z: b.position.z, share, gap, wallGap: 14 - (b.position.z + 1.58), padD: Math.hypot(W + b.position.x - P.x, b.position.z - P.z) }; });
+  chk(g2.share && Math.abs(g2.x - 12.1) < 1e-6 && g2.gap > 1.2 && g2.wallGap > 1 && g2.padD > 15, 'second identical table next to the first, toward the front corner, shared geometry/materials ' + JSON.stringify(g2));
+  await ev(() => { const A = window.__arcade, W = window.__tp.whiteRoom.position.x, P = window.__pool; A.monkey.position.set(W + P.PX - 4.2, 0, P.PZ - 1.5); A.st.vel.set(0, 0, 0);
+    A.st.yaw = -Math.PI / 2 - 0.6; A.st.face = A.st.yaw + Math.PI; A.st.pitch = 0.8; A.st.dist = 8; A.st.camInit = false; });
+  { const f0 = await ev(() => window.__arcade.stats.frames); await page.waitForFunction(f => window.__arcade.stats.frames > f + 4, f0, { timeout: 60000 }).catch(() => {}); await page.waitForTimeout(1000); }
+  await page.screenshot({ path: '/workspace/galactic-shop/shots/pool_two.png' });
+  const gp = await ev(() => { const A = window.__arcade, W = window.__tp.whiteRoom.position.x, P = window.__pool; A.monkey.position.set(W + P.PX - 1.4, 0, (P.PZ + P.PZ2) / 2); A.st.vel.set(0, 0, 0); window.__shop.update(1 / 60); return A.monkey.position.z - (P.PZ + P.PZ2) / 2; });
+  chk(Math.abs(gp) < 0.05, 'walking gap between the tables is clear ' + gp.toFixed(3));
+  await ev(() => { const A = window.__arcade, W = window.__tp.whiteRoom.position.x, P = window.__pool; A.monkey.position.set(W + P.PX - 1.8, 0, P.PZ2 + 0.6); A.st.vel.set(0, 0, 0);
+    const t = A.play.tickets; t.total = 5; localStorage.setItem('neonarcade.tickets', '5'); });
+  await page.waitForFunction(() => !!document.querySelector('#poolBtn2.on') && !document.querySelector('#poolBtn.on'), null, { timeout: 30000 }).catch(() => {}); await page.waitForTimeout(800);
+  const b2 = await ev(() => ({ b2: !!document.querySelector('#poolBtn2.on'), b1: !!document.querySelector('#poolBtn.on'), txt: document.getElementById('poolBtn2').textContent }));
+  chk(b2.b2 && !b2.b1 && /5/.test(b2.txt), 'table 2 shows its own PLAY POOL button ' + JSON.stringify(b2));
+  [x, y] = await center('#poolBtn2'); await page.touchscreen.tap(x, y);
+  const ok2 = await page.waitForFunction(() => { try { const d = window.__pool.frame.contentDocument; return d && d.readyState === 'complete' && d.title === '8-Ball Pool'; } catch (e) { return false; } }, null, { timeout: 60000 }).then(() => true).catch(() => false);
+  const o2 = await ev(() => ({ table: window.__pool.table, t: window.__arcade.play.tickets.total, src: window.__pool.frame && window.__pool.frame.src }));
+  chk(ok2 && o2.table === 1 && o2.t === 0 && /pool-play\/index\.html$/.test(o2.src), 'table 2 opens the same game for 5 tickets ' + JSON.stringify(o2));
+  [x, y] = await center('#poolX'); await page.touchscreen.tap(x, y); await page.waitForTimeout(500);
+  chk(await ev(() => !window.__pool.open && !document.querySelector('#gOpt.on')), 'table 2 game closes back to the shop');
+  const s2 = await ev(() => { const A = window.__arcade, W = window.__tp.whiteRoom.position.x, P = window.__pool; A.monkey.position.set(W + P.PX, 0, P.PZ2); A.st.vel.set(0, 0, 0); window.__shop.update(1 / 60); return [A.monkey.position.x - W - P.PX, A.monkey.position.z - P.PZ2]; });
+  chk(Math.abs(s2[0]) > 0.9 || Math.abs(s2[1]) > 1.5, 'table 2 is solid ' + JSON.stringify(s2));
   const fs = await ev(() => window.__arcade.stats.frames); chk(fs > 0, 'arcade loop alive frames=' + fs);
   chk(errors.length === 0, 'no page errors ' + JSON.stringify(errors.slice(0, 3)));
   console.log(ok ? 'ALL OK' : 'SOME FAIL'); await close(); process.exit(ok ? 0 : 1);

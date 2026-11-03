@@ -444,7 +444,7 @@ export function setupShop({ scene, tp, play, monkey, camera, st } = {}) {
   // ---------- POOL TABLE (t564, Dave via Card & Board Games): right wall, opposite the corner teleporter pad. Same look as the 8-Ball Pool game
   // (dark walnut rails, #17734a felt, six pockets), racked balls + a cue on top. ~8 draw calls. Near it a PLAY POOL button opens
   // pool-play/index.html (a same-origin copy of https://optimusgrok.github.io/pool/) full-screen in an iframe overlay with a ✕. Free for now.
-  const PX = 12.1, PZ = 6.0, PLW = 0.78, PLL = 1.42, PTY = 0.82;   // table centre (shop-local), felt half-width (x) / half-length (z), felt height
+  const PX = 12.1, PZ = 6.0, PZ2 = 10.9, PLW = 0.78, PLL = 1.42, PTY = 0.82;   // table centre (shop-local), felt half-width (x) / half-length (z), felt height
   const pool = new THREE.Group(); pool.name = 'poolTable'; pool.position.set(PX, 0, PZ); G.add(pool);
   { const tex = (w, h, f) => { const c = document.createElement('canvas'); c.width = w; c.height = h; f(c.getContext('2d'), w, h); const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t; };
     const woodT = tex(512, 64, (g, w, h) => { const gr = g.createLinearGradient(0, 0, 0, h); gr.addColorStop(0, '#5a2c12'); gr.addColorStop(1, '#3e1c0a'); g.fillStyle = gr; g.fillRect(0, 0, w, h);
@@ -486,6 +486,9 @@ export function setupShop({ scene, tp, play, monkey, camera, st } = {}) {
     const glow = new THREE.Mesh(new THREE.PlaneGeometry(0.28, 1.8).rotateX(Math.PI / 2).translate(0, 2.305, 0), new THREE.MeshBasicMaterial({ color: 0xfff1d0, toneMapped: false }));
     lamp.name = 'poolLamp'; glow.name = 'poolLampGlow'; pool.add(lamp, glow);
   }
+  // t567: second identical table toward the right wall's front (title-wall) corner; clone shares every geometry + material
+  const pool2 = pool.clone(); pool2.name = 'poolTable2'; pool2.position.set(PX, 0, PZ2); G.add(pool2);
+  const POOLS = [PZ, PZ2];
   // ---------- bounds + obstacles ----------
   const R = 0.3, L = HS - 0.35, KX = 0, KZ = 0;
   const extraBounds = { x0: WXp - L, x1: WXp + L, z0: Z0 + SD / 2 + R, z1: L };
@@ -493,7 +496,7 @@ export function setupShop({ scene, tp, play, monkey, camera, st } = {}) {
   const cc = [[-0.86, -CL / 2], [0.84, -CL / 2], [0.84, CL / 2], [-0.86, CL / 2]].map(([a, b]) => toW(a, b));
   const OBST = [{ x0: Math.min(...cc.map(c => c[0])), x1: Math.max(...cc.map(c => c[0])), z0: Math.min(...cc.map(c => c[1])), z1: Math.max(...cc.map(c => c[1])) },
     { x0: -SXW - 0.1, x1: -SXW + 0.1, z0: ZW, z1: ZF }, { x0: SXW - 0.1, x1: SXW + 0.1, z0: ZW, z1: ZF },
-    { x0: PX - PLW - 0.18, x1: PX + PLW + 0.18, z0: PZ - PLL - 0.18, z1: PZ + PLL + 0.18 }];   // pool table
+    ...[PZ, PZ2].map(z => ({ x0: PX - PLW - 0.18, x1: PX + PLW + 0.18, z0: z - PLL - 0.18, z1: z + PLL + 0.18 }))];   // pool tables
   const NP = { x: QX + Math.sin(GYAW) * (RO + 0.55), z: QZ + Math.cos(GYAW) * (RO + 0.55) };
   function pushOut(p) { const lx = p.x - WXp, lz = p.z;
     const dx = lx - QX, dz = lz - QZ, d = Math.hypot(dx, dz); if (d < RO + R) { const k = (RO + R) / (d || 1); p.x = WXp + QX + dx * k; p.z = QZ + dz * k; return; }
@@ -585,33 +588,33 @@ export function setupShop({ scene, tp, play, monkey, camera, st } = {}) {
   addEventListener('keydown', e => { if (api.open) { if (e.code === 'Escape' || e.code === 'Backspace') closeShop(); e.stopImmediatePropagation(); return; }
     if (api.near && (e.code === 'KeyE' || e.code === 'Enter') && btn.classList.contains('on')) { openShop(); e.preventDefault(); e.stopImmediatePropagation(); } }, true);
   // ---------- PLAY POOL: button near the table -> 8-Ball Pool full-screen in an iframe overlay, ✕ returns to the shop (free for now) ----------
-  const poolCss = document.createElement('style'); poolCss.textContent = '#poolBtn{position:fixed;left:50%;bottom:calc(max(22px,env(safe-area-inset-bottom)) + 6px);transform:translateX(-50%);z-index:24;display:none;min-width:150px;height:58px;padding:0 26px;border-radius:29px;border:3px solid #3fe08a;background:#03200fe8;color:#e6ffef;font:900 20px/1 "Courier New",monospace;letter-spacing:.12em;box-shadow:0 0 16px #3fe08aaa,inset 0 0 12px #3fe08a55;text-shadow:0 0 8px #3fe08a;cursor:pointer;touch-action:none;white-space:nowrap}#poolBtn.on{display:block}#poolBtn:active{transform:translateX(-50%) scale(.95)}' +
+  const poolCss = document.createElement('style'); poolCss.textContent = '#poolBtn,#poolBtn2{position:fixed;left:50%;bottom:calc(max(22px,env(safe-area-inset-bottom)) + 6px);transform:translateX(-50%);z-index:24;display:none;min-width:150px;height:58px;padding:0 26px;border-radius:29px;border:3px solid #3fe08a;background:#03200fe8;color:#e6ffef;font:900 20px/1 "Courier New",monospace;letter-spacing:.12em;box-shadow:0 0 16px #3fe08aaa,inset 0 0 12px #3fe08a55;text-shadow:0 0 8px #3fe08a;cursor:pointer;touch-action:none;white-space:nowrap}#poolBtn.on,#poolBtn2.on{display:block}#poolBtn:active,#poolBtn2:active{transform:translateX(-50%) scale(.95)}' +
     '#poolOv{position:fixed;inset:0;z-index:60;display:none;background:#0b0d0c}#poolOv.on{display:block}#poolOv iframe{position:absolute;inset:0;width:100%;height:100%;border:0}#poolX{position:absolute;right:calc(10px + env(safe-area-inset-right));top:calc(10px + env(safe-area-inset-top));z-index:2;width:46px;height:46px;border-radius:23px;border:2px solid #fff8;background:#000a;color:#fff;font:900 22px/1 Arial,sans-serif;cursor:pointer;touch-action:manipulation}';
   document.head.appendChild(poolCss);
   const poolBtn = document.createElement('button'); poolBtn.id = 'poolBtn'; poolBtn.textContent = '🎱 PLAY POOL'; document.body.appendChild(poolBtn);
   const poolOv = document.createElement('div'); poolOv.id = 'poolOv'; poolOv.innerHTML = '<button id="poolX" aria-label="Close">✕</button>'; document.body.appendChild(poolOv);
   const poolX = poolOv.querySelector('#poolX'), POOL_SRC = new URL('./pool-play/index.html', import.meta.url).href;
-  const poolApi = { open: false, near: false, opens: 0, closes: 0, frame: null, src: POOL_SRC, PX, PZ };
+  const poolApi = { open: false, near: false, opens: 0, closes: 0, frame: null, src: POOL_SRC, PX, PZ, PZ2, which: 0, table: -1 };
   const clearKeys = () => { const k = window.__arcade && window.__arcade.keys; if (k) for (const c in k) k[c] = false; };
   const POOL_COST = 5, poolMsg = document.createElement('div'); poolMsg.id = 'poolMsg'; poolMsg.style.cssText = 'position:fixed;left:50%;bottom:calc(max(22px,env(safe-area-inset-bottom)) + 80px);transform:translateX(-50%);z-index:25;display:none;padding:10px 18px;border-radius:14px;border:2px solid #ff5a5a;background:#2a0606ee;color:#fff;font:900 15px "Courier New",monospace;letter-spacing:.06em;white-space:nowrap;box-shadow:0 0 14px #ff5a5a99;pointer-events:none'; document.body.appendChild(poolMsg);
-  let poolMsgT = 0; const poolNeed = b => { poolApi.need++; poolMsg.textContent = 'NEED ' + POOL_COST + ' TICKETS · YOU HAVE ' + b; poolMsg.style.display = 'block'; clearTimeout(poolMsgT); poolMsgT = setTimeout(() => { poolMsg.style.display = 'none'; }, 2200);
-    poolBtn.animate([{ transform: 'translateX(-50%) translateX(-8px)' }, { transform: 'translateX(-50%) translateX(8px)' }, { transform: 'translateX(-50%)' }], 240); };
-  poolBtn.textContent = '🎱 PLAY POOL · 🎟 ' + POOL_COST; poolApi.cost = POOL_COST; poolApi.need = 0; poolApi.paid = 0;
-  function openPool() { if (poolApi.open) return; const b = balance(); if (b < POOL_COST || !spend(POOL_COST)) { poolNeed(b); return; }   // 5 Galactic Arcade tickets per game (Dave), same pot as the cabinets
+  let poolMsgT = 0; const poolNeed = (b, el = poolBtn) => { poolApi.need++; poolMsg.textContent = 'NEED ' + POOL_COST + ' TICKETS · YOU HAVE ' + b; poolMsg.style.display = 'block'; clearTimeout(poolMsgT); poolMsgT = setTimeout(() => { poolMsg.style.display = 'none'; }, 2200);
+    el.animate([{ transform: 'translateX(-50%) translateX(-8px)' }, { transform: 'translateX(-50%) translateX(8px)' }, { transform: 'translateX(-50%)' }], 240); };
+  poolBtn.textContent = '🎱 PLAY POOL · 🎟 ' + POOL_COST; const poolBtn2 = poolBtn.cloneNode(true); poolBtn2.id = 'poolBtn2'; document.body.appendChild(poolBtn2); const poolBtns = [poolBtn, poolBtn2]; poolApi.cost = POOL_COST; poolApi.need = 0; poolApi.paid = 0;
+  function openPool(i = poolApi.which) { if (poolApi.open) return; const b = balance(); if (b < POOL_COST || !spend(POOL_COST)) { poolNeed(b, poolBtns[i] || poolBtn); return; } poolApi.table = i;   // 5 Galactic Arcade tickets per game (Dave), same pot as the cabinets
     poolApi.paid += POOL_COST; poolMsg.style.display = 'none'; try { const P = play || (window.__arcade && window.__arcade.play); if (P && P.tickets && P.tickets.save) P.tickets.save(); } catch (e) {}
-    poolApi.open = true; poolApi.opens++; poolBtn.classList.remove('on'); clearKeys(); if (api.open) closeShop();
+    poolApi.open = true; poolApi.opens++; for (const b of poolBtns) b.classList.remove('on'); clearKeys(); if (api.open) closeShop();
     const f = poolApi.frame = document.createElement('iframe'); f.src = POOL_SRC; f.title = '8-Ball Pool'; f.allow = 'autoplay; fullscreen'; poolOv.appendChild(f); poolOv.classList.add('on');
     f.addEventListener('load', () => { try { f.contentWindow.focus(); f.contentWindow.addEventListener('keydown', e => { if (e.code === 'Escape') { e.preventDefault(); closePool(); } }, true); } catch (e) {} });
     const cv = window.__arcade && window.__arcade.renderer && window.__arcade.renderer.domElement; if (cv) cv.style.visibility = 'hidden'; }
   function closePool() { if (!poolApi.open) return; poolApi.open = false; poolApi.closes++; poolOv.classList.remove('on'); const f = poolApi.frame; poolApi.frame = null;
     if (f) { try { f.src = 'about:blank'; } catch (e) {} f.remove(); }   // unload: stops the pool game's render loop + audio
     const cv = window.__arcade && window.__arcade.renderer && window.__arcade.renderer.domElement; if (cv) cv.style.visibility = ''; clearKeys(); try { window.focus(); } catch (e) {} }
-  for (const el of [poolBtn, poolOv]) { el.addEventListener('pointerdown', stop); el.addEventListener('touchstart', stop, { passive: true }); }
-  poolBtn.addEventListener('pointerup', e => { e.stopPropagation(); openPool(); }); poolBtn.addEventListener('click', e => { e.stopPropagation(); openPool(); });
+  for (const el of [poolBtn, poolBtn2, poolOv]) { el.addEventListener('pointerdown', stop); el.addEventListener('touchstart', stop, { passive: true }); }
+  poolBtns.forEach((b, i) => { b.addEventListener('pointerup', e => { e.stopPropagation(); openPool(i); }); b.addEventListener('click', e => { e.stopPropagation(); openPool(i); }); });
   // ✕ closes on its click (not pointerup): closing earlier let the tap's synthesized click fall through to the HUD options button under it
   poolX.addEventListener('pointerup', e => { e.stopPropagation(); }); poolX.addEventListener('click', e => { e.stopPropagation(); e.preventDefault(); closePool(); });
   addEventListener('keydown', e => { if (poolApi.open) { if (e.code === 'Escape') closePool(); e.stopImmediatePropagation(); return; }
-    if (poolApi.near && (e.code === 'KeyE' || e.code === 'Enter') && poolBtn.classList.contains('on')) { openPool(); e.preventDefault(); e.stopImmediatePropagation(); } }, true);
+    if (poolApi.near && (e.code === 'KeyE' || e.code === 'Enter') && poolBtns[poolApi.which].classList.contains('on')) { openPool(poolApi.which); e.preventDefault(); e.stopImmediatePropagation(); } }, true);
   Object.assign(poolApi, { openPool, closePool }); api.pool = poolApi; window.__pool = poolApi;
   // prizes row in the existing INVENTORY panel (inventory.js), injected only while it is open
   const inv = document.getElementById('inv');
@@ -700,13 +703,14 @@ export function setupShop({ scene, tp, play, monkey, camera, st } = {}) {
       heldObj.visible = (!pm || pm === 'walk') && !(sStat && (sStat.seated || sStat.fp)) && !(tp && tp.locked) && m.visible; if (m.userData) holdPose(m.userData, dt); }
     const inRoom = m.position.x > WXp / 2;
     if (inRoom && !wasIn && st) { st.pitch = 0.04; st.dist = Math.max(st.dist, 5.0); }   // shop-local camera: level, a bit closer (once per visit)
-    wasIn = inRoom; if (!inRoom) { if (btn.classList.contains('on')) btn.classList.remove('on'); poolBtn.classList.remove('on'); poolApi.near = false; if (api.open) closeShop(); return; }
+    wasIn = inRoom; if (!inRoom) { if (btn.classList.contains('on')) btn.classList.remove('on'); for (const b of poolBtns) b.classList.remove('on'); poolApi.near = false; if (api.open) closeShop(); return; }
     pushOut(m.position);
     const busy = (tp && tp.locked) || (play && play.mode && play.mode !== 'walk') || !!document.querySelector('#inv.on');
     api.near = !busy && Math.hypot(m.position.x - WXp - NP.x, m.position.z - NP.z) < 1.9;
     btn.classList.toggle('on', api.near && !api.open); if (api.open && !api.near && !busy) closeShop();
-    { const lx = m.position.x - WXp, lz = m.position.z, dx = Math.max(0, Math.abs(lx - PX) - PLW - 0.16), dz = Math.max(0, Math.abs(lz - PZ) - PLL - 0.16);
-      poolApi.near = !busy && !poolApi.open && !api.open && Math.hypot(dx, dz) < 1.3; poolBtn.classList.toggle('on', poolApi.near); }
+    { const lx = m.position.x - WXp, lz = m.position.z, dx = Math.max(0, Math.abs(lx - PX) - PLW - 0.16), ds = POOLS.map(z => Math.hypot(dx, Math.max(0, Math.abs(lz - z) - PLL - 0.16)));
+      const w = ds[1] < ds[0] ? 1 : 0; poolApi.which = w; poolApi.near = !busy && !poolApi.open && !api.open && ds[w] < 1.3;   // only the nearer table's button
+      poolBtns.forEach((b, i) => b.classList.toggle('on', poolApi.near && i === w)); }
     // Grok idle: gentle bob + sway, head turns toward the player, blinks, mouth moves while talking
     grok.position.y = Math.sin(t * 1.6) * 0.015; grok.rotation.z = Math.sin(t * 0.9) * 0.02;
     grok.getWorldPosition(tmp); const want = Math.atan2(m.position.x - tmp.x, m.position.z - tmp.z) - grok.rotation.y - 0 ;
