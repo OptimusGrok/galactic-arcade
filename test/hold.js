@@ -25,10 +25,10 @@ const S = '/workspace/galactic-shop/shots/';
   a = await att(); chk(a.id === null && a.ls === null, 'tapping held chip puts it away');
   await page.evaluate(() => document.querySelector('#invPz [data-pz="grok"]').click());
   await page.waitForTimeout(200);
-  // prizes are session-only (v53): a plain reload empties the hands; SAVE then LOAD of a slot brings the held prize back
+  // the held prize survives a plain reload; SAVE then LOAD of a slot also brings it back
   await page.evaluate(() => window.__opts.save(2)); await page.waitForTimeout(300);
   await page.reload(); await page.waitForFunction(() => window.__arcade && window.__arcade.stats.frames > 3 && window.__shop, null, { timeout: 60000 }); await page.waitForTimeout(500);
-  a = await att(); chk(a.id === null && !a.inM, 'reload without LOAD: hands empty ' + JSON.stringify(a));
+  a = await att(); chk(a.id === 'grok' && a.inM, 'held prize survives reload ' + JSON.stringify(a));
   const ld = await page.evaluate(() => window.__opts.load(2)); await page.waitForTimeout(500);
   a = await att(); chk(ld && a.id === 'grok' && a.inM, 'LOAD of the saved slot: Grok plush held again ' + JSON.stringify(a));
   await page.evaluate(() => localStorage.removeItem('neonarcade.save.2'));

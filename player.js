@@ -127,15 +127,38 @@
     ov.querySelector('#gaGo').hidden = !named(); ov.querySelector('#gaHint').hidden = named(); }
   function pick(k, v) { P[k] = v; save(); sync(); apply(); }
   function step(k, d) { var L = OPTS[k], i = 0; for (var j = 0; j < L.length; j++) if (L[j][0] === P[k]) i = j; pick(k, L[(i + d + L.length) % L.length][0]); }
-  function play() { if (!named()) return; P.name = clean(P.name).trim(); save(); apply(); var inp = document.getElementById('gaIn'); if (inp) inp.blur();
+  function play() { if (!named()) return; musicStop(); P.name = clean(P.name).trim(); save(); apply(); var inp = document.getElementById('gaIn'); if (inp) inp.blur();
     var b = document.getElementById('stStart'); if (!b) return; var ev; try { ev = new PointerEvent('pointerup', { bubbles: true, cancelable: true, pointerType: 'touch' }); } catch (e) { ev = new Event('pointerup', { bubbles: true, cancelable: true }); }
     b.dispatchEvent(ev); window.__gaPlayer.started = (window.__gaPlayer.started || 0) + 1; }
   function opts() { var b = document.getElementById('stOpt'); if (!b) return; var ev; try { ev = new PointerEvent('pointerup', { bubbles: true, cancelable: true }); } catch (e) { ev = new Event('pointerup', { bubbles: true }); } b.dispatchEvent(ev); }
 
+
+  // ---------- start-screen music: "funky" loop (108 BPM, 16 bars = 1568000 samples @ 44.1 kHz), WebAudio, after the first gesture ----------
+  // Respects Arcade's MUSIC switch (window.__music.on, read only). Fades out on PLAY / when the start screen goes, so it never plays in-game.
+  var MU = { N: 1568000, SR: 44100, VOL: 0.42, url: 'audio/start_funky.mp3', buf: null, loading: false, src: null, g: null, ac: null, playing: false, starts: 0, stops: 0 };
+  function onStart() { var s = S(); return !!(ov && ov.isConnected && s && s.shown && !s.dismissed); }
+  function musicWanted() { return onStart() && !document.hidden && !(window.__music && window.__music.on === false); }
+  function musicGo() {
+    if (!musicWanted() || MU.playing) return;
+    try { var ac = MU.ac = MU.ac || window.__unlockAC || new (window.AudioContext || window.webkitAudioContext)(); window.__unlockAC = ac; if (ac.state === 'suspended') ac.resume(); } catch (e) { return; }
+    if (!MU.buf) { if (MU.loading) return; MU.loading = true;
+      fetch(MU.url).then(function (r) { return r.arrayBuffer(); }).then(function (b) { return new Promise(function (ok, no) { MU.ac.decodeAudioData(b, ok, no); }); })
+        .then(function (buf) { MU.buf = buf; var n = Math.round(MU.N * buf.sampleRate / MU.SR), extra = buf.length - n; MU.lead = extra > 1000 ? Math.round(1105 * buf.sampleRate / MU.SR) : 0;   // LAME delay if the decoder kept it
+          MU.loopStart = MU.lead / buf.sampleRate; MU.loopEnd = MU.loopStart + n / buf.sampleRate; MU.len = buf.length; MU.loading = false; musicGo(); })
+        .catch(function (e) { MU.err = String(e); MU.loading = false; });
+      return; }
+    try { var ac2 = MU.ac, g = MU.g = ac2.createGain(), src = MU.src = ac2.createBufferSource(); g.gain.setValueAtTime(0, ac2.currentTime); g.gain.linearRampToValueAtTime(MU.VOL, ac2.currentTime + 0.8); g.connect(ac2.destination);
+      src.buffer = MU.buf; src.loop = true; src.loopStart = MU.loopStart; src.loopEnd = MU.loopEnd; src.connect(g); src.start(0, MU.loopStart); MU.playing = true; MU.starts++; } catch (e) { MU.err = String(e); }
+  }
+  function musicStop(fade) { if (!MU.playing) return; MU.playing = false; MU.stops++; var ac = MU.ac, g = MU.g, src = MU.src, f = fade == null ? 0.6 : fade; MU.src = MU.g = null;
+    try { g.gain.cancelScheduledValues(ac.currentTime); g.gain.setValueAtTime(g.gain.value, ac.currentTime); g.gain.linearRampToValueAtTime(0, ac.currentTime + f); src.stop(ac.currentTime + f + 0.05); setTimeout(function () { try { g.disconnect(); } catch (e) {} }, (f + 0.2) * 1000); } catch (e) {} }
+  setInterval(function () { if (MU.playing && !musicWanted()) musicStop(); }, 150);
+  document.addEventListener('visibilitychange', function () { if (document.hidden) musicStop(0.2); });
   // ---------- input: runs before Arcade's start-screen swallower (registered first, same capture phase) ----------
   var EV = ['pointerdown', 'pointerup', 'mousedown', 'mouseup', 'click', 'touchstart', 'touchend', 'keydown', 'keyup', 'dblclick', 'keypress'];
   function live() { var s = S(); return ov && ov.isConnected && s && s.shown && !s.dismissed && !(document.getElementById('opt') || {}).classList.contains('on'); }
   function grab(e) {
+    if (/^(pointerdown|touchstart|keydown|mousedown)$/.test(e.type) && onStart()) musicGo();   // first gesture unlocks audio (Android autoplay)
     if (!live()) return;
     var t = e.target && e.target.closest ? e.target : null, inP = t && t.closest('#gaP');
     if (e.type === 'keydown' || e.type === 'keyup' || e.type === 'keypress') {
@@ -166,5 +189,5 @@
     var wrap = setInterval(function () { var U = window.__startUI; if (!U || !U.show || U.show.ga) return; clearInterval(wrap); var o = U.show; U.show = function () { var r = o.apply(this, arguments); tickets(); sync(); return r; }; U.show.ga = 1; }, 200); }
   var booted = false; function boot1() { if (booted) return; booted = true; boot(); }
   if (document.readyState === 'loading') { var mo = new MutationObserver(function () { if (document.getElementById('start')) { mo.disconnect(); boot1(); } }); mo.observe(document.documentElement, { childList: true, subtree: true }); document.addEventListener('DOMContentLoaded', boot1); } else boot1();   // build ours the moment #start is parsed
-  window.__gaPlayer = { KEY: KEY, get p() { return P; }, pick: pick, play: play, apply: apply, opts: OPTS, get tag() { return tag; }, get prev() { return prev; } };
+  window.__gaPlayer = { KEY: KEY, get p() { return P; }, pick: pick, play: play, apply: apply, opts: OPTS, get tag() { return tag; }, get prev() { return prev; }, music: MU };
 })();
