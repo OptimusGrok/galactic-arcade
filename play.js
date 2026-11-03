@@ -63,6 +63,11 @@ export function setupPlay(A) {
       demo(w) { w.__demo.start(); }, stopDemo(w) { w.__demo.stop(); },
       scene(w) { const s = w.__cyber.scene(); return s === 'over' ? 'over' : s === 'play' ? 'play' : 'title'; },
       hold(w) { if (!w.__cyber) return false; w.__cyber.pause(true); return true; }, unhold(w) { if (w.__cyber) w.__cyber.pause(false); }, overHold: 5000, scoresHold: 0 },
+    blaster: { key: 'blaster', cab: A.blasterCab, src: 'blaster-play/index.html', credits: 0, games: 0, aspect: (A.blasterCab && A.blasterCab.userData.aspect) || 4 / 3, cost: 5,   // BLASTER (#10, blank B): 5 tickets = 1 credit = one run of 3 ships
+      demo(w) { w.__demo.start(); }, stopDemo(w) { w.__demo.stop(); },
+      start(w) { w.__blaster.start(); },
+      scene(w) { return w.__blaster.scene(); }, active(w) { return w.__blaster.S.mode === 'play'; },
+      hold(w) { return w.__blaster.hold(); }, unhold(w) { w.__blaster.unhold(); }, overHold: 4500, scoresHold: 0 },
     nova: { key: 'nova', cab: A.novaCab, src: 'nova-play/index.html', credits: 0, games: 0, aspect: (A.novaCab && A.novaCab.userData.aspect) || 16 / 9, cost: 5,   // 5 tickets = 1 credit = one run
       demo(w) { w.__demo.start(); }, stopDemo(w) { w.__demo.stop(); },
       start(w) { w.__nova.start(); },

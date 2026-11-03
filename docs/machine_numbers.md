@@ -13,17 +13,18 @@ Cabinets with a game get yellow numbers; blank cabinets get cyan letters (see be
 | 7 | 1:4 | room 1 west, z=-8 (NW corner) | GHOST 256 (`ghostCab`, 'ghost') |
 | 8 | 2:0 (+2:1) | room 1 south, x=+8 and x=+4 (C + D), runs 4 m into the room (z 11.55 to 7.55) | MARS ROADSTER (`roadsterCab`, 'roadster'): two-seat driving cabinet, 2 slots wide, 4 long. Not a normal FSCALE cabinet, so it is placed by its own branch in the ROWS loop (`ROADSTER_SLOTS`) |
 | 9 | r2:centre | room 2, exact middle (0, -29), free-standing (round platform r 2.05 + curved screen to the north) | DEAD SIGNAL VR STATION (`dsCab`, 'deadsignal'): not a wall slot; built by `dscab.js`, added as a room-2 child in main.js. Every machine costs 5 tickets |
+| 10 | 1:1 | room 1 west, z=+4 (was blank B) | BLASTER (`blasterCab`, 'blaster'): RPG's 1984 tribute shooter, built by `blastercab.js`; copy `blaster-play/` from `tools_build_blaster_play.py`. Numbered 10 via `LATE_NUM` in main.js (after DEAD SIGNAL), so 1-9 keep their numbers |
 
-To swap machine A and B, swap their two `[cab, name]` values in `FEATURED`. Numbers are assigned by slot, so after a swap each number stays on its slot and the game shown under it changes. Free blank slots: north 0:2 is the doorway; west 1:0 and 1:1; south 2:2 to 2:4 (2:0 and 2:1 hold MARS ROADSTER). The east wall is the space window and has no cabinets.
+To swap machine A and B, swap their two `[cab, name]` values in `FEATURED`. Numbers are assigned by slot, so after a swap each number stays on its slot and the game shown under it changes. Free blank slots: north 0:2 is the doorway; west 1:0; south 2:2 to 2:4 (2:0 and 2:1 hold MARS ROADSTER). The east wall is the space window and has no cabinets.
 
 ## Letters (blank cabinets)
 
-Blank cabinets get cyan letter badges when NUMBERS is on. Letters run through room 1 first (west row, then south row), then the 19 slots in room 2. Each letter belongs to its slot, so C and D are skipped now that MARS ROADSTER covers them (E-Z keep their letters).
+Blank cabinets get cyan letter badges when NUMBERS is on. Letters run through room 1 first (west row, then south row), then the 19 slots in room 2. Each letter belongs to its slot, so B is skipped now that BLASTER (#10) is there, and C and D are skipped now that MARS ROADSTER covers them (A and E-Z keep their letters; `R1L` in main.js).
 
 | Letter | Slot key | Where (world x, z) |
 |---|---|---|
 | A | `1:0` | room 1 west wall, (-12, 8) |
-| B | `1:1` | room 1 west wall, (-12, 4) |
+| ~~B~~ | `1:1` | retired: BLASTER (#10) |
 | ~~C~~ | `2:0` | retired: MARS ROADSTER (#8) |
 | ~~D~~ | `2:1` | retired: MARS ROADSTER (#8) |
 | E | `2:2` | room 1 south wall, (0, 12) |
