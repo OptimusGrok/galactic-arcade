@@ -174,9 +174,9 @@ export function setupShop({ scene, tp, play, monkey, camera, st } = {}) {
   const labelGeos = [], cardGeos = [];
   function label(item, x, y, z, ry = 0, w = 0.78) {
     const i = LBL.length, cx = (i % COLS) * LW, cy = ((i / COLS) | 0) * LH, g = lab.g; LBL.push(item.id);
-    g.fillStyle = '#ffffff'; g.fillRect(cx, cy, LW, LH); g.strokeStyle = '#7b5cff'; g.lineWidth = 4; g.strokeRect(cx + 3, cy + 3, LW - 6, LH - 6);
-    g.fillStyle = '#1b1f2e'; g.textAlign = 'center'; g.textBaseline = 'middle'; let fs = 32; g.font = `800 ${fs}px Arial`;
-    const txt = item.name.toUpperCase() + ' · ' + item.price + ' TICKETS'; while (g.measureText(txt).width > LW - 24 && fs > 14) g.font = `800 ${--fs}px Arial`; g.fillText(txt, cx + LW / 2, cy + LH / 2 + 1);
+    { const lg = g.createLinearGradient(0, cy, 0, cy + LH); lg.addColorStop(0, '#1e3378'); lg.addColorStop(1, '#0f1c4a'); g.fillStyle = lg; g.fillRect(cx, cy, LW, LH); } g.strokeStyle = '#8fb4ff'; g.lineWidth = 3; g.strokeRect(cx + 3, cy + 3, LW - 6, LH - 6);
+    g.fillStyle = '#ffffff'; g.textAlign = 'center'; g.textBaseline = 'middle'; let fs = 32; g.font = `800 ${fs}px Arial`;
+    const txt = item.name.toUpperCase() + ' - ' + item.price + ' TICKETS'; while (g.measureText(txt).width > LW - 24 && fs > 14) g.font = `800 ${--fs}px Arial`; g.fillText(txt, cx + LW / 2, cy + LH / 2 + 1);
     const pg = new THREE.PlaneGeometry(w, w * LH / LW), uv = pg.attributes.uv; const u0 = cx / (LW * COLS), u1 = (cx + LW) / (LW * COLS), v1 = 1 - cy / (LH * ROWS), v0 = 1 - (cy + LH) / (LH * ROWS);
     for (let k = 0; k < uv.count; k++) uv.setXY(k, uv.getX(k) ? u1 : u0, uv.getY(k) ? v1 : v0);
     pg.rotateY(ry); pg.translate(x, y, z); labelGeos.push(pg);
@@ -250,7 +250,9 @@ export function setupShop({ scene, tp, play, monkey, camera, st } = {}) {
   const SD = 0.55, Z0 = ZW + SD / 2 + 0.02, SY = [0.42, 1.2, 1.98, 2.76, 3.54], TOP = 5.0, BAYS = 4, BW = SW / BAYS;
   const frame = [], plushes = [], gp = [], toys = [], cards = [], pools = [];
   const back = canvasTex(64, 256, (g, w, h) => { const r = g.createLinearGradient(0, 0, 0, h); r.addColorStop(0, '#eef2ff'); r.addColorStop(0.5, '#ffffff'); r.addColorStop(1, '#f4f0ff'); g.fillStyle = r; g.fillRect(0, 0, w, h); });
-  { const bp = new THREE.Mesh(new THREE.PlaneGeometry(SW, TOP), new THREE.MeshBasicMaterial({ map: back.t, toneMapped: false })); bp.position.set(0, TOP / 2, ZW + 0.02); G.add(bp); }
+  { const bp = new THREE.Mesh(new THREE.PlaneGeometry(SW, TOP), new THREE.MeshBasicMaterial({ map: back.t, toneMapped: false })); bp.position.set(0, TOP / 2, ZW + 0.02); G.add(bp);
+    const blu = canvasTex(64, 256, (g, w, h) => { const r = g.createLinearGradient(0, 0, 0, h); r.addColorStop(0, '#9fd8ff'); r.addColorStop(0.6, '#d8f0ff'); r.addColorStop(1, '#eef6ff'); g.fillStyle = r; g.fillRect(0, 0, w, h); });
+    const gb = new THREE.Mesh(new THREE.PlaneGeometry(SW / BAYS - 0.08, TOP - SY[4]), new THREE.MeshBasicMaterial({ map: blu.t, toneMapped: false })); gb.name = 'grokBayGlow'; gb.position.set(-SW / 2 + SW / BAYS * 1.5, (TOP + SY[4]) / 2, ZW + 0.024); G.add(gb); }
   const UX = Array.from({ length: BAYS + 1 }, (_, i) => -SW / 2 + i * BW);
   for (const ux of UX) { part(frame, BOX, 0xffffff, ux, TOP / 2, Z0, 0.08, TOP, SD); part(frame, BOX, 0xd8dde6, ux, TOP / 2, Z0 + SD / 2 + 0.004, 0.09, TOP, 0.01); ledB.push(new THREE.BoxGeometry(0.03, TOP, 0.02).translate(ux, TOP / 2, Z0 + SD / 2 + 0.014)); }
   part(frame, BOX, 0xffffff, 0, TOP + 0.05, Z0, SW + 0.1, 0.1, SD + 0.04); part(frame, BOX, 0xffffff, 0, SY[0] / 2, Z0, SW, SY[0], SD);
@@ -286,7 +288,7 @@ export function setupShop({ scene, tp, play, monkey, camera, st } = {}) {
   TOPROW.forEach((row, b) => { const x = (UX[b] + UX[b + 1]) / 2, it = row[0] === row[1] ? byId[row[0]] : { id: row.join('+'), name: row.map(i => byId[i].name.replace(' Plush', '')).join(' / ') + ' Plush', price: byId[row[0]].price };
     label(it, x, SY[4] - 0.13, LZ, 0, LBW); });
   // ---------- lower shelves: real 3D toys (two staggered rows, colour + pose variants, one merged mesh) and boxed sets ----------
-  const KIND = ['viking', 'boxBerserker', 'orc', 'boxRoadster', 'teddy', 'roadster', 'boxNova', 'dino', 'boxOrc', 'robot', 'rocket', 'boxGhost', 'alien', 'boxMonkey', 'ball', 'duck'];
+  const KIND = ['viking', 'boxBerserker', 'orc', 'boxRoadster', 'teddy', 'boxMars', 'boxMars2', 'dino', 'boxOrc', 'robot', 'rocket', 'boxGhost', 'alien', 'boxMonkey', 'ball', 'duck'];
   const CS = 128, AC = 16, atl = canvasTex(CS * AC, CS * AC, (g) => { g.clearRect(0, 0, CS * AC, CS * AC); });
   const pal = ['#ff3c3c', '#ff8a1e', '#ffd21e', '#6cff4a', '#1ec8ff', '#3c78ff', '#a64dff', '#ff3cf0', '#ffffff', '#2a2a3a', '#ff7aa8', '#3cffc8'];
   const P_ = () => pal[(rnd() * pal.length) | 0];
@@ -294,21 +296,36 @@ export function setupShop({ scene, tp, play, monkey, camera, st } = {}) {
     const circ = (cx, cy, r, c) => { g.fillStyle = c; g.beginPath(); g.arc(cx, cy, r, 0, 7); g.fill(); }, rect = (a, b, w, h, c, r = 8) => { g.fillStyle = c; g.beginPath(); g.roundRect(a, b, w, h, r); g.fill(); };
     const art = BOXC[kind], w = 116, h = 124, bx = 6, by = 2; rect(bx, by, w, h, art[1], 6); const wg = g.createLinearGradient(0, by + 26, 0, by + h - 14); wg.addColorStop(0, '#ffffff'); wg.addColorStop(1, '#dfe8ff'); g.fillStyle = wg; g.beginPath(); g.roundRect(bx + 6, by + 26, w - 12, h - 42, 4); g.fill();
     if (kind === 'boxBerserker') { circ(64, by + 62, 15, '#f2c8a0'); g.fillStyle = '#d2502a'; g.beginPath(); g.moveTo(50, by + 64); g.lineTo(78, by + 64); g.lineTo(64, by + 92); g.fill(); g.fillStyle = '#a0a8b4'; g.beginPath(); g.arc(64, by + 56, 16, Math.PI, 0); g.fill(); g.fillStyle = '#f4ecd8'; for (const s of [-1, 1]) { g.beginPath(); g.moveTo(64 + s * 14, by + 52); g.lineTo(64 + s * 28, by + 34); g.lineTo(64 + s * 18, by + 58); g.fill(); } rect(48, by + 86, 32, 10, '#2a4c9a', 4); circ(58, by + 62, 2.5, '#111'); circ(70, by + 62, 2.5, '#111'); circ(36, by + 80, 13, '#8a929c'); circ(36, by + 80, 11, '#c8302a'); circ(36, by + 80, 4, '#ccc'); g.fillStyle = '#7a5030'; g.fillRect(90, by + 40, 4, 52); g.fillStyle = '#c0c8d0'; g.beginPath(); g.moveTo(94, by + 40); g.lineTo(108, by + 34); g.lineTo(108, by + 58); g.lineTo(94, by + 52); g.fill(); }
+    else if (kind.startsWith('boxMars')) { const sk = g.createLinearGradient(0, by + 26, 0, by + 110); sk.addColorStop(0, '#ff9a5a'); sk.addColorStop(1, '#c8482a'); g.fillStyle = sk; g.beginPath(); g.roundRect(bx + 6, by + 26, w - 12, h - 42, 4); g.fill();
+      g.fillStyle = '#8a2a16'; g.beginPath(); g.moveTo(bx + 6, by + 76); for (let i = 0; i <= 8; i++) g.lineTo(bx + 6 + i * (w - 12) / 8, by + 56 + ((i * 37 + v * 11) % 22)); g.lineTo(bx + w - 6, by + 108); g.lineTo(bx + 6, by + 108); g.fill();
+      g.fillStyle = '#5a1a0e'; g.fillRect(bx + 6, by + 92, w - 12, 16); circ(96, by + 40, 7, '#ffe8c0');
+      g.strokeStyle = 'rgba(255,255,255,.55)'; g.lineWidth = 2; g.strokeRect(bx + 8, by + 28, w - 16, h - 46); }
+    else if (kind === 'boxOrc') { circ(64, by + 60, 20, '#5a9a2e'); g.fillStyle = '#fff6e0'; for (const s of [-1, 1]) { g.beginPath(); g.moveTo(64 + s * 8, by + 72); g.lineTo(64 + s * 11, by + 62); g.lineTo(64 + s * 5, by + 72); g.fill(); } circ(56, by + 54, 3.5, '#ffd21e'); circ(72, by + 54, 3.5, '#ffd21e'); rect(44, by + 80, 40, 18, '#6a4a2a', 5); g.fillStyle = '#7a5030'; g.fillRect(92, by + 40, 6, 50); circ(95, by + 40, 8, '#8a6a4a'); }
+    else if (kind === 'boxGhost') { const gc = ['#ffffff', '#7ad8ff', '#ffe04a', '#ff7ad8'][v % 4]; g.fillStyle = '#1a0a3a'; g.fillRect(bx + 6, by + 26, w - 12, h - 42); g.fillStyle = gc; g.beginPath(); g.arc(64, by + 58, 22, Math.PI, 0); g.lineTo(86, by + 96); for (let i = 0; i < 4; i++) { g.lineTo(80 - i * 11, by + 88); g.lineTo(75 - i * 11, by + 96); } g.lineTo(42, by + 58); g.fill(); circ(56, by + 58, 4, '#1a0a3a'); circ(72, by + 58, 4, '#1a0a3a'); }
+    else if (kind === 'boxMonkey') { circ(64, by + 62, 22, '#7a4a24'); for (const s of [-1, 1]) circ(64 + s * 22, by + 58, 8, '#7a4a24'); circ(64, by + 68, 13, '#e2b98a'); circ(57, by + 56, 3.5, '#111'); circ(71, by + 56, 3.5, '#111'); g.strokeStyle = '#111'; g.lineWidth = 2; g.beginPath(); g.arc(64, by + 70, 6, 0.3, 2.8); g.stroke(); g.strokeStyle = '#fff'; g.lineWidth = 1.5; g.strokeRect(14, by + 30, 100, 76); }
+    else if (kind === 'boxRoadster') { g.fillStyle = '#20263a'; g.fillRect(bx + 6, by + 26, w - 12, h - 42); rect(26, by + 62, 76, 16, '#e8202a', 6); rect(44, by + 52, 34, 14, '#e8202a', 6); rect(50, by + 55, 22, 8, '#9ad8ff', 3); circ(42, by + 80, 7, '#111'); circ(86, by + 80, 7, '#111'); g.fillStyle = '#9aa4b8'; g.font = '700 10px Arial'; g.textAlign = 'center'; g.fillText('MODEL KIT 1:24', 64, by + 100); }
     else { circ(64, by + 56, 16, v % 2 ? c1 : art[1]); rect(64 - 18, by + 70, 36, 26, v % 3 ? c2 : art[1], 6); circ(58, by + 54, 3, '#111'); circ(70, by + 54, 3, '#111'); }
-    g.fillStyle = '#fff'; g.font = '900 17px Impact, Arial Black'; g.textAlign = 'center'; g.fillText(art[0], 64, by + 19, w - 8); rect(bx + 8, by + h - 12, w - 16, 7, c3, 3); g.restore(); }
-  const BOXC = { boxBerserker: ['BERSERKER', '#c8302a'], boxRoadster: ['ROADSTER', '#ff6a2a'], boxNova: ['NOVA', '#2a2a9a'], boxOrc: ['ORC', '#2e8a2a'], boxGhost: ['GHOST', '#6a1a9a'], boxMonkey: ['MONKEY', '#2a8ad8'] };
+    g.fillStyle = '#fff'; g.font = '900 17px Impact, Arial Black'; g.textAlign = 'center'; g.fillText(art[0], 64, by + 19, w - 10); rect(bx + 8, by + h - 12, w - 16, 7, c3, 3); g.restore(); }
+  const BOXC = { boxBerserker: ['BERSERKER', '#c8302a'], boxRoadster: ['ROADSTER', '#ff6a2a'], boxMars: ['MARS ROADSTER', '#b8321e'], boxMars2: ['MARS ROADSTER', '#b8321e'], boxOrc: ['ORC', '#2e8a2a'], boxGhost: ['GHOST', '#6a1a9a'], boxMonkey: ['MONKEY', '#2a8ad8'] };
   KIND.forEach((k, ki) => { if (BOXC[k]) for (let v = 0; v < AC; v++) drawBox(atl.g, k, v, v * CS, ki * CS); }); atl.t.needsUpdate = true;
   const SPAN = { viking: .26, orc: .28, teddy: .24, roadster: .36, dino: .32, robot: .2, rocket: .15, alien: .19, ball: .2, duck: .22 };
-  const sprBox = []; let nToys = 0;
+  const sprBox = [], mfr = []; let nToys = 0;
   KIND.forEach((id, gi) => { const s = 3 - (gi / 4 | 0), b = gi % 4, it = byId[id], x0 = UX[b] + 0.1, x1 = UX[b + 1] - 0.1, isBox = id.startsWith('box');
     for (let r = 0; r < 2; r++) { const y = SY[s] + 0.02 + (r ? 0.08 : 0), z = Z0 + (r ? -0.15 : 0.08);
+      const mars = id.startsWith('boxMars'); if (mars && r) continue;
+      if (mars) { const w = (x1 - x0 - 0.04) / 2, h = 0.5; for (let k = 0; k < 2; k++) { const x = x0 + 0.02 + k * w + 0.01, v = (rnd() * AC) | 0, uA = v / AC, vA = 1 - (gi + 1) / AC, ww = w - 0.02;
+          const bk = new THREE.BoxGeometry(ww, h, 0.34); const uv = bk.attributes.uv; for (let q = 0; q < uv.count; q++) uv.setXY(q, uA + (0.05 + uv.getX(q) * 0.9) / AC, vA + (0.02 + uv.getY(q) * 0.96) / AC);
+          bk.translate(x + ww / 2, y + h / 2, Z0 - 0.06); sprBox.push(bk); part(mfr, BOX, 0x1a1a22, x + ww / 2, y + 0.03, Z0 + 0.14, ww, 0.06, 0.06);
+          for (const sd of [0, 1]) part(mfr, BOX, 0xb8321e, x + (sd ? ww - 0.015 : 0.015), y + h * 0.42, Z0 + 0.14, 0.03, h * 0.84, 0.06);
+          toy3(toys, 'roadster', x + ww / 2, y + 0.06, Z0 + 0.06, 1.55, 1, -0.35); nToys++; } continue; }
       if (isBox) { let x = x0 + (r ? 0.12 : 0); const vRow = gi; while (x < x1 - 0.12) { const h = 0.46 + rnd() * 0.12 + r * 0.04, w = h * 0.8, v = (rnd() * AC) | 0; if (x + w > x1) break;
           const uA = v / AC, vA = 1 - (vRow + 1) / AC; const bg = new THREE.BoxGeometry(w, h, 0.14); const uv = bg.attributes.uv; for (let q = 0; q < uv.count; q++) uv.setXY(q, uA + (0.05 + uv.getX(q) * 0.9) / AC, vA + (0.02 + uv.getY(q) * 0.96) / AC);
           bg.rotateY((rnd() - 0.5) * 0.25).translate(x + w / 2, y + h / 2, z + (rnd() - 0.5) * 0.03); sprBox.push(bg); x += w + 0.03 + rnd() * 0.03; } continue; }
       const K3 = 1.32, sp = SPAN[id] * K3; let x = x0 + sp / 2 + (r ? sp * 0.5 : 0), v = r * 3 + b;
       while (x < x1 - sp / 2 + 0.01) { toy3(toys, id, x, y, z, K3 * (0.92 + rnd() * 0.12), v++, (rnd() - 0.5) * 0.6 + (id === 'roadster' || id === 'dino' ? -0.5 : 0)); nToys++; x += sp + rnd() * 0.02; } }
-    label(it, (UX[b] + UX[b + 1]) / 2, SY[s] - 0.1, LZ, 0, LBW); });
+    label(it || { id: id, name: 'Mars Roadster Car', price: byId.roadster.price }, (UX[b] + UX[b + 1]) / 2, SY[s] - 0.1, LZ, 0, LBW); });
   add(sprBox, new THREE.MeshStandardMaterial({ map: atl.t, roughness: 0.45, emissive: 0xffffff, emissiveMap: atl.t, emissiveIntensity: 0.22 }), 'shelfBoxes');
+  mesh(mfr, new THREE.MeshBasicMaterial({ vertexColors: true }), 'marsBoxFrames');
   const toyMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.62, metalness: 0.05, emissive: 0x2e2e32 });
   mesh(toys, toyMat, 'shelfToys');
   mesh(plushes, new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 1, emissive: 0x4a3426 }), 'monkeyPlushes');
@@ -343,7 +360,19 @@ export function setupShop({ scene, tp, play, monkey, camera, st } = {}) {
   const QX = 4.45, QZ = -1.95, RO = 1.95, RI = 1.4, A0 = Math.PI * 0.9, A1 = Math.PI * 1.62;
   const ring = (ro, ri, h, a0 = A0, a1 = A1) => { const sh = new THREE.Shape(); sh.absarc(0, 0, ro, a0, a1, false); sh.absarc(0, 0, ri, a1, a0, true);
     return new THREE.ExtrudeGeometry(sh, { depth: h, bevelEnabled: false, curveSegments: 28 }).rotateX(-Math.PI / 2); };
-  add([ring(RO, RI, 1.0).translate(QX, 0.04, QZ), ring(RO + 0.08, RI - 0.05, 0.06).translate(QX, 1.04, QZ)], new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.3, emissive: 0xb0b4bc }), 'checkoutCounter');
+  add([ring(RO, RI, 1.0).translate(QX, 0.04, QZ)], new THREE.MeshStandardMaterial({ color: 0x0e1638, roughness: 0.35, emissive: 0x060a20 }), 'checkoutCounter');
+  add([ring(RO + 0.08, RI - 0.05, 0.06).translate(QX, 1.04, QZ)], new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.2, emissive: 0xb0b4bc }), 'checkoutTop');
+  { const AL = A1 - A0, CW = 2048, CHh = 256, ft = canvasTex(CW, CHh, (g, w, h) => { g.fillStyle = '#0e1638'; g.fillRect(0, 0, w, h);
+      const neon = (c, blur, lw, fn) => { g.save(); g.strokeStyle = c; g.shadowColor = c; g.shadowBlur = blur; g.lineWidth = lw; g.lineCap = 'round'; g.beginPath(); fn(); g.stroke(); g.restore(); };
+      for (const [y, c] of [[10, '#40f0ff'], [22, '#c04dff'], [h - 22, '#c04dff'], [h - 10, '#40f0ff']]) for (let k = 0; k < 2; k++) neon(c, 18, 6, () => { g.moveTo(0, y); g.lineTo(w, y); });
+      for (const x of [140, 300, w - 300, w - 140]) for (let k = 0; k < 2; k++) neon(x % 2 ? '#c04dff' : '#40f0ff', 14, 4, () => { g.moveTo(x, 44); g.lineTo(x, h - 44); });
+      const bw = 820, bx = (w - bw) / 2; for (let k = 0; k < 2; k++) neon('#b04dff', 22, 7, () => g.roundRect(bx, 50, bw, h - 100, 40));
+      g.font = '900 120px Arial Rounded MT Bold, Arial Black, Arial'; g.textAlign = 'center'; g.textBaseline = 'middle';
+      g.save(); g.shadowColor = '#40f0ff'; g.shadowBlur = 30; g.lineWidth = 12; g.strokeStyle = '#40e8ff'; g.strokeText('GROK SHOP', w / 2, h / 2 + 4); g.shadowBlur = 0; g.lineWidth = 4; g.strokeStyle = '#e8ffff'; g.strokeText('GROK SHOP', w / 2, h / 2 + 4); g.restore(); });
+    const fg = new THREE.CylinderGeometry(RO + 0.006, RO + 0.006, 0.98, 48, 1, true, A0 + Math.PI / 2, AL).translate(QX, 0.53, QZ);
+    add([fg], new THREE.MeshBasicMaterial({ map: ft.t, toneMapped: false }), 'grokShopSign');
+    const mg2 = canvasTex(128, 128, (g) => { const r = g.createRadialGradient(64, 64, 34, 64, 64, 64); r.addColorStop(0, 'rgba(190,70,255,0)'); r.addColorStop(0.6, 'rgba(190,70,255,.7)'); r.addColorStop(1, 'rgba(190,70,255,0)'); g.fillStyle = r; g.fillRect(0, 0, 128, 128); });
+    add([new THREE.PlaneGeometry(2 * RO + 2.0, 2 * RO + 2.0).rotateX(-Math.PI / 2).translate(QX, 0.006, QZ)], new THREE.MeshBasicMaterial({ map: mg2.t, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false }), 'magentaGlow', 1); }
   ledCy.push(ring(RO + 0.03, RO - 0.01, 0.04).translate(QX, 0.02, QZ), ring(RO + 0.1, RO + 0.06, 0.025).translate(QX, 1.04, QZ));
   const glowT = canvasTex(128, 128, (g) => { const r = g.createRadialGradient(64, 64, 30, 64, 64, 64); r.addColorStop(0, 'rgba(40,220,255,0)'); r.addColorStop(0.55, 'rgba(40,220,255,.9)'); r.addColorStop(1, 'rgba(40,220,255,0)'); g.fillStyle = r; g.fillRect(0, 0, 128, 128); });
   const glowM = new THREE.MeshBasicMaterial({ map: glowT.t, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false });
