@@ -13,6 +13,9 @@
     for (var k2 in OPTS) if (!OPTS[k2].some(function (a) { return a[0] === d[k2]; })) d[k2] = OPTS[k2][0][0]; d.name = clean(d.name); return d; }
   function clean(s) { return String(s || '').replace(/[\u0000-\u001f<>]/g, '').slice(0, MAXN); }
   var P = load();
+  // first paint: hide Arcade's start art/buttons before the body is even parsed, and give #start our starry backdrop
+  try { var es = document.createElement('style'); es.id = 'gaEarly'; es.textContent = '#stBg,#stBox,#stBtns{visibility:hidden!important;opacity:0!important}#start{background:radial-gradient(ellipse at 20% 30%,#5a1f8f88,transparent 55%),radial-gradient(ellipse at 85% 45%,#7a2bb066,transparent 50%),radial-gradient(ellipse at 50% 90%,#1d2a8a66,transparent 60%),#070214!important}';
+    (document.head || document.documentElement).appendChild(es); } catch (e) {}
   function save() { try { localStorage.setItem(KEY, JSON.stringify(P)); } catch (e) {} }
   function named() { return P.name.trim().length > 0; }
   function find(list, id) { for (var i = 0; i < list.length; i++) if (list[i][0] === id) return list[i]; return list[0]; }
@@ -25,14 +28,21 @@
     root.traverse(function (o) { if (!c && o.isGroup && o.children.some(function (k) { return k.isMesh && k.material && k.material.color && k.material.color.getHex() === 0xff4f9e; })) c = o; }); if (c) c.userData.gaCap = 1; return c; }
   function hatMeshes(T, cap) { var head = cap.parent, h = head.userData.gaHats; if (h) return h; h = head.userData.gaHats = {};
     var gold = new T.MeshStandardMaterial({ color: 0xffc640, metalness: 1, roughness: 0.25, emissive: 0x402800, emissiveIntensity: 0.5 }), gem = new T.MeshStandardMaterial({ color: 0xff2b6a, roughness: 0.2, emissive: 0x500010 });
-    var cr = new T.Group(); cr.position.copy(cap.position); cr.position.y += 0.02;
-    var band = new T.Mesh(new T.CylinderGeometry(0.15, 0.14, 0.07, 24, 1, true), gold); band.material.side = T.DoubleSide; band.position.y = 0.03; cr.add(band);
-    for (var i = 0; i < 6; i++) { var a = i / 6 * Math.PI * 2, s = new T.Mesh(new T.ConeGeometry(0.035, 0.09, 4), gold); s.position.set(Math.sin(a) * 0.14, 0.105, Math.cos(a) * 0.14); cr.add(s);
-      var b = new T.Mesh(new T.SphereGeometry(0.014, 8, 6), gold); b.position.set(Math.sin(a) * 0.14, 0.155, Math.cos(a) * 0.14); cr.add(b); }
-    var g1 = new T.Mesh(new T.SphereGeometry(0.02, 10, 8), gem); g1.position.set(0, 0.03, 0.15); cr.add(g1); head.add(cr); h.crown = cr;
-    var hl = new T.Group(); hl.position.set(0, 0.13, 0.0);
-    var glass = new T.Mesh(new T.SphereGeometry(0.29, 28, 20), new T.MeshStandardMaterial({ color: 0xbfe6ff, roughness: 0.05, metalness: 0.2, transparent: true, opacity: 0.28, depthWrite: false })); hl.add(glass);
-    var ring = new T.Mesh(new T.TorusGeometry(0.2, 0.035, 10, 28), new T.MeshStandardMaterial({ color: 0xe8ecf2, roughness: 0.35, metalness: 0.5 })); ring.rotation.x = Math.PI / 2; ring.position.y = -0.19; hl.add(ring);
+    // crown: sits ON the head (head sphere top is ~0.33 above the head node), not inside it
+    var cr = new T.Group(); cr.position.set(0, 0.315, -0.005); cr.name = 'gaCrown';
+    var band = new T.Mesh(new T.CylinderGeometry(0.135, 0.125, 0.075, 28, 1, true), gold); band.material.side = T.DoubleSide; band.position.y = 0.035; cr.add(band);
+    var rim = new T.Mesh(new T.TorusGeometry(0.128, 0.012, 6, 28), gold); rim.rotation.x = Math.PI / 2; cr.add(rim);
+    for (var i = 0; i < 7; i++) { var a = i / 7 * Math.PI * 2, sp = new T.Mesh(new T.ConeGeometry(0.034, 0.1, 4), gold); sp.position.set(Math.sin(a) * 0.13, 0.12, Math.cos(a) * 0.13); cr.add(sp);
+      var bl = new T.Mesh(new T.SphereGeometry(0.016, 8, 6), gold); bl.position.set(Math.sin(a) * 0.13, 0.175, Math.cos(a) * 0.13); cr.add(bl); }
+    var g1 = new T.Mesh(new T.SphereGeometry(0.024, 10, 8), gem); g1.position.set(0, 0.04, 0.135); cr.add(g1); head.add(cr); h.crown = cr;
+    // space helmet: big glass bubble round the whole head + solid white collar, rim and antenna so it reads at a distance
+    var white = new T.MeshStandardMaterial({ color: 0xf2f4f8, roughness: 0.35, metalness: 0.3 });
+    var hl = new T.Group(); hl.position.set(0, 0.15, 0.01); hl.name = 'gaHelmet';
+    var glass = new T.Mesh(new T.SphereGeometry(0.31, 32, 22), new T.MeshStandardMaterial({ color: 0x9fdcff, roughness: 0.05, metalness: 0.1, transparent: true, opacity: 0.35, emissive: 0x0a2a44, depthWrite: false, side: T.DoubleSide })); glass.renderOrder = 3; hl.add(glass);
+    var col = new T.Mesh(new T.TorusGeometry(0.2, 0.045, 10, 32), white); col.rotation.x = Math.PI / 2; col.position.y = -0.24; hl.add(col);
+    var vr = new T.Mesh(new T.TorusGeometry(0.31, 0.018, 8, 40), white); hl.add(vr);   // outline ring round the bubble, facing front
+    var an = new T.Mesh(new T.CylinderGeometry(0.008, 0.008, 0.12, 6), white); an.position.set(0.12, 0.33, 0); an.rotation.z = -0.35; hl.add(an);
+    var tip = new T.Mesh(new T.SphereGeometry(0.025, 10, 8), new T.MeshBasicMaterial({ color: 0xff3cf0, toneMapped: false })); tip.position.set(0.145, 0.39, 0); hl.add(tip);
     head.add(hl); h.helmet = hl; return h; }
   function applyRoot(T, root) { var cap = capOf(root); if (!cap) return; var h = hatMeshes(T, cap); cap.visible = P.hat === 'cap'; h.crown.visible = P.hat === 'crown'; h.helmet.visible = P.hat === 'helmet'; }
   function applyMats() { if (!mats) return; var ho = find(HOOD, P.hoodie), fu = find(FUR, P.fur), sh = find(SHOE, P.shoes);
@@ -50,13 +60,14 @@
 
   // ---------- preview (own small renderer + a clone of the real monkey sharing its materials) ----------
   var prev = { root: null, r: null, scene: null, cam: null, rot: 0, want: 0, auto: true, drag: null, raf: 0 };
-  function buildPrev() { var A = window.__arcade, T = A.THREE, cv = document.getElementById('gaCv'); if (!cv || prev.r) return;
+  function buildPrev() { var A = window.__arcade, T = A.THREE, cv = ov && ov.querySelector('#gaCv'); if (!cv || !ov.isConnected || prev.r) return;
     try { prev.r = new T.WebGLRenderer({ canvas: cv, alpha: true, antialias: true }); } catch (e) { return; }
     prev.r.setPixelRatio(Math.min(2, devicePixelRatio || 1)); prev.r.outputColorSpace = T.SRGBColorSpace; prev.r.toneMapping = A.renderer.toneMapping; prev.r.toneMappingExposure = A.renderer.toneMappingExposure;
     var s = prev.scene = new T.Scene(); prev.cam = new T.PerspectiveCamera(30, 1, 0.1, 50);
     s.add(new T.HemisphereLight(0xcfd8ff, 0x302040, 1.6)); var d = new T.DirectionalLight(0xffffff, 2.2); d.position.set(1.5, 3, 3); s.add(d);
     var r1 = new T.PointLight(0xff3cf0, 3, 6); r1.position.set(-1.6, 1.4, 1); s.add(r1); var r2 = new T.PointLight(0x00e5ff, 3, 6); r2.position.set(1.6, 1.2, 1); s.add(r2);
     var mk = A.monkey, ud = mk.userData, tg = tag; mk.userData = {}; if (tg) mk.remove(tg); var c = mk.clone(true); mk.userData = ud; if (tg) mk.add(tg);
+    var junk = []; c.traverse(function (o) { if (o.name === 'gaCrown' || o.name === 'gaHelmet' || o.name === 'gaNameTag') junk.push(o); delete o.userData.gaHats; }); junk.forEach(function (o) { o.parent.remove(o); });   // userData is JSON-copied by clone(): drop the copied hat refs so the preview builds its own
     c.position.set(0, 0, 0); c.rotation.set(0, 0, 0); c.visible = true; c.traverse(function (o) { o.visible = o.name === 'idlePhone' ? false : o.visible; }); prev.root = c; s.add(c);
     var disc = new T.Mesh(new T.CylinderGeometry(0.62, 0.68, 0.06, 40), new T.MeshStandardMaterial({ color: 0x120a2a, roughness: 0.4, metalness: 0.6, emissive: 0x1a0a40 })); disc.position.y = -0.03; s.add(disc);
     for (var i = 0; i < 3; i++) { var ring = new T.Mesh(new T.TorusGeometry(0.25 + i * 0.17, 0.012, 6, 48), new T.MeshBasicMaterial({ color: i === 1 ? 0xff3cf0 : 0x00e5ff, toneMapped: false })); ring.rotation.x = Math.PI / 2; ring.position.y = 0.005; s.add(ring); }
@@ -101,13 +112,13 @@
       + '<div class="gaBox" id="gaNm"><label for="gaIn">YOUR NAME</label><input id="gaIn" maxlength="' + MAXN + '" placeholder="Enter your name..." autocomplete="nickname" autocapitalize="words" spellcheck="false" enterkeyhint="go"></div>'
       + '<div class="gaBox">' + row('hat', 'HAT') + row('hoodie', 'HOODIE COLOUR') + row('fur', 'FUR COLOUR') + row('shoes', 'SHOES') + '</div>'
       + '<button id="gaGo" hidden>PLAY</button><div id="gaHint">Type your name to play</div>';
-    st.appendChild(ov); st.classList.add('ga'); var inp = document.getElementById('gaIn'); inp.value = P.name;
+    st.appendChild(ov); st.classList.add('ga'); var inp = ov.querySelector('#gaIn'); inp.value = P.name;
     inp.addEventListener('input', function () { var v = clean(inp.value); if (v !== inp.value) inp.value = v; P.name = v; save(); sync(); apply(); });
     stars(); sync(); tickets(); }
-  function stars() { var c = document.getElementById('gaStars'), w = c.width = 400, h = c.height = 800, g = c.getContext('2d'); for (var i = 0; i < 260; i++) { var r = Math.random(); g.fillStyle = 'rgba(255,255,255,' + (0.3 + Math.random() * 0.7) + ')'; g.fillRect(Math.random() * w, Math.random() * h, r < 0.9 ? 1 : 2, r < 0.9 ? 1 : 2); } }
-  function tickets() { var n = 0; try { n = Math.max(0, parseInt(localStorage.getItem('neonarcade.tickets'), 10) || 0); } catch (e) {} var e = document.getElementById('gaTkN'); if (e) e.textContent = n.toLocaleString('en'); }
+  function stars() { var c = ov.querySelector('#gaStars'), w = c.width = 400, h = c.height = 800, g = c.getContext('2d'); for (var i = 0; i < 260; i++) { var r = Math.random(); g.fillStyle = 'rgba(255,255,255,' + (0.3 + Math.random() * 0.7) + ')'; g.fillRect(Math.random() * w, Math.random() * h, r < 0.9 ? 1 : 2, r < 0.9 ? 1 : 2); } }
+  function tickets() { var n = 0; try { n = Math.max(0, parseInt(localStorage.getItem('neonarcade.tickets'), 10) || 0); } catch (e) {} var e = ov && ov.querySelector('#gaTkN'); if (e) e.textContent = n.toLocaleString('en'); }
   function sync() { if (!ov) return; [].forEach.call(ov.querySelectorAll('.gaRow'), function (r) { var k = r.dataset.k; [].forEach.call(r.querySelectorAll('.gaO'), function (b) { b.classList.toggle('sel', b.dataset.v === P[k]); }); });
-    document.getElementById('gaGo').hidden = !named(); document.getElementById('gaHint').hidden = named(); }
+    ov.querySelector('#gaGo').hidden = !named(); ov.querySelector('#gaHint').hidden = named(); }
   function pick(k, v) { P[k] = v; save(); sync(); apply(); }
   function step(k, d) { var L = OPTS[k], i = 0; for (var j = 0; j < L.length; j++) if (L[j][0] === P[k]) i = j; pick(k, L[(i + d + L.length) % L.length][0]); }
   function play() { if (!named()) return; P.name = clean(P.name).trim(); save(); apply(); var inp = document.getElementById('gaIn'); if (inp) inp.blur();
@@ -148,6 +159,7 @@
   function boot() { build();
     var t0 = setInterval(function () { var A = window.__arcade; if (!A || !A.monkey || !A.THREE) return; clearInterval(t0); apply(); if (ov) { var go = function () { setTimeout(function () { buildPrev(); frame(); }, 150); }; if (document.readyState === 'complete') go(); else addEventListener('load', go, { once: true }); } }, 100);
     var wrap = setInterval(function () { var U = window.__startUI; if (!U || !U.show || U.show.ga) return; clearInterval(wrap); var o = U.show; U.show = function () { var r = o.apply(this, arguments); tickets(); sync(); return r; }; U.show.ga = 1; }, 200); }
-  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot); else boot();
+  var booted = false; function boot1() { if (booted) return; booted = true; boot(); }
+  if (document.readyState === 'loading') { var mo = new MutationObserver(function () { if (document.getElementById('start')) { mo.disconnect(); boot1(); } }); mo.observe(document.documentElement, { childList: true, subtree: true }); document.addEventListener('DOMContentLoaded', boot1); } else boot1();   // build ours the moment #start is parsed
   window.__gaPlayer = { KEY: KEY, get p() { return P; }, pick: pick, play: play, apply: apply, opts: OPTS, get tag() { return tag; }, get prev() { return prev; } };
 })();
