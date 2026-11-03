@@ -35,7 +35,7 @@ export function setupShop({ scene, tp, play, monkey, camera, st } = {}) {
   for (const o of [...W.children]) {
     if (o.isPointLight) { o.distance = 24; o.intensity *= 1.3; continue; }
     if (!o.isMesh || !o.geometry.parameters || o.geometry.type !== 'PlaneGeometry') continue;
-    if (Math.abs(Math.abs(o.rotation.x) - Math.PI / 2) < 1e-3) o.scale.set(K, K, 1);   // floor / ceiling
+    if (Math.abs(Math.abs(o.rotation.x) - Math.PI / 2) < 1e-3) { o.scale.set(K, K, 1); if (o.position.y > 1) o.visible = false; }   // floor / ceiling (flat ceiling hidden: the curved glass roof replaces it)
     else { o.position.x *= K; o.position.z *= K; o.scale.x = K; }                       // walls
   }
   const G = new THREE.Group(); G.name = 'prizeShop'; W.add(G);
@@ -44,7 +44,7 @@ export function setupShop({ scene, tp, play, monkey, camera, st } = {}) {
   // ---------- helpers: vertex-coloured parts merged into a single mesh ----------
   const _m = new THREE.Matrix4(), _q = new THREE.Quaternion(), _e = new THREE.Euler(), _c = new THREE.Color();
   function part(list, geo, color, x, y, z, sx = 1, sy = 1, sz = 1, rx = 0, ry = 0, rz = 0) {
-    const g = geo.index ? geo.toNonIndexed() : geo.clone(); g.deleteAttribute('uv');
+    const g = geo.clone(); g.deleteAttribute('uv');
     _m.compose(new THREE.Vector3(x, y, z), _q.setFromEuler(_e.set(rx, ry, rz)), new THREE.Vector3(sx, sy, sz)); g.applyMatrix4(_m);
     _c.set(color); const n = g.attributes.position.count, a = new Float32Array(n * 3); for (let i = 0; i < n; i++) { a[i * 3] = _c.r; a[i * 3 + 1] = _c.g; a[i * 3 + 2] = _c.b; }
     g.setAttribute('color', new THREE.BufferAttribute(a, 3)); list.push(g); return g;
@@ -56,13 +56,21 @@ export function setupShop({ scene, tp, play, monkey, camera, st } = {}) {
   const canvasTex = (w, h, draw) => { const c = document.createElement('canvas'); c.width = w; c.height = h; const g = c.getContext('2d'); draw(g, w, h); const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4; return { t, c, g }; };
 
   // ---------- plush / toy builders (local origin = bottom centre, facing +z) ----------
-  function monkeyPlush(L, x, y, z, fur, face, s = 1) {   // round head, big ears, muzzle, belly, arms, feet
-    const p = (geo, c, a, b, d, sx, sy, sz) => part(L, geo, c, x + a * s, y + b * s, z + d * s, sx * s, sy * s, sz * s);
-    p(SPH, fur, 0, .16, 0, .15, .16, .14); p(SPH, face, 0, .15, .085, .095, .11, .06);
+  function monkeyPlush(L, x, y, z, fur, face, s = 1, pose = 0) {   // seated plush: round head, big ears, muzzle + smile, belly, arms, feet with toes, curled tail, hair tuft
+    const p = (geo, c, a, b, d, sx, sy, sz, rx = 0, ry = 0, rz = 0) => part(L, geo, c, x + a * s, y + b * s, z + d * s, sx * s, sy * s, sz * s, rx, ry, rz);
+    p(SPH, fur, 0, .16, 0, .15, .16, .14); p(SPH, face, 0, .15, .085, .095, .11, .06);                                       // body + belly
     p(SPH, fur, 0, .4, 0, .16, .155, .15); p(SPH, face, 0, .37, .11, .1, .07, .06); p(SPH, face, -.045, .44, .105, .055, .055, .045); p(SPH, face, .045, .44, .105, .055, .055, .045);
-    for (const sd of [-1, 1]) { p(SPH, fur, sd * .165, .43, -.01, .07, .07, .035); p(SPH, face, sd * .17, .43, .012, .045, .045, .02);
-      p(SPH, 0x101010, sd * .045, .445, .15, .02, .024, .012); p(SPH, fur, sd * .15, .2, .05, .05, .1, .05); p(SPH, face, sd * .075, .03, .1, .055, .035, .075); }
-    p(SPH, 0x3a1e0e, 0, .36, .168, .028, .012, .01);
+    for (const sd of [-1, 1]) { p(SPH, fur, sd * .165, .43, -.01, .07, .07, .035); p(SPH, face, sd * .17, .43, .012, .045, .045, .02);   // ears + inner ear
+      p(SPH, 0x101010, sd * .045, .445, .15, .022, .027, .012); p(SPHl, 0xffffff, sd * .045 + .007, .454, .159, .007, .008, .004);       // eyes + highlight
+      p(SPHl, fur, sd * .045, .482, .148, .026, .007, .006, 0, 0, sd * .25);                                                              // brows
+      p(SPHl, 0x2a160a, sd * .016, .385, .168, .008, .006, .004);                                                                         // nostrils
+      p(SPH, fur, sd * .15, .21 + (sd > 0 ? pose * .05 : 0), .06, .05, .1, .05, 0, 0, sd * (.25 + (sd > 0 ? pose * .6 : 0)));            // arms
+      p(SPHl, face, sd * (.17 + (sd > 0 ? pose * .05 : 0)), .12 + (sd > 0 ? pose * .12 : 0), .08, .04, .035, .04);                         // hands
+      p(SPH, face, sd * .075, .03, .1, .055, .035, .075); for (let t = -1; t <= 1; t++) p(SPHl, face, sd * .075 + t * .022, .035, .172, .013, .013, .012); }   // feet + toes
+    p(SPH, 0x3a1e0e, 0, .352, .163, .035, .01, .01);                                                                                        // smile
+    p(SPHl, 0xff8a9a, -.07, .37, .14, .022, .014, .006); p(SPHl, 0xff8a9a, .07, .37, .14, .022, .014, .006);                                // cheeks
+    for (let t = 0; t < 3; t++) p(CON, fur, (t - 1) * .025, .57, .02, .018, .05, .018, 0, 0, (1 - t) * .5);                               // hair tuft
+    for (let t = 0; t < 6; t++) { const a = t * .55; p(SPHl, fur, .1 + Math.sin(a) * .08, .05 + t * .035, -.13 - Math.cos(a) * .04, .028, .028, .028); }   // curled tail
   }
   function grokBody(L, x, y, z, s, grey = 0xa2a6ae, dark = 0x50545c) {
     const p = (geo, c, a, b, d, sx, sy, sz, rx = 0, ry = 0, rz = 0) => part(L, geo, c, x + a * s, y + b * s, z + d * s, sx * s, sy * s, sz * s, rx, ry, rz);
@@ -84,25 +92,86 @@ export function setupShop({ scene, tp, play, monkey, camera, st } = {}) {
   const pFaceMat = new THREE.MeshBasicMaterial({ map: pFaceTex.t, toneMapped: false });
   const chestMat = new THREE.MeshBasicMaterial({ map: canvasTex(256, 96, (g) => { g.fillStyle = '#50545c'; g.fillRect(0, 0, 256, 96); g.fillStyle = '#ffffff'; g.font = '900 60px Arial'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('Grok', 128, 50); }).t });
   const facePlane = (parent, s, y, z) => { const f = new THREE.Mesh(new THREE.CircleGeometry(.2 * s, 24).scale(1.12, .9, 1), pFaceMat); f.position.set(0, y, z); parent.add(f); return f; };
-  function toy(L, kind, x, y, z, k = 1.55) {
-    const p = (geo, c, a, b, d, sx, sy, sz, rx = 0, ry = 0, rz = 0) => part(L, geo, c, x + a * k, y + b * k, z + d * k, sx * k, sy * k, sz * k, rx, ry, rz);
-    const S = SPHl;
+  // ---------- 3D toy builders (local origin = bottom centre, facing +z, ~0.3 m tall at k = 1). v = colour / pose variant ----------
+  const SPHm = new THREE.SphereGeometry(1, 10, 7);
+  const _V1 = new THREE.Vector3(), _V2 = new THREE.Vector3();
+  function toy3(L, kind, x, y, z, k = 1, v = 0, yaw = 0) {
+    const T = [], q = (geo, c, a, b, d, sx, sy = sx, sz = sx, rx = 0, ry = 0, rz = 0) => part(T, geo, c, a, b, d, sx, sy, sz, rx, ry, rz);
+    const eye = (a, b, d, r = .011) => { q(SPHl, 0x0a0a0e, a, b, d, r, r * 1.15, r * .6); q(SPHl, 0xffffff, a + r * .35, b + r * .4, d + r * .45, r * .32); };
+    const pick = arr => arr[v % arr.length], PI = Math.PI;
     switch (kind) {
-      case 'duck': p(S, 0xffd21e, 0, .08, 0, .1, .08, .09); p(S, 0xffd21e, 0, .19, .04, .06, .06, .06); p(CON, 0xff7a00, 0, .19, .11, .025, .05, .02, Math.PI / 2); break;
-      case 'ball': p(S, [0xff3c6e, 0x3cb4ff, 0x7cff4a, 0xffb000][(Math.abs(x * 13) | 0) % 4], 0, .1, 0, .1, .1, .1); break;
-      case 'teddy': p(S, 0xb07a44, 0, .1, 0, .11, .12, .1); p(S, 0xb07a44, 0, .27, 0, .09, .09, .09); p(S, 0xe8c79a, 0, .26, .07, .04, .035, .03); for (const s of [-1, 1]) p(S, 0xb07a44, s * .07, .35, 0, .035, .035, .025); break;
-      case 'robot': p(BOX, 0x8aa0b8, 0, .1, 0, .14, .16, .1); p(BOX, 0xb8c8da, 0, .25, 0, .12, .1, .1); p(BOX, 0x00e5ff, 0, .25, .051, .08, .03, .005); break;
-      case 'rocket': p(CYL, 0xeeeeee, 0, .14, 0, .05, .22, .05); p(CON, 0xff3c3c, 0, .3, 0, .05, .1, .05); p(BOX, 0x3c78ff, 0, .05, 0, .14, .06, .02); break;
-      case 'alien': p(S, 0x6cff6c, 0, .09, 0, .09, .1, .08); p(S, 0x6cff6c, 0, .22, 0, .08, .07, .07); for (const s of [-1, 1]) p(S, 0x111111, s * .035, .23, .06, .02, .025, .01); break;
-      case 'dino': p(S, 0x3cc46a, 0, .09, 0, .13, .09, .08); p(S, 0x3cc46a, .1, .2, 0, .06, .06, .05); p(CON, 0xffb000, -.02, .18, 0, .03, .05, .01); break;
-      case 'viking': p(CYL, 0x2a4c9a, 0, .1, 0, .07, .18, .07); p(S, 0xf2c8a0, 0, .25, 0, .06, .06, .06); p(S, 0xd2502a, 0, .21, .04, .055, .05, .03); p(S, 0x9aa0a8, 0, .28, 0, .065, .04, .065); for (const s of [-1, 1]) p(CON, 0xf4ecd8, s * .07, .32, 0, .015, .06, .015, 0, 0, -s * .6); break;
-      case 'orc': p(S, 0x4f8a2e, 0, .11, 0, .1, .12, .09); p(S, 0x5ea23a, 0, .27, 0, .075, .07, .07); p(BOX, 0x6a4a2a, 0, .08, .06, .14, .04, .04); break;
-      case 'roadster': p(BOX, 0xf4f6f8, 0, .05, 0, .26, .05, .11); p(BOX, 0x22262e, -.01, .085, 0, .12, .035, .09); for (const s of [-1, 1]) p(CYL, 0x111111, 0, .025, s * .055, .025, .2, .025, 0, 0, Math.PI / 2); break;
+      case 'viking': { const tun = pick([0x2a4c9a, 0x9a2a2a, 0x2a7a4a, 0x5a3a8a, 0x8a5a2a]), beard = [0xd2502a, 0xff8a1e, 0xe8c05a, 0x6a3a1a, 0xb83a1a][(v * 3) % 5], skin = 0xf2c8a0, met = 0xb0b8c4, horn = 0xf4ecd8, sh = pick([0xc8302a, 0x2a5ac8, 0xd8a02a, 0x2a8a4a]), pose = v % 2;
+        for (const sd of [-1, 1]) { q(CYL, 0x5a3a22, sd * .035, .05, 0, .028, .1, .028); q(SPHm, 0x3a2414, sd * .035, .014, .014, .034, .022, .046); }
+        q(SPHm, tun, 0, .145, 0, .078, .085, .068); q(SPHm, 0x8a6a4a, 0, .2, 0, .072, .026, .062);                     // tunic + fur collar
+        q(CYL, 0x3a2414, 0, .112, 0, .08, .022, .07); q(BOX, 0xffcc33, 0, .112, .07, .028, .02, .01);                   // belt + buckle
+        q(SPHm, tun, -.085, .155, .01, .03, .055, .03, 0, 0, .35); q(SPHl, skin, -.1, .108, .03, .022);
+        const ra = .45 + pose * .35; q(SPHm, tun, .088, .165, .01, .03, .055, .03, 0, 0, -ra); const hx = .1 + Math.sin(ra) * .035, hy = .118 + pose * .035; q(SPHl, skin, hx, hy, .03, .022);
+        q(CYL, 0x7a5030, hx + .01, hy + .07, .035, .008, .2, .008, 0, 0, -.15 - pose * .2);                              // axe handle
+        const ax = hx + .01 + Math.sin(.15 + pose * .2) * .09, ay = hy + .07 + Math.cos(.15 + pose * .2) * .09;
+        q(BOX, met, ax + .02, ay, .035, .045, .04, .008, 0, 0, -.15 - pose * .2); q(CON, 0xe6ecf2, ax + .045, ay, .035, .018, .03, .006, 0, 0, -PI / 2);   // axe head + curved blade
+        q(CYL, 0x8a929c, -.115, .14, .048, .076, .01, .076, PI / 2); q(CYL, sh, -.115, .14, .054, .07, .012, .07, PI / 2);  // shield rim + face
+        q(BOX, 0xf4ecd8, -.115, .14, .061, .018, .13, .003); q(BOX, 0xf4ecd8, -.115, .14, .061, .13, .018, .003); q(SPHl, met, -.115, .14, .064, .02, .02, .012);   // cross + boss
+        q(SPHm, skin, 0, .262, 0, .062, .06, .058); q(SPHl, 0xe8a888, 0, .258, .058, .012); eye(-.022, .272, .052); eye(.022, .272, .052);
+        for (const sd of [-1, 1]) { q(BOX, beard, sd * .022, .287, .054, .02, .006, .005); q(SPHl, beard, sd * .018, .247, .058, .02, .009, .009, 0, 0, -sd * .3); }
+        q(SPHm, beard, 0, .228, .03, .056, .05, .04); q(CON, beard, 0, .185, .035, .04, .06, .03, PI); q(SPHm, beard, 0, .25, -.035, .06, .05, .035);
+        q(SPHm, met, 0, .287, 0, .066, .048, .062); q(CYL, 0x8a929c, 0, .279, 0, .068, .012, .064); q(BOX, 0x8a929c, 0, .27, .063, .008, .032, .006);   // helmet, rim, nose guard
+        for (const sd of [-1, 1]) { q(CON, horn, sd * .072, .318, 0, .017, .065, .017, 0, 0, -sd * .75); q(CON, horn, sd * .1, .354, 0, .01, .03, .01, 0, 0, -sd * .15); }
+        break; }
+      case 'orc': { const sk = pick([0x4f8a2e, 0x6ab43a, 0x3a7a4a, 0x7a9a2a]), ar = pick([0x6a4a2a, 0x4a3a2a, 0x7a3a2a]), met = 0x8a8f96;
+        for (const sd of [-1, 1]) { q(CYL, 0x4a3424, sd * .04, .05, 0, .032, .1, .032); q(SPHm, sk, sd * .04, .014, .016, .036, .022, .048); }
+        q(SPHm, sk, 0, .155, 0, .092, .095, .075); q(BOX, ar, 0, .085, .05, .1, .06, .03); q(CYL, 0x2a1e14, 0, .11, 0, .094, .022, .078); q(BOX, met, 0, .11, .075, .024, .02, .008);
+        q(BOX, ar, 0, .18, .065, .12, .03, .01, 0, 0, .5);                                                               // chest strap
+        for (const sd of [-1, 1]) { q(SPHm, met, sd * .092, .225, 0, .045, .03, .045); q(SPHm, sk, sd * .108, .155, .01, .036, .065, .036, 0, 0, sd * .25); q(SPHl, sk, sd * .12, .095, .03, .028); }
+        q(CON, 0x7a5030, .13, .16, .045, .022, .14, .022, PI); for (let t = 0; t < 3; t++) q(CON, met, .13 + (t - 1) * .02, .2, .065, .006, .02, .006, PI / 2);   // club + spikes
+        q(SPHm, sk, 0, .28, 0, .068, .062, .062); q(SPHm, sk, 0, .255, .018, .056, .032, .05);
+        for (const sd of [-1, 1]) { q(CON, 0xfff6e0, sd * .022, .262, .062, .008, .024, .008); q(CON, sk, sd * .072, .292, 0, .016, .05, .012, 0, 0, -sd * 1.3);
+          q(SPHl, 0xffd21e, sd * .024, .292, .056, .012); q(SPHl, 0x111111, sd * .024, .292, .066, .005); q(BOX, 0x2a4a1a, sd * .024, .307, .058, .024, .007, .006, 0, 0, sd * .35); }
+        q(SPHl, sk, 0, .28, .066, .014, .01, .01); break; }
+      case 'teddy': { const f = pick([0xb07a44, 0xff9ac8, 0xf4f0e8, 0x7ab4ff, 0xc8a0ff, 0x8a5a2a]), mz = f === 0xf4f0e8 ? 0xffe0c0 : 0xf4dcc0, bow = [0xff3c3c, 0x3c78ff, 0xffd21e, 0x3cc46a][(v >> 1) % 4];
+        q(SPH, f, 0, .1, 0, .09, .095, .08); q(SPHm, mz, 0, .095, .05, .06, .065, .04);
+        for (const sd of [-1, 1]) { q(SPHm, f, sd * .05, .04, .06, .04, .035, .06); q(SPHl, mz, sd * .05, .04, .118, .028, .028, .01); q(SPHm, f, sd * .085, .13, .02, .03, .06, .03, 0, 0, sd * .5);
+          q(SPHm, f, sd * .055, .29, -.01, .03, .03, .02); q(SPHl, mz, sd * .055, .29, .003, .018, .018, .01); eye(sd * .028, .245, .06); }
+        q(SPH, f, 0, .23, 0, .075, .07, .068); q(SPHm, mz, 0, .215, .058, .035, .026, .025); q(SPHl, 0x2a1a10, 0, .225, .082, .012, .009, .008); q(SPHl, 0x2a1a10, 0, .2, .08, .012, .003, .003);
+        if (v % 2) { q(SPHl, bow, -.02, .168, .07, .02, .013, .008); q(SPHl, bow, .02, .168, .07, .02, .013, .008); q(SPHl, bow, 0, .168, .074, .009); } break; }
+      case 'duck': { const c = pick([0xffd21e, 0xff8ad8, 0x6cff4a, 0x1ec8ff, 0xffffff]), hat = pick([0xff3c3c, 0x3c78ff, 0x2a2a3a]);
+        q(SPH, c, 0, .075, 0, .1, .075, .085); q(CON, c, 0, .1, -.085, .03, .05, .02, -1.2); for (const sd of [-1, 1]) q(SPHm, c, sd * .085, .085, -.005, .025, .045, .06);
+        q(SPH, c, 0, .175, .03, .065, .065, .065); q(SPHm, 0xff7a00, 0, .162, .095, .035, .013, .035); q(SPHm, 0xff7a00, 0, .152, .09, .028, .008, .028);
+        eye(-.028, .19, .085, .01); eye(.028, .19, .085, .01);
+        if (v % 3 === 1) { q(CYL, hat, 0, .235, .03, .05, .006, .05); q(CYL, hat, 0, .258, .03, .033, .04, .033); } break; }
+      case 'ball': { const P = [0xff3c6e, 0x3cb4ff, 0x7cff4a, 0xffb000, 0xa64dff, 0xff7a00], c1 = P[v % 6], c2 = P[(v + 3) % 6];
+        q(SPH, c1, 0, .09, 0, .09); q(CYL, c2, 0, .09, 0, .0915, .028, .0915, 0, 0, .3 + v * .4); q(CYL, 0xffffff, 0, .09, 0, .0912, .012, .0912, 1.4, 0, .3 + v * .4); q(SPHl, 0xffffff, -.03, .13, .07, .015, .012, .006); break; }
+      case 'roadster': { const b = pick([0xf4f6f8, 0xff3c3c, 0x1ec8ff, 0xffd21e, 0x2a2a3a]);
+        q(BOX, b, -.01, .048, 0, .27, .04, .14); q(SPHm, b, .13, .046, 0, .055, .024, .068); q(SPHm, b, -.13, .05, 0, .03, .03, .07); q(SPHm, b, 0, .066, 0, .12, .02, .068);
+        q(SPHm, 0x1a2234, -.01, .08, 0, .07, .032, .055); q(SPHl, 0x6a8ab8, .02, .088, .0, .03, .012, .045);                  // cabin glass + sheen
+        for (const sx of [-1, 1]) for (const sz of [-1, 1]) { q(CYL, 0x111111, sx * .09, .03, sz * .07, .03, .026, .03, PI / 2); q(CYL, 0xc0c6ce, sx * .09, .03, sz * .084, .016, .004, .016, PI / 2); }
+        for (const sz of [-1, 1]) { q(SPHl, 0xeaffff, .168, .05, sz * .045, .012, .01, .014); q(SPHl, 0xff2a2a, -.152, .055, sz * .05, .006, .01, .016); q(BOX, 0x2a2a2a, -.14, .075, sz * .055, .006, .03, .006); }
+        q(BOX, 0x2a2a2a, -.14, .09, 0, .025, .006, .14); q(SPHl, 0x40e8ff, -.16, .045, 0, .012, .018, .03); break; }
+      case 'dino': { const c = pick([0x3cc46a, 0xff8a1e, 0xa64dff, 0x1ec8ff]), sp = pick([0xffd21e, 0xff3c6e, 0x3cffc8]);
+        q(SPH, c, 0, .1, 0, .1, .08, .075); q(SPHm, 0xf4f0c0, .01, .09, .04, .07, .055, .04); q(SPHm, c, .075, .18, .015, .04, .06, .04, 0, 0, -.4);
+        q(SPH, c, .1, .23, .02, .055, .05, .05); q(SPHm, c, .145, .22, .03, .04, .03, .036); eye(.11, .245, .064, .01); eye(.11, .245, -.024, .01); q(SPHl, 0x111111, .182, .228, .04, .004);
+        q(SPHm, 0xffffff, .15, .205, .055, .025, .006, .01);                                                              // grin
+        q(CON, c, -.13, .085, 0, .04, .12, .035, 0, 0, PI / 2 + .25); for (const sx of [-1, 1]) for (const sz of [-1, 1]) q(SPHm, c, sx * .05, .03, sz * .045, .03, .04, .032);
+        q(SPHl, c, .07, .12, .06, .016, .03, .016, .6); for (let t = 0; t < 5; t++) q(CON, sp, -.08 + t * .035, .175 - Math.abs(t - 2) * .008 + (t > 3 ? .02 : 0), 0, .014, .035, .008); break; }
+      case 'robot': { const c1 = pick([0x8aa0b8, 0xff6a3c, 0x3c9aff, 0xffd21e, 0xeaeaea]), dk = 0x2a2e36;
+        for (const sd of [-1, 1]) { q(BOX, dk, sd * .033, .045, 0, .03, .08, .04); q(BOX, c1, sd * .033, .01, .008, .045, .02, .06); q(CYL, dk, sd * .075, .13, 0, .012, .08, .012, 0, 0, sd * .15); q(SPHl, c1, sd * .082, .088, 0, .018); q(CYL, dk, sd * .055, .235, 0, .012, .012, .012, 0, 0, PI / 2); }
+        q(BOX, c1, 0, .13, 0, .12, .1, .08); q(BOX, dk, 0, .14, .041, .07, .05, .004); [0xff3c3c, 0x3cff6a, 0xffd21e].forEach((cc, i) => q(SPHl, cc, -.02 + i * .02, .13, .045, .007));
+        q(CYL, dk, 0, .19, 0, .015, .02, .015); q(BOX, c1, 0, .235, 0, .1, .08, .08); q(BOX, 0x0a1020, 0, .237, .041, .08, .045, .004); for (const sd of [-1, 1]) q(SPHl, 0x6ff6ff, sd * .02, .239, .044, .01, .01, .004);
+        q(CYL, 0xcccccc, 0, .29, 0, .003, .03, .003); q(SPHl, 0xff3c3c, 0, .308, 0, .01); break; }
+      case 'rocket': { const c1 = pick([0xeeeeee, 0xffd21e, 0x7ab4ff]), c2 = pick([0xff3c3c, 0x3c78ff, 0xa64dff, 0x3cc46a]);
+        q(CYL, c1, 0, .16, 0, .04, .2, .04); q(CON, c2, 0, .3, 0, .04, .08, .04); q(CYL, c2, 0, .1, 0, .041, .02, .041); q(SPHl, 0x1ec8ff, 0, .2, .036, .018, .018, .008); q(CYL, 0xb0b8c4, 0, .2, .033, .021, .004, .021, PI / 2);
+        for (let i = 0; i < 3; i++) { const a = i * 2.094 + .5; q(BOX, c2, Math.sin(a) * .045, .07, Math.cos(a) * .045, .006, .08, .05, 0, a, 0); }
+        q(CON, 0xffa020, 0, .045, 0, .025, .04, .025, PI); q(CYL, 0x5a5e66, 0, .065, 0, .03, .01, .03); break; }
+      case 'alien': { const c = pick([0x6cff6c, 0xa64dff, 0x1ec8ff, 0xff7aa8]), ac = pick([0xffd21e, 0xff3cf0, 0xffffff]);
+        q(SPH, c, 0, .09, 0, .06, .075, .055); for (const sd of [-1, 1]) { q(SPHm, c, sd * .03, .02, .01, .022, .025, .03); q(SPHm, c, sd * .065, .11 + (sd > 0 && v % 2 ? .03 : 0), .01, .016, .045, .016, 0, 0, sd * (v % 2 && sd > 0 ? 2.2 : .4)); }
+        q(SPH, c, 0, .21, 0, .075, .065, .065); for (const sd of [-1, 1]) { q(SPHm, 0x0a0a12, sd * .03, .215, .05, .022, .03, .014, 0, 0, sd * .4); q(SPHl, 0xffffff, sd * .026, .225, .062, .007, .008, .004);
+          q(CYL, c, sd * .03, .29, 0, .004, .06, .004, 0, 0, -sd * .3); q(SPHl, ac, sd * .042, .322, 0, .013); }
+        q(SPHl, 0x2a0a2a, 0, .182, .06, .012, .005, .004); break; }
     }
+    _m.compose(_V1.set(x, y, z), _q.setFromEuler(_e.set(0, yaw, 0)), _V2.set(k, k, k)); for (const g of T) { g.applyMatrix4(_m); L.push(g); }
   }
   // ---------- label atlas: one canvas, every label is "NAME · N TICKETS" ----------
   const LBL = []; const LW = 512, LH = 64, COLS = 4, ROWS = 16; const lab = canvasTex(LW * COLS, LH * ROWS, (g, w, h) => { g.fillStyle = '#ffffff'; g.fillRect(0, 0, w, h); });
-  const labelGeos = [];
+  const labelGeos = [], cardGeos = [];
   function label(item, x, y, z, ry = 0, w = 0.78) {
     const i = LBL.length, cx = (i % COLS) * LW, cy = ((i / COLS) | 0) * LH, g = lab.g; LBL.push(item.id);
     g.fillStyle = '#ffffff'; g.fillRect(cx, cy, LW, LH); g.strokeStyle = '#7b5cff'; g.lineWidth = 4; g.strokeRect(cx + 3, cy + 3, LW - 6, LH - 6);
@@ -111,6 +180,7 @@ export function setupShop({ scene, tp, play, monkey, camera, st } = {}) {
     const pg = new THREE.PlaneGeometry(w, w * LH / LW), uv = pg.attributes.uv; const u0 = cx / (LW * COLS), u1 = (cx + LW) / (LW * COLS), v1 = 1 - cy / (LH * ROWS), v0 = 1 - (cy + LH) / (LH * ROWS);
     for (let k = 0; k < uv.count; k++) uv.setXY(k, uv.getX(k) ? u1 : u0, uv.getY(k) ? v1 : v0);
     pg.rotateY(ry); pg.translate(x, y, z); labelGeos.push(pg);
+    cardGeos.push(new THREE.BoxGeometry(w + 0.03, w * LH / LW + 0.026, 0.01).rotateY(ry).translate(x - Math.sin(ry) * 0.007, y, z - Math.cos(ry) * 0.007));   // dark card behind each label
   }
   let seed = 7; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
   const basic = c => new THREE.MeshBasicMaterial({ color: c, toneMapped: false });
@@ -124,29 +194,47 @@ export function setupShop({ scene, tp, play, monkey, camera, st } = {}) {
   const ZW = -3.2, SXW = HS, CH = 8.5, ZF = HS, shell = [];
   part(shell, BOX, 0xf7f8fb, 0, CH / 2, ZW - 0.05, 2 * HS, CH, 0.1);                                        // back wall (full width, floor to ceiling)
   mesh(shell, new THREE.MeshBasicMaterial({ vertexColors: true }), 'shopShell');
-  // flush ceiling light panels (lie on the ceiling, nothing hangs) + neon trim where walls meet the ceiling / floor
-  lit.push(new THREE.BoxGeometry(2 * SXW - 2.0, 0.02, 0.34).translate(0, CH - 0.012, ZW + 0.9), new THREE.BoxGeometry(2 * SXW - 2.0, 0.02, 0.34).translate(0, CH - 0.012, ZF - 1.2));
-  for (const sd of [-1, 1]) lit.push(new THREE.BoxGeometry(0.34, 0.02, ZF - ZW - 2.4).translate(sd * (SXW - 1.0), CH - 0.012, (ZW + ZF) / 2));
-  ledCy.push(new THREE.BoxGeometry(2 * SXW, 0.04, 0.04).translate(0, CH - 0.03, ZF - 0.03), new THREE.BoxGeometry(2 * SXW, 0.04, 0.04).translate(0, CH - 0.03, ZW + 0.03));
-  for (const sd of [-1, 1]) { ledCy.push(new THREE.BoxGeometry(0.04, 0.04, ZF - ZW).translate(sd * (SXW - 0.03), CH - 0.03, (ZW + ZF) / 2)); ledP.push(new THREE.BoxGeometry(0.04, 0.04, ZF - ZW).translate(sd * (SXW - 0.03), 0.06, (ZW + ZF) / 2)); }
-  // ---------- SKYLIGHT: the flat ceiling is one big glass window onto space (stars + a little soft nebula gas, thin mullions, faint sheen) ----------
-  const skyMat = new THREE.ShaderMaterial({ uniforms: { uT: { value: 0 } }, toneMapped: false,
+  // ---------- CORNICE: white soffit band where the walls meet the vault, flush downlight strips + cyan neon (nothing hangs) ----------
+  const cor = [];
+  for (const sd of [-1, 1]) { part(cor, BOX, 0xf4f6fa, sd * (SXW - 0.3), CH - 0.18, (ZW + ZF) / 2, 0.6, 0.36, ZF - ZW); lit.push(new THREE.BoxGeometry(0.16, 0.02, ZF - ZW - 1.0).translate(sd * (SXW - 0.38), CH - 0.37, (ZW + ZF) / 2));
+    ledCy.push(new THREE.BoxGeometry(0.03, 0.03, ZF - ZW).translate(sd * (SXW - 0.6), CH - 0.02, (ZW + ZF) / 2)); ledP.push(new THREE.BoxGeometry(0.04, 0.04, ZF - ZW).translate(sd * (SXW - 0.03), 0.06, (ZW + ZF) / 2)); }
+  for (const zz of [ZW + 0.3, ZF - 0.3]) { part(cor, BOX, 0xf4f6fa, 0, CH - 0.18, zz, 2 * SXW, 0.36, 0.6); ledCy.push(new THREE.BoxGeometry(2 * SXW, 0.03, 0.03).translate(0, CH - 0.02, zz + (zz < 0 ? 0.3 : -0.3))); }
+  for (let i = 0; i < 9; i++) { const xx = -SXW + 2 + i * (2 * SXW - 4) / 8; lit.push(new THREE.CylinderGeometry(0.09, 0.09, 0.02, 12).translate(xx, CH - 0.37, ZW + 0.3), new THREE.CylinderGeometry(0.09, 0.09, 0.02, 12).translate(xx, CH - 0.37, ZF - 0.3)); }
+  mesh(cor, new THREE.MeshBasicMaterial({ vertexColors: true }), 'shopCornice');
+  // ---------- CURVED GLASS ROOF: half-circle barrel vault (radius = half the room width) springing from the side-wall tops, front to back.
+  // Clear glass onto deep space: dense twinkling stars + soft purple / blue / teal nebula, thin silver curved ribs and straight purlins. Half-disc glass ends close it.
+  const VR = SXW, VL = ZF - ZW, VZ = (ZW + ZF) / 2;
+  const skyMat = new THREE.ShaderMaterial({ uniforms: { uT: { value: 0 }, uCap: { value: 0 } }, toneMapped: false, side: THREE.DoubleSide,
     vertexShader: 'varying vec3 vW; varying vec2 vU; void main(){ vU = uv; vec4 w = modelMatrix * vec4(position,1.); vW = w.xyz; gl_Position = projectionMatrix * viewMatrix * w; }',
-    fragmentShader: `uniform float uT; varying vec3 vW; varying vec2 vU;
-      float h21(vec2 p){ p = fract(p * vec2(123.34, 456.21)); p += dot(p, p + 45.32); return fract(p.x * p.y); }
-      float n2(vec2 p){ vec2 i = floor(p), f = fract(p); f = f*f*(3.-2.*f); return mix(mix(h21(i), h21(i+vec2(1,0)), f.x), mix(h21(i+vec2(0,1)), h21(i+vec2(1,1)), f.x), f.y); }
-      float fbm(vec2 p){ float a = .5, s = 0.; for (int i = 0; i < 5; i++){ s += a * n2(p); p = p * 2.03 + 7.1; a *= .5; } return s; }
-      vec3 stars(vec2 uv, float cell, float th){ vec2 g = uv * cell, id = floor(g), f = fract(g) - .5; float r = h21(id); if (r < th) return vec3(0);
-        vec2 o = vec2(h21(id + 3.1), h21(id + 9.7)) - .5; float d = length(f - o * .7); float tw = .75 + .25 * sin(uT * (1. + r * 3.) + r * 40.);
-        vec3 c = mix(vec3(.75,.85,1.), vec3(1.,.85,.7), h21(id + 1.7)); return c * smoothstep(.09, 0., d) * tw * (r - th) / (1. - th) * 2.2; }
-      void main(){ vec3 dir = normalize(vW - cameraPosition); vec2 uv = dir.xz / max(dir.y, .05) * .35;
-        vec3 col = vec3(.008, .01, .03) + stars(uv, 60., .9) + stars(uv + 3.3, 140., .93) * .7;
-        float n = fbm(uv * 1.3 + vec2(2., 5.)), m = smoothstep(.42, .8, n) * .9, k = fbm(uv * 2.2 - 3.);
-        col += m * mix(vec3(.38,.16,.62), vec3(.1,.45,.6), k) * .55 + smoothstep(.62, .9, fbm(uv * .9 + 9.)) * vec3(.1,.18,.5) * .35;
-        vec2 p = vU * vec2(8., 4.), q = abs(fract(p) - .5); float mul = step(.485, max(q.x, q.y));   // 8 x 4 panes
-        col += vec3(.6,.8,1.) * .06 * smoothstep(.5, 0., abs(fract(vU.x * 2. + vU.y) - .5));                  // faint glassy sheen
-        col = mix(col, vec3(.7,.74,.8), mul); gl_FragColor = vec4(col, 1.); }` });
-  { const sk = new THREE.Mesh(new THREE.PlaneGeometry(2 * HS, ZF - ZW), skyMat); sk.rotation.x = Math.PI / 2; sk.position.set(0, CH - 0.004, (ZW + ZF) / 2); sk.name = 'shopSkylight'; G.add(sk); api_sky = skyMat; }
+    fragmentShader: `uniform float uT; uniform float uCap; varying vec3 vW; varying vec2 vU;
+      float h31(vec3 p){ p = fract(p * vec3(.1031, .1030, .0973)); p += dot(p, p.yzx + 33.33); return fract((p.x + p.y) * p.z); }
+      float n3(vec3 p){ vec3 i = floor(p), f = fract(p); f = f*f*(3.-2.*f);
+        return mix(mix(mix(h31(i), h31(i+vec3(1,0,0)), f.x), mix(h31(i+vec3(0,1,0)), h31(i+vec3(1,1,0)), f.x), f.y),
+                   mix(mix(h31(i+vec3(0,0,1)), h31(i+vec3(1,0,1)), f.x), mix(h31(i+vec3(0,1,1)), h31(i+vec3(1,1,1)), f.x), f.y), f.z); }
+      float fbm(vec3 p){ float a = .5, s = 0.; for (int i = 0; i < 4; i++){ s += a * n3(p); p = p * 2.07 + 5.3; a *= .5; } return s; }
+      vec3 stars(vec3 d, float cell, float th){ vec3 g = d * cell, id = floor(g), f = fract(g) - .5; float r = h31(id); if (r < th) return vec3(0);
+        vec3 o = vec3(h31(id + 3.1), h31(id + 9.7), h31(id + 5.3)) - .5; float dd = length(f - o * .6); float tw = .7 + .3 * sin(uT * (1. + r * 3.) + r * 40.);
+        vec3 c = mix(vec3(.72,.84,1.), vec3(1.,.86,.72), h31(id + 1.7)); return c * smoothstep(.12, 0., dd) * tw * (.35 + (r - th) / (1. - th) * 2.); }
+      float line(float x, float w){ float f = abs(fract(x + .5) - .5), px = fwidth(x); return 1. - smoothstep(max(w, px * .8), max(w, px * .8) + px * 1.2, f); }
+      void main(){ vec3 d = normalize(vW - cameraPosition);
+        vec3 col = vec3(.006, .008, .028) + stars(d, 80., .8) * 1.3 + stars(d + 1.7, 180., .86) + stars(d + 4.1, 36., .95) * 2.;
+        float n = fbm(d * 2.2 + vec3(2., 5., 1.)), k = fbm(d * 3.4 - 3.), w = fbm(d * 1.3 + 9.);
+        float neb = smoothstep(.38, .78, n); vec3 nc = mix(vec3(.5,.18,.78), vec3(.12,.32,.85), smoothstep(.3, .7, k)); nc = mix(nc, vec3(.08,.62,.66), smoothstep(.62, .82, w));
+        col += neb * nc * (.75 + .6 * k) + smoothstep(.5, .85, w) * vec3(.06,.12,.4) * .5 + pow(neb, 3.) * vec3(1.,.7,1.) * .12;
+        float rib, pur;
+        if (uCap < .5) { rib = line(vU.y * 6., .018); pur = line(vU.x * 12., .012); }
+        else { vec2 p = vec2(vU.x * 2. - 1., vU.y); float r = length(p), a = atan(p.y, p.x); rib = line(r * 3., .01) * step(r, 1.) * step(.1, r) + step(.985, r); pur = 0.; }
+        col += vec3(.55,.75,1.) * .045 * smoothstep(.5, 0., abs(fract(vU.x * 3. + vU.y * .7) - .5));                     // faint glass sheen
+        col = mix(col, vec3(.86,.89,.94), max(rib, pur * .85)); gl_FragColor = vec4(col, 1.); }` });
+  { const vg = new THREE.CylinderGeometry(VR, VR, VL, 72, 1, true, -Math.PI / 2, Math.PI).rotateX(-Math.PI / 2).translate(0, CH, VZ);
+    const sk = new THREE.Mesh(vg, skyMat); sk.name = 'shopSkylight'; sk.frustumCulled = false; G.add(sk); api_sky = skyMat;
+    const capM = skyMat.clone(); capM.uniforms = { uT: skyMat.uniforms.uT, uCap: { value: 1 } };
+    const capG = (zz) => { const c = new THREE.CircleGeometry(VR, 72, 0, Math.PI); const uv = c.attributes.uv, ps = c.attributes.position; for (let q = 0; q < uv.count; q++) uv.setXY(q, ps.getX(q) / (2 * VR) + .5, ps.getY(q) / VR); return c.translate(0, CH, zz); };
+    add([capG(ZW + 0.002), capG(ZF - 0.002)], capM, 'shopRoofEnds');
+    // silver arch at each end + the spring-line rails
+    const rim = [new THREE.TorusGeometry(VR - 0.04, 0.07, 6, 72, Math.PI).translate(0, CH, ZW + 0.06), new THREE.TorusGeometry(VR - 0.04, 0.07, 6, 72, Math.PI).translate(0, CH, ZF - 0.06)];
+    for (const sd of [-1, 1]) rim.push(new THREE.BoxGeometry(0.14, 0.1, VL).translate(sd * (VR - 0.07), CH + 0.02, VZ));
+    add(rim, new THREE.MeshBasicMaterial({ color: 0xdfe4ec }), 'shopRoofRim'); }
   // ---------- MURALS: painted straight onto the walls, edge to edge, floor to ceiling ----------
   const loadT = f => { const t = new THREE.TextureLoader().load(new URL('./tex/' + f, import.meta.url).href); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 8; return t; };
   const SW = 9.2, MB = 0.0, MT = CH - 0.06, MHh = MT - MB, xE = SW / 2 + 0.15, TB = 5.08, zm = ZW + 0.012;
@@ -156,77 +244,76 @@ export function setupShop({ scene, tp, play, monkey, camera, st } = {}) {
   add([new THREE.PlaneGeometry(2 * xE, MT - TB).translate(0, (TB + MT) / 2, zm)], mat('shop_mural_top.jpg'), 'muralTop');                                       // above the prize shelves
   add([new THREE.PlaneGeometry(ZF - ZW, MHh).rotateY(Math.PI / 2).translate(-HS + 0.012, MB + MHh / 2, (ZW + ZF) / 2)], mat('shop_mural_side.jpg'), 'muralSide');    // left wall
   add([new THREE.PlaneGeometry(ZF - ZW, MHh).rotateY(-Math.PI / 2).translate(HS - 0.012, MB + MHh / 2, (ZW + ZF) / 2)], mat('shop_mural_side2.jpg'), 'muralSide2'); // right wall
+  add([new THREE.PlaneGeometry(2 * HS, MHh).rotateY(Math.PI).translate(0, MB + MHh / 2, ZF - 0.012)], mat('shop_title_wall.jpg'), 'muralTitle');   // title wall (behind the pad): GALACTIC ARCADE + the game characters
 
-  // ---------- PRIZE WALL: 4 bays x 5 shelves, glowing back, LED on every shelf edge + upright ----------
+  // ---------- PRIZE WALL: 4 bays x 5 white-lacquer shelves, lit back panels, chrome edges, warm LED under every shelf, spotlights on top ----------
   const SD = 0.55, Z0 = ZW + SD / 2 + 0.02, SY = [0.42, 1.2, 1.98, 2.76, 3.54], TOP = 5.0, BAYS = 4, BW = SW / BAYS;
-  const frame = [], plushes = [], gp = [];
-  const back = canvasTex(64, 256, (g, w, h) => { const r = g.createLinearGradient(0, 0, 0, h); r.addColorStop(0, '#f2f6ff'); r.addColorStop(1, '#ffffff'); g.fillStyle = r; g.fillRect(0, 0, w, h); });
+  const frame = [], plushes = [], gp = [], toys = [], cards = [], pools = [];
+  const back = canvasTex(64, 256, (g, w, h) => { const r = g.createLinearGradient(0, 0, 0, h); r.addColorStop(0, '#eef2ff'); r.addColorStop(0.5, '#ffffff'); r.addColorStop(1, '#f4f0ff'); g.fillStyle = r; g.fillRect(0, 0, w, h); });
   { const bp = new THREE.Mesh(new THREE.PlaneGeometry(SW, TOP), new THREE.MeshBasicMaterial({ map: back.t, toneMapped: false })); bp.position.set(0, TOP / 2, ZW + 0.02); G.add(bp); }
   const UX = Array.from({ length: BAYS + 1 }, (_, i) => -SW / 2 + i * BW);
-  for (const ux of UX) { part(frame, BOX, 0xffffff, ux, TOP / 2, Z0, 0.08, TOP, SD); ledB.push(new THREE.BoxGeometry(0.03, TOP, 0.02).translate(ux, TOP / 2, Z0 + SD / 2 + 0.012)); }
+  for (const ux of UX) { part(frame, BOX, 0xffffff, ux, TOP / 2, Z0, 0.08, TOP, SD); part(frame, BOX, 0xd8dde6, ux, TOP / 2, Z0 + SD / 2 + 0.004, 0.09, TOP, 0.01); ledB.push(new THREE.BoxGeometry(0.03, TOP, 0.02).translate(ux, TOP / 2, Z0 + SD / 2 + 0.014)); }
   part(frame, BOX, 0xffffff, 0, TOP + 0.05, Z0, SW + 0.1, 0.1, SD + 0.04); part(frame, BOX, 0xffffff, 0, SY[0] / 2, Z0, SW, SY[0], SD);
-  const glassG = [];
-  for (const [i, y] of SY.entries()) { glassG.push(new THREE.BoxGeometry(SW, 0.03, SD).translate(0, y, Z0)); (i % 2 ? ledP : ledB).push(new THREE.BoxGeometry(SW, 0.024, 0.02).translate(0, y - 0.005, Z0 + SD / 2 + 0.012)); }
+  for (const [i, y] of SY.entries()) { part(frame, BOX, 0xfafbfd, 0, y, Z0, SW, 0.04, SD); part(frame, BOX, 0xc9d0da, 0, y, Z0 + SD / 2 + 0.003, SW, 0.044, 0.008);   // lacquer shelf + chrome lip
+    if (i < 4) part(frame, BOX, 0xeef0f6, 0, y + 0.06, Z0 - 0.15, SW, 0.08, 0.2);                                                                   // back riser (second row)
+    lit.push(new THREE.BoxGeometry(SW - 0.1, 0.008, 0.025).translate(0, y - 0.024, Z0 + SD / 2 - 0.04));                                             // warm LED under the shelf
+    (i % 2 ? ledP : ledB).push(new THREE.BoxGeometry(SW, 0.012, 0.012).translate(0, y + 0.016, Z0 + SD / 2 + 0.012)); }
   ledP.push(new THREE.BoxGeometry(SW, 0.03, 0.02).translate(0, TOP, Z0 + SD / 2 + 0.03));
+  for (let b = 0; b < BAYS; b++) for (const j of [0.27, 0.73]) { const x = UX[b] + BW * j; part(frame, CYL, 0xd0d4da, x, TOP - 0.03, Z0 + 0.12, 0.05, 0.05, 0.05); lit.push(new THREE.CylinderGeometry(0.035, 0.035, 0.01, 10).translate(x, TOP - 0.06, Z0 + 0.12)); }
+  // soft light pools on the back panel (one additive mesh): spotlights above the big prizes + under-shelf glow on every cell
+  const poolT = canvasTex(128, 128, (g) => { const r = g.createRadialGradient(64, 40, 4, 64, 64, 64); r.addColorStop(0, 'rgba(255,246,225,.75)'); r.addColorStop(1, 'rgba(255,246,225,0)'); g.fillStyle = r; g.fillRect(0, 0, 128, 128); });
+  for (let b = 0; b < BAYS; b++) { const x = (UX[b] + UX[b + 1]) / 2; pools.push(new THREE.PlaneGeometry(BW * 0.95, 1.4).translate(x, SY[4] + 0.75, ZW + 0.03));
+    for (let s = 0; s < 4; s++) pools.push(new THREE.PlaneGeometry(BW * 0.9, 0.7).translate(x, SY[s] + 0.42, ZW + 0.03)); }
+  add(pools, new THREE.MeshBasicMaterial({ map: poolT.t, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false }), 'shelfLightPools', 1);
   mesh(frame, new THREE.MeshBasicMaterial({ vertexColors: true }), 'shopShelfFrame');
-  add(glassG, new THREE.MeshBasicMaterial({ color: 0xeaf2ff, transparent: true, opacity: 0.5, depthWrite: false }), 'shopGlass', 2);
   const LZ = Z0 + SD / 2 + 0.016, LBW = BW - 0.16;
-  // top shelf: big seated brown monkey plushes; 2 head-and-shoulders Grok plushes in bay 2
+  // top shelf: big seated monkey plushes + 2 Grok plushes (the silver clerk from Dave's video) in bay 2
   const MON = { monkeyBrown: [0x6e4120, 0xe2b98a], monkeyGold: [0xb87a2a, 0xf4d8a8], monkeySpace: [0x5e50a0, 0xdcd0f6] };
   const TOPROW = [['monkeyBrown', 'monkeyBrown'], ['grok', 'grok'], ['monkeyBrown', 'monkeyGold'], ['monkeySpace', 'monkeyBrown']];
-  function grokBust(L, x, y, z, s) { const p = (geo, c, a, b, d, sx, sy, sz) => part(L, geo, c, x + a * s, y + b * s, z + d * s, sx * s, sy * s, sz * s);
-    p(SPH, 0x9a9ea6, 0, .16, 0, .34, .2, .24); p(SPH, 0x50545c, 0, .05, 0, .3, .07, .22); for (const sd of [-1, 1]) p(SPH, 0x50545c, sd * .3, .2, 0, .1, .1, .1);
-    grokHead(L, x, y + .55 * s, z, s); }
+  function grokBust(L, x, y, z, s) { grokPlush(L, x, y, z, s); }
+  // seated Grok plush: silver bobblehead helmet, black screen (face plane added separately), charcoal joints, chunky limbs
+  function grokPlush(L, x, y, z, s) { const p = (geo, c, a, b, d, sx, sy, sz, rx = 0, ry = 0, rz = 0) => part(L, geo, c, x + a * s, y + b * s, z + d * s, sx * s, sy * s, sz * s, rx, ry, rz);
+    const sil = 0xb6babe, chr = 0x2a2a2d;
+    for (const sd of [-1, 1]) { p(CYL, chr, sd * .09, .06, .08, .055, .16, .055, Math.PI / 2); p(SPH, sil, sd * .09, .065, .17, .068, .068, .07); p(BOX, chr, sd * .09, .06, .25, .1, .075, .06); }
+    p(SPH, sil, 0, .22, 0, .19, .2, .15); p(CYL, chr, 0, .1, 0, .15, .05, .12); p(SPH, 0xc8ccd0, 0, .27, .05, .15, .12, .11);
+    for (const sd of [-1, 1]) { p(SPH, sil, sd * .2, .32, 0, .075, .075, .075); p(CYL, sil, sd * .23, .22, .03, .045, .15, .045, 0, 0, sd * .2); p(SPH, chr, sd * .245, .155, .04, .05, .05, .05); p(SPH, chr, sd * .25, .085, .07, .052, .046, .052); }
+    p(CYL, chr, 0, .41, 0, .065, .07, .065); grokHead(L, x, y + .6 * s, z, s); }
   TOPROW.forEach((row, b) => row.forEach((id, j) => { const x = UX[b] + BW * (j + 0.5) / row.length, y = SY[4] + 0.02;
-    if (id === 'grok') { const s = 1.35; grokBust(gp, x, y, Z0, s); const f = facePlane(G, s, y + 0.54 * s, Z0 + 0.3 * s); f.position.x = x; f.name = 'grokPlushFace';
-      const ch = new THREE.Mesh(new THREE.PlaneGeometry(0.3, 0.11), chestMat); ch.position.set(x, y + 0.2 * s, Z0 + 0.24 * s); G.add(ch); }
-    else monkeyPlush(plushes, x, y, Z0 + 0.04, ...MON[id], 2.15);
+    if (id === 'grok') { const s = 1.3, zz = Z0 - 0.1; grokPlush(gp, x, y, zz, s); const f = facePlane(G, s, y + 0.59 * s, zz + 0.3 * s); f.position.x = x; f.name = 'grokPlushFace';
+      const ch = new THREE.Mesh(new THREE.PlaneGeometry(0.26, 0.095), chestMat); ch.position.set(x, y + 0.27 * s, zz + 0.162 * s); G.add(ch); }
+    else monkeyPlush(plushes, x, y, Z0 + 0.0, ...MON[id], 2.1, (b + j) % 2);
     }));
   TOPROW.forEach((row, b) => { const x = (UX[b] + UX[b + 1]) / 2, it = row[0] === row[1] ? byId[row[0]] : { id: row.join('+'), name: row.map(i => byId[i].name.replace(' Plush', '')).join(' / ') + ' Plush', price: byId[row[0]].price };
     label(it, x, SY[4] - 0.13, LZ, 0, LBW); });
-  // ---------- dense lower shelves: procedural sprite atlas (16 prize kinds x 16 variants), varied billboards + boxes ----------
+  // ---------- lower shelves: real 3D toys (two staggered rows, colour + pose variants, one merged mesh) and boxed sets ----------
   const KIND = ['viking', 'boxBerserker', 'orc', 'boxRoadster', 'teddy', 'roadster', 'boxNova', 'dino', 'boxOrc', 'robot', 'rocket', 'boxGhost', 'alien', 'boxMonkey', 'ball', 'duck'];
   const CS = 128, AC = 16, atl = canvasTex(CS * AC, CS * AC, (g) => { g.clearRect(0, 0, CS * AC, CS * AC); });
   const pal = ['#ff3c3c', '#ff8a1e', '#ffd21e', '#6cff4a', '#1ec8ff', '#3c78ff', '#a64dff', '#ff3cf0', '#ffffff', '#2a2a3a', '#ff7aa8', '#3cffc8'];
   const P_ = () => pal[(rnd() * pal.length) | 0];
-  function drawCell(g, kind, v, x, y) { g.save(); g.translate(x, y); const c1 = P_(), c2 = P_(), c3 = P_();
+  function drawBox(g, kind, v, x, y) { g.save(); g.translate(x, y); const c1 = P_(), c2 = P_(), c3 = P_();
     const circ = (cx, cy, r, c) => { g.fillStyle = c; g.beginPath(); g.arc(cx, cy, r, 0, 7); g.fill(); }, rect = (a, b, w, h, c, r = 8) => { g.fillStyle = c; g.beginPath(); g.roundRect(a, b, w, h, r); g.fill(); };
-    const eyes = (cx, cy, d = 9, r = 4) => { circ(cx - d, cy, r + 2, '#fff'); circ(cx + d, cy, r + 2, '#fff'); circ(cx - d, cy, r, '#111'); circ(cx + d, cy, r, '#111'); };
-    if (kind.startsWith('box')) { const art = { boxBerserker: ['BERSERKER', '#c8302a'], boxRoadster: ['ROADSTER', '#ff6a2a'], boxNova: ['NOVA', '#2a2a9a'], boxOrc: ['ORC', '#2e8a2a'], boxGhost: ['GHOST', '#6a1a9a'], boxMonkey: ['MONKEY', '#2a8ad8'] }[kind];
-      const w = 84 + rnd() * 30, h = 108 + rnd() * 18, bx = (CS - w) / 2, by = CS - h - 2; rect(bx, by, w, h, art[1], 6); rect(bx + 6, by + 26, w - 12, h - 40, '#ffffffdd', 4);
-      circ(CS / 2, by + 52, 14, v % 2 ? c1 : art[1]); rect(CS / 2 - 16, by + 64, 32, 28, v % 3 ? c2 : art[1], 6); eyes(CS / 2, by + 52, 5, 2);
-      g.fillStyle = '#fff'; g.font = '900 17px Impact, Arial Black'; g.textAlign = 'center'; g.fillText(art[0], CS / 2, by + 19, w - 8); rect(bx + 8, by + h - 12, w - 16, 7, c3, 3); g.restore(); return; }
-    const cx = CS / 2;
-    switch (kind) {
-      case 'viking': { const beard = ['#d2502a', '#ff8a1e', '#ffd25a', '#6a3a1a'][v % 4]; rect(cx - 26, 64, 52, 56, c1, 12); circ(cx, 50, 24, '#f2c8a0'); g.fillStyle = beard; g.beginPath(); g.moveTo(cx - 22, 52); g.lineTo(cx + 22, 52); g.lineTo(cx, 92 + (v % 3) * 6); g.fill();
-        g.fillStyle = '#a0a8b4'; g.beginPath(); g.arc(cx, 40, 25, Math.PI, 0); g.fill(); g.fillStyle = '#f4ecd8'; for (const s of [-1, 1]) { g.beginPath(); g.moveTo(cx + s * 22, 34); g.lineTo(cx + s * 40, 10 + (v % 2) * 6); g.lineTo(cx + s * 26, 42); g.fill(); } eyes(cx, 48, 9, 3);
-        if (v % 2) { rect(cx + 28, 40, 6, 70, '#6a4a2a', 2); rect(cx + 20, 36, 26, 18, '#c0c8d0', 4); } break; }
-      case 'orc': { const sk = ['#4f8a2e', '#6ab43a', '#3a7a4a', '#8ab43a'][v % 4]; rect(cx - 30, 62, 60, 60, ['#6a4a2a', '#4a3a2a', c1][v % 3], 14); circ(cx, 46, 26, sk); eyes(cx, 42, 10, 4); g.fillStyle = '#fff'; g.fillRect(cx - 12, 58, 5, 9); g.fillRect(cx + 7, 58, 5, 9); for (const s of [-1, 1]) { g.fillStyle = sk; g.beginPath(); g.moveTo(cx + s * 22, 40); g.lineTo(cx + s * 40, 30); g.lineTo(cx + s * 24, 52); g.fill(); } break; }
-      case 'teddy': { const f = ['#b07a44', '#ff9ac8', '#f4f0e8', '#7ab4ff', '#c8a0ff', '#8a5a2a'][v % 6]; circ(cx, 88, 30, f); circ(cx, 48, 26, f); circ(cx - 22, 26, 10, f); circ(cx + 22, 26, 10, f); circ(cx, 56, 11, '#f4dcc0'); eyes(cx, 44, 10, 3); circ(cx, 52, 4, '#222'); circ(cx, 90, 14, '#ffffff55'); if (v % 3 === 0) { g.fillStyle = c1; g.fillRect(cx - 18, 68, 36, 6); } break; }
-      case 'duck': { const f = ['#ffd21e', '#ff8ad8', '#6cff4a', '#1ec8ff'][v % 4]; circ(cx, 86, 32, f); circ(cx + 6, 48, 24, f); g.fillStyle = '#ff7a00'; g.beginPath(); g.ellipse(cx + 30, 54, 14, 7, 0, 0, 7); g.fill(); circ(cx + 12, 44, 4, '#111'); if (v % 2) { rect(cx - 14, 18, 36, 10, c1, 4); rect(cx - 6, 4, 20, 18, c1, 4); } break; }
-      case 'robot': { rect(cx - 28, 60, 56, 56, c1, 8); rect(cx - 24, 18, 48, 40, c2, 8); rect(cx - 18, 26, 36, 22, '#0a1020', 4); circ(cx - 8, 37, 4, '#6ff6ff'); circ(cx + 8, 37, 4, '#6ff6ff'); g.fillStyle = '#ccc'; g.fillRect(cx - 2, 4, 4, 14); circ(cx, 4, 5, '#ff3c3c'); rect(cx - 14, 72, 28, 10, c3, 3); break; }
-      case 'rocket': { g.fillStyle = ['#eeeeee', c1, '#ffd21e'][v % 3]; g.beginPath(); g.ellipse(cx, 66, 20, 50, 0, 0, 7); g.fill(); g.fillStyle = c2; g.beginPath(); g.moveTo(cx - 20, 90); g.lineTo(cx - 38, 122); g.lineTo(cx - 10, 108); g.fill(); g.beginPath(); g.moveTo(cx + 20, 90); g.lineTo(cx + 38, 122); g.lineTo(cx + 10, 108); g.fill(); circ(cx, 56, 10, '#1ec8ff'); g.fillStyle = c2; g.beginPath(); g.moveTo(cx - 14, 30); g.lineTo(cx, 12); g.lineTo(cx + 14, 30); g.fill(); break; }
-      case 'alien': { const f = ['#6cff6c', '#a64dff', '#1ec8ff', '#ff7aa8'][v % 4]; rect(cx - 22, 70, 44, 50, f, 18); circ(cx, 52, 28, f); g.fillStyle = '#111'; g.beginPath(); g.ellipse(cx - 11, 50, 7, 11, -0.3, 0, 7); g.fill(); g.beginPath(); g.ellipse(cx + 11, 50, 7, 11, 0.3, 0, 7); g.fill(); g.strokeStyle = f; g.lineWidth = 4; g.beginPath(); g.moveTo(cx - 8, 26); g.lineTo(cx - 18, 6); g.moveTo(cx + 8, 26); g.lineTo(cx + 18, 6); g.stroke(); circ(cx - 18, 6, 5, c1); circ(cx + 18, 6, 5, c1); break; }
-      case 'dino': { const f = ['#3cc46a', '#ff8a1e', '#a64dff', '#1ec8ff'][v % 4]; g.fillStyle = f; g.beginPath(); g.ellipse(cx - 4, 88, 36, 28, 0, 0, 7); g.fill(); circ(cx + 26, 50, 22, f); g.fillRect(cx + 10, 56, 18, 30); g.beginPath(); g.moveTo(cx - 36, 90); g.lineTo(cx - 60, 110); g.lineTo(cx - 30, 104); g.fill(); g.fillStyle = '#ffd21e'; for (let k = 0; k < 4; k++) { g.beginPath(); g.moveTo(cx - 26 + k * 14, 64); g.lineTo(cx - 19 + k * 14, 50); g.lineTo(cx - 12 + k * 14, 64); g.fill(); } circ(cx + 32, 44, 5, '#111'); break; }
-      case 'ball': { const r = 30 + rnd() * 14; circ(cx, CS - r - 3, r, c1); g.fillStyle = c2; g.beginPath(); g.ellipse(cx, CS - r - 3, r, r * 0.3, v * 0.4, 0, 7); g.fill(); circ(cx - r * 0.35, CS - r * 1.35, r * 0.2, '#ffffff99'); break; }
-      case 'roadster': { const b = ['#f4f6f8', '#ff3c3c', '#1ec8ff', '#ffd21e', '#2a2a3a'][v % 5]; rect(8, 70, 112, 30, b, 14); g.fillStyle = '#22262e'; g.beginPath(); g.moveTo(36, 72); g.quadraticCurveTo(62, 46, 92, 72); g.fill(); circ(32, 102, 13, '#111'); circ(96, 102, 13, '#111'); circ(32, 102, 6, '#aaa'); circ(96, 102, 6, '#aaa'); rect(112, 80, 12, 8, '#6ff6ff', 3); break; }
-    }
-    g.restore(); }
-  KIND.forEach((k, ki) => { for (let v = 0; v < AC; v++) drawCell(atl.g, k, v, v * CS, ki * CS); }); atl.t.needsUpdate = true;
-  const spr = [], sprBox = [];
-  KIND.forEach((id, gi) => { const s = 3 - (gi / 4 | 0), b = gi % 4, y = SY[s] + 0.017, it = byId[id], x0 = UX[b] + 0.08, x1 = UX[b + 1] - 0.08, isBox = id.startsWith('box');
-    const u0 = 0, vRow = gi;
-    for (let r = 0; r < 2; r++) { let x = x0 + (r ? 0.1 : 0); while (x < x1 - 0.12) { const h = (isBox ? 0.5 : 0.42) + rnd() * 0.18 + r * 0.04, w = h, v = (rnd() * AC) | 0;
-        if (x + w * 0.62 > x1) break; const cx = x + w * 0.36, z = Z0 + (r ? -0.12 : 0.1) + (rnd() - 0.5) * 0.04;
-        const uA = (v) / AC, uB = (v + 1) / AC, vA = 1 - (vRow + 1) / AC, vB = 1 - vRow / AC;
-        if (isBox) { const bg = new THREE.BoxGeometry(w * 0.82, h * 0.96, 0.14); const uv = bg.attributes.uv; for (let q = 0; q < uv.count; q++) uv.setXY(q, uA + (0.12 + uv.getX(q) * 0.76) / AC, vA + (0.02 + uv.getY(q) * 0.86) / AC); bg.translate(cx, y + h * 0.46, z); sprBox.push(bg); }
-        else { const pg = setUV(new THREE.PlaneGeometry(w, h), uA, uB, vA, vB); pg.translate(cx, y + h / 2, z + 0.06); spr.push(pg); }
-        x += w * (isBox ? 0.78 : 0.62) + rnd() * 0.03; } }
-    label(it, (UX[b] + UX[b + 1]) / 2, SY[s] - 0.1, LZ, 0, LBW); void u0; });
-  const atlM = new THREE.MeshBasicMaterial({ map: atl.t, alphaTest: 0.5, toneMapped: false, side: THREE.DoubleSide });
-  add(spr, atlM, 'shelfSprites'); add(sprBox, new THREE.MeshBasicMaterial({ map: atl.t, toneMapped: false }), 'shelfBoxes');
+    const art = BOXC[kind], w = 116, h = 124, bx = 6, by = 2; rect(bx, by, w, h, art[1], 6); const wg = g.createLinearGradient(0, by + 26, 0, by + h - 14); wg.addColorStop(0, '#ffffff'); wg.addColorStop(1, '#dfe8ff'); g.fillStyle = wg; g.beginPath(); g.roundRect(bx + 6, by + 26, w - 12, h - 42, 4); g.fill();
+    if (kind === 'boxBerserker') { circ(64, by + 62, 15, '#f2c8a0'); g.fillStyle = '#d2502a'; g.beginPath(); g.moveTo(50, by + 64); g.lineTo(78, by + 64); g.lineTo(64, by + 92); g.fill(); g.fillStyle = '#a0a8b4'; g.beginPath(); g.arc(64, by + 56, 16, Math.PI, 0); g.fill(); g.fillStyle = '#f4ecd8'; for (const s of [-1, 1]) { g.beginPath(); g.moveTo(64 + s * 14, by + 52); g.lineTo(64 + s * 28, by + 34); g.lineTo(64 + s * 18, by + 58); g.fill(); } rect(48, by + 86, 32, 10, '#2a4c9a', 4); circ(58, by + 62, 2.5, '#111'); circ(70, by + 62, 2.5, '#111'); circ(36, by + 80, 13, '#8a929c'); circ(36, by + 80, 11, '#c8302a'); circ(36, by + 80, 4, '#ccc'); g.fillStyle = '#7a5030'; g.fillRect(90, by + 40, 4, 52); g.fillStyle = '#c0c8d0'; g.beginPath(); g.moveTo(94, by + 40); g.lineTo(108, by + 34); g.lineTo(108, by + 58); g.lineTo(94, by + 52); g.fill(); }
+    else { circ(64, by + 56, 16, v % 2 ? c1 : art[1]); rect(64 - 18, by + 70, 36, 26, v % 3 ? c2 : art[1], 6); circ(58, by + 54, 3, '#111'); circ(70, by + 54, 3, '#111'); }
+    g.fillStyle = '#fff'; g.font = '900 17px Impact, Arial Black'; g.textAlign = 'center'; g.fillText(art[0], 64, by + 19, w - 8); rect(bx + 8, by + h - 12, w - 16, 7, c3, 3); g.restore(); }
+  const BOXC = { boxBerserker: ['BERSERKER', '#c8302a'], boxRoadster: ['ROADSTER', '#ff6a2a'], boxNova: ['NOVA', '#2a2a9a'], boxOrc: ['ORC', '#2e8a2a'], boxGhost: ['GHOST', '#6a1a9a'], boxMonkey: ['MONKEY', '#2a8ad8'] };
+  KIND.forEach((k, ki) => { if (BOXC[k]) for (let v = 0; v < AC; v++) drawBox(atl.g, k, v, v * CS, ki * CS); }); atl.t.needsUpdate = true;
+  const SPAN = { viking: .26, orc: .28, teddy: .24, roadster: .36, dino: .32, robot: .2, rocket: .15, alien: .19, ball: .2, duck: .22 };
+  const sprBox = []; let nToys = 0;
+  KIND.forEach((id, gi) => { const s = 3 - (gi / 4 | 0), b = gi % 4, it = byId[id], x0 = UX[b] + 0.1, x1 = UX[b + 1] - 0.1, isBox = id.startsWith('box');
+    for (let r = 0; r < 2; r++) { const y = SY[s] + 0.02 + (r ? 0.08 : 0), z = Z0 + (r ? -0.15 : 0.08);
+      if (isBox) { let x = x0 + (r ? 0.12 : 0); const vRow = gi; while (x < x1 - 0.12) { const h = 0.46 + rnd() * 0.12 + r * 0.04, w = h * 0.8, v = (rnd() * AC) | 0; if (x + w > x1) break;
+          const uA = v / AC, vA = 1 - (vRow + 1) / AC; const bg = new THREE.BoxGeometry(w, h, 0.14); const uv = bg.attributes.uv; for (let q = 0; q < uv.count; q++) uv.setXY(q, uA + (0.05 + uv.getX(q) * 0.9) / AC, vA + (0.02 + uv.getY(q) * 0.96) / AC);
+          bg.rotateY((rnd() - 0.5) * 0.25).translate(x + w / 2, y + h / 2, z + (rnd() - 0.5) * 0.03); sprBox.push(bg); x += w + 0.03 + rnd() * 0.03; } continue; }
+      const K3 = 1.32, sp = SPAN[id] * K3; let x = x0 + sp / 2 + (r ? sp * 0.5 : 0), v = r * 3 + b;
+      while (x < x1 - sp / 2 + 0.01) { toy3(toys, id, x, y, z, K3 * (0.92 + rnd() * 0.12), v++, (rnd() - 0.5) * 0.6 + (id === 'roadster' || id === 'dino' ? -0.5 : 0)); nToys++; x += sp + rnd() * 0.02; } }
+    label(it, (UX[b] + UX[b + 1]) / 2, SY[s] - 0.1, LZ, 0, LBW); });
+  add(sprBox, new THREE.MeshStandardMaterial({ map: atl.t, roughness: 0.45, emissive: 0xffffff, emissiveMap: atl.t, emissiveIntensity: 0.22 }), 'shelfBoxes');
+  const toyMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.62, metalness: 0.05, emissive: 0x2e2e32 });
+  mesh(toys, toyMat, 'shelfToys');
   mesh(plushes, new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 1, emissive: 0x4a3426 }), 'monkeyPlushes');
-  mesh(gp, new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.6, emissive: 0x3a3c42 }), 'grokPlush');
+  mesh(gp, new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.45, metalness: 0.2, emissive: 0x3a3c42 }), 'grokPlush');
+  const spr = [];
 
   // ---------- CANDY STAND (left front, angled toward the pad) ----------
   const CXc = -5.0, CZc = -1.95, TH = -1.25, CL = 1.8, cosT = Math.cos(TH), sinT = Math.sin(TH);
@@ -320,7 +407,7 @@ export function setupShop({ scene, tp, play, monkey, camera, st } = {}) {
     m.rotation.x = -Math.PI / 2; m.position.set(0, 0.004, (ZW + ZF) / 2); m.renderOrder = 1; m.name = 'glossFloor'; G.add(m); }
 
   add(ledB, ledM, 'shopLedBlue'); add(ledP, ledM2, 'shopLedPurple'); add(ledCy, ledC, 'shopLedCyan'); add(lit, litM, 'ceilingLight');
-  lab.t.needsUpdate = true; add(labelGeos, new THREE.MeshBasicMaterial({ map: lab.t, toneMapped: false }), 'priceLabels');
+  lab.t.needsUpdate = true; add(labelGeos, new THREE.MeshBasicMaterial({ map: lab.t, toneMapped: false }), 'priceLabels'); add(cardGeos, new THREE.MeshBasicMaterial({ color: 0x1b1f2e }), 'priceCards');
 
   // ---------- bounds + obstacles ----------
   const R = 0.3, L = HS - 0.35, KX = 0, KZ = 0;
@@ -335,7 +422,7 @@ export function setupShop({ scene, tp, play, monkey, camera, st } = {}) {
     for (const o of OBST) { if (lx > o.x0 - R && lx < o.x1 + R && lz > o.z0 - R && lz < o.z1 + R) {
     const e = [lx - (o.x0 - R), (o.x1 + R) - lx, lz - (o.z0 - R), (o.z1 + R) - lz], m = Math.min(...e);
     if (m === e[0]) p.x = WXp + o.x0 - R; else if (m === e[1]) p.x = WXp + o.x1 + R; else if (m === e[2]) p.z = o.z0 - R; else p.z = o.z1 + R; } } }
-  const stats = { items: spr.length + sprBox.length + 8 + NJ * 4 + 12, sprites: spr.length, boxes: sprBox.length, labels: LBL.length };
+  const stats = { items: nToys + sprBox.length + 8 + NJ * 4 + 12, toys: nToys, sprites: spr.length, boxes: sprBox.length, labels: LBL.length };
   // ---------- tickets / prizes ----------
   const T = () => (play && play.tickets) || (window.__arcade && window.__arcade.play && window.__arcade.play.tickets) || null;
   const balance = () => { const t = T(); if (t) return t.total; return parseInt(localStorage.getItem('neonarcade.tickets'), 10) || 0; };
@@ -400,15 +487,14 @@ export function setupShop({ scene, tp, play, monkey, camera, st } = {}) {
 
   // ---------- HELD PRIZE: the player's monkey carries one bought prize (built with the same shelf builders) ----------
   const HK = 'neonarcade.held';
-  const BOXC = { boxBerserker: ['BERSERKER', '#c8302a'], boxRoadster: ['ROADSTER', '#ff6a2a'], boxNova: ['NOVA', '#2a2a9a'], boxOrc: ['ORC', '#2e8a2a'], boxGhost: ['GHOST', '#6a1a9a'], boxMonkey: ['MONKEY', '#2a8ad8'] };
   const vcStd = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.7, metalness: 0.05, emissive: 0x303034 });
   const vm = (L, mat = vcStd) => new THREE.Mesh(mergeGeometries(L), mat);
   // kind: 'hug' = both arms around it at the chest, 'hand' = right hand
   function buildHeld(id) {
     const g = new THREE.Group(); g.name = 'heldPrize'; g.userData.id = id; let kind = 'hug';
     if (MON[id]) { const L = []; monkeyPlush(L, 0, 0, 0, ...MON[id], 1.0); g.add(vm(L)); g.userData.size = 0.56; }
-    else if (id === 'grok') { const L = [], s = 0.62; grokBust(L, 0, 0, 0, s); g.add(vm(L));
-      const f = facePlane(g, s, 0.54 * s, 0.3 * s); f.name = 'heldGrokFace'; const ch = new THREE.Mesh(new THREE.PlaneGeometry(0.3 * s / 1.35 * 1.0, 0.11 * s / 1.35), chestMat); ch.position.set(0, 0.2 * s, 0.245 * s); g.add(ch); g.userData.size = 0.75; }
+    else if (id === 'grok') { const L = [], s = 0.62; grokPlush(L, 0, 0, 0, s); g.add(vm(L));
+      const f = facePlane(g, s, 0.59 * s, 0.3 * s); f.name = 'heldGrokFace'; const ch = new THREE.Mesh(new THREE.PlaneGeometry(0.3 * s / 1.35 * 1.0, 0.11 * s / 1.35), chestMat); ch.position.set(0, 0.27 * s, 0.165 * s); g.add(ch); g.userData.size = 0.75; }
     else if (BOXC[id]) { const [txt, col] = BOXC[id]; const tex = canvasTex(256, 320, (c) => { c.fillStyle = col; c.fillRect(0, 0, 256, 320); c.fillStyle = '#ffffffdd'; c.fillRect(18, 70, 220, 220); c.fillStyle = '#fff'; c.font = '900 44px Impact, Arial Black'; c.textAlign = 'center'; c.fillText(txt, 128, 52, 236);
         c.fillStyle = col; c.beginPath(); c.arc(128, 150, 44, 0, 7); c.fill(); c.fillRect(88, 190, 80, 70); c.fillStyle = '#fff'; c.beginPath(); c.arc(112, 145, 9, 0, 7); c.arc(144, 145, 9, 0, 7); c.fill(); }).t;
       const side = new THREE.MeshStandardMaterial({ color: col, roughness: 0.6, emissive: col, emissiveIntensity: 0.15 }), face = new THREE.MeshStandardMaterial({ map: tex, roughness: 0.6, emissive: 0xffffff, emissiveMap: tex, emissiveIntensity: 0.25 });
@@ -421,7 +507,7 @@ export function setupShop({ scene, tp, play, monkey, camera, st } = {}) {
         const t = id === 'rainbow' ? 1 : id === 'cherry' ? 2 : 0, cg = setUV(new THREE.CircleGeometry(0.1, 22), 0, 1, 0, 1), uv = cg.attributes.uv; for (let q = 0; q < uv.count; q++) uv.setX(q, (t + uv.getX(q)) / 3);
         const pop = new THREE.Mesh(cg.translate(0, 0.3, 0.012), new THREE.MeshBasicMaterial({ map: sw.t, side: THREE.DoubleSide, toneMapped: false })); g.add(pop); }
       g.add(vm(L, new THREE.MeshBasicMaterial({ vertexColors: true, toneMapped: false }))); g.userData.size = 0.3; }
-    else { const L = []; toy(L, id, 0, 0, 0, 1.55); g.add(vm(L)); g.userData.size = 0.45; }
+    else { const L = []; toy3(L, id, 0, 0, 0, 1.6, 0, 0); g.add(vm(L)); g.userData.size = 0.45; }
     g.userData.kind = kind; g.traverse(o => { if (o.isMesh) { o.frustumCulled = false; o.castShadow = false; } }); return g;
   }
   const heldId = () => { try { const v = localStorage.getItem(HK); return v && byId[v] && prizes()[v] ? v : null; } catch (e) { return null; } };
