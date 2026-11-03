@@ -6,6 +6,7 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 
+let api_sky = null;
 export const SHOP_HALF = 14;
 const PK = 'neonarcade.prizes';
 export const ITEMS = [
@@ -128,6 +129,24 @@ export function setupShop({ scene, tp, play, monkey, camera, st } = {}) {
   for (const sd of [-1, 1]) lit.push(new THREE.BoxGeometry(0.34, 0.02, ZF - ZW - 2.4).translate(sd * (SXW - 1.0), CH - 0.012, (ZW + ZF) / 2));
   ledCy.push(new THREE.BoxGeometry(2 * SXW, 0.04, 0.04).translate(0, CH - 0.03, ZF - 0.03), new THREE.BoxGeometry(2 * SXW, 0.04, 0.04).translate(0, CH - 0.03, ZW + 0.03));
   for (const sd of [-1, 1]) { ledCy.push(new THREE.BoxGeometry(0.04, 0.04, ZF - ZW).translate(sd * (SXW - 0.03), CH - 0.03, (ZW + ZF) / 2)); ledP.push(new THREE.BoxGeometry(0.04, 0.04, ZF - ZW).translate(sd * (SXW - 0.03), 0.06, (ZW + ZF) / 2)); }
+  // ---------- SKYLIGHT: the flat ceiling is one big glass window onto space (stars + a little soft nebula gas, thin mullions, faint sheen) ----------
+  const skyMat = new THREE.ShaderMaterial({ uniforms: { uT: { value: 0 } }, toneMapped: false,
+    vertexShader: 'varying vec3 vW; varying vec2 vU; void main(){ vU = uv; vec4 w = modelMatrix * vec4(position,1.); vW = w.xyz; gl_Position = projectionMatrix * viewMatrix * w; }',
+    fragmentShader: `uniform float uT; varying vec3 vW; varying vec2 vU;
+      float h21(vec2 p){ p = fract(p * vec2(123.34, 456.21)); p += dot(p, p + 45.32); return fract(p.x * p.y); }
+      float n2(vec2 p){ vec2 i = floor(p), f = fract(p); f = f*f*(3.-2.*f); return mix(mix(h21(i), h21(i+vec2(1,0)), f.x), mix(h21(i+vec2(0,1)), h21(i+vec2(1,1)), f.x), f.y); }
+      float fbm(vec2 p){ float a = .5, s = 0.; for (int i = 0; i < 5; i++){ s += a * n2(p); p = p * 2.03 + 7.1; a *= .5; } return s; }
+      vec3 stars(vec2 uv, float cell, float th){ vec2 g = uv * cell, id = floor(g), f = fract(g) - .5; float r = h21(id); if (r < th) return vec3(0);
+        vec2 o = vec2(h21(id + 3.1), h21(id + 9.7)) - .5; float d = length(f - o * .7); float tw = .75 + .25 * sin(uT * (1. + r * 3.) + r * 40.);
+        vec3 c = mix(vec3(.75,.85,1.), vec3(1.,.85,.7), h21(id + 1.7)); return c * smoothstep(.09, 0., d) * tw * (r - th) / (1. - th) * 2.2; }
+      void main(){ vec3 dir = normalize(vW - cameraPosition); vec2 uv = dir.xz / max(dir.y, .05) * .35;
+        vec3 col = vec3(.008, .01, .03) + stars(uv, 60., .9) + stars(uv + 3.3, 140., .93) * .7;
+        float n = fbm(uv * 1.3 + vec2(2., 5.)), m = smoothstep(.42, .8, n) * .9, k = fbm(uv * 2.2 - 3.);
+        col += m * mix(vec3(.38,.16,.62), vec3(.1,.45,.6), k) * .55 + smoothstep(.62, .9, fbm(uv * .9 + 9.)) * vec3(.1,.18,.5) * .35;
+        vec2 p = vU * vec2(8., 4.), q = abs(fract(p) - .5); float mul = step(.485, max(q.x, q.y));   // 8 x 4 panes
+        col += vec3(.6,.8,1.) * .06 * smoothstep(.5, 0., abs(fract(vU.x * 2. + vU.y) - .5));                  // faint glassy sheen
+        col = mix(col, vec3(.7,.74,.8), mul); gl_FragColor = vec4(col, 1.); }` });
+  { const sk = new THREE.Mesh(new THREE.PlaneGeometry(2 * HS, ZF - ZW), skyMat); sk.rotation.x = Math.PI / 2; sk.position.set(0, CH - 0.004, (ZW + ZF) / 2); sk.name = 'shopSkylight'; G.add(sk); api_sky = skyMat; }
   // ---------- MURALS: painted straight onto the walls, edge to edge, floor to ceiling ----------
   const loadT = f => { const t = new THREE.TextureLoader().load(new URL('./tex/' + f, import.meta.url).href); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 8; return t; };
   const SW = 9.2, MB = 0.0, MT = CH - 0.06, MHh = MT - MB, xE = SW / 2 + 0.15, TB = 5.08, zm = ZW + 0.012;
@@ -368,7 +387,7 @@ export function setupShop({ scene, tp, play, monkey, camera, st } = {}) {
   function closeShop() { if (!api.open) return; api.open = false; holo.classList.remove('on'); }
   function buy(id) { const it = byId[id]; if (!it) return false; const b = balance();
     if (b < it.price) { say(`Ah, the ${it.name} is ${it.price} tickets and you've got ${b}. Win a few more games and come back!`); return false; }
-    spend(it.price); addPrize(id); api.buys++; say(`Great choice! Enjoy your ${it.name}!`); fill(); return true; }
+    spend(it.price); addPrize(id); api.buys++; setHeld(id); say(`Great choice! Enjoy your ${it.name}!`); fill(); return true; }
   btn.addEventListener('click', e => { e.stopPropagation(); openShop(); });
   holo.addEventListener('click', e => { e.stopPropagation(); const t = e.target; if (t.id === 'holoX' || t === holo) closeShop(); else if (t.dataset && t.dataset.id) buy(t.dataset.id); });
   addEventListener('keydown', e => { if (api.open) { if (e.code === 'Escape' || e.code === 'Backspace') closeShop(); e.stopImmediatePropagation(); return; }
@@ -377,13 +396,67 @@ export function setupShop({ scene, tp, play, monkey, camera, st } = {}) {
   const inv = document.getElementById('inv');
   if (inv) new MutationObserver(() => { if (!inv.classList.contains('on')) return; const P = document.getElementById('invP'); if (!P) return; let r = document.getElementById('invPz');
     if (!r) { r = document.createElement('div'); r.id = 'invPz'; r.className = 'invR'; r.style.cssText = 'border-color:#00e5ff88;background:#021a22cc;flex-wrap:wrap'; P.appendChild(r); }
-    const p = prizes(), names = Object.keys(p).map(id => (byId[id] ? byId[id].name : id) + ' ×' + p[id]); r.innerHTML = '<span class="l" style="color:#dffbff">PRIZES</span><span class="l" style="flex:2;text-align:right;color:#9ff8ff">' + (names.join(', ') || 'none yet - visit Grok!') + '</span>'; }).observe(inv, { attributes: true, attributeFilter: ['class'] });
+    renderChips(); }).observe(inv, { attributes: true, attributeFilter: ['class'] });
+
+  // ---------- HELD PRIZE: the player's monkey carries one bought prize (built with the same shelf builders) ----------
+  const HK = 'neonarcade.held';
+  const BOXC = { boxBerserker: ['BERSERKER', '#c8302a'], boxRoadster: ['ROADSTER', '#ff6a2a'], boxNova: ['NOVA', '#2a2a9a'], boxOrc: ['ORC', '#2e8a2a'], boxGhost: ['GHOST', '#6a1a9a'], boxMonkey: ['MONKEY', '#2a8ad8'] };
+  const vcStd = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.7, metalness: 0.05, emissive: 0x303034 });
+  const vm = (L, mat = vcStd) => new THREE.Mesh(mergeGeometries(L), mat);
+  // kind: 'hug' = both arms around it at the chest, 'hand' = right hand
+  function buildHeld(id) {
+    const g = new THREE.Group(); g.name = 'heldPrize'; g.userData.id = id; let kind = 'hug';
+    if (MON[id]) { const L = []; monkeyPlush(L, 0, 0, 0, ...MON[id], 1.0); g.add(vm(L)); g.userData.size = 0.56; }
+    else if (id === 'grok') { const L = [], s = 0.62; grokBust(L, 0, 0, 0, s); g.add(vm(L));
+      const f = facePlane(g, s, 0.54 * s, 0.3 * s); f.name = 'heldGrokFace'; const ch = new THREE.Mesh(new THREE.PlaneGeometry(0.3 * s / 1.35 * 1.0, 0.11 * s / 1.35), chestMat); ch.position.set(0, 0.2 * s, 0.245 * s); g.add(ch); g.userData.size = 0.75; }
+    else if (BOXC[id]) { const [txt, col] = BOXC[id]; const tex = canvasTex(256, 320, (c) => { c.fillStyle = col; c.fillRect(0, 0, 256, 320); c.fillStyle = '#ffffffdd'; c.fillRect(18, 70, 220, 220); c.fillStyle = '#fff'; c.font = '900 44px Impact, Arial Black'; c.textAlign = 'center'; c.fillText(txt, 128, 52, 236);
+        c.fillStyle = col; c.beginPath(); c.arc(128, 150, 44, 0, 7); c.fill(); c.fillRect(88, 190, 80, 70); c.fillStyle = '#fff'; c.beginPath(); c.arc(112, 145, 9, 0, 7); c.arc(144, 145, 9, 0, 7); c.fill(); }).t;
+      const side = new THREE.MeshStandardMaterial({ color: col, roughness: 0.6, emissive: col, emissiveIntensity: 0.15 }), face = new THREE.MeshStandardMaterial({ map: tex, roughness: 0.6, emissive: 0xffffff, emissiveMap: tex, emissiveIntensity: 0.25 });
+      const b = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.38, 0.1), [side, side, side, side, face, side]); b.position.y = 0.19; g.add(b); g.userData.size = 0.38; }
+    else if (CC[id]) { kind = 'hand'; const L = [], c = CC[id];
+      if (id === 'jaw') { part(L, CYL, 0xffffff, 0, 0.1, 0, 0.008, 0.2, 0.008); part(L, SPH, c[0], 0, 0.24, 0, 0.06, 0.06, 0.06); part(L, SPH, c[1], 0.02, 0.26, 0.04, 0.03, 0.03, 0.03); }
+      else if (id === 'cotton') { part(L, CYL, 0xffffff, 0, 0.1, 0, 0.008, 0.22, 0.008); for (let k = 0; k < 9; k++) part(L, SPH, k % 2 ? c[0] : 0xff8ad8, Math.sin(k * 2.3) * 0.05, 0.26 + Math.cos(k * 1.7) * 0.05, Math.cos(k * 2.9) * 0.04, 0.06, 0.06, 0.06); }
+      else if (id === 'gummy') { part(L, BOX, 0xffffff, 0, 0.1, 0, 0.14, 0.2, 0.05); for (let k = 0; k < 8; k++) part(L, SPH, c[k % 3], -0.04 + (k % 3) * 0.04, 0.05 + (k / 3 | 0) * 0.05, 0.027, 0.018, 0.022, 0.012); }
+      else { part(L, CYL, 0xffffff, 0, 0.1, 0, 0.008, 0.22, 0.008);
+        const t = id === 'rainbow' ? 1 : id === 'cherry' ? 2 : 0, cg = setUV(new THREE.CircleGeometry(0.1, 22), 0, 1, 0, 1), uv = cg.attributes.uv; for (let q = 0; q < uv.count; q++) uv.setX(q, (t + uv.getX(q)) / 3);
+        const pop = new THREE.Mesh(cg.translate(0, 0.3, 0.012), new THREE.MeshBasicMaterial({ map: sw.t, side: THREE.DoubleSide, toneMapped: false })); g.add(pop); }
+      g.add(vm(L, new THREE.MeshBasicMaterial({ vertexColors: true, toneMapped: false }))); g.userData.size = 0.3; }
+    else { const L = []; toy(L, id, 0, 0, 0, 1.55); g.add(vm(L)); g.userData.size = 0.45; }
+    g.userData.kind = kind; g.traverse(o => { if (o.isMesh) { o.frustumCulled = false; o.castShadow = false; } }); return g;
+  }
+  const heldId = () => { try { const v = localStorage.getItem(HK); return v && byId[v] && prizes()[v] ? v : null; } catch (e) { return null; } };
+  let heldObj = null, heldMount = null;
+  function setHeld(id) { if (id && !(byId[id] && prizes()[id])) id = null; try { if (id) localStorage.setItem(HK, id); else localStorage.removeItem(HK); } catch (e) {} syncHeld(); renderChips(); return id; }
+  function syncHeld() { const id = heldId(), m = getMonkey(), u = m && m.userData; if (!u || !u.torso) return;
+    if (heldObj && heldObj.userData.id === id) return;
+    if (heldObj) { heldObj.parent && heldObj.parent.remove(heldObj); heldObj = null; }
+    if (!id) return; heldObj = buildHeld(id);
+    if (heldObj.userData.kind === 'hand') { heldMount = u.arms[1].el; heldObj.position.set(0.0, -0.34, 0.07); heldObj.rotation.set(-1.2, 0, 0); }   // right fist, pop held upright
+    else { heldMount = u.torso; const big = id === 'grok'; heldObj.position.set(0, big ? 0.12 : 0.1, big ? 0.36 : 0.33); heldObj.rotation.set(0, 0, 0); }   // hugged to the chest
+    heldMount.add(heldObj); }
+  // arms wrap round the prize (applied after main.js's walk / idle pose; arm swing is replaced by the hug)
+  function holdPose(u, dt) { if (!heldObj || !heldObj.visible) return; const hug = heldObj.userData.kind === 'hug', big = heldObj.userData.id === 'grok';
+    for (const a of u.arms) { a.hand.visible = true; a.hand.scale.setScalar(1); a.hand.rotation.x = 0;
+      if (hug) { a.sh.rotation.set(big ? -0.75 : -0.6, 0, -a.sd * (big ? 0.05 : 0.18)); a.el.rotation.set(big ? -0.7 : -1.25, 0, -a.sd * (big ? 0.75 : 0.55)); }
+      else if (a.sd > 0) { a.sh.rotation.set(-0.45, 0, 0.12); a.el.rotation.set(-1.2, 0, 0); } }
+    if (u.phone) u.phone.visible = false; }
+  api.hold = setHeld; Object.defineProperty(api, 'held', { get: heldId }); Object.defineProperty(api, 'heldObj', { get: () => heldObj });
+  // INVENTORY: PRIZES chips (tap = hold, tap the held one = put away)
+  const css2 = document.createElement('style'); css2.textContent = '#invPz{flex-direction:column;align-items:stretch!important}#invPz .pzT{display:flex;justify-content:space-between;color:#dffbff;font-weight:800}#invPz .pzT small{color:#9ff8ff;font-weight:600}#pzChips{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}' +
+    '.pzC{min-height:48px;padding:6px 14px;border-radius:24px;border:2px solid #00e5ff88;background:#00222ccc;color:#dffbff;font:800 14px Arial,sans-serif;cursor:pointer;touch-action:manipulation}.pzC.on{border-color:#ffe08a;background:#ffb00044;color:#fff;box-shadow:0 0 12px #ffb000aa}.pzC b{color:#ffe08a;margin-left:6px}';
+  document.head.appendChild(css2);
+  function renderChips() { const r = document.getElementById('invPz'); if (!r) return; const p = prizes(), h = heldId(), ids = ITEMS.map(i => i.id).filter(id => p[id]);
+    r.innerHTML = '<div class="pzT"><span>PRIZES</span><small>' + (ids.length ? 'tap one to hold it · tap again to put away' : 'none yet - visit Grok!') + '</small></div><div id="pzChips">' +
+      ids.map(id => `<button class="pzC${id === h ? ' on' : ''}" data-pz="${id}">${id === h ? '✋ ' : ''}${byId[id].name}${p[id] > 1 ? '<b>×' + p[id] + '</b>' : ''}</button>`).join('') + '</div>'; }
+  document.addEventListener('click', e => { const b = e.target.closest && e.target.closest('[data-pz]'); if (!b) return; e.stopPropagation(); const id = b.dataset.pz; setHeld(heldId() === id ? null : id); }, true);
 
   // ---------- per frame ----------
   let wasIn = false, t = 0, blinkT = 2, faceState = '';
   const tmp = new THREE.Vector3();
   api.update = (dt) => {
-    t += dt; const m = getMonkey(); if (!m) return;
+    t += dt; if (api_sky) api_sky.uniforms.uT.value = t; const m = getMonkey(); if (!m) return;
+    syncHeld(); if (heldObj) { const pm = play && play.mode, A = window.__arcade, sStat = A && A.st;
+      heldObj.visible = (!pm || pm === 'walk') && !(sStat && (sStat.seated || sStat.fp)) && !(tp && tp.locked) && m.visible; if (m.userData) holdPose(m.userData, dt); }
     const inRoom = m.position.x > WXp / 2;
     if (inRoom && !wasIn && st) { st.pitch = 0.04; st.dist = Math.max(st.dist, 5.0); }   // shop-local camera: level, a bit closer (once per visit)
     wasIn = inRoom; if (!inRoom) { if (btn.classList.contains('on')) btn.classList.remove('on'); if (api.open) closeShop(); return; }
