@@ -191,7 +191,7 @@ body[data-cab=roadster] #tix.ingame{top:calc(max(10px,env(safe-area-inset-top)) 
 <div class="tkR">🎟 GOLD <b id="tkG">0</b></div><div class="tkBs"><button class="tkB" data-g="1">+1</button><button class="tkB" data-g="5">+5</button><button class="tkB" data-g="10">+10</button><button class="tkB" data-g="50">+50</button><button class="tkB z" data-g="-1">−1</button><button class="tkB z" data-g="0">RESET</button></div>
 <div class="tkR">ᚱ VIKING <b id="tkV">0</b></div><div class="tkBs"><button class="tkB" data-v="1">+1</button><button class="tkB z" data-v="-1">−1</button><button class="tkB z" data-v="0">RESET</button></div>
 <div class="tkR">💵 CASH <b id="tkC">$5</b></div><div class="tkBs"><button class="tkB" data-c="5">+$5</button><button class="tkB z" data-c="0">RESET $5</button></div>
-<div class="tkR">🛠 DEV</div><div class="tkBs"><button class="tkB tkT" id="tkNum" data-t="numbers">NUMBERS: OFF</button><button class="tkB tkT" id="tkClip" data-t="clip">CLIPPING: OFF</button></div>
+<div class="tkR">🛠 DEV</div><div class="tkBs"><button class="tkB tkT" id="tkNum" data-t="numbers">NUMBERS: OFF</button><button class="tkB tkT" id="tkClip" data-t="clip">CLIPPING: OFF</button><button class="tkB tkT" id="tkGrid" data-grid="1">GRID: OFF</button></div>
 <button class="stB" id="tkDone" style="display:block;margin:12px auto 0">DONE</button></div></div></div>
 <script>
 // Start screen: shown before the room (which loads behind it). Only START (or Enter) enters; OPTIONS opens the
@@ -244,7 +244,8 @@ body[data-cab=roadster] #tix.ingame{top:calc(max(10px,env(safe-area-inset-top)) 
   function openTk(on) { tk.classList.toggle('on', on); S.tk = on; if (on) showTk(); }
   function bump(k, d) { var v = d === 0 ? 0 : Math.max(0, rd(k) + d); try { localStorage.setItem(k, String(v)); } catch (e) {} showTk(); if (window.__neonSync) window.__neonSync(); }
   window.addEventListener('pointermove', function (e) { if (!drawing) return; cur = [e.clientX, e.clientY]; addAt(e.clientX, e.clientY); draw(); }, true);
-  function devUI() { [['tkNum', 'numbers', 'NUMBERS'], ['tkClip', 'clip', 'CLIPPING']].forEach(function (a) { var e = document.getElementById(a[0]), on = localStorage.getItem('neonarcade.dev.' + a[1]) === '1'; e.textContent = a[2] + ': ' + (on ? 'ON' : 'OFF'); e.classList.toggle('on', on); }); }
+  function devUI() { [['tkNum', 'numbers', 'NUMBERS'], ['tkClip', 'clip', 'CLIPPING']].forEach(function (a) { var e = document.getElementById(a[0]), on = localStorage.getItem('neonarcade.dev.' + a[1]) === '1'; e.textContent = a[2] + ': ' + (on ? 'ON' : 'OFF'); e.classList.toggle('on', on); });
+    var gb = document.getElementById('tkGrid'), gon = localStorage.getItem('neonarcade.grid') === '1'; gb.textContent = 'GRID: ' + (gon ? 'ON' : 'OFF'); gb.classList.toggle('on', gon); }
   devUI();
   function secEv(e) {   // called from eat() while the start screen is up; returns true if handled
     var t = e.target && e.target.closest ? e.target : null, hit = function (s) { return t && t.closest(s); };
@@ -254,7 +255,7 @@ body[data-cab=roadster] #tix.ingame{top:calc(max(10px,env(safe-area-inset-top)) 
       else if (e.type === 'keydown' && e.code === 'Escape') openSec(false);
       return true; }
     if (tk.classList.contains('on')) {
-      if (e.type === 'pointerup') { var b = hit('.tkB'); if (b) { if (b.dataset.t) { var k = b.dataset.t, on = localStorage.getItem('neonarcade.dev.' + k) !== '1'; localStorage.setItem('neonarcade.dev.' + k, on ? '1' : '0'); if (window.__dev) window.__dev.set(k, on); devUI(); } else if (b.dataset.c != null) { if (window.__kiosk) window.__kiosk.addCash(+b.dataset.c); showTk(); } else if (b.dataset.g != null) bump('neonarcade.tickets', +b.dataset.g); else bump('neonarcade.vikingTickets', +b.dataset.v); } else if (hit('#tkDone') || hit('#tkX') || !hit('#optP')) openTk(false); }
+      if (e.type === 'pointerup') { var b = hit('.tkB'); if (b) { if (b.dataset.grid) { var gn = localStorage.getItem('neonarcade.grid') !== '1'; if (window.__grid) window.__grid.set(gn); else localStorage.setItem('neonarcade.grid', gn ? '1' : '0'); devUI(); } else if (b.dataset.t) { var k = b.dataset.t, on = localStorage.getItem('neonarcade.dev.' + k) !== '1'; localStorage.setItem('neonarcade.dev.' + k, on ? '1' : '0'); if (window.__dev) window.__dev.set(k, on); devUI(); } else if (b.dataset.c != null) { if (window.__kiosk) window.__kiosk.addCash(+b.dataset.c); showTk(); } else if (b.dataset.g != null) bump('neonarcade.tickets', +b.dataset.g); else bump('neonarcade.vikingTickets', +b.dataset.v); } else if (hit('#tkDone') || hit('#tkX') || !hit('#optP')) openTk(false); }
       else if (e.type === 'keydown' && e.code === 'Escape') openTk(false);
       return true; }
     if (e.type === 'pointerup' && hit('#secHot') && !opt.classList.contains('on')) { var n = performance.now(); taps = taps.filter(function (x) { return n - x < 1200; }); taps.push(n); S.hotTaps = taps.length; if (taps.length >= 3) { taps = []; openSec(true); } return true; }

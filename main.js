@@ -1,5 +1,6 @@
 // Galactic Arcade (formerly Neon Arcade) — walkable 3D arcade room with a playable monkey.
 import { setupWindows } from './windows.js';
+import { setupGrid } from './grid.js';
 import * as THREE from 'three';
 import { Reflector } from 'three/addons/objects/Reflector.js';
 import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
@@ -809,7 +810,8 @@ const endTouch = e => {
   for (const t of e.changedTouches) {
     const T = touches[t.identifier]; if (!T) continue;
     if (T.kind === 'joy') { st.joy = { x: 0, y: 0, on: false }; joyEl.style.display = 'none'; knob.style.transform = ''; }
-    else if (e.type === 'touchend' && T.moved < 14 && e.timeStamp - T.t0 < 350) st.jumpReq = st.t;   // a short tap on the right half = JUMP (a drag still turns the camera)
+    if (T.kind === 'joy' && e.type === 'touchend' && Math.hypot(t.clientX - T.x0, t.clientY - T.y0) < 10 && window.__grid) window.__grid.tapAt(t.clientX, t.clientY);   // t214: a still tap on the left half can mark a grid cell
+    else if (T.kind !== 'joy' && e.type === 'touchend' && T.moved < 14 && e.timeStamp - T.t0 < 350) { if (!(window.__grid && window.__grid.tapAt(t.clientX, t.clientY))) st.jumpReq = st.t; }   // a short tap on the right half = JUMP (a drag still turns the camera); with GRID on, a tap on a floor cell marks it instead   // a short tap on the right half = JUMP (a drag still turns the camera)
     delete touches[t.identifier];
   }
 };
@@ -1124,6 +1126,7 @@ function stepClock(dt) { st.t += dt; }
 const play = setupPlay({ camera, monkey, dsCab, roadsterCab, strikeCab, ghostCab, berserkerCab, monkeyCab, orcCab, novaCab, cyberCab, blasterCab, pipCab, st, pause(on) { paused = on; if (!on && !rafOn) { rafOn = true; last = performance.now(); requestAnimationFrame(frame); } } });
 shield = setupShield({ scene, play, st, monkey, HALF, DOOR_W, DOOR_H });
 tp = setupTeleport({ scene, monkey, st, HALF, H }); window.__tp = tp;
+window.__grid = setupGrid({ THREE, scene, camera, cv, HALF, DOOR_W, HALL_L, Z2 });
 shop = setupShop({ scene, tp, play, monkey, camera, st }); AREAS[3] = shop.extraBounds; CAM_AREAS[3] = shop.camBounds; CLIP_AREA[1] = shop.extraBounds; setFloor(floorMode);   // white-room carpet now that the shop has sized the floor
 kiosk = setupKiosk({ room, camera, monkey, st, play, blockers });
 const opts = setupOpts({ play, kiosk, shield, st, monkey, setFloor, getFloor: () => floorMode, setWalls, getWalls: () => wallsMode, setWindow, getWindow: () => windowMode, HALF, Z2 });
