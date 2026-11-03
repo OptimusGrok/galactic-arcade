@@ -166,7 +166,7 @@ body[data-cab=roadster] #tix.ingame{top:calc(max(10px,env(safe-area-inset-top)) 
 #secHot{position:absolute;top:env(safe-area-inset-top,0);right:env(safe-area-inset-right,0);width:64px;height:64px;z-index:3;background:transparent}
 #sec,#tk{position:absolute;inset:0;z-index:4;display:none;align-items:center;justify-content:center;background:#05010cd0}
 #sec.on,#tk.on{display:flex}
-#secP{position:relative;width:min(84vw,340px);aspect-ratio:1;border-radius:18px;border:3px solid #00e5ff;background:#0a0418f0;box-shadow:0 0 26px #00e5ff77;touch-action:none}
+#secP{position:relative;width:min(92vw,460px,calc(100dvh - 160px));aspect-ratio:1;border-radius:18px;border:3px solid #00e5ff;background:#0a0418f0;box-shadow:0 0 26px #00e5ff77;touch-action:none}
 #secP.bad{border-color:#ff2a4a;box-shadow:0 0 26px #ff2a4a;animation:shk .4s}
 #secP canvas{position:absolute;inset:0;width:100%;height:100%}
 #secX{position:absolute;top:-54px;right:0;width:42px;height:42px;border-radius:50%;border:2px solid #ff3cf0aa;background:#120208;color:#ffd0fa;font:700 20px sans-serif}
@@ -216,13 +216,26 @@ body[data-cab=roadster] #tix.ingame{top:calc(max(10px,env(safe-area-inset-top)) 
   // ---- hidden ticket menu: triple-tap top-right -> 3x3 unlock pattern -> TICKETS panel ----
   var sec = document.getElementById('sec'), tk = document.getElementById('tk'), sP = document.getElementById('secP'), cv = document.getElementById('secCv'), taps = [], pat = [], drawing = false, cur = null;
   function hsh(a) { var h = 7; for (var i = 0; i < a.length; i++) h = (h * 31 + a.charCodeAt(i)) % 1000003; return h; }
-  var GOOD = hsh('15963');
-  function dots() { var r = sP.getBoundingClientRect(), o = []; for (var i = 0; i < 9; i++) o.push([r.left + r.width * (0.2 + 0.3 * (i % 3)), r.top + r.height * (0.2 + 0.3 * Math.floor(i / 3))]); return o; }
+  var GOOD = hsh('147296385');
+  function dots() { var r = sP.getBoundingClientRect(), o = []; for (var i = 0; i < 9; i++) o.push([r.left + r.width * (0.17 + 0.33 * (i % 3)), r.top + r.height * (0.17 + 0.33 * Math.floor(i / 3))]); return o; }
   function draw() { var r = sP.getBoundingClientRect(), d = devicePixelRatio || 1; cv.width = r.width * d; cv.height = r.height * d; var c = cv.getContext('2d'); c.scale(d, d); var D = dots().map(function (p) { return [p[0] - r.left, p[1] - r.top]; }), bad = sP.classList.contains('bad');
-    c.lineWidth = 8; c.lineCap = c.lineJoin = 'round'; c.strokeStyle = bad ? '#ff2a4a' : '#00e5ff'; c.shadowColor = c.strokeStyle; c.shadowBlur = 12; c.beginPath();
+    c.lineWidth = 10; c.lineCap = c.lineJoin = 'round'; c.strokeStyle = bad ? '#ff2a4a' : '#00e5ff'; c.shadowColor = c.strokeStyle; c.shadowBlur = 12; c.beginPath();
     pat.forEach(function (i, k) { k ? c.lineTo(D[i][0], D[i][1]) : c.moveTo(D[i][0], D[i][1]); }); if (drawing && cur && pat.length) c.lineTo(cur[0] - r.left, cur[1] - r.top); c.stroke();
-    D.forEach(function (p, i) { var on = pat.indexOf(i) >= 0; c.beginPath(); c.fillStyle = on ? (bad ? '#ff2a4a' : '#ff3cf0') : '#dffbff'; c.arc(p[0], p[1], on ? 15 : 10, 0, 7); c.fill(); }); }
-  function addAt(x, y) { var D = dots(), rr = sP.getBoundingClientRect().width * 0.12; for (var i = 0; i < 9; i++) if (pat.indexOf(i) < 0 && Math.hypot(D[i][0] - x, D[i][1] - y) < rr) { pat.push(i); S.pat = pat.map(function (n) { return n + 1; }).join(''); } }
+    var sz = Math.round(r.width * 0.2); D.forEach(function (p, i) { var st = pat.indexOf(i) >= 0 ? (bad ? 2 : 1) : 0; c.shadowBlur = 0; c.drawImage(digit(i + 1, st, sz, d), p[0] - sz / 2, p[1] - sz / 2, sz, sz); }); }
+  // t212: keypad digits 1-9 as neon glyph tiles (canvas-rendered images, cached per size): 0 idle cyan, 1 touched (lit pink), 2 wrong (red)
+  var DG = {};
+  function digit(n, st, sz, d) { var k = n + '_' + st + '_' + sz + '_' + d; if (DG[k]) return DG[k]; var q = document.createElement('canvas'), W = sz * d; q.width = q.height = W; var x = q.getContext('2d'), m = W * 0.1, rr = W * 0.2;
+    var col = ['#00e5ff', '#ff3cf0', '#ff2a4a'][st], fill = ['#0a1830', '#3a0a3a', '#3a0810'][st];
+    x.beginPath(); x.moveTo(m + rr, m); x.arcTo(W - m, m, W - m, W - m, rr); x.arcTo(W - m, W - m, m, W - m, rr); x.arcTo(m, W - m, m, m, rr); x.arcTo(m, m, W - m, m, rr); x.closePath();
+    var g = x.createLinearGradient(0, m, 0, W - m); g.addColorStop(0, st ? col + '66' : '#16284a'); g.addColorStop(1, fill); x.fillStyle = g; x.shadowColor = col; x.shadowBlur = W * (st ? 0.14 : 0.07); x.fill();
+    x.lineWidth = W * 0.035; x.strokeStyle = col; x.stroke();
+    x.font = '900 ' + Math.round(W * 0.5) + 'px "Arial Black",Impact,sans-serif'; x.textAlign = 'center'; x.textBaseline = 'middle'; x.shadowBlur = W * (st ? 0.18 : 0.1); x.fillStyle = st ? '#fff' : '#dffbff'; x.fillText(String(n), W / 2, W * 0.53);
+    return DG[k] = q; }
+  var last = null;
+  function addAt(x, y) { var D = dots(), w = sP.getBoundingClientRect().width, rr = w * 0.11;   // knight moves (7>2, 2>9, 3>8) pass 0.148 w from the dots beside them: never picked up
+    var p0 = last || [x, y], n = Math.max(1, Math.ceil(Math.hypot(x - p0[0], y - p0[1]) / (w * 0.03))); last = [x, y];   // walk the finger path between samples so a fast swipe can't skip a dot
+    for (var s = 1; s <= n; s++) { var px = p0[0] + (x - p0[0]) * s / n, py = p0[1] + (y - p0[1]) * s / n; hitAt(D, px, py, rr); } }
+  function hitAt(D, x, y, rr) { for (var i = 0; i < 9; i++) if (pat.indexOf(i) < 0 && Math.hypot(D[i][0] - x, D[i][1] - y) < rr) { pat.push(i); S.pat = pat.map(function (n) { return n + 1; }).join(''); } }
   function openSec(on) { sec.classList.toggle('on', on); pat = []; drawing = false; sP.classList.remove('bad'); if (on) { S.secOpen = (S.secOpen || 0) + 1; draw(); } }
   function finish() { drawing = false; var code = pat.map(function (n) { return n + 1; }).join(''); if (!pat.length) return draw();
     if (hsh(code) === GOOD) { openSec(false); openTk(true); } else { S.secBad = (S.secBad || 0) + 1; sP.classList.add('bad'); draw(); setTimeout(function () { pat = []; sP.classList.remove('bad'); draw(); }, 450); } }
@@ -236,7 +249,7 @@ body[data-cab=roadster] #tix.ingame{top:calc(max(10px,env(safe-area-inset-top)) 
   function secEv(e) {   // called from eat() while the start screen is up; returns true if handled
     var t = e.target && e.target.closest ? e.target : null, hit = function (s) { return t && t.closest(s); };
     if (sec.classList.contains('on')) {
-      if (e.type === 'pointerdown' && hit('#secP') && !hit('#secX')) { drawing = true; pat = []; sP.classList.remove('bad'); cur = [e.clientX, e.clientY]; addAt(e.clientX, e.clientY); draw(); }
+      if (e.type === 'pointerdown' && hit('#secP') && !hit('#secX')) { drawing = true; pat = []; last = null; sP.classList.remove('bad'); cur = [e.clientX, e.clientY]; addAt(e.clientX, e.clientY); draw(); }
       else if (e.type === 'pointerup') { if (drawing) finish(); else if (hit('#secX') || !hit('#secP')) openSec(false); }
       else if (e.type === 'keydown' && e.code === 'Escape') openSec(false);
       return true; }
