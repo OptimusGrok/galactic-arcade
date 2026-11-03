@@ -1,5 +1,5 @@
-// In-game OPTIONS: monkey button, 5 save slots (save, overwrite confirm, load restores, delete), greyed in a game, MUTE silences, back to title. node test/saves.js [phone]
-const { open } = require('./lib');
+// In-game OPTIONS (after the player.js start screen: name + PLAY): monkey button, 5 save slots (save, overwrite confirm, load restores, delete), greyed in a game, MUTE silences, back to title. node test/saves.js [phone]
+const { open, play } = require('./lib');
 const PH = process.argv[2] === 'phone', sfx = PH ? '_phone' : '';
 (async () => {
   const supa = r => r.fulfill({ status: 200, contentType: 'application/json', body: '[]' });
@@ -9,8 +9,8 @@ const PH = process.argv[2] === 'phone', sfx = PH ? '_phone' : '';
   const tapEl = async sel => { const b = await page.locator(sel).first().boundingBox(); const x = b.x + b.width / 2, y = b.y + b.height / 2; if (PH) await page.touchscreen.tap(x, y); else await page.mouse.click(x, y); await page.waitForTimeout(350); };
   const S = () => ev(() => { const A = window.__arcade, P = A.play, k = window.__kiosk; return { open: window.__opts.open, q: window.__opts.q, t: P.tickets.total, v: P.viking.total, bal: k.C.bal, pend: k.pending, gc: P.machines.ghost.credits, sh: A.shield.open, floor: A.floor, mus: window.__music.on, z: +A.monkey.position.z.toFixed(2), x: +A.monkey.position.x.toFixed(2), slots: [...document.querySelectorAll('.opSs')].map(e => e.textContent), mute: window.__mute.on }; });
   await page.waitForTimeout(1200);
-  await ev(() => { for (let i = 1; i <= 5; i++) localStorage.removeItem('neonarcade.save.' + i); localStorage.setItem('neonarcade.tickets', '42'); localStorage.setItem('neonarcade.vikingTickets', '3'); window.__neonSync(); window.__startUI.pickFloor('carpet'); });
-  await tapEl('#stStart'); await page.waitForFunction(() => !document.getElementById('start'), null, { timeout: 5000 }).catch(() => {}); await page.waitForTimeout(800);
+  await ev(() => { for (let i = 1; i <= 5; i++) localStorage.removeItem('neonarcade.save.' + i); localStorage.setItem('neonarcade.tickets', '42'); localStorage.setItem('neonarcade.vikingTickets', '3'); window.__neonSync(); window.__arcade.setFloor('carpet'); });
+  await play(page, PH, 'Astro'); await page.waitForTimeout(800);
   const hb = await ev(() => { const r = document.getElementById('bOpt').getBoundingClientRect(), f = document.getElementById('bFs').getBoundingClientRect(), c = document.querySelector('#bOpt canvas'); const d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data; let pink = 0, brown = 0; for (let i = 0; i < d.length; i += 4) { if (d[i] > 200 && d[i + 1] < 110 && d[i + 2] > 120) pink++; if (d[i] > 70 && d[i] < 110 && d[i + 1] > 35 && d[i + 1] < 60 && d[i + 2] < 40) brown++; } return { nextTo: Math.abs(r.top - f.top) < 2 && r.left > f.left && Math.abs(r.width - f.width) < 2, home: !!document.getElementById('bHome'), pink, brown }; });
   chk(hb.nextTo && !hb.home && hb.pink > 50 && hb.brown > 50, 'HUD: ⌂ replaced by the monkey-face OPTIONS button (same size, pink cap + brown fur) ' + JSON.stringify(hb));
   await page.screenshot({ path: `shots/opts_hud${sfx}.png`, clip: { x: (PH ? 412 : 1280) - 180, y: 0, width: 180, height: 90 } });
@@ -49,7 +49,9 @@ const PH = process.argv[2] === 'phone', sfx = PH ? '_phone' : '';
   await tapEl('#opMute'); chk(!(await S()).mute, 'MUTE off again'); 
   await tapEl('#opTitle'); chk(await ev(() => document.getElementById('homeQ').classList.contains('on')), 'BACK TO TITLE SCREEN opens the confirm');
   await tapEl('#homeYes'); await page.waitForFunction(() => !!document.getElementById('start') && window.__arcade.play.mode === 'walk', null, { timeout: 40000 }).catch(() => {});
-  chk(await ev(() => !!document.getElementById('start') && !document.getElementById('game')), 'YES: back on the title screen');
+  await page.waitForFunction(() => !document.getElementById('game'), null, { timeout: 5000 }).catch(() => {});   // iframe is removed 0.5 s after the fade
+  const ti = await ev(() => ({ st: !!document.getElementById('start'), game: !!document.getElementById('game'), mode: window.__arcade.play.mode, sh: window.__start.shown, dis: window.__start.dismissed }));
+  chk(ti.st && ti.sh && !ti.dis && !ti.game, 'YES: back on the title screen ' + JSON.stringify(ti));
   chk(!errors.length, 'no page errors ' + errors.slice(0, 2).join(' | '));
   await o.close(); console.log(ok ? 'ALL PASS' : 'SOME FAIL'); process.exit(ok ? 0 : 1);
 })();
