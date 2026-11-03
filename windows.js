@@ -1,28 +1,23 @@
-// t198 WINDOWS walls (Dave): big windows set into room 1's walls with animated scenes outside - a lush jungle (random animals
-// wander past, others just chill) and a sandy tropical beach (waves, swaying palms). Weather drifts on a ~4 min cycle:
-// sunny -> clouds roll in -> rain -> clearing -> sunset glow -> sunny. Cheap for phones: each scene is one 2D canvas
-// (billboard emoji / flat shapes in parallax layers) redrawn ~10x a second only while room 1 is in view; every window
-// shows its own slice of the panorama and slides with the camera for a look-through parallax.
+// t198/t200 WINDOWS walls (Dave: 'the windows i want are the full space window'): room 1's big east space window shows an
+// animated jungle (random animals wander past, others just chill) on its north half and a sandy tropical beach with sea on
+// the south half, instead of space. Weather drifts on a ~4 min cycle: sunny -> clouds roll in -> rain -> clearing -> sunset
+// glow. Cheap for phones: 2D canvases (billboard emoji / flat shapes in parallax layers) redrawn ~10x a second only while
+// room 1 is in view, composed into one panorama that slides with the camera. Other walls stay as they are.
 export function setupWindows({ THREE, room, camera, HALF, H, DOOR_W, WX }) {
   const W = 1024, Hc = 320, CYCLE = 240;
   const mkScene = () => { const c = document.createElement('canvas'); c.width = W; c.height = Hc; return { c, x: c.getContext('2d') }; };
   const S = { jungle: mkScene(), beach: mkScene() };
   const grp = new THREE.Group(); grp.name = 'roomWindows'; grp.visible = false; room.add(grp);
-  const frameM = new THREE.MeshStandardMaterial({ color: 0x5a3a22, roughness: 0.8 }), sillM = new THREE.MeshStandardMaterial({ color: 0x3e2716, roughness: 0.8 });
-  const wins = [];
-  // placements: [scene, wall position fn, slice]: west + south walls, and the north wall either side of the doorway (east is the space window)
-  const Y0 = 3.3, WH = 4.2, WW = 5.2;
-  const spots = [];
-  for (const [i, z] of [[0, -7], [1, 0], [2, 7]]) spots.push({ sc: 'jungle', pos: [-HALF + 0.03, Y0 + WH / 2, z], ry: Math.PI / 2, slice: i / 3 });
-  for (const [i, x] of [[0, -7], [1, 0], [2, 7]]) spots.push({ sc: 'beach', pos: [x, Y0 + WH / 2, HALF - 0.03], ry: Math.PI, slice: (2 - i) / 3 });
-  for (const [i, x] of [[0, -7.2], [1, 7.2]]) spots.push({ sc: i ? 'beach' : 'jungle', pos: [x, Y0 + WH / 2, -HALF + 0.03], ry: 0, slice: 0.2 + i * 0.5, w: 4.2 });
-  spots.forEach((s, n) => { const g = new THREE.Group(); g.name = 'window_' + s.sc + '_' + n; g.position.set(...s.pos); g.rotation.y = s.ry; grp.add(g);
-    const w = s.w || WW, tex = new THREE.CanvasTexture(S[s.sc].c); tex.colorSpace = THREE.SRGBColorSpace; tex.repeat.set(0.3 * w / WW, 1); tex.wrapS = THREE.ClampToEdgeWrapping;
-    const glass = new THREE.Mesh(new THREE.PlaneGeometry(w, WH), new THREE.MeshBasicMaterial({ map: tex, color: 0xd8d8d8 })); glass.name = 'windowView'; g.add(glass);
-    const bar = (bw, bh, x, y, m = frameM, d = 0.14) => { const b = new THREE.Mesh(new THREE.BoxGeometry(bw, bh, d), m); b.position.set(x, y, d / 2 - 0.02); g.add(b); return b; };
-    bar(w + 0.36, 0.2, 0, WH / 2 + 0.08); bar(w + 0.5, 0.18, 0, -WH / 2 - 0.08, sillM, 0.32); bar(0.2, WH + 0.3, -w / 2 - 0.08, 0); bar(0.2, WH + 0.3, w / 2 + 0.08, 0);
-    bar(0.07, WH, 0, 0, frameM, 0.06); bar(w, 0.07, 0, WH * 0.12, frameM, 0.06);   // mullions
-    wins.push({ g, tex, slice: s.slice, sc: s.sc, base: s.slice * 0.7 }); });
+  // the whole east space-window panorama: jungle on the north half, beach + sea on the south half, one wide canvas (sky
+  // extended upward so nothing is stretched), sliding with the camera for parallax. The space shader glass is hidden meanwhile.
+  const PW = 2048, PH = 480, pano = document.createElement('canvas'); pano.width = PW; pano.height = PH; const px = pano.getContext('2d');
+  const tex = new THREE.CanvasTexture(pano); tex.colorSpace = THREE.SRGBColorSpace; const VW = HALF * 2, REP = Math.min(1, (VW / H) * PH / PW); tex.repeat.set(REP, 1);
+  const view = new THREE.Mesh(new THREE.PlaneGeometry(VW, H).rotateY(-Math.PI / 2), new THREE.MeshBasicMaterial({ map: tex, color: 0xd8d8d8 }));
+  view.position.set(HALF - 0.02, H / 2, 0); view.name = 'windowPanorama'; grp.add(view);
+  const wins = [{ g: view, tex, sc: 'pano', base: (1 - REP) / 2 }];
+  let wNow = null; const oneC = document.createElement('canvas'); oneC.width = oneC.height = 1; const one = oneC.getContext('2d', { willReadFrequently: true }); function compose(t) { for (const [k, ox] of [['jungle', 0], ['beach', 1024]]) { const c = S[k].c; one.drawImage(c, 0, 0, 1024, 3, 0, 0, 1, 1); const d = one.getImageData(0, 0, 1, 1).data; px.fillStyle = `rgb(${d[0]},${d[1]},${d[2]})`; px.fillRect(ox, 0, 1024, PH - Hc + 1); px.drawImage(c, ox, PH - Hc);
+      px.save(); px.beginPath(); px.rect(ox, 0, 1024, PH - Hc); px.clip(); px.translate(ox, -Hc * 0.25); clouds(px, t + 40, wNow); if (wNow.rain > 0.02) { px.strokeStyle = `rgba(200,215,235,${0.55 * wNow.rain})`; px.lineWidth = 1.5; px.beginPath(); for (let i = 0; i < 90 * wNow.rain; i++) { const rx = (i * 83.1 + t * 40) % W, ry = (i * 29.3 + t * 420) % Hc; px.moveTo(rx, ry); px.lineTo(rx - 4, ry + 14); } px.stroke(); } px.restore(); }
+    tree(px, 1024, PH + 30, 1.9, '#143f1c', t, 4); tree(px, 990, PH + 60, 1.4, '#1a5a26', t, 6); }
   // ---------- weather ----------
   let t0 = performance.now() / 1000, phaseOverride = null;
   const sm = (a, b, x) => { const k = Math.min(1, Math.max(0, (x - a) / (b - a))); return k * k * (3 - 2 * k); };
@@ -90,12 +85,12 @@ export function setupWindows({ THREE, room, camera, HALF, H, DOOR_W, WX }) {
     emo(x, '🦀', 540 + Math.sin(t * 0.4) * 60, 292, 26, false); emo(x, '⛱️', 820, 270, 48, false); emo(x, '🐚', 260, 300, 20, false);
     rain(x, t, w); tint(x, w); }
   // ---------- per frame ----------
-  let last = 0, on = false; const api = { group: grp, wins, S, spawn, J, weather: () => weather(performance.now() / 1000), draws: 0, setPhase(p) { phaseOverride = p; last = 0; }, get on() { return on; } };
-  api.set = v => { on = !!v; grp.visible = on; last = 0; };
+  let last = 0, on = false; const api = { group: grp, wins, view, S, spawn, J, weather: () => weather(performance.now() / 1000), draws: 0, setPhase(p) { phaseOverride = p; last = 0; }, get on() { return on; } };
+  api.set = v => { on = !!v; grp.visible = on; last = 0; const sw = room.getObjectByName('spaceWindow'); if (sw) sw.visible = !on; };
+  api.pano = pano;
   api.update = () => { if (!on) return; const now = performance.now();
     const inRoom1 = camera.position.x < WX / 2 && camera.position.z > -HALF - 1; if (!inRoom1) return;
-    for (const wn of wins) { const lp = wn.g.worldToLocal(camera.position.clone()); wn.tex.offset.x = Math.min(1 - wn.tex.repeat.x, Math.max(0, wn.base - lp.x * 0.012)); }   // look-through parallax
-    if (now - last < 100) return; last = now; const t = now / 1000, w = weather(t); jungle(t, w); beach(t, w); api.draws++;
-    for (const wn of wins) wn.tex.needsUpdate = true; };
+    tex.offset.x = Math.min(1 - REP, Math.max(0, wins[0].base + camera.position.z * 0.008));   // look-through parallax: walk north and the view slides the other way
+    if (now - last < 100) return; last = now; const t = now / 1000, w = weather(t); wNow = w; jungle(t, w); beach(t, w); compose(t); api.draws++; tex.needsUpdate = true; };
   return api;
 }

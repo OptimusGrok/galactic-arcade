@@ -152,7 +152,7 @@ function setWalls(mode) {
   wallsMode = mode === 'viking' || mode === 'portals' || mode === 'windows' ? mode : 'current'; if (winds) winds.set(wallsMode === 'windows'); const v = wallsMode === 'viking', po = wallsMode === 'portals';
   if (v && !vikTex) { vikTex = new THREE.TextureLoader().load('tex/viking_walls.jpg', () => spaceWin && spaceWin.dirty()); vikTex.colorSpace = THREE.SRGBColorSpace; vikTex.wrapS = THREE.RepeatWrapping; vikTex.wrapT = THREE.ClampToEdgeWrapping;
     vikTex.repeat.set(+(2 * HALF / (H * 928 / 576)).toFixed(3), 1); vikTex.anisotropy = renderer.capabilities.getMaxAnisotropy(); }   // one repeat = wall height
-  wallMat.map = v ? vikTex : wallTex; wallMat.color.setHex(v ? 0x8a7a70 : 0x2a1840); wallMat.roughness = v ? 0.95 : 0.85; wallMat.emissiveMap = v ? vikTex : null; wallMat.emissive.setHex(v ? 0xffffff : 0x000000); wallMat.emissiveIntensity = v ? 1.6 : 1; wallBands.forEach(m => { m.visible = !v && !po && wallsMode !== 'windows'; }); wallMat.needsUpdate = true;   // a little dark so the neon pops
+  wallMat.map = v ? vikTex : wallTex; wallMat.color.setHex(v ? 0x8a7a70 : 0x2a1840); wallMat.roughness = v ? 0.95 : 0.85; wallMat.emissiveMap = v ? vikTex : null; wallMat.emissive.setHex(v ? 0xffffff : 0x000000); wallMat.emissiveIntensity = v ? 1.6 : 1; wallBands.forEach(m => { m.visible = !v && !po }); wallMat.needsUpdate = true;   // a little dark so the neon pops
   for (let i = 0; i < 4; i++) { const w = room.getObjectByName('wall' + i); if (w) { w.material = po ? portalMat : wallMat; w.onBeforeRender = po ? () => { portalU.uT.value = performance.now() / 1000; } : () => {}; } }
   if (spaceWin) spaceWin.dirty();
   try { localStorage.setItem(WALLS_KEY, wallsMode); } catch (e) {}
