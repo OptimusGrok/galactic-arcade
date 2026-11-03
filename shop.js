@@ -515,7 +515,8 @@ export function setupShop({ scene, tp, play, monkey, camera, st } = {}) {
   function setHeld(id) { if (id && !(byId[id] && prizes()[id])) id = null; try { if (id) localStorage.setItem(HK, id); else localStorage.removeItem(HK); } catch (e) {} syncHeld(); renderChips(); return id; }
   function syncHeld() { const id = heldId(), m = getMonkey(), u = m && m.userData; if (!u || !u.torso) return;
     if (heldObj && heldObj.userData.id === id) return;
-    if (heldObj) { heldObj.parent && heldObj.parent.remove(heldObj); heldObj = null; }
+    if (heldObj) { heldObj.parent && heldObj.parent.remove(heldObj); heldObj = null; heldMount = null;
+      for (const a of u.arms || []) { a.hand.visible = true; a.hand.scale.setScalar(1); a.hand.rotation.x = 0; a.sh.rotation.set(0, 0, 0.08 * a.sd); a.el.rotation.set(0, 0, 0); } }   // back to the normal arm pose (main.js re-poses next frame)
     if (!id) return; heldObj = buildHeld(id);
     if (heldObj.userData.kind === 'hand') { heldMount = u.arms[1].el; heldObj.position.set(0.0, -0.34, 0.07); heldObj.rotation.set(-1.2, 0, 0); }   // right fist, pop held upright
     else { heldMount = u.torso; const big = id === 'grok'; heldObj.position.set(0, big ? 0.12 : 0.1, big ? 0.36 : 0.33); heldObj.rotation.set(0, 0, 0); }   // hugged to the chest
@@ -526,6 +527,9 @@ export function setupShop({ scene, tp, play, monkey, camera, st } = {}) {
       if (hug) { a.sh.rotation.set(big ? -0.75 : -0.6, 0, -a.sd * (big ? 0.05 : 0.18)); a.el.rotation.set(big ? -0.7 : -1.25, 0, -a.sd * (big ? 0.75 : 0.55)); }
       else if (a.sd > 0) { a.sh.rotation.set(-0.45, 0, 0.12); a.el.rotation.set(-1.2, 0, 0); } }
     if (u.phone) u.phone.visible = false; }
+  // save slots (session.js / opts.js): re-read 'neonarcade.prizes' + 'neonarcade.held' and re-sync the held plush, chips and open price list.
+  // Nothing is cached (prizes()/heldId() read localStorage), so this is safe to call any time, repeatedly, even before the monkey exists.
+  api.reloadPrizes = () => { try { syncHeld(); } catch (e) {} try { renderChips(); } catch (e) {} try { if (api.open) fill(); } catch (e) {} return heldId(); };
   api.hold = setHeld; Object.defineProperty(api, 'held', { get: heldId }); Object.defineProperty(api, 'heldObj', { get: () => heldObj });
   // INVENTORY: PRIZES chips (tap = hold, tap the held one = put away)
   const css2 = document.createElement('style'); css2.textContent = '#invPz{flex-direction:column;align-items:stretch!important}#invPz .pzT{display:flex;justify-content:space-between;color:#dffbff;font-weight:800}#invPz .pzT small{color:#9ff8ff;font-weight:600}#pzChips{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}' +

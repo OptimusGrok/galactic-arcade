@@ -29,6 +29,17 @@ const S = '/workspace/galactic-shop/shots/';
   // hidden while playing a cabinet / seated
   const hid = await page.evaluate(async () => { const A = window.__arcade; const pm = A.play.mode; A.play.mode = 'game'; const w = async () => { const f = A.stats.frames; while (A.stats.frames < f + 3) await new Promise(r => setTimeout(r, 50)); }; await w(); const v = window.__shop.heldObj.visible; A.play.mode = pm; await w(); return [v, window.__shop.heldObj.visible]; });
   chk(!hid[0] && hid[1], 'hidden while in a game, back afterwards ' + hid);
+  // save slots: reloadPrizes() re-reads localStorage
+  const rp = await page.evaluate(async () => { const S = window.__shop, A = window.__arcade; const w = async () => { const f = A.stats.frames; while (A.stats.frames < f + 3) await new Promise(r => setTimeout(r, 50)); };
+    localStorage.setItem('neonarcade.prizes', JSON.stringify({ monkeyBrown: 1 })); localStorage.setItem('neonarcade.held', 'monkeyBrown'); S.reloadPrizes(); await w(); const h1 = S.held, o1 = !!S.heldObj;
+    const b = document.getElementById('bPack'); if (b && !document.querySelector('#inv.on')) b.click(); await new Promise(r => setTimeout(r, 400));
+    localStorage.removeItem('neonarcade.prizes'); localStorage.removeItem('neonarcade.held'); S.reloadPrizes(); S.reloadPrizes(); await w();
+    const empty = { held: S.held, obj: !!S.heldObj, inMonkey: !!A.monkey.getObjectByName('heldPrize'), chips: document.querySelectorAll('#invPz .pzC').length };
+    localStorage.setItem('neonarcade.prizes', JSON.stringify({ grok: 1 })); localStorage.setItem('neonarcade.held', 'grok'); S.reloadPrizes(); await w();
+    const hp = A.monkey.getObjectByName('heldPrize'); return { h1, o1, empty, grok: S.held, gid: hp && hp.userData.id, chips2: [...document.querySelectorAll('#invPz .pzC')].map(c => c.dataset.pz) }; });
+  chk(rp.h1 === 'monkeyBrown' && rp.o1, 'reloadPrizes: holds stored monkey plush');
+  chk(rp.empty.held === null && !rp.empty.obj && !rp.empty.inMonkey && rp.empty.chips === 0, 'reloadPrizes with cleared keys: hands empty, no chips ' + JSON.stringify(rp.empty));
+  chk(rp.grok === 'grok' && rp.gid === 'grok', 'reloadPrizes: Grok plush attached ' + JSON.stringify(rp));
   chk(errors.length === 0, 'no page errors ' + errors.join(' | '));
   console.log(ok ? 'ALL OK' : 'SOME FAIL'); await close();
 })();
