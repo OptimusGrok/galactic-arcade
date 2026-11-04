@@ -14,6 +14,7 @@ const PH = process.argv[2] === 'phone', sfx = PH ? '_phone' : '';
   await play(page, PH, 'Astro');
   chk(await ev(() => !document.getElementById('start') && window.__arcade.play.mode === 'walk'), 'name + PLAY enters the arcade');
   await tap('#flBtn');
+  await page.waitForFunction(() => [...document.querySelectorAll('#flTiles .flT img')].every(i => i.complete && i.naturalWidth > 100), null, { timeout: 60000 }).catch(() => {});
   const fl = await ev(() => { const im = [...document.querySelectorAll('#flTiles .flT img')]; return { on: !!document.querySelector('#opt.on'), n: im.length, loaded: im.every(i => i.complete && i.naturalWidth > 100), sel: document.querySelector('#flTiles .flT.sel').dataset.floor, tab: document.getElementById('tabFloor').textContent }; });
   chk(fl.on && fl.tab === 'FLOOR' && fl.n === 4 && fl.loaded && fl.sel === 'neon', 'HUD button opens the menu: FLOOR tab with 4 previews, neon selected ' + JSON.stringify(fl));
   await page.screenshot({ path: `shots/options_floor${sfx}.png` });
@@ -36,6 +37,7 @@ const PH = process.argv[2] === 'phone', sfx = PH ? '_phone' : '';
     chk(r.floor === f && r.ls === f && r.all.every(Boolean) && !r.mg, `${f.toUpperCase()}: applied to every floor, saved, reflectors off ` + JSON.stringify(r)); }
   // WALLS
   await tap('#tabWalls'); await page.waitForTimeout(400);
+  await page.waitForFunction(() => [...document.querySelectorAll('#wlTiles img')].every(i => i.complete && i.naturalWidth > 50), null, { timeout: 60000 }).catch(() => {});
   let wl = await ev(() => { const im = [...document.querySelectorAll('#wlTiles img')]; return { n: im.length, loaded: im.every(i => i.complete && i.naturalWidth > 50), vis: im.every(i => i.getBoundingClientRect().height > 0), sel: document.querySelector('#wlTiles .sel').id }; });
   chk(wl.n === 3 && wl.loaded && wl.vis && wl.sel === 'wlCur', 'WALLS tab: CURRENT + VIKING + PORTALS, CURRENT selected ' + JSON.stringify(wl));
   await page.screenshot({ path: `shots/options_walls${sfx}.png` });
