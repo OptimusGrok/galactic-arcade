@@ -1,5 +1,4 @@
 // Galactic Arcade (formerly Neon Arcade) — walkable 3D arcade room with a playable monkey.
-import { setupWindows } from './windows.js';
 import { setupGrid } from './grid.js';
 import * as THREE from 'three';
 import { Reflector } from 'three/addons/objects/Reflector.js';
@@ -28,7 +27,6 @@ import { setupKiosk } from './kiosk.js';
 import { setupOpts } from './opts.js';
 import { setupTeleport, WX } from './teleport.js';
 import { lavaPaths, PATH_HW } from './lavapaths.js';
-import { setupShop } from './shop.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 
 const MOBILE = matchMedia('(pointer:coarse)').matches || /Android|iPhone|iPad/i.test(navigator.userAgent);
@@ -123,7 +121,11 @@ for (let i = 0; i < 4; i++) { const g = room.getObjectByName('wall' + i).geometr
   for (let k = 0; k < P.count; k++) U.setXY(k, (P.getX(k) + HALF) / (2 * HALF), (P.getY(k) + H / 2) / H); U.needsUpdate = true; }
 // ---------- room 1 walls option: current (default) or Viking rune panels (Options > WALLS) ----------
 const WALLS_KEY = 'neonarcade.walls';
-const winds = setupWindows({ THREE, room, camera, HALF, H, DOOR_W, WX: 80 }); window.__windows = winds;
+// FAST LOAD (t229): windows.js (jungle/beach scenery) is fetched only when a JUNGLE/BEACH window is chosen or after the first frames;
+// until then `winds` is a stub that remembers the requested mode (space = nothing to draw).
+let winds = { stub: true, want: 'space', set(v) { this.want = v; if (v === 'jungle' || v === 'beach') loadWindows(); }, update() {} }; window.__windows = winds;
+let windsP = null;
+function loadWindows() { return windsP || (windsP = import('./windows.js').then(m => { const w = m.setupWindows({ THREE, room, camera, HALF, H, DOOR_W, WX: 80 }); const want = winds.want; winds = w; window.__windows = w; w.set(want); return w; })); }
 let wallsMode = 'current', vikTex = null, wallBands = [], spaceWin = null;
 // PORTALS walls (t187, Dave: 'a wall of big and small multi colour swirling portals that are moving with the colours changing'):
 // one cheap unlit procedural shader - two layers of hashed cells (big + small), each a spiral vortex that turns, drifts, pulses and cycles hue.
@@ -956,7 +958,7 @@ function step(dt) {
   let mag = Math.min(1, Math.hypot(ix, iz)); if (mag) { ix /= Math.hypot(ix, iz); iz /= Math.hypot(ix, iz) || 1; }
   let run = keys.ShiftLeft || keys.ShiftRight;
   if (st.joy.on && Math.hypot(st.joy.x, st.joy.y) > 0.12) { ix = st.joy.x; iz = st.joy.y; mag = Math.min(1, Math.hypot(ix, iz)); run = mag > 0.85; }
-  if (tp && tp.locked) { ix = iz = mag = 0; run = false; }   // teleporting: input locked
+  if (tp && tp.locked) { ix = iz = mag = 0; run = false; if (!shop) loadShop(); }   // teleporting: input locked
   st.inMag = mag; st.lastStep = st.t;
   if (st.jumpReq != null) { const ok = st.t - st.jumpReq < 0.2 && canJump(); st.jumpReq = null;
     if (ok) { st.jump = { t: 0, vx: st.vel.x, vz: st.vel.z }; st.jumps = (st.jumps || 0) + 1; } }
@@ -1129,7 +1131,11 @@ const play = setupPlay({ camera, monkey, dsCab, roadsterCab, strikeCab, ghostCab
 shield = setupShield({ scene, play, st, monkey, HALF, DOOR_W, DOOR_H });
 tp = setupTeleport({ scene, monkey, st, HALF, H }); window.__tp = tp;
 window.__grid = setupGrid({ THREE, scene, camera, cv, HALF, DOOR_W, HALL_L, Z2 });
-shop = setupShop({ scene, tp, play, monkey, camera, st }); AREAS[3] = shop.extraBounds; CAM_AREAS[3] = shop.camBounds; CLIP_AREA[1] = shop.extraBounds; setFloor(floorMode);   // white-room carpet now that the shop has sized the floor
+// FAST LOAD (t229): the prize shop (shop.js + its ~1.2 MB of murals) is imported after the first room frames, or straight away when the
+// teleporter is used; window.__arcade.shopReady resolves once it is set up (same setupShop call as before, Chief's shop.js unchanged).
+let shopP = null;
+function loadShop() { return shopP || (shopP = import('./shop.js').then(m => { shop = m.setupShop({ scene, tp, play, monkey, camera, st }); AREAS[3] = shop.extraBounds; CAM_AREAS[3] = shop.camBounds; CLIP_AREA[1] = shop.extraBounds; setFloor(floorMode);
+  try { if (window.__shop && window.__shop.reloadPrizes) window.__shop.reloadPrizes(); } catch (e) {} return shop; })); }   // white-room carpet now that the shop has sized the floor
 kiosk = setupKiosk({ room, camera, monkey, st, play, blockers });
 // ---------- CLAW MACHINE (#12, t215/t216): free-standing in room 1 on the 2x2 grid block Dave highlighted: cells i -7..-6, j -1..0 of the
 // GRID (one cell = the ticket machine's base, measured from its plinth). Base 1.40 x 1.00 m, its edges on the grid lines; front faces +z.
@@ -1148,4 +1154,7 @@ requestAnimationFrame(frame);
 // hooks for tests / future art work
 window.__arcade = { get window() { return windowMode; }, setWindow, get jumping() { return !!st.jump; }, canJump, LAVA, lavaRespawnPoint, get spaceWin() { return spaceWin; }, get kiosk() { return kiosk; }, setFloor, get floor() { return floorMode; }, setWalls, get walls() { return wallsMode; }, wallMat, carpet, mirror, shield, room, room2, Z2, hall, DOOR_W, DOOR_H, HALL_L, berserkerCab, monkeyCab, orcCab, cyberCab, novaCab, blasterCab, pipCab, clawCab, bbCab, roadsterCab, dsCab, play, get paused() { return paused; }, THREE, scene, camera, renderer, monkey, cabinets, strikeCab, ghostCab, featured, demo, ghostDemo, playables, blockers, st, stats, step, keys, get nearCab() { return nearCab; }, setArt: (i, part, tex, glow) => cabinets[i].userData.setArt(part, tex, glow) };
 const mp = setupMP({ scene, camera, monkey, makeMonkey, st, play, getTp: () => tp, HALF, Z2, HALL_L, WX: 80 }); window.__arcade.mp = mp;   // multiplayer step 1: public room, 10 players
-try { setTimeout(() => { if (window.__shop && window.__shop.reloadPrizes) window.__shop.reloadPrizes(); }, 0); } catch (e) {}   // AUTOSAVE: restore bought prizes + held plush from this device on load (shop.js reads neonarcade.prizes / .held)
+// after the first room frames: pull in the shop, then the window scenery, off the critical path
+{ const idle = f => (window.requestIdleCallback ? requestIdleCallback(f, { timeout: 1500 }) : setTimeout(f, 200));
+  const t = setInterval(() => { if (stats.frames < 2) return; clearInterval(t); idle(() => { loadShop(); idle(() => loadWindows()); }); }, 100);
+  window.__arcade.shopReady = { then: (a, b) => loadShop().then(a, b) }; window.__arcade.loadShop = loadShop; window.__arcade.windowsReady = { then: (a, b) => loadWindows().then(a, b) }; }   // AUTOSAVE: restore bought prizes + held plush from this device on load (shop.js reads neonarcade.prizes / .held)
