@@ -93,7 +93,7 @@ for(const sx of [-1,1]){
 const POCK=[[-W-0.03,-H-0.03],[0,-H-0.055],[W+0.03,-H-0.03],[-W-0.03,H+0.03],[0,H+0.055],[W+0.03,H+0.03]];
 // where the AI aims the object ball for each pocket
 const PAIM=[[-W+0.022,-H+0.022],[0,-H+0.004],[W-0.022,-H+0.022],[-W+0.022,H-0.022],[0,H-0.004],[W-0.022,H-0.022]];
-const groupOf=n=>n<8?'solids':n>8?'stripes':'eight';
+const groupOf=n=>n===0?'cue':n<8?'solids':n>8?'stripes':'eight';
 // ================= physics =================
 function mkBall(n,x,z){return{n,x,z,vx:0,vz:0,wx:0,wy:0,wz:0,on:true};}
 function rack(){
@@ -174,7 +174,7 @@ function simulate(B,ang,pw,sa,sb){
 // ================= rules =================
 const game={mode:'cpu',diff:1,turn:0,groups:[null,null],brk:true,bih:false,over:false,state:'menu'};
 let balls=[];
-function remaining(g,B){return(B||balls).filter(b=>b.on&&b.n&&groupOf(b.n)===g).length;}
+function remaining(g,B){return(B||balls).filter(b=>b.on&&groupOf(b.n)===g).length;}
 function legalTargets(p,B){
   B=B||balls;const g=game.groups[p];
   if(!g)return B.filter(b=>b.on&&b.n&&b.n!==8).map(b=>b.n);

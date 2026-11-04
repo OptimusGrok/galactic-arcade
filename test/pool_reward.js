@@ -25,8 +25,9 @@ const { open } = require('./lib');
     let a = await tix(); chk(a.t === 7 && a.ls === '7', T + '5-ticket cost charged on open (12 -> 7)', a);
     const L = await end(1); chk(L.over, T + 'early 8 ends the game (loss)', L); await page.waitForTimeout(400); a = await tix(); chk(a.t === 7, T + 'a loss (CPU wins) adds nothing', a);
     let g = await again(); a = await tix(); chk(g.state === 'aim' && !g.over && a.t === 2 && a.ls === '2' && a.hud === '2', T + 'Play again charges 5 (7 -> 2) and starts a game', { g, a });
+    await ev(() => { window.__winSeen = ''; const m = document.getElementById('poolWin'); new MutationObserver(() => { if (m.style.display !== 'none' && m.textContent) window.__winSeen = m.textContent; }).observe(m, { attributes: true, childList: true, subtree: true }); });   // the banner lasts ~3 s; a slow box may check later
     const Wn = await end(0); chk(Wn.over, T + 'legal 8 ends the game (win)', Wn); await page.waitForTimeout(400); a = await tix();
-    const msg = await ev(() => { const m = document.getElementById('poolWin'); return m && m.style.display !== 'none' ? m.textContent : ''; });
+    const msg = await ev(() => window.__winSeen);
     chk(a.t === 12 && a.ls === '12' && a.hud === '12', T + 'a win adds +10 (2 -> 12), storage + HUD', a);
     chk(/\+10/.test(msg), T + '"+10 tickets" message shown', msg);
     if (i === 0) await page.screenshot({ path: '/workspace/galactic-shop/shots/pool_win.png' });
