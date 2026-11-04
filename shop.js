@@ -618,7 +618,7 @@ export function setupShop({ scene, tp, play, monkey, camera, st } = {}) {
   let poolMsgT = 0; const poolNeed = (b, el = poolBtn) => { poolApi.need++; poolMsg.textContent = 'NEED ' + POOL_COST + ' TICKETS · YOU HAVE ' + b; poolMsg.style.display = 'block'; clearTimeout(poolMsgT); poolMsgT = setTimeout(() => { poolMsg.style.display = 'none'; }, 2200);
     el.animate([{ transform: 'translateX(-50%) translateX(-8px)' }, { transform: 'translateX(-50%) translateX(8px)' }, { transform: 'translateX(-50%)' }], 240); };
   poolBtn.textContent = '🎱 PLAY POOL · 🎟 ' + POOL_COST; const poolBtn2 = poolBtn.cloneNode(true); poolBtn2.id = 'poolBtn2'; document.body.appendChild(poolBtn2); const poolBtns = [poolBtn, poolBtn2]; poolApi.cost = POOL_COST; poolApi.need = 0; poolApi.paid = 0;
-  function openPool(i = poolApi.which) { if (poolApi.open) return; const b = balance(); if (b < POOL_COST || !spend(POOL_COST)) { poolNeed(b, poolBtns[i] || poolBtn); return; } poolApi.table = i;   // 5 Galactic Arcade tickets per game (Dave), same pot as the cabinets
+  function openPool(i = poolApi.which) { if (poolApi.open) return; const b = balance(); if (b < POOL_COST || !spend(POOL_COST)) { poolNeed(b, poolBtns[i] || poolBtn); return; } poolApi.table = i; poolApi.rewarded = false;   // 5 Galactic Arcade tickets per game (Dave), same pot as the cabinets
     poolApi.paid += POOL_COST; poolMsg.style.display = 'none'; try { const P = play || (window.__arcade && window.__arcade.play); if (P && P.tickets && P.tickets.save) P.tickets.save(); } catch (e) {}
     poolApi.open = true; poolApi.opens++; for (const b of poolBtns) b.classList.remove('on'); clearKeys(); if (api.open) closeShop();
     const f = poolApi.frame = document.createElement('iframe'); f.src = POOL_SRC; f.title = '8-Ball Pool'; f.allow = 'autoplay; fullscreen'; poolOv.appendChild(f); poolOv.classList.add('on');
@@ -633,6 +633,15 @@ export function setupShop({ scene, tp, play, monkey, camera, st } = {}) {
   poolX.addEventListener('pointerup', e => { e.stopPropagation(); }); poolX.addEventListener('click', e => { e.stopPropagation(); e.preventDefault(); closePool(); });
   addEventListener('keydown', e => { if (poolApi.open) { if (e.code === 'Escape') closePool(); e.stopImmediatePropagation(); return; }
     if (poolApi.near && (e.code === 'KeyE' || e.code === 'Enter') && poolBtns[poolApi.which].classList.contains('on')) { openPool(poolApi.which); e.preventDefault(); e.stopImmediatePropagation(); } }, true);
+  // POOL WIN REWARD (Dave): +10 tickets when You (vs CPU) / Player 1 (2P) legally win; once per paid game (5 tickets), only from the open table's frame
+  const POOL_WIN = 10; poolApi.reward = POOL_WIN; poolApi.won = 0; poolApi.rewarded = false;
+  const poolWinMsg = document.createElement('div'); poolWinMsg.id = 'poolWin'; poolWinMsg.style.cssText = 'position:absolute;left:50%;top:22%;transform:translate(-50%,-50%);z-index:3;display:none;padding:14px 26px;border-radius:16px;border:3px solid #ffd54a;background:#1a1030ee;color:#ffe680;font:900 clamp(26px,8vw,44px)/1.1 "Arial Black",Impact,sans-serif;text-align:center;box-shadow:0 0 30px #ffd54a99;pointer-events:none;white-space:nowrap';
+  poolOv.appendChild(poolWinMsg);
+  window.__poolWin = w => { const f = poolApi.frame; if (!poolApi.open || poolApi.rewarded || !f || w !== f.contentWindow) return false; poolApi.rewarded = true; poolApi.won++;
+    const P = play || (window.__arcade && window.__arcade.play);
+    if (P && P.addTickets) P.addTickets(POOL_WIN); else { const t = T(); if (t) t.total += POOL_WIN; try { localStorage.setItem('neonarcade.tickets', String((t ? t.total : (parseInt(localStorage.getItem('neonarcade.tickets'), 10) || 0) + POOL_WIN))); } catch (e) {} }
+    poolWinMsg.innerHTML = 'YOU WIN!<br>+' + POOL_WIN + ' 🎟 TICKETS'; poolWinMsg.style.display = 'block'; poolWinMsg.animate([{ transform: 'translate(-50%,-50%) scale(.5)', opacity: 0 }, { transform: 'translate(-50%,-50%) scale(1.08)', opacity: 1 }, { transform: 'translate(-50%,-50%) scale(1)' }], 380);
+    clearTimeout(poolWinMsg.t); poolWinMsg.t = setTimeout(() => { poolWinMsg.style.display = 'none'; }, 3200); return true; };
   Object.assign(poolApi, { openPool, closePool }); api.pool = poolApi; window.__pool = poolApi;
   // prizes row in the existing INVENTORY panel (inventory.js), injected only while it is open
   const inv = document.getElementById('inv');

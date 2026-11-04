@@ -174,7 +174,7 @@ function simulate(B,ang,pw,sa,sb){
 // ================= rules =================
 const game={mode:'cpu',diff:1,turn:0,groups:[null,null],brk:true,bih:false,over:false,state:'menu'};
 let balls=[];
-function remaining(g,B){return(B||balls).filter(b=>b.on&&groupOf(b.n)===g).length;}
+function remaining(g,B){return(B||balls).filter(b=>b.on&&b.n&&groupOf(b.n)===g).length;}
 function legalTargets(p,B){
   B=B||balls;const g=game.groups[p];
   if(!g)return B.filter(b=>b.on&&b.n&&b.n!==8).map(b=>b.n);
@@ -400,7 +400,8 @@ function endShot(){
   if(r.eightBreak){const e=balls.find(b=>b.n===8);placeFree(e,W/2,0);e.on=true;meshes[8].visible=shadows[8].visible=true;meshes[8].position.y=R;}
   if(r.win!=null){game.over=true;game.state='over';hud();
     const msg=game.mode==='cpu'?(r.win===0?'You win!':'CPU wins'):nm[r.win]+' wins!';
-    log('win',r.win);setTimeout(()=>{$('endmsg').textContent=msg;$('end').style.display='flex';$('ctl').style.display='none';},900);toast(msg,2500);return;}
+    log('win',r.win);if(r.win===0){try{if(window.parent!==window&&window.parent.__poolWin)window.parent.__poolWin(window);}catch(e){}}   // Galactic Arcade: You (vs CPU) / Player 1 (2P) won -> +10 tickets, paid once by shop.js
+    setTimeout(()=>{$('endmsg').textContent=msg;$('end').style.display='flex';$('ctl').style.display='none';},900);toast(msg,2500);return;}
   if(r.assign){game.groups[p]=r.assign;game.groups[1-p]=r.assign==='solids'?'stripes':'solids';log('assign',{p,g:r.assign});toast(nm[p]+': '+(r.assign==='solids'?'Solids':'Stripes'));}
   game.kitchen=false;if(r.foul){log('foul',r.foul);game.kitchen=game.brk&&rec.pots.includes(0);if(game.kitchen)log('kitchen',1);toast('Foul: '+r.foul+'. Ball in hand',2200);game.turn=1-p;game.bih=true;
     const cb=balls[0];if(!cb.on){cb.on=true;placeFree(cb,-W/2,0);meshes[0].visible=shadows[0].visible=true;meshes[0].position.y=R;}}
