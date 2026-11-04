@@ -398,7 +398,7 @@ function endShot(){
   const r=judge(rec,p,balls,game.brk,game.groups);log('judge',{p,rec:{first:rec.first,rail:rec.rail,pots:rec.pots,rb:rec.rb?rec.rb.size:0},r,brk:game.brk});
   const nm=names();
   if(r.eightBreak){const e=balls.find(b=>b.n===8);placeFree(e,W/2,0);e.on=true;meshes[8].visible=shadows[8].visible=true;meshes[8].position.y=R;}
-  if(r.win!=null){game.over=true;game.state='over';hud();
+  if(r.win!=null){game.over=true;gaUsed=true;game.state='over';hud();
     const msg=game.mode==='cpu'?(r.win===0?'You win!':'CPU wins'):nm[r.win]+' wins!';
     log('win',r.win);if(r.win===0){try{if(window.parent!==window&&window.parent.__poolWin)window.parent.__poolWin(window);}catch(e){}}   // Galactic Arcade: You (vs CPU) / Player 1 (2P) won -> +10 tickets, paid once by shop.js
     setTimeout(()=>{$('endmsg').textContent=msg;$('end').style.display='flex';$('ctl').style.display='none';},900);toast(msg,2500);return;}
@@ -518,11 +518,16 @@ $('viewb').addEventListener('click',()=>{view.top=!view.top;$('viewb').textConte
 let paused=false;
 $('pauseb').addEventListener('click',()=>{paused=true;$('pause').style.display='flex';});
 $('bres').addEventListener('click',()=>{paused=false;$('pause').style.display='none';});
-$('brst').addEventListener('click',()=>{paused=false;newGame();});
+// Galactic Arcade: every finished game used up its 5-ticket credit; the next game (Play again / Menu -> new game) is charged through shop.js
+let gaUsed=false;
+function gaStart(mode){if(gaUsed){let r={ok:true};try{if(window.parent!==window&&window.parent.__poolAgain)r=window.parent.__poolAgain(window)||{ok:false};}catch(e){r={ok:false};}
+  if(!r.ok){const m='Need 5 tickets'+(r.have!=null?' · you have '+r.have:'');if($('end').style.display==='flex')$('endmsg').textContent=m;toast(m,2500);log('need',r.have);return false;}gaUsed=false;}
+  newGame(mode);return true;}
+$('brst').addEventListener('click',()=>{paused=false;gaStart();});
 const toMenu=()=>{paused=false;clearTimeout(aiTimer);game.state='menu';['pause','end'].forEach(i=>$(i).style.display='none');$('start').style.display='flex';$('hud').style.display='none';$('ctl').style.display='none';};
 $('bmenu').addEventListener('click',toMenu);$('bmenu2').addEventListener('click',toMenu);
-$('bagain').addEventListener('click',()=>newGame());
-$('bcpu').addEventListener('click',()=>{audio();newGame('cpu');});$('b2p').addEventListener('click',()=>{audio();newGame('2p');});
+$('bagain').addEventListener('click',()=>gaStart());
+$('bcpu').addEventListener('click',()=>{audio();gaStart('cpu');});$('b2p').addEventListener('click',()=>{audio();gaStart('2p');});
 for(const b of document.querySelectorAll('#diff .btn'))b.addEventListener('click',()=>{game.diff=+b.dataset.d;document.querySelectorAll('#diff .btn').forEach(x=>x.classList.toggle('sel',x===b));});
 // ================= main loop =================
 balls=rack();
@@ -557,7 +562,7 @@ function frame(now){
 }
 requestAnimationFrame(frame);
 // ================= test hooks =================
-window.POOL={game,get balls(){return balls},events,newGame,
+window.POOL={game,gaStart,get gaUsed(){return gaUsed},get balls(){return balls},events,newGame,
   setAim(a){aim=a;view.yaw=a;},shot(a,p,sa,sb){aim=a;view.yaw=a;power=p;spinA=sa||0;spinB=sb||0;shoot();},
   settle(){if(game.state!=='moving')return;for(let i=0;i<20000&&moving(balls);i++)step(balls,DT,shotRec,fx);},
   placeCue(x,z){if(canPlace(x,z)){balls[0].x=x;balls[0].z=z;return true;}return false;},
