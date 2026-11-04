@@ -98,7 +98,8 @@ body.ingame #mpPill,body.ingame #mpBar,body.ingame #mpChat,body.ingame #mpTags,b
   pillTxt();
   // ---------- local state -> wire ----------
   function roomOf(p) { if (p.x > WX / 2) return 'white'; if (p.z > -HALF) return 'room1'; if (p.z < -(HALF + HALL_L)) return 'room2'; return 'hall'; }
-  function animOf() { const tp = getTp && getTp(); if (tp && tp.state !== 'idle') return 'tp';
+  // t233: beaming out ('tpo': walk/charge/dissolve), gone ('tp': flash), beaming in ('tpi'). Older clients only hide on 'tp'.
+  function animOf() { const tp = getTp && getTp(); if (tp && tp.state !== 'idle') return tp.state === 'remat' ? 'tpi' : tp.state === 'flash' ? 'tp' : 'tpo';
     if (play.mode !== 'walk' && play.cur) return (play.cur.key === 'roadster' || play.cur.key === 'deadsignal' ? 'seat:' : 'play:') + play.cur.key;
     if (st.jump) return 'jump'; return st.speed > 0.15 ? 'walk' : 'idle'; }
   const r2 = v => Math.round(v * 100) / 100;
@@ -227,7 +228,8 @@ body.ingame #mpPill,body.ingame #mpBar,body.ingame #mpChat,body.ingame #mpTags,b
       c.x += (t.x - c.x) * k; c.y += (t.y - c.y) * k; c.z += (t.z - c.z) * k; let dr = ((t.r - c.r + Math.PI) % (2 * Math.PI) + 2 * Math.PI) % (2 * Math.PI) - Math.PI; c.r += dr * k;
       if (Math.hypot(t.x - c.x, t.z - c.z) > 6) Object.assign(c, t);   // big jump (respawn / teleport arrival): snap
       const g = p.g; g.position.set(c.x, c.y, c.z); g.rotation.y = c.r;
-      const tp = p.a === 'tp', ghost = /^(play|seat):/.test(p.a); g.visible = !tp;
+      if (p.a !== p.fxA) { const was = p.fxA; p.fxA = p.a; p.fxT = now; const T = getTp && getTp(); if (T && T.fxAt && ((p.a === 'tpo' && was !== 'tpo') || p.a === 'tpi')) try { T.fxAt(t.x, t.z, p.a === 'tpo'); } catch (e) {} }   // t233: see them beam out / in
+      const fa = (now - (p.fxT || 0)) / 1000, tp = p.a === 'tp' || (p.a === 'tpo' && fa > 2.7) || (p.a === 'tpi' && fa < 0.25), ghost = /^(play|seat):/.test(p.a); g.visible = !tp;
       if (ghost !== !!p.ghost) { p.ghost = ghost; g.traverse(o => { if (o.isMesh) { o.material.transparent = ghost; o.material.opacity = ghost ? 0.45 : 1; } }); }
       const sp = Math.hypot(c.x - ox, c.z - oz) / Math.max(dt, 1e-3), u = g.userData; p.phase += dt * (sp > 0.1 ? 3 + sp * 2.1 : 0);
       if (u.legs) { const amp = Math.min(1, sp / 2.4) * 0.6, s = Math.sin(p.phase); u.legs[0].leg.rotation.x = s * amp; u.legs[1].leg.rotation.x = -s * amp;

@@ -1148,7 +1148,7 @@ function frame(now) {
 function stepClock(dt) { st.t += dt; }
 const play = setupPlay({ camera, monkey, dsCab, roadsterCab, strikeCab, ghostCab, berserkerCab, monkeyCab, orcCab, novaCab, cyberCab, blasterCab, pipCab, clawCab, bbCab, st, pause(on) { paused = on; if (!on && !rafOn) { rafOn = true; last = performance.now(); requestAnimationFrame(frame); } } });
 shield = setupShield({ scene, play, st, monkey, HALF, DOOR_W, DOOR_H });
-tp = setupTeleport({ scene, monkey, st, HALF, H }); window.__tp = tp;
+tp = setupTeleport({ scene, monkey, st, HALF, H, Z2 }); window.__tp = tp;
 window.__grid = setupGrid({ THREE, scene, camera, cv, HALF, DOOR_W, HALL_L, Z2 });
 // FAST LOAD (t229): the prize shop (shop.js + its ~1.2 MB of murals) is imported after the first room frames, or straight away when the
 // teleporter is used; window.__arcade.shopReady resolves once it is set up (same setupShop call as before, Chief's shop.js unchanged).
