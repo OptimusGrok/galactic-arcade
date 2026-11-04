@@ -227,7 +227,8 @@ body[data-cab=roadster] #tix.ingame{top:calc(max(10px,env(safe-area-inset-top)) 
   function hsh(a) { var h = 7; for (var i = 0; i < a.length; i++) h = (h * 31 + a.charCodeAt(i)) % 1000003; return h; }
   var GOOD = hsh('147296385');
   function dots() { var r = sP.getBoundingClientRect(), o = []; for (var i = 0; i < 9; i++) o.push([r.left + r.width * (0.17 + 0.33 * (i % 3)), r.top + r.height * (0.17 + 0.33 * Math.floor(i / 3))]); return o; }
-  function draw() { var r = sP.getBoundingClientRect(), d = devicePixelRatio || 1; cv.width = r.width * d; cv.height = r.height * d; var c = cv.getContext('2d'); c.scale(d, d); var D = dots().map(function (p) { return [p[0] - r.left, p[1] - r.top]; }), bad = sP.classList.contains('bad');
+  function draw() { var r = sP.getBoundingClientRect(), d = devicePixelRatio || 1; if (r.width < 1 || r.height < 1) return;   // health check: panel hidden (wrong-pattern timeout) -> 0x0 canvas
+    cv.width = r.width * d; cv.height = r.height * d; var c = cv.getContext('2d'); c.scale(d, d); var D = dots().map(function (p) { return [p[0] - r.left, p[1] - r.top]; }), bad = sP.classList.contains('bad');
     c.lineWidth = 10; c.lineCap = c.lineJoin = 'round'; c.strokeStyle = bad ? '#ff2a4a' : '#00e5ff'; c.shadowColor = c.strokeStyle; c.shadowBlur = 12; c.beginPath();
     pat.forEach(function (i, k) { k ? c.lineTo(D[i][0], D[i][1]) : c.moveTo(D[i][0], D[i][1]); }); if (drawing && cur && pat.length) c.lineTo(cur[0] - r.left, cur[1] - r.top); c.stroke();
     var sz = Math.round(r.width * 0.2); D.forEach(function (p, i) { var st = pat.indexOf(i) >= 0 ? (bad ? 2 : 1) : 0; c.shadowBlur = 0; c.drawImage(digit(i + 1, st, sz, d), p[0] - sz / 2, p[1] - sz / 2, sz, sz); }); }

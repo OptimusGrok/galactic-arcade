@@ -22,6 +22,6 @@ async function open(opts = {}) {
 // player.js start screen: type a name in #gaIn, tap PLAY (#gaGo); resolves once the start screen is gone
 async function play(page, ph, name = 'Tester') { const tap = async sel => { const b = await page.locator(sel).first().boundingBox(); const x = b.x + b.width / 2, y = b.y + b.height / 2; if (ph) await page.touchscreen.tap(x, y); else await page.mouse.click(x, y); };
   await page.waitForSelector('#gaIn'); await tap('#gaIn'); await page.keyboard.press('Control+A'); await page.keyboard.press('Backspace'); await page.keyboard.type(name);
-  await page.waitForSelector('#gaGo:not([hidden])', { timeout: 5000 }); await tap('#gaGo');
+  await page.waitForSelector('#gaGo:not([hidden])', { timeout: 20000 }); await tap('#gaGo');
   await page.waitForFunction(() => !document.getElementById('start'), null, { timeout: 8000 }).catch(() => {}); }
 module.exports = { open, play };

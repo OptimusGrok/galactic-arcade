@@ -29,6 +29,9 @@ const PH = process.argv[2] === 'phone', sfx = PH ? '_phone' : '';
   await page.waitForTimeout(600);
   await swipe([1, 5, 9, 6, 3]); s = await ev(() => ({ bad: window.__start.secBad, pat: window.__start.pat, tk: !!document.querySelector('#tk.on') }));
   chk(s.bad === 2 && !s.tk && s.pat === '15963', 'old pattern 1-5-9-6-3 rejected');
+  // health check: the wrong-pattern redraw (450 ms later) must not throw if the pad was hidden meanwhile (0x0 canvas)
+  { const e0 = errors.length; await swipe([1, 2, 3, 6, 9]); await ev(() => { document.getElementById('sec').classList.remove('on'); document.getElementById('secP').style.display = 'none'; }); await page.waitForTimeout(900);
+    chk(errors.length === e0, 'wrong pattern then pad hidden: no drawImage error ' + errors.slice(e0).join('|')); await ev(() => { document.getElementById('secP').style.display = ''; document.getElementById('sec').classList.add('on'); }); await page.waitForTimeout(300); }
   await page.waitForTimeout(600);
   // knight-like jumps 7>2, 2>9, 3>8 must not pick up 4 / 5 / 6 on the way; screenshot with the whole pattern drawn, finger still down
   const NEW = [1, 4, 7, 2, 9, 6, 3, 8, 5]; { const p = NEW.map(n => D[n - 1]); await page.mouse.move(p[0][0], p[0][1]); await page.mouse.down(); for (let k = 1; k < p.length; k++) await page.mouse.move(p[k][0], p[k][1], { steps: 8 });

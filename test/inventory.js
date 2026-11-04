@@ -16,7 +16,7 @@ const PHONE = process.argv[2] === 'phone';
   { await page.evaluate(() => { localStorage.setItem('neonarcade.tickets', '4'); localStorage.setItem('neonarcade.vikingTickets', '0'); window.__neonSync(); });
     if (PHONE) await page.tap('#bPack'); else await page.click('#bPack'); await page.waitForTimeout(700);
     const z = await page.evaluate(() => ({ open: window.__inv.open, row: getComputedStyle(document.getElementById('invV')).display, h: document.getElementById('invV').getBoundingClientRect().height, rows: [...document.querySelectorAll('#inv .invR')].filter(r => r.offsetParent).map(r => r.id) }));
-    chk(z.open && z.row === 'none' && z.h === 0 && JSON.stringify(z.rows) === '["invG","invC"]', '0 Viking tickets: no Viking row in the backpack (gold + cash only) ' + JSON.stringify(z));
+    chk(z.open && z.row === 'none' && z.h === 0 && JSON.stringify(z.rows) === '["invG","invC","invPz"]', '0 Viking tickets: no Viking row in the backpack (gold + cash + prizes) ' + JSON.stringify(z));
     await page.screenshot({ path: 'shots/inventory_noviking' + sfx + '.png' });
     if (PHONE) await page.tap('#invX'); else await page.click('#invX'); await page.waitForTimeout(300); }
   await page.evaluate(() => { const p = window.__arcade.play; localStorage.setItem('neonarcade.tickets', '7'); localStorage.setItem('neonarcade.vikingTickets', '2'); window.__neonSync(); window.__kiosk.setState({ bal: 5, at: Date.now(), pending: 0 }); });

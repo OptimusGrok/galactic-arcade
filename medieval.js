@@ -4,7 +4,7 @@
 const rnd = (s => () => (s = (s * 16807) % 2147483647) / 2147483647)(230);
 
 export function stoneWallTex(THREE, renderer) {
-  const W = 1024, Hh = 1024, c = document.createElement('canvas'); c.width = W; c.height = Hh; const x = c.getContext('2d');
+  const W = 1024, Hh = 1024, c = document.createElement('canvas'); c.width = W; c.height = Hh; const x = c.getContext('2d', { willReadFrequently: true });
   x.fillStyle = '#2a2522'; x.fillRect(0, 0, W, Hh);                                   // mortar
   const rows = 12, rh = Hh / rows;
   for (let r = 0; r < rows; r++) { let u = r % 2 ? -rh * 0.9 : 0;

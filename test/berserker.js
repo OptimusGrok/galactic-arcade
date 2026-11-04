@@ -3,7 +3,7 @@ const { open } = require('./lib');
 (async () => {
   const { page, errors, requests, close } = await open();
   let ok = true; const chk = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); if (!c) ok = false; };
-  const info = await page.evaluate(() => { const A = window.__arcade, b = A.berserkerCab, s = A.strikeCab, n2 = A.cabinets.find(k => k.name === 'cabinet_north_4');
+  const info = await page.evaluate(() => { const A = window.__arcade, b = A.berserkerCab, s = A.strikeCab, n2 = A.monkeyCab   // cabinet_north_4 became MONKEY CROSSING;
     const names = []; b.traverse(o => o.name && names.push(o.name)); const bad = [];
     b.traverse(o => { if (!o.isMesh) return; const m = o.material; if (/neon/i.test(o.name) || m.isMeshBasicMaterial) bad.push(o.name); if (/trim|edge|molding/i.test(o.name) && m.emissive && m.emissive.getHex() && m.emissiveIntensity > 0) bad.push(o.name + ':emissive'); });
     const north = A.playables.filter(c => c.userData.wall === 'north').map(c => [c.name, c.position.x]).sort((a, c) => a[1] - c[1]);

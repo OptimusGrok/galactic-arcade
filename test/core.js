@@ -5,8 +5,8 @@ const { open } = require('./lib');
     for (const c of A.playables.filter(c => c !== A.dsCab)) {   // DEAD SIGNAL (room 2 centre) is checked by test/deadsignal.js
     by[c.userData.wall] = (by[c.userData.wall] || 0) + 1; const s = c.getObjectByName('screen'); if (s && !s.material.map) screens++; if (c.getObjectByName('marquee') && c.getObjectByName('sidePanelL') && c.getObjectByName('sidePanelR')) art++; }
     return { n: A.playables.length - 1, by, screens, art }; });
-  chk(cab.n === 13, 'cabinets=' + cab.n + ' (middle north slot is the doorway; east wall is the space window)'); chk(cab.by.north === 4 && cab.by.west === 5 && cab.by.south === 4 && !cab.by.east, 'per wall ' + JSON.stringify(cab.by));
-  chk(cab.screens === 7, 'screen meshes without a texture map (7 = 5 blanks + STRIKE + GHOST; BERSERKER + MONKEY CROSSING + ORC ATTACK + NOVA TETHER draw attract screens) ' + cab.screens); chk(cab.art === 13, 'marquee+side panels ' + cab.art);
+  chk(cab.n === 14, 'cabinets=' + cab.n + ' (13 on the walls + the free-standing CLAW MACHINE; middle north slot is the doorway; east wall is the space window)'); chk(cab.by.north === 4 && cab.by.west === 5 && cab.by.south === 4 && !cab.by.east, 'per wall ' + JSON.stringify(cab.by));
+  chk(cab.screens === 5, 'screen meshes without a texture map (5 = 2 blanks + STRIKE + GHOST + CLAW; BERSERKER + MONKEY CROSSING + ORC ATTACK + NOVA TETHER draw attract screens) ' + cab.screens); chk(cab.art === 13, 'marquee+side panels ' + cab.art);
   // deterministic movement: stop RAF effects by stepping manually
   const mv = await page.evaluate(() => { const A = window.__arcade; window.__noAdapt = 1; A.monkey.position.set(-6, 0, 0); A.st.yaw = 0; A.st.vel.set(0, 0, 0);
     A.keys.KeyW = true; for (let i = 0; i < 60; i++) A.step(1 / 60); A.keys.KeyW = false; const z1 = A.monkey.position.z;

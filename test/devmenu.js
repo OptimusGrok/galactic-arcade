@@ -1,5 +1,5 @@
 // hidden menu DEV tabs: NUMBERS badges + CLIPPING (noclip). node test/devmenu.js [phone]
-const { open } = require('./lib');
+const { open, play } = require('./lib');
 const PH = process.argv[2] === 'phone', sfx = PH ? '_phone' : '';
 (async () => {
   let ok = true; const chk = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); if (!c) ok = false; };
@@ -11,13 +11,13 @@ const PH = process.argv[2] === 'phone', sfx = PH ? '_phone' : '';
   await ev(() => { const h = document.getElementById('secHot'), r = h.getBoundingClientRect(); for (let i = 0; i < 3; i++) h.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, clientX: r.left + 30, clientY: r.top + 30 })); });
   await page.waitForTimeout(300);
   const D = await ev(() => { const r = document.getElementById('secP').getBoundingClientRect(), o = []; for (let i = 0; i < 9; i++) o.push([r.left + r.width * (0.2 + 0.3 * (i % 3)), r.top + r.height * (0.2 + 0.3 * Math.floor(i / 3))]); return o; });
-  const p = [1, 5, 9, 6, 3].map(n => D[n - 1]); await page.mouse.move(p[0][0], p[0][1]); await page.mouse.down(); for (let k = 1; k < 5; k++) await page.mouse.move(p[k][0], p[k][1], { steps: 8 }); await page.mouse.up(); await page.waitForTimeout(400);
+  const p = [1, 4, 7, 2, 9, 6, 3, 8, 5].map(n => D[n - 1]); await page.mouse.move(p[0][0], p[0][1]); await page.mouse.down(); for (let k = 1; k < p.length; k++) await page.mouse.move(p[k][0], p[k][1], { steps: 8 }); await page.mouse.up(); await page.waitForTimeout(400);
   chk(await ev(() => !!document.getElementById('tkNum') && !!document.getElementById('tkClip') && !!document.querySelector('#tk.on')), 'menu has NUMBERS and CLIPPING tabs');
   chk(await ev(() => document.getElementById('tkNum').textContent === 'NUMBERS: OFF' && window.__dev.badges.every(b => !b.visible)), 'NUMBERS off by default, no badges');
   await tap('#tkNum'); await page.screenshot({ path: `shots/menu_tabs${sfx}.png` });
   let s = await ev(() => ({ t: document.getElementById('tkNum').textContent, ls: localStorage.getItem('neonarcade.dev.numbers'), n: window.__dev.badges.filter(b => b.userData.n).length, nl: window.__dev.badges.filter(b => b.userData.letter).length, L: window.__dev.badges.filter(b => b.userData.letter).map(b => b.userData.letter + '=' + b.userData.key).join(','), vis: window.__dev.badges.every(b => b.visible), games: window.__dev.badges.map(b => b.userData.n + '=' + b.userData.game).join(',') }));
-  chk(s.t === 'NUMBERS: ON' && s.ls === '1' && s.n === 11 && s.nl === 22 && !/\b[ABCD]=/.test(s.L) && /10=blaster/.test(s.games) && /11=pip/.test(s.games) && s.vis, 'NUMBERS on: 11 machines numbered (8 = MARS ROADSTER over C+D, 9 = DEAD SIGNAL, 10 = BLASTER in B, 11 = SUPER PIP QUEST in A) + 22 blanks lettered E-Z, persisted ' + JSON.stringify(s));
-  await tap('#tkDone'); await tap('#stStart'); await page.waitForFunction(() => !document.getElementById('start'), null, { timeout: 8000 }).catch(() => {});
+  chk(s.t === 'NUMBERS: ON' && s.ls === '1' && s.n === 13 && s.nl === 16 && !/\b[ABCDG]=/.test(s.L) && /10=blaster/.test(s.games) && /11=pip/.test(s.games) && s.vis, 'NUMBERS on: 13 machines numbered (8 = MARS ROADSTER over C+D, 10 = BLASTER in B, 11 = SUPER PIP QUEST in A, 13 = BURROW BUSTER in G) + 16 blanks lettered, persisted ' + JSON.stringify(s));
+  await tap('#tkDone'); await play(page, PH, 'Dev'); await page.waitForFunction(() => !document.getElementById('start'), null, { timeout: 8000 }).catch(() => {});
   await page.waitForTimeout(800);
   await ev(() => { window.__camOverride = { pos: [5, 5.5, 7], at: [-4, 1.6, -5], showMonkey: true }; }); await page.waitForTimeout(1800);
   await page.screenshot({ path: `shots/numbers_on${sfx}.png` });
