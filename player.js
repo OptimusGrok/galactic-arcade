@@ -346,7 +346,7 @@
       + '<div id="gaWStage"><canvas id="gaWCv"></canvas><button class="gaAr" id="gaWL" aria-label="rotate left">‹</button><button class="gaAr" id="gaWR" aria-label="rotate right">›</button></div>'
       + '<div class="gaBox">' + rows(1) + '</div><div id="gaWBuy" hidden><span id="gaWBuyT"></span><button id="gaWBuyB"></button></div><button id="gaWDone">DONE</button>';
     (document.body || document.documentElement).appendChild(d); }
-  function wOpen() { var A = window.__arcade; wBuild(); if (!W.el.isConnected) document.body.appendChild(W.el); W.el.hidden = false; W.el.classList.toggle('gaSt', onStart()); W.open = true; W.opens++; prev.auto = true; TP.gone = false; if (TP.st === 'out') { TP.st = 'idle'; TP.cb = null; } W.try = null; buyUI();
+  function wOpen() { var A = window.__arcade; wBuild(); if (!W.el.isConnected) document.body.appendChild(W.el); W.el.hidden = false; W.el.classList.toggle('gaSt', onStart()); W.open = true; W.at = performance.now(); W.opens++; prev.auto = true; TP.gone = false; if (TP.st === 'out') { TP.st = 'idle'; TP.cb = null; } W.try = null; buyUI();
     if (A && A.monkey && A.THREE) { apply(); buildScene(); } sync(true); if (!prev.raf) frame(); return true; }
   function wClose() { if (!W.el || !W.open) return false; W.open = false; W.el.hidden = true; prev.drag = null; if (W.try) { W.try = null; apply(); prev.hat = null; }
     if (prev.r && prev.r.domElement.id === 'gaWCv') freeR();   // free the 2nd WebGL context for the game
@@ -417,6 +417,7 @@
     if (e.type === 'pointerup' && prev.drag) prev.drag = null;
     if (e.type === 'touchstart' && cv && e.cancelable) e.preventDefault();
     if (e.type !== 'click') return; var b;
+    if (performance.now() - (W.at || 0) < 500) return;   // the tap that opened us (its compat click lands on the panel after pointerup: hit DONE and closed at once)
     if (t.closest('#gaWBuyB')) buy();
     else if (t.closest('#gaWDone') || t.closest('#gaWX')) wClose();
     else if (t.closest('#gaWL')) { prev.auto = false; prev.want -= Math.PI / 4; }

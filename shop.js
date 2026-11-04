@@ -653,9 +653,9 @@ export function setupShop({ scene, tp, play, monkey, camera, st } = {}) {
     envT.t.mapping = THREE.EquirectangularReflectionMapping;
     const mir = new THREE.Mesh(new THREE.PlaneGeometry(0.62, 1.9), new THREE.MeshStandardMaterial({ color: 0xa8c4d4, metalness: 1, roughness: 0.06, envMap: envT.t, envMapIntensity: 1.25, emissive: 0x0c1824 }));
     mir.position.set(MXm, 1.05, 0.155); mir.name = 'wardrobeMirror'; wd.add(mir);
-    const sgT = canvasTex(512, 128, (g, w, h) => { g.clearRect(0, 0, w, h); g.font = '900 78px "Arial Black", Impact, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
+    const sgT = canvasTex(512, 128, (g, w, h) => { g.clearRect(0, 0, w, h); g.font = '900 54px "Arial Black", Impact, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
       const gr = g.createLinearGradient(40, 0, w - 40, 0); ['#00e5ff', '#7a5cff', '#ff4fd8', '#ffb020'].forEach((c, i) => gr.addColorStop(i / 3, c));
-      g.shadowColor = '#ff4fd8'; g.shadowBlur = 26; g.lineWidth = 12; g.strokeStyle = gr; g.strokeText('WARDROBE', w / 2, h / 2); g.shadowColor = '#00e5ff'; g.shadowBlur = 12; g.lineWidth = 5; g.strokeText('WARDROBE', w / 2, h / 2); g.shadowBlur = 0; g.lineWidth = 2; g.strokeStyle = '#ffffff'; g.strokeText('WARDROBE', w / 2, h / 2); });
+      g.shadowColor = '#ff4fd8'; g.shadowBlur = 26; g.lineWidth = 12; g.strokeStyle = gr; g.strokeText('ACCESSORIES', w / 2, h / 2); g.shadowColor = '#00e5ff'; g.shadowBlur = 12; g.lineWidth = 5; g.strokeText('ACCESSORIES', w / 2, h / 2); g.shadowBlur = 0; g.lineWidth = 2; g.strokeStyle = '#ffffff'; g.strokeText('ACCESSORIES', w / 2, h / 2); });
     const sign = new THREE.Mesh(new THREE.PlaneGeometry(3.2, 0.8), new THREE.MeshBasicMaterial({ map: sgT.t, transparent: true, depthWrite: false, toneMapped: false })); sign.position.set(0.1, 3.2, 0.08); sign.name = 'wardrobeSign'; wd.add(sign);
   }
   // ---------- bounds + obstacles ----------
@@ -804,7 +804,7 @@ export function setupShop({ scene, tp, play, monkey, camera, st } = {}) {
   // wardrobe corner button: same pill as PLAY POOL (pink neon), opens player.js's in-game wardrobe panel
   const wdCss = document.createElement('style'); wdCss.textContent = '#wardBtn{position:fixed;left:50%;bottom:calc(max(22px,env(safe-area-inset-bottom)) + 6px);transform:translateX(-50%);z-index:24;display:none;min-width:150px;height:58px;padding:0 26px;border-radius:29px;border:3px solid #ff4fd8;background:#2a0624e8;color:#ffe6fa;font:900 20px/1 "Courier New",monospace;letter-spacing:.12em;box-shadow:0 0 16px #ff4fd8aa,inset 0 0 12px #ff4fd855;text-shadow:0 0 8px #ff4fd8;cursor:pointer;touch-action:none;white-space:nowrap}#wardBtn.on{display:block}#wardBtn:active{transform:translateX(-50%) scale(.95)}';
   document.head.appendChild(wdCss);
-  const wardBtn = document.createElement('button'); wardBtn.id = 'wardBtn'; wardBtn.textContent = '👕 WARDROBE'; document.body.appendChild(wardBtn);
+  const wardBtn = document.createElement('button'); wardBtn.id = 'wardBtn'; wardBtn.textContent = '👕 ACCESSORIES'; document.body.appendChild(wardBtn);
   const wardApi = { near: false, opens: 0, x: WDX, z: WDZ, w: WDW, d: WDD };
   const wardOpen = () => { const w = window.__wardrobe; if (!w || typeof w.open !== 'function' || w.isOpen) return false; clearKeys(); wardBtn.classList.remove('on'); if (api.open) closeShop(); wardApi.opens++; return w.open(); };
   wardBtn.addEventListener('pointerdown', stop); wardBtn.addEventListener('touchstart', stop, { passive: true });
@@ -907,7 +907,7 @@ export function setupShop({ scene, tp, play, monkey, camera, st } = {}) {
       const w = ds[1] < ds[0] ? 1 : 0; poolApi.which = w; poolApi.near = !busy && !poolApi.open && !api.open && ds[w] < 1.3;   // only the nearer table's button
       poolBtns.forEach((b, i) => b.classList.toggle('on', poolApi.near && i === w)); }
     { const lx = m.position.x - WXp, lz = m.position.z, wo = window.__wardrobe && window.__wardrobe.isOpen;   // wardrobe corner: within 1.4 m of its front
-      const dx = Math.max(0, (WDX - WDD) - lx), dz = Math.max(0, Math.abs(lz - WDZ) - WDW); wardApi.dist = lx > WDX ? 9 : Math.hypot(dx, dz);
+      const dx = Math.max(0, (WDX - WDD) - lx, lx - (WDX + 0.08)), dz = Math.max(0, Math.abs(lz - WDZ) - WDW); wardApi.dist = Math.hypot(dx, dz);   // any side of the island (was front only: lx > WDX gave 9)
       wardApi.near = !busy && !wo && !poolApi.open && !api.open && !poolApi.near && wardApi.dist < 1.4; wardBtn.classList.toggle('on', wardApi.near); }
     // Grok idle: gentle bob + sway, head turns toward the player, blinks, mouth moves while talking
     grok.position.y = Math.sin(t * 1.6) * 0.015; grok.rotation.z = Math.sin(t * 0.9) * 0.02;
