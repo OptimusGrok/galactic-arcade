@@ -3,7 +3,7 @@
 // moon glow, volumetric clouds, light shafts, weather (sunny -> clouds -> rain -> clearing + rainbow -> sunset), drawn and shaded
 // animals with walk cycles / wing flaps at three depths with ground shadows. Static layers are pre-rendered once per scene;
 // only moving things are drawn per frame, ~20 fps, only while the window is on and the camera is in room 1.
-export function setupWindows({ THREE, room, camera, HALF, H, DOOR_W, WX }) {
+export function setupWindows({ THREE, room, room2, Z2, camera, HALF, H, DOOR_W, WX }) {
   const CYCLE = 240, DW = 2048, VW = HALF * 2, DH = Math.round(DW * H / VW), M = 170;   // design units; M = parallax margin
   const coarse = typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches;
   const dpr = Math.min(2, (typeof devicePixelRatio === 'number' && devicePixelRatio) || 1);
@@ -16,6 +16,9 @@ export function setupWindows({ THREE, room, camera, HALF, H, DOOR_W, WX }) {
   const view = new THREE.Mesh(new THREE.PlaneGeometry(VW, H).rotateY(-Math.PI / 2), new THREE.MeshBasicMaterial({ map: tex, color: 0xdedede }));
   view.position.set(HALF - 0.02, H / 2, 0); view.name = 'windowPanorama'; grp.add(view);
   const wins = [{ g: view, tex, sc: 'pano', base: 0 }];
+  // t235: room 2's right-hand wall is the same window: one more plane on the same material + canvas (no second scene to draw)
+  const grp2 = new THREE.Group(); grp2.name = 'roomWindows2'; grp2.visible = false; if (room2) room2.add(grp2);
+  const view2 = new THREE.Mesh(view.geometry, view.material); view2.position.set(-view.position.x, view.position.y, -view.position.z); view2.rotation.y = Math.PI; view2.name = 'windowPanorama2'; grp2.add(view2);
   // ---------- helpers ----------
   let seed = 1; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647, R = (a, b) => a + rnd() * (b - a);
   const mix = (a, b, k) => a.map((v, i) => Math.round(v + (b[i] - v) * k)), rgb = (a, al) => al == null ? 'rgb(' + a.join(',') + ')' : 'rgba(' + a.join(',') + ',' + al + ')';
@@ -325,14 +328,14 @@ export function setupWindows({ THREE, room, camera, HALF, H, DOOR_W, WX }) {
     rainFx(x, t, w, 600, [HZ + 20, 590]); warm(x, w); }
   // ---------- per frame ----------
   let last = 0, on = false, scene = 'jungle', par = 0;
-  const api = { group: grp, wins, view, S: {}, spawn, J, Q, size: [PW, PH], weather: () => weather(performance.now() / 1000), draws: 0, ms: 0, msMax: 0, get par() { return par; },
+  const api = { group: grp, group2: grp2, view2, wins, view, S: {}, spawn, J, Q, size: [PW, PH], weather: () => weather(performance.now() / 1000), draws: 0, ms: 0, msMax: 0, get par() { return par; },
     setPhase(p) { phaseOverride = p; last = 0; }, get on() { return on; }, get scene() { return on ? scene : 'space'; } };
-  api.set = v => { on = !!v && v !== 'space'; scene = v === 'beach' ? 'beach' : 'jungle'; grp.visible = on; last = 0; if (on) { J.walkers.length = 0; } const sw = room.getObjectByName('spaceWindow'); if (sw) sw.visible = !on; };
+  api.set = v => { on = !!v && v !== 'space'; scene = v === 'beach' ? 'beach' : 'jungle'; grp.visible = grp2.visible = on; last = 0; if (on) { J.walkers.length = 0; } for (const R of [room, room2]) { const sw = R && R.getObjectByName('spaceWindow'); if (sw) sw.visible = !on; } };
   api.pano = pano;
   api.update = () => { if (!on) return; const now = performance.now();
-    const inRoom1 = camera.position.x < WX / 2 && camera.position.z > -HALF - 1; if (!inRoom1) return;
+    const inRoom1 = camera.position.x < WX / 2 && camera.position.z > -HALF - 1, inRoom2 = room2 && camera.position.x < WX / 2 && camera.position.z < Z2 + HALF + 1; if (!inRoom1 && !inRoom2) return;
     if (now - last < 50) return; last = now; const t0p = performance.now(), t = now / 1000, w = weather(t);
-    par = Math.max(-1, Math.min(1, camera.position.z / HALF));   // look-through parallax: near layers slide more than far ones
+    par = Math.max(-1, Math.min(1, (inRoom2 ? camera.position.z - Z2 : camera.position.z) / HALF));   // look-through parallax: near layers slide more than far ones
     if (scene === 'jungle') { if (now / 1000 > J.next) { spawn(); J.next = now / 1000 + 4 + Math.random() * 9; } J.walkers = J.walkers.filter(a => { a.x += a.dir * a.v * 0.05; a.ph += 0.05 * a.v / 9; return a.x > -360 && a.x < DW + 360; }); }
     px.setTransform(Q, 0, 0, Q, 0, 0); if (scene === 'jungle') jungle(px, t, w, par); else beach(px, t, w, par);
     api.draws++; tex.needsUpdate = true; const ms = performance.now() - t0p; api.ms = api.ms ? api.ms * 0.9 + ms * 0.1 : ms; api.msMax = Math.max(api.msMax, ms); };

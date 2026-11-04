@@ -52,15 +52,17 @@ function windowTex(THREE) {
   const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t;
 }
 // one merged mesh (glass + frame in a single alpha-tested plane per window) + an additive glow halo -> 2 draw calls total
-export function gothicWindows(THREE, mergeGeometries, HALF, H) {
+export function gothicWindows(THREE, mergeGeometries, HALF, H, walls = [0, 1, 2], share = null) {   // share: an earlier set whose materials to reuse
   const g = new THREE.Group(); g.name = 'gothicWindows'; g.visible = false;
   const ww = 2.1, wh = 4.0, y = 3.95 + wh / 2, xs = [-7.2, 0, 7.2], planes = [], halos = [];
-  for (const i of [0, 1, 2]) { const a = i * Math.PI / 2, s = Math.sin(a), c = Math.cos(a);
+  for (const i of walls) { const a = i * Math.PI / 2, s = Math.sin(a), c = Math.cos(a);
     for (const u of xs) { const p = new THREE.PlaneGeometry(ww, wh), q = new THREE.PlaneGeometry(ww * 1.9, wh * 1.35);
       const m = new THREE.Matrix4().makeRotationY(a).setPosition(-s * (HALF - 0.04) + c * u, y, -c * (HALF - 0.04) - s * u);
       planes.push(p.applyMatrix4(m)); const m2 = new THREE.Matrix4().makeRotationY(a).setPosition(-s * (HALF - 0.06) + c * u, y, -c * (HALF - 0.06) - s * u); halos.push(q.applyMatrix4(m2)); } }
-  const glass = new THREE.Mesh(mergeGeometries(planes), new THREE.MeshBasicMaterial({ map: windowTex(THREE), alphaTest: 0.5, transparent: false, color: 0xd8d0c8 }));
+  const sg = share && share.getObjectByName('gothicGlass'), sh = share && share.getObjectByName('gothicGlow');
+  const glass = new THREE.Mesh(mergeGeometries(planes), sg ? sg.material : new THREE.MeshBasicMaterial({ map: windowTex(THREE), alphaTest: 0.5, transparent: false, color: 0xd8d0c8 }));
   glass.name = 'gothicGlass'; glass.renderOrder = 2;
+  if (sh) { const halo = new THREE.Mesh(mergeGeometries(halos), sh.material); halo.name = 'gothicGlow'; g.add(halo, glass); return g; }
   const hc = document.createElement('canvas'); hc.width = hc.height = 128; const hx = hc.getContext('2d'), rg = hx.createRadialGradient(64, 64, 8, 64, 64, 64);
   rg.addColorStop(0, 'rgba(255,180,90,0.32)'); rg.addColorStop(0.5, 'rgba(200,80,160,0.12)'); rg.addColorStop(1, 'rgba(0,0,0,0)'); hx.fillStyle = rg; hx.fillRect(0, 0, 128, 128);
   const halo = new THREE.Mesh(mergeGeometries(halos), new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(hc), transparent: true, depthWrite: false, blending: THREE.AdditiveBlending }));
