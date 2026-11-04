@@ -16,7 +16,7 @@ const PH = process.argv[2] === 'phone', sfx = PH ? '_phone' : '';
   await tap('#flBtn');
   await page.waitForFunction(() => [...document.querySelectorAll('#flTiles .flT img')].every(i => i.complete && i.naturalWidth > 100), null, { timeout: 60000 }).catch(() => {});
   const fl = await ev(() => { const im = [...document.querySelectorAll('#flTiles .flT img')]; return { on: !!document.querySelector('#opt.on'), n: im.length, loaded: im.every(i => i.complete && i.naturalWidth > 100), sel: document.querySelector('#flTiles .flT.sel').dataset.floor, tab: document.getElementById('tabFloor').textContent }; });
-  chk(fl.on && fl.tab === 'FLOOR' && fl.n === 4 && fl.loaded && fl.sel === 'neon', 'HUD button opens the menu: FLOOR tab with 4 previews, neon selected ' + JSON.stringify(fl));
+  chk(fl.on && fl.tab === 'FLOOR' && fl.n === 5 && fl.loaded && fl.sel === 'neon', 'HUD button opens the menu: FLOOR tab with 5 previews, neon selected ' + JSON.stringify(fl));
   await page.screenshot({ path: `shots/options_floor${sfx}.png` });
   await tap('#flCarpet');
   let b = await ev(() => ({ sel: document.querySelector('#flTiles .flT.sel').dataset.floor, floor: window.__arcade.floor, carpet: window.__arcade.carpet.visible, ls: localStorage.getItem('neonarcade.floor'), mg: window.__arcade.mirror.visible, m2: window.__arcade.room.parent.getObjectByName('floorMirror2').visible,
@@ -39,7 +39,7 @@ const PH = process.argv[2] === 'phone', sfx = PH ? '_phone' : '';
   await tap('#tabWalls'); await page.waitForTimeout(400);
   await page.waitForFunction(() => [...document.querySelectorAll('#wlTiles img')].every(i => i.complete && i.naturalWidth > 50), null, { timeout: 60000 }).catch(() => {});
   let wl = await ev(() => { const im = [...document.querySelectorAll('#wlTiles img')]; return { n: im.length, loaded: im.every(i => i.complete && i.naturalWidth > 50), vis: im.every(i => i.getBoundingClientRect().height > 0), sel: document.querySelector('#wlTiles .sel').id }; });
-  chk(wl.n === 3 && wl.loaded && wl.vis && wl.sel === 'wlCur', 'WALLS tab: CURRENT + VIKING + PORTALS, CURRENT selected ' + JSON.stringify(wl));
+  chk(wl.n === 4 && wl.loaded && wl.vis && wl.sel === 'wlCur', 'WALLS tab: CURRENT + VIKING + PORTALS + MEDIEVAL, CURRENT selected ' + JSON.stringify(wl));
   await page.screenshot({ path: `shots/options_walls${sfx}.png` });
   await tap('#wlPor'); await page.waitForTimeout(1000);
   chk(await ev(() => window.__arcade.walls === 'portals' && localStorage.getItem('neonarcade.walls') === 'portals'), 'PORTALS applied + saved');

@@ -11,6 +11,7 @@ import { buildGhostCabinet, startGhostDemo, tickGhostDemo } from './ghostcab.js'
 import { buildBerserkerCabinet } from './berserkcab.js';
 import { buildMonkeyCabinet } from './monkeycab.js';
 import { setupSpaceWindow } from './spacewin.js';
+import { stoneWallTex, gothicWindows } from './medieval.js';
 import { buildOrcCabinet } from './orccab.js';
 import { buildCyberCabinet } from './cybercitycab.js';
 import { buildBlasterCabinet } from './blastercab.js';
@@ -153,11 +154,14 @@ const portalMat = new THREE.ShaderMaterial({ uniforms: portalU, vertexShader: 'v
       #include <colorspace_fragment>
     }` });
 portalMat.name = 'portalWalls';
+let stoneTex = null, gothWins = null;   // MEDIEVAL walls (t230): built on first pick
 function setWalls(mode) {
-  wallsMode = mode === 'viking' || mode === 'portals' ? mode : 'current'; if (mode === 'windows') setWindow('jungle'); const v = wallsMode === 'viking', po = wallsMode === 'portals';
+  wallsMode = mode === 'viking' || mode === 'portals' || mode === 'medieval' ? mode : 'current'; if (mode === 'windows') setWindow('jungle'); const v = wallsMode === 'viking', po = wallsMode === 'portals', md = wallsMode === 'medieval';
+  if (md && !stoneTex) { stoneTex = stoneWallTex(THREE, renderer); stoneTex.repeat.set(4, +(H / 6).toFixed(3)); gothWins = gothicWindows(THREE, mergeGeometries, HALF, H); room.add(gothWins); }
+  if (gothWins) gothWins.visible = md;
   if (v && !vikTex) { vikTex = new THREE.TextureLoader().load('tex/viking_walls.jpg', () => spaceWin && spaceWin.dirty()); vikTex.colorSpace = THREE.SRGBColorSpace; vikTex.wrapS = THREE.RepeatWrapping; vikTex.wrapT = THREE.ClampToEdgeWrapping;
     vikTex.repeat.set(+(2 * HALF / (H * 928 / 576)).toFixed(3), 1); vikTex.anisotropy = renderer.capabilities.getMaxAnisotropy(); }   // one repeat = wall height
-  wallMat.map = v ? vikTex : wallTex; wallMat.color.setHex(v ? 0x8a7a70 : 0x2a1840); wallMat.roughness = v ? 0.95 : 0.85; wallMat.emissiveMap = v ? vikTex : null; wallMat.emissive.setHex(v ? 0xffffff : 0x000000); wallMat.emissiveIntensity = v ? 1.6 : 1; wallBands.forEach(m => { m.visible = !v && !po }); wallMat.needsUpdate = true;   // a little dark so the neon pops
+  wallMat.map = v ? vikTex : md ? stoneTex : wallTex; wallMat.color.setHex(v ? 0x8a7a70 : md ? 0x8a8078 : 0x2a1840); wallMat.roughness = v || md ? 0.95 : 0.85; wallMat.emissiveMap = v ? vikTex : md ? stoneTex : null; wallMat.emissive.setHex(v || md ? 0xffffff : 0x000000); wallMat.emissiveIntensity = v ? 1.6 : md ? 0.55 : 1; wallBands.forEach(m => { m.visible = !v && !po && !md }); wallMat.needsUpdate = true;   // a little dark so the neon pops
   for (let i = 0; i < 4; i++) { const w = room.getObjectByName('wall' + i); if (w) { w.material = po ? portalMat : wallMat; w.onBeforeRender = po ? () => { portalU.uT.value = performance.now() / 1000; } : () => {}; } }
   if (spaceWin) spaceWin.dirty();
   try { localStorage.setItem(WALLS_KEY, wallsMode); } catch (e) {}
@@ -167,7 +171,7 @@ function setWalls(mode) {
 const WINDOW_KEY = 'neonarcade.window'; let windowMode = 'space';
 function setWindow(mode) { windowMode = mode === 'jungle' || mode === 'beach' ? mode : 'space'; winds.set(windowMode); try { localStorage.setItem(WINDOW_KEY, windowMode); } catch (e) {} return windowMode; }
 window.__setWindow = setWindow;
-try { const w0 = localStorage.getItem(WINDOW_KEY); if (w0) setWindow(w0); const w = localStorage.getItem(WALLS_KEY); if (w === 'windows') { setWalls('current'); setWindow('jungle'); } else if (w === 'viking' || w === 'portals') setWalls(w); } catch (e) {}
+try { const w0 = localStorage.getItem(WINDOW_KEY); if (w0) setWindow(w0); const w = localStorage.getItem(WALLS_KEY); if (w === 'windows') { setWalls('current'); setWindow('jungle'); } else if (w === 'viking' || w === 'portals' || w === 'medieval') setWalls(w); } catch (e) {}
 window.__setWalls = setWalls;
 ceil.rotation.x = Math.PI / 2; ceil.position.y = H; room.add(ceil);
 // ceiling beam grid (dark industrial)
@@ -568,7 +572,22 @@ lavaMat.onBeforeCompile = sh => { Object.assign(sh.uniforms, lavaU);
     stone *= 0.75 + 0.35 * smoothstep(0.95, 0.5, d);                                       // edges sink toward the lava: raised look
     stone += vec3(0.5, 0.12, 0.02) * smoothstep(0.7, 0.96, d) * 0.3;                       // heat glow on the rim
     diffuseColor.rgb = mix(lava, stone, rock);`); };
-const floorMats = { carpet: carpet.material, checkers: checkMat, lava: lavaMat };
+// COBBLE (t230): medieval cobblestones - world-space Voronoi stones (3x3 cell search), rounded tops, dark gritty joints, worn warm/grey tones
+const cobbleMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.8, metalness: 0.05 });
+cobbleMat.onBeforeCompile = sh => { floorWP(sh, `float ch(vec2 p){ return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+    vec2 ch2(vec2 p){ return fract(sin(vec2(dot(p, vec2(127.1, 311.7)), dot(p, vec2(269.5, 183.3)))) * 43758.5453); }`);
+  sh.fragmentShader = sh.fragmentShader.replace('#include <map_fragment>', `vec2 cp = vFW.xz * 2.6; vec2 ci = floor(cp), cf = fract(cp); float d1 = 8.0, d2 = 8.0; vec2 cid = vec2(0.0);
+    for (int j = -1; j <= 1; j++) for (int i = -1; i <= 1; i++) { vec2 o = vec2(float(i), float(j)), r = o + 0.15 + 0.7 * ch2(ci + o) - cf; float d = dot(r, r);
+      if (d < d1) { d2 = d1; d1 = d; cid = ci + o; } else if (d < d2) d2 = d; }
+    float e = sqrt(d2) - sqrt(d1), joint = smoothstep(0.05, 0.16, e), dome = smoothstep(0.0, 0.5, e);
+    float h = ch(cid), gr = ch(floor(vFW.xz * 40.0));
+    vec3 stn = mix(vec3(0.20, 0.19, 0.18), vec3(0.30, 0.25, 0.19), h) * (0.75 + 0.25 * ch(cid + 3.0));
+    stn *= 0.7 + 0.45 * dome; stn *= 0.9 + 0.2 * gr;
+    diffuseColor.rgb = mix(vec3(0.03, 0.028, 0.025), stn, joint); float fCb = joint * (0.5 + 0.5 * dome);`)
+    .replace('#include <emissivemap_fragment>', 'totalEmissiveRadiance = diffuseColor.rgb * 0.45 * fCb;')
+    .replace('#include <roughnessmap_fragment>', '#include <roughnessmap_fragment>\n roughnessFactor = mix(1.0, 0.55, fCb * dome);'); };   // stones a little self-lit (readable under the neon), tops slightly polished by feet
+cobbleMat.emissive.setHex(0xffffff);
+const floorMats = { carpet: carpet.material, checkers: checkMat, lava: lavaMat, cobble: cobbleMat };
 for (const m of [carpet, carpet2]) m.onBeforeRender = () => { lavaU.uT.value = performance.now() / 1000 % 1000; };
 // with the carpet on, the reflector / hex overlay only cover the hallway (room 1 no longer pays for a mirror pass there)
 let floorMode = 'neon';
@@ -586,7 +605,7 @@ try { const f = localStorage.getItem(FLOOR_KEY); if (floorMats[f]) setFloor(f); 
 window.__setFloor = setFloor;   // the start screen's Options menu calls this
 // pre-compile the CHECKERS / LAVA shaders a few seconds after load so the first tap on those tiles doesn't stall the phone
 setTimeout(() => { try { const m0 = carpet.material, v0 = carpet.visible; carpet.visible = true;
-  for (const m of [checkMat, lavaMat]) if (m !== m0) { carpet.material = m; renderer.compile(scene, camera); }
+  for (const m of [checkMat, lavaMat, cobbleMat]) if (m !== m0) { carpet.material = m; renderer.compile(scene, camera); }
   carpet.material = m0; carpet.visible = v0; } catch (e) {} }, 4000);
 
 // which room is the camera in, and can it see the other one through a doorway?

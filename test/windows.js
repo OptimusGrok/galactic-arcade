@@ -11,7 +11,7 @@ const { open } = require('./lib'); const PH = process.argv[2] === 'phone', sfx =
   chk(mg.walls === 'current' && mg.win === 'jungle' && mg.lsW === 'current' && mg.lsN === 'jungle' && mg.on, 'old walls=windows migrates to walls current + window jungle ' + JSON.stringify(mg));
   // menu: WINDOW tab with 3 tiles that fit; walls tab has 3 tiles (no WINDOWS)
   const T = await page.evaluate(() => { const U = window.__startUI, opt = U.opt; return { wl: [...opt.querySelectorAll('.wlT')].map(e => e.dataset.walls), wn: [...opt.querySelectorAll('.wnT')].map(e => e.dataset.win), tab: !!opt.querySelector('#tabWin') }; });
-  chk(T.tab && T.wl.join() === 'current,viking,portals' && T.wn.join() === 'space,jungle,beach', 'WINDOW tab (space, jungle, beach); walls are current, viking, portals ' + JSON.stringify(T));
+  chk(T.tab && T.wl.join() === 'current,viking,portals,medieval' && T.wn.join() === 'space,jungle,beach', 'WINDOW tab (space, jungle, beach); walls are current, viking, portals, medieval ' + JSON.stringify(T));
   // in game via the HUD button: tickets, fit, shot
   await page.evaluate(() => { localStorage.setItem('neonarcade.tickets', '3'); window.__neonSync && window.__neonSync(); window.__startUI.openOpt(false); const s = document.getElementById('start'); if (s && window.__start && !window.__start.dismissed) { window.__start.dismissed = true; s.remove(); } });
   await page.evaluate(() => window.__floorBtn.openMenu(true)); await page.waitForTimeout(400);
