@@ -28,9 +28,15 @@ export function setupMP({ scene, camera, monkey, makeMonkey, st, play, getTp, HA
   let fallback = LSg('neonarcade.mpName'); if (!fallback) { fallback = 'Monkey' + (100 + Math.floor(Math.random() * 900)); LSs('neonarcade.mpName', fallback); }
   const LOOKS = { hat: ['cap', 'crown', 'helmet', 'none'], hoodie: ['navy', 'red', 'blue', 'green', 'yellow'], fur: ['brown', 'gold', 'silver'], shoes: ['red', 'blue', 'black'] };
   function player() { let o = {}; try { o = JSON.parse(localStorage.getItem('galacticarcade.player') || '{}') || {}; } catch (e) {}
-    const n = String(o.name || '').replace(/[\u0000-\u001f<>]/g, '').trim().slice(0, 14), look = {}; for (const k in LOOKS) look[k] = LOOKS[k].includes(o[k]) ? o[k] : LOOKS[k][0]; return { name: n, look }; }
+    const n = String(o.name || '').replace(/[\u0000-\u001f<>]/g, '').trim().slice(0, 14), look = {}, ok = v => typeof v === 'string' && /^[\w-]{1,24}$/.test(v);
+    // known fields keep their defaults; new wardrobe values (new hats, glasses, ...) pass through as-is (short plain tokens only), old clients ignore them
+    for (const k in LOOKS) look[k] = LOOKS[k].includes(o[k]) || ok(o[k]) ? o[k] : LOOKS[k][0];
+    let extra = 0; for (const k in o) if (!(k in LOOKS) && k !== 'name' && /^\w{1,20}$/.test(k) && extra < 12 && (ok(o[k]) || typeof o[k] === 'number' || typeof o[k] === 'boolean')) { look[k] = o[k]; extra++; }
+    return { name: n, look }; }
   let name = player().name || fallback, look = player().look;
   setInterval(() => { const pl = player(), n = pl.name || fallback; if (n !== name || JSON.stringify(pl.look) !== JSON.stringify(look)) { name = n; look = pl.look; track(); } }, 2000);
+  // wardrobe (player.js) fires 'galacticarcade:look' on change: re-read and rebroadcast at once (presence track + a 'look' broadcast) so remote monkeys update live
+  addEventListener('galacticarcade:look', () => { const pl = player(); name = pl.name || fallback; look = pl.look; track(); if (send('look', { i: id, name, look })) M.lookSent = (M.lookSent || 0) + 1; });
   const hue = parseInt(id.slice(0, 6), 36) % 360;
   const M = window.__mp = { id, get name() { return name; }, state: 'off', reason: '', peers: new Map(), count: 1, full: false, sent: 0, recv: 0, bytes: 0, chatMuted: LSg('neonarcade.mpChatMute') === '1',
     muted: new Set(JSON.parse(LSg('neonarcade.mpMuted') || '[]')), log: [], lastChat: -1e9, emote, chat: sendChat, roomOf, CAP, CHAN, filterText, escapeHtml, cleanMsg };
@@ -117,6 +123,9 @@ body.ingame #mpPill,body.ingame #mpBar,body.ingame #mpChat,body.ingame #mpTags,b
       if (lk) { if (map[orig] != null) c.setHex(map[orig]); } else { const hsl = {}; c.getHSL(hsl); if (hsl.s > 0.25) c.setHSL((hsl.h + h / 360) % 1, hsl.s, hsl.l); } });
     if (cap) cap.visible = !lk || lk.hat === 'cap'; p.look = lk; }
   M.paint = paint;
+  function onLook(pl) { if (!pl || !pl.i || pl.i === id || !pl.look || typeof pl.look !== 'object') return; const p = M.peers.get(pl.i); if (!p) return; M.recv++;
+    paint(p, { look: pl.look }); if (pl.name) { p.name = String(pl.name).slice(0, 14); p.tag.textContent = p.name; }
+    try { if (window.__wardrobe && typeof window.__wardrobe.applyRemote === 'function') window.__wardrobe.applyRemote(p.g, pl.look); } catch (e) {} }
   function peer(pid, meta) { let p = M.peers.get(pid);
     if (!p) { const g = makeMonkey(); g.name = 'remoteMonkey_' + pid; own(g); scene.add(g); g.visible = false;
       const tag = el('div', { className: 'mpTag' }, tags); tag.addEventListener('click', e => { e.stopPropagation(); toggleMute(pid); });
@@ -168,6 +177,7 @@ body.ingame #mpPill,body.ingame #mpBar,body.ingame #mpChat,body.ingame #mpTags,b
       M.joins = (M.joins || 0) + 1;
       ch.on('presence', { event: 'sync' }, onSync)
         .on('broadcast', { event: 'st' }, m => onState(m && m.payload)).on('broadcast', { event: 'chat' }, m => onChat(m && m.payload)).on('broadcast', { event: 'emo' }, m => onEmo(m && m.payload))
+        .on('broadcast', { event: 'look' }, m => onLook(m && m.payload))
         .on('broadcast', { event: 'bye' }, m => { if (m && m.payload) drop(m.payload.i); });
       // peek at presence before taking a seat: if 10 are already in, stay solo without counting as an 11th
       ch.subscribe(async status => {
