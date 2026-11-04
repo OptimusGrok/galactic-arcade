@@ -155,20 +155,25 @@ const portalMat = new THREE.ShaderMaterial({ uniforms: portalU, vertexShader: 'v
     }` });
 portalMat.name = 'portalWalls';
 const R2_WIN = 1, R2_WALLS = [0, 2, 3];   // t235: room 2's local wall 1 (world +x, on the right as you walk in) is a window like room 1's east wall
-let stoneTex = null, gothWins = null, r2Ready = false;   // r2Ready: room 2 + hallway exist (setWalls runs once before they are built)   // MEDIEVAL walls (t230): built on first pick
+let stoneTex = null, gothWins = null, r2Ready = false, portalHallMat = null;   // r2Ready: room 2 + hallway exist (setWalls runs once before they are built)   // MEDIEVAL walls (t230): built on first pick
 function setWalls(mode) {
   wallsMode = mode === 'viking' || mode === 'portals' || mode === 'medieval' ? mode : 'current'; if (mode === 'windows') setWindow('jungle'); const v = wallsMode === 'viking', po = wallsMode === 'portals', md = wallsMode === 'medieval';
   if (md && !stoneTex) { stoneTex = stoneWallTex(THREE, renderer); stoneTex.repeat.set(4, +(H / 6).toFixed(3)); gothWins = gothicWindows(THREE, mergeGeometries, HALF, H); room.add(gothWins); }
   if (md && r2Ready && !room2.getObjectByName('gothicWindows2')) { const g2 = gothicWindows(THREE, mergeGeometries, HALF, H, R2_WALLS, gothWins); g2.name = 'gothicWindows2'; room2.add(g2); }   // t234/t235: room 2 too (shares materials; not on its right-hand window wall)
   if (gothWins) gothWins.visible = md; const g2 = r2Ready && room2.getObjectByName('gothicWindows2'); if (g2) g2.visible = md;
   if (r2Ready) ['Pink', 'Amber', 'Cyan'].forEach(n => { const b = room2.getObjectByName('wallBand' + n); if (b) b.visible = wallsMode === 'current'; });   // room 2's cloned bands follow room 1's
-  if (r2Ready) { const hm = hall.getObjectByName('hallWallW').material; if (!hm.userData.map0) hm.userData.map0 = hm.map;
+  if (r2Ready) { const hw0 = hall.getObjectByName('hallWallW'), hm = hw0.userData.mat0 || hw0.material; if (!hm.userData.map0) hm.userData.map0 = hm.map;
     if (md && !hm.userData.stone) { hm.userData.stone = stoneTex.clone(); hm.userData.stone.repeat.set(+(HALL_L / 6).toFixed(3), +(DOOR_H / 6).toFixed(3)); hm.userData.stone.needsUpdate = true; }
     hm.map = md ? hm.userData.stone : hm.userData.map0; hm.emissiveMap = md ? hm.userData.stone : null; hm.color.setHex(md ? 0x8a8078 : 0x2a1840); hm.emissive.setHex(md ? 0xffffff : 0); hm.emissiveIntensity = md ? 0.55 : 1; hm.roughness = md ? 0.95 : 0.85; hm.needsUpdate = true; }
   if (v && !vikTex) { vikTex = new THREE.TextureLoader().load('tex/viking_walls.jpg', () => spaceWin && spaceWin.dirty()); vikTex.colorSpace = THREE.SRGBColorSpace; vikTex.wrapS = THREE.RepeatWrapping; vikTex.wrapT = THREE.ClampToEdgeWrapping;
     vikTex.repeat.set(+(2 * HALF / (H * 928 / 576)).toFixed(3), 1); vikTex.anisotropy = renderer.capabilities.getMaxAnisotropy(); }   // one repeat = wall height
   wallMat.map = v ? vikTex : md ? stoneTex : wallTex; wallMat.color.setHex(v ? 0x8a7a70 : md ? 0x8a8078 : 0x2a1840); wallMat.roughness = v || md ? 0.95 : 0.85; wallMat.emissiveMap = v ? vikTex : md ? stoneTex : null; wallMat.emissive.setHex(v || md ? 0xffffff : 0x000000); wallMat.emissiveIntensity = v ? 1.6 : md ? 0.55 : 1; wallBands.forEach(m => { m.visible = !v && !po && !md }); wallMat.needsUpdate = true;   // a little dark so the neon pops
-  for (let i = 0; i < 4; i++) { const w = room.getObjectByName('wall' + i); if (w) { w.material = po ? portalMat : wallMat; w.onBeforeRender = po ? () => { portalU.uT.value = performance.now() / 1000; } : () => {}; } }
+  const tick = po ? () => { portalU.uT.value = performance.now() / 1000; } : () => {};
+  for (let i = 0; i < 4; i++) { const w = room.getObjectByName('wall' + i); if (w) { w.material = po ? portalMat : wallMat; w.onBeforeRender = tick; } }
+  if (r2Ready) {   // t253: PORTALS in room 2 (same shader + clock; its window wall stays a window) and the hallway (own uv scale, shared uniforms)
+    for (const i of R2_WALLS) { const w = room2.getObjectByName('wall' + i); if (w) { w.material = po ? portalMat : wallMat; w.onBeforeRender = tick; } }
+    if (po && !portalHallMat) { portalHallMat = portalMat.clone(); portalHallMat.uniforms = portalU; portalHallMat.vertexShader = portalMat.vertexShader.replace((2 * HALF).toFixed(1), HALL_L.toFixed(2)).replace('uv.y * ' + H.toFixed(2), 'uv.y * ' + DOOR_H.toFixed(2)); portalHallMat.name = 'portalWallsHall'; }
+    for (const n of ['hallWallW', 'hallWallE']) { const w = hall.getObjectByName(n); if (!w) continue; if (!w.userData.mat0) w.userData.mat0 = w.material; w.material = po ? portalHallMat : w.userData.mat0; w.onBeforeRender = tick; } }
   if (spaceWin) spaceWin.dirty();
   try { localStorage.setItem(WALLS_KEY, wallsMode); } catch (e) {}
   return wallsMode;
