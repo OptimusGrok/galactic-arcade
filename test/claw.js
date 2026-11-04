@@ -51,7 +51,8 @@ const PHONE = process.argv[2] === 'phone', sfx = PHONE ? '_phone' : '';
   const n0 = (await H.state()).need; await H.insert(); const r = await H.state(); const c2 = await page.evaluate(() => window.__arcade.play.machines.claw.credits);
   const bt = await page.evaluate(() => document.getElementById('bTicket').textContent);
   chk(r.tickets === 0 && c2 === 0 && r.need > n0 && /NEED A TICKET/.test(bt), 'refuses at 0 tickets: ' + bt);
-  if (PHONE) await page.tap('#bExit'); else await page.click('#bExit'); await page.waitForFunction(() => window.__arcade.play.mode === 'walk', null, { timeout: 30000 }).catch(() => {});
+  if (PHONE) await page.tap('#bExit'); else await page.click('#bExit'); await page.waitForFunction(() => window.__arcade.play.mode === 'walk', null, { timeout: 120000 }).catch(() => {});   // zoom-out is frame-stepped (dt capped at 50 ms): ~28 frames, which a loaded headless box renders at ~1 fps
+  await page.waitForTimeout(1200); await page.screenshot({ path: 'shots/claw_exit' + sfx + '.png' });
   chk(await page.evaluate(() => window.__arcade.play.mode === 'walk' && !(document.getElementById('game') && document.getElementById('game').classList.contains('on'))), 'EXIT returns to the arcade');
   chk(errors.length === 0, 'no page errors ' + errors.slice(0, 3).join(' | '));
   await close(); process.exit(ok ? 0 : 1);
