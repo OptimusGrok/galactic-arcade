@@ -28,8 +28,9 @@ const OUT = '/workspace/galactic-shop/shots/';
   chk(a.go && a.val === 'wasd Dave Ro' && a.name === 'wasd Dave Ro', 'typed name (WASD letters) shows PLAY, capped at 12', a);
   chk(a.pos.join() === p0.join() && !a.dis, 'typing did not move the monkey or start the game', a.pos);
   // choices by tapping swatches / arrows
-  console.log('tapping crown'); await tap('.gaRow[data-k=hat] .gaO[data-v=crown]'); console.log('ok'); await tap('.gaRow[data-k=hoodie] .gaO[data-v=red]'); await tap('.gaRow[data-k=fur] .gaO[data-v=gold]');
-  await tap('.gaRow[data-k=shoes] .gaA[data-step="1"]');
+  // start screen has only the 3-hoodie row (Dave); hat/fur/shoes come from a saved look (wardrobe), set here via pick()
+  await tap('.gaRow[data-k=hoodie] .gaO[data-v=red]'); chk(await page.evaluate(() => document.querySelectorAll('#gaP .gaRow').length === 1 && document.querySelectorAll('#gaP .gaO').length === 3), 'start screen: only the 3 hoodie colours');
+  await page.evaluate(() => { const g = window.__gaPlayer; g.pick('hat', 'crown'); g.pick('fur', 'gold'); g.pick('shoes', 'blue'); });
   const r0 = await page.evaluate(() => window.__gaPlayer.prev.want); await tap('#gaR'); const r1 = await page.evaluate(() => window.__gaPlayer.prev.want);
   chk(r1 - r0 > 0.7, 'right arrow rotates the preview');
   await page.waitForTimeout(800); await page.screenshot({ path: OUT + 'start_named.png' });
@@ -50,7 +51,7 @@ const OUT = '/workspace/galactic-shop/shots/';
   a = await st(); L = await look();
   chk(a.val === 'wasd Dave Ro' && !a.go && L.crown && L.cols['1d2452'] === 'd42a2a' && L.cols['4e2a14'] === 'b7862a' && L.cols['8a1e2c'] === '1f4fbf', 'after reload: name pre-filled, look re-applied, PLAY waits for a touch', { a, L });
   await tap('#gaT'); await page.waitForTimeout(2300); a = await st(); chk(a.go, 'after reload: touch + 2 s shows PLAY', a);
-  await tap('.gaRow[data-k=hat] .gaO[data-v=helmet]'); L = await look(); chk(L.helmet && !L.crown && !L.cap, 'helmet works'); await page.evaluate(() => document.querySelector('.gaRow[data-k=hat] .gaO[data-v=none]').scrollIntoView({ inline: 'center', block: 'nearest' })); await page.waitForTimeout(300); await tap('.gaRow[data-k=hat] .gaO[data-v=none]'); L = await look(); chk(!L.helmet && !L.crown && !L.cap, 'no hat works');
+  await page.evaluate(() => window.__gaPlayer.pick('hat', 'helmet')); L = await look(); chk(L.helmet && !L.crown && !L.cap, 'helmet (saved look) works on the start monkey');
   chk(errors.length === 0, 'no page errors', errors);
   await o.close(); process.exit(ok ? 0 : 1);
 })();

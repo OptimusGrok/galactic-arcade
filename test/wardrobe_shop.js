@@ -1,0 +1,52 @@
+// Shop-only wardrobe items (t606u): start screen hides them; in-game wardrobe shows them locked with a ticket price;
+// tap = preview + BUY; buying spends neonarcade.tickets, saves galacticarcade.wardrobeOwned, equips; too few tickets = disabled.
+// Screenshots: wardrobe_shop_locked.png, wardrobe_shop_bought.png, wardrobe_new_items.png (montage, tiles in /tmp/wsi).
+const { open } = require('./lib'); const fs = require('fs'), { execSync } = require('child_process');
+const OUT = '/workspace/galactic-shop/shots/', SH = process.env.NOSHOTS ? 0 : 1;
+let ok = true; const chk = (c, m, x) => { console.log((c ? 'PASS ' : 'FAIL ') + m + (x !== undefined ? ' ' + JSON.stringify(x).slice(0, 300) : '')); if (!c) ok = false; };
+(async () => {
+  // 1) start screen: only the free options
+  let o = await open({ phone: true, w: 412, h: 915, start: true }), page = o.page;
+  await page.waitForSelector('#gaP .gaRow');
+  let s = await page.evaluate(() => ({ nw: document.querySelectorAll('#gaP .gaNew,#gaP .gaLk').length, rows: [...document.querySelectorAll('#gaP .gaRow')].map(r => r.dataset.k).join(), hats: document.querySelectorAll('#gaP .gaRow[data-k=hat] .gaO').length, hoods: [...document.querySelectorAll('#gaP .gaO')].map(b => b.dataset.v).join() }));
+  chk(s.nw === 0 && s.rows === 'hoodie' && s.hats === 0 && s.hoods === 'navy,red,green', 'start screen: only 3 hoodie colours, no other items', s);
+  await o.close();
+  // 2) in-game wardrobe
+  o = await open({ phone: true, w: 412, h: 915 }); page = o.page; const { errors } = o;
+  const T = n => page.evaluate(n => { window.__arcade.play.tickets.total = n; localStorage.setItem('neonarcade.tickets', String(n)); document.getElementById('tixN').textContent = n; }, n);
+  await T(5); await page.evaluate(() => window.__wardrobe.open()); await page.waitForTimeout(1500);
+  s = await page.evaluate(() => { const e = document.getElementById('gaW'); return { rows: [...e.querySelectorAll('.gaRow')].map(r => r.dataset.k).join(), locked: e.querySelectorAll('.gaNew:not(.own)').length, lk: e.querySelector('.gaRow[data-k=hat] .gaNew .gaLk').textContent }; });
+  chk(s.rows === 'hat,glasses,back,hoodie,fur,shoes' && s.locked === 20 && s.lk === '🔒15', 'in-game: 20 locked priced items + BACK row', s);
+  const tap = async sel => { const b = await page.locator(sel).first(); await b.scrollIntoViewIfNeeded(); const r = await b.boundingBox(); await page.touchscreen.tap(r.x + r.width / 2, r.y + r.height / 2); await page.waitForTimeout(400); };
+  await tap('#gaW .gaRow[data-k=back] .gaO[data-v=jetpack]');
+  s = await page.evaluate(() => ({ buy: !document.getElementById('gaWBuy').hidden, dis: document.getElementById('gaWBuyB').disabled, txt: document.getElementById('gaWBuyB').textContent, back: window.__gaPlayer.p.back }));
+  chk(s.buy && s.dis && s.txt === 'Need 30 tickets' && s.back === 'none', 'too few tickets: preview + disabled "Need 30 tickets", nothing equipped', s);
+  await tap('#gaWBuyB'); s = await page.evaluate(() => ({ t: window.__arcade.play.tickets.total, own: window.__gaPlayer.owned() }));
+  chk(s.t === 5 && s.own.length === 0, 'disabled BUY spends nothing', s);
+  await T(100); await tap('#gaW .gaRow[data-k=hat] .gaO[data-v=tophat]'); await page.waitForTimeout(800);
+  if (SH) await page.screenshot({ path: OUT + 'wardrobe_shop_locked.png' });
+  s = await page.evaluate(() => document.getElementById('gaWBuyB').textContent); chk(s === 'BUY 15 🎟', 'BUY 15 shown', s);
+  await tap('#gaWBuyB');
+  await tap('#gaW .gaRow[data-k=back] .gaO[data-v=jetpack]'); await tap('#gaWBuyB');
+  s = await page.evaluate(() => ({ t: window.__arcade.play.tickets.total, ls: localStorage.getItem('neonarcade.tickets'), hud: document.getElementById('tixN').textContent, p: window.__gaPlayer.p, own: JSON.parse(localStorage.getItem('galacticarcade.wardrobeOwned')), save: JSON.parse(localStorage.getItem('galacticarcade.player')) }));
+  chk(s.t === 55 && s.ls === '55' && s.hud === '55', 'buying top hat (15) + jetpack (30): 100 -> 55 tickets, HUD updated', s);
+  chk(s.p.hat === 'tophat' && s.p.back === 'jetpack' && s.save.back === 'jetpack' && s.own.join() === 'hat:tophat,back:jetpack', 'equipped, saved, ownership stored', s);
+  const vis = await page.evaluate(() => { let h = 0, b = 0; window.__arcade.monkey.traverse(x => { if (x.name === 'gaHat_tophat' && x.visible) h = 1; if (x.name === 'gaBk_jetpack' && x.visible) b = 1; }); return h && b; });
+  chk(vis, 'the in-room monkey wears the top hat + jetpack');
+  await page.evaluate(() => { const p = window.__gaPlayer.prev; p.auto = false; p.want = p.rot = 2.4; }); await page.waitForTimeout(900);
+  if (SH) await page.screenshot({ path: OUT + 'wardrobe_shop_bought.png' });
+  // montage tiles: neutral lighting (no magenta/cyan rim lights)
+  if (SH) { fs.mkdirSync('/tmp/wsi', { recursive: true }); execSync('rm -f /tmp/wsi/*.png');
+    await page.evaluate(() => { window.__gaPlayer.prev.scene.children.forEach(l => { if (l.isPointLight) l.intensity = 0; }); });
+    const N = await page.evaluate(() => window.__gaPlayer.NEW); let i = 0;
+    for (const k of ['hat', 'glasses', 'back', 'hoodie']) for (const it of N[k]) {
+      await page.evaluate(([k, v]) => { const G = window.__gaPlayer, p = G.prev; G.tryOn(k, v); p.auto = false; p.want = p.rot = k === 'back' ? 2.5 : (k === 'glasses' ? 0.35 : 0.5); }, [k, it[0]]); await page.waitForTimeout(700);
+      await page.locator('#gaWStage').screenshot({ path: '/tmp/wsi/' + String(i++).padStart(2, '0') + '_' + k + '_' + it[0] + '.png' }); } }
+  await page.evaluate(() => window.__wardrobe.close());
+  // 3) reload: owned stays, saved look still worn; start screen still has no shop items
+  await page.reload(); await page.waitForFunction(() => window.__arcade && window.__arcade.stats.frames > 3 && window.__gaPlayer, null, { timeout: 90000 });
+  s = await page.evaluate(() => { window.__wardrobe.open(); const e = document.getElementById('gaW'); return { p: window.__gaPlayer.p, own: e.querySelectorAll('.gaNew.own').length }; });
+  chk(s.p.hat === 'tophat' && s.p.back === 'jetpack' && s.own === 2, 'after reload: owned items stay unlocked and worn', s);
+  chk(errors.length === 0, 'no page errors', errors);
+  await o.close(); process.exit(ok ? 0 : 1);
+})();

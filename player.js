@@ -11,9 +11,23 @@
   var FUR = [['brown', 0x4e2a14, 0xd9a779], ['gold', 0xb7862a, 0xf3d79a], ['silver', 0x8d939c, 0xe4e7ec], ['black', 0x1c1a1c, 0x8a7a70], ['white', 0xeeeae2, 0xffe0cf], ['ginger', 0xc4561c, 0xf6c08a], ['pink', 0xe86aa8, 0xffd0e4], ['blue', 0x3a6ad8, 0xc8dcff]];
   var SHOE = [['red', 0x8a1e2c, 0xf1e8d6], ['blue', 0x1f4fbf, 0xeaf0ff], ['black', 0x1a1a1e, 0x4a4a52], ['white', 0xf2f2f4, 0xd03040], ['green', 0x1f9a3a, 0xe8ffe8], ['pink', 0xff5fb4, 0xffffff], ['gold', 0xd9a51c, 0x2a1a08], ['purple', 0x6a24c4, 0x00e5ff]];
   var GLAS = [['none', '✕'], ['shades', '<svg viewBox="0 0 40 20" width="34" height="17"><path d="M2 5h36" stroke="#ccc" stroke-width="2"/><ellipse cx="11" cy="10" rx="9" ry="6" fill="#111" stroke="#ccc" stroke-width="1.5"/><ellipse cx="29" cy="10" rx="9" ry="6" fill="#111" stroke="#ccc" stroke-width="1.5"/></svg>'], ['round', '<svg viewBox="0 0 40 20" width="34" height="17"><circle cx="11" cy="10" r="7" fill="#cfeeff44" stroke="#ffc640" stroke-width="2.2"/><circle cx="29" cy="10" r="7" fill="#cfeeff44" stroke="#ffc640" stroke-width="2.2"/><path d="M18 9h4" stroke="#ffc640" stroke-width="2"/></svg>'], ['visor', '<svg viewBox="0 0 40 20" width="34" height="17"><rect x="2" y="4" width="36" height="12" rx="6" fill="#00e5ff" stroke="#fff" stroke-width="1.5"/></svg>']];
-  var OPTS = { hat: HATS, glasses: GLAS, hoodie: HOOD, fur: FUR, shoes: SHOE };
-  function load() { var d = { name: '', hat: 'cap', hoodie: 'navy', fur: 'brown', shoes: 'red', glasses: 'none' }; try { var o = JSON.parse(localStorage.getItem(KEY) || '{}'); for (var k in d) if (typeof o[k] === 'string') d[k] = o[k]; } catch (e) {}
-    for (var k2 in OPTS) if (!OPTS[k2].some(function (a) { return a[0] === d[k2]; })) d[k2] = OPTS[k2][0][0]; d.name = clean(d.name); return d; }
+  var BACK = [['none', '✕']];
+  // shop-only items (t606u): bought for tickets in the in-game wardrobe (shop's wardrobe corner), never listed on the start screen.
+  // Each entry: [id, icon(, hex1, hex2 for hoodies)]; price per row in PRICE. Ownership: 'galacticarcade.wardrobeOwned' = ["hat:tophat", ...].
+  var NEW = { hat: [['tophat', '🎩'], ['wizard', '🧙'], ['viking', '🛡️'], ['chef', '👨\u200d🍳'], ['bunny', '🐰'], ['propeller', '🚁']],
+    glasses: [['monocle', '🧐'], ['heart', '💗'], ['star', '⭐'], ['3d', '<b style="font:900 13px Arial"><span style="color:#ff3030">3</span><span style="color:#30c8ff">D</span></b>'], ['mustache', '🥸'], ['mask', '🥷']],
+    back: [['jetpack', '🚀'], ['cape', '🦸'], ['wings', '🪽'], ['batwings', '🦇']],
+    hoodie: [['galaxy', 0x2a1470, 0x160a40], ['lime', 0x86e02a, 0x4a8a10], ['maroon', 0x6e1430, 0x3c0818], ['sky', 0x6cc8ff, 0x2a7ab8]] };
+  var PRICE = { hat: 15, glasses: 10, back: 30, hoodie: 10 }, OKEY = 'galacticarcade.wardrobeOwned';
+  var BASE = { hat: HATS, glasses: GLAS, hoodie: HOOD, fur: FUR, shoes: SHOE }, OPTS = {};
+  var START = { hoodie: [HOOD[0], HOOD[1], HOOD[3]] };   // t: Dave "start screen only 3 hoodie colours, no other items" (navy default, red, green)
+  for (var bk in BASE) OPTS[bk] = BASE[bk].concat(NEW[bk] || []); OPTS.back = BACK.concat(NEW.back);
+  var HATS_ALL = OPTS.hat, GLAS_ALL = OPTS.glasses, HOOD_ALL = OPTS.hoodie;
+  function isNew(k, v) { return !!(NEW[k] && NEW[k].some(function (a) { return a[0] === v; })); }
+  function owned() { try { var a = JSON.parse(localStorage.getItem(OKEY) || '[]'); return Array.isArray(a) ? a : []; } catch (e) { return []; } }
+  function has(k, v) { return !isNew(k, v) || owned().indexOf(k + ':' + v) >= 0; }
+  function load() { var d = { name: '', hat: 'cap', hoodie: 'navy', fur: 'brown', shoes: 'red', glasses: 'none', back: 'none' }; try { var o = JSON.parse(localStorage.getItem(KEY) || '{}'); for (var k in d) if (typeof o[k] === 'string') d[k] = o[k]; } catch (e) {}
+    for (var k2 in OPTS) if (!OPTS[k2].some(function (a) { return a[0] === d[k2]; }) || !has(k2, d[k2])) d[k2] = OPTS[k2][0][0]; d.name = clean(d.name); return d; }
   function clean(s) { return String(s || '').replace(/[\u0000-\u001f<>]/g, '').slice(0, MAXN); }
   var P = load();
   // first paint: hide Arcade's start art/buttons before the body is even parsed, and give #start our starry backdrop
@@ -53,7 +67,7 @@
     var tip = new T.Mesh(new T.SphereGeometry(0.025, 10, 8), new T.MeshBasicMaterial({ color: 0xff3cf0, toneMapped: false })); tip.position.set(0.145, 0.39, 0); hl.add(tip);
     head.add(hl); h.helmet = hl; moreHats(T, head, h);
     var cb = cap.clone(true); cb.name = 'gaHat_capblue'; delete cb.userData.gaCap; cb.traverse(function (o) { if (o.isMesh && o.material) { var hx = o.material.color.getHex(); o.material = o.material.clone(); o.material.userData = {}; o.material.color.setHex(hx === 0xd93a82 ? 0x1a4fc0 : 0x2b7bff); } });
-    head.add(cb); h.capblue = cb; return h; }
+    head.add(cb); h.capblue = cb; newItems(T, head, h); return h; }
   // head space: skull centre y 0.15 r 0.18 (top ~0.333), face +z, eyes y 0.165 z ~0.22, ears x +-0.2. Every hat sits ON/above the skull top.
   function std(T, c, o) { return new T.MeshStandardMaterial(Object.assign({ color: c, roughness: 0.6 }, o || {})); }
   function add(g, geo, m, x, y, z, sx, sy, sz) { var e = new g.T.Mesh(geo, m); e.position.set(x || 0, y || 0, z || 0); if (sx) e.scale.set(sx, sy, sz); g.add(e); return e; }
@@ -98,15 +112,62 @@
     [-0.045, 0.045].forEach(function (y) { add(g, new T.CylinderGeometry(0.258, 0.258, 0.012, 32, 1, true, -0.95, 1.9), wt, 0, 0.17 + y, -0.01).material.side = T.DoubleSide; });
     [-1, 1].forEach(function (sd) { add(g, new T.SphereGeometry(0.034, 12, 10), wt, Math.sin(0.95) * 0.255 * sd, 0.17, Math.cos(0.95) * 0.255 - 0.01); });
     add(g, new T.CylinderGeometry(0.212, 0.212, 0.03, 28, 1, true, 0.95, Math.PI * 2 - 1.9), fr, 0, 0.17, -0.01).material.side = T.DoubleSide; }
-  var HAT3D = ['capblue', 'crown', 'helmet', 'beanie', 'cowboy', 'party', 'pirate', 'halo', 'headphones'];
+  // ---------- shop-only items: low-poly (few segments, shared materials) ----------
+  function newItems(T, head, h) { var HALF = Math.PI / 2, g, m, G = h.gl;
+    var blk = std(T, 0x16161c, { roughness: 0.5 }), red = std(T, 0xc81e2a), wh = std(T, 0xf4f4f0, { roughness: 0.7 }), gd = std(T, 0xffc640, { metalness: 1, roughness: 0.3, emissive: 0x402800 });
+    g = h.tophat = grp(T, head, 'gaHat_tophat'); add(g, new T.CylinderGeometry(0.27, 0.27, 0.02, 20), blk, 0, 0.3, 0); add(g, new T.CylinderGeometry(0.15, 0.15, 0.26, 20), blk, 0, 0.43, 0);
+    add(g, new T.CylinderGeometry(0.153, 0.153, 0.045, 20, 1, true), red, 0, 0.33, 0);
+    g = h.wizard = grp(T, head, 'gaHat_wizard'); g.rotation.z = 0.12; var wz = std(T, 0x3a2bb8, { emissive: 0x0a0630 }), ws = new T.MeshBasicMaterial({ color: 0xffe14a, toneMapped: false });
+    add(g, new T.CylinderGeometry(0.31, 0.31, 0.018, 20), wz, 0, 0.29, 0); add(g, new T.ConeGeometry(0.17, 0.46, 16), wz, 0, 0.52, 0);
+    [[0.08, 0.45, 0.12], [-0.06, 0.6, 0.08], [0.03, 0.36, 0.16]].forEach(function (q) { add(g, new T.OctahedronGeometry(0.03), ws, q[0], q[1], q[2]); });
+    g = h.viking = grp(T, head, 'gaHat_viking'); var st = std(T, 0x9aa3ad, { metalness: 0.8, roughness: 0.35 }), hn = std(T, 0xf0e6cc, { roughness: 0.6 });
+    add(g, new T.SphereGeometry(0.2, 18, 9, 0, Math.PI * 2, 0, HALF), st, 0, 0.21, 0, 1, 0.95, 1.04); m = add(g, new T.TorusGeometry(0.2, 0.018, 6, 20), gd, 0, 0.22, 0); m.rotation.x = HALF;
+    [-1, 1].forEach(function (sd) { m = add(g, new T.ConeGeometry(0.045, 0.22, 8), hn, 0.23 * sd, 0.36, 0); m.rotation.z = -0.9 * sd; });
+    g = h.chef = grp(T, head, 'gaHat_chef'); add(g, new T.CylinderGeometry(0.17, 0.165, 0.14, 18), wh, 0, 0.36, 0);
+    [[0, 0.5, 0, 0.13], [0.1, 0.47, 0.05, 0.1], [-0.1, 0.47, 0.05, 0.1], [0, 0.47, -0.1, 0.1]].forEach(function (q) { add(g, new T.SphereGeometry(q[3], 12, 8), wh, q[0], q[1], q[2]); });
+    g = h.bunny = grp(T, head, 'gaHat_bunny'); var bw = std(T, 0xf6f0f4, { roughness: 0.9 }), bp = std(T, 0xff9cc8, { roughness: 0.9 });
+    add(g, new T.TorusGeometry(0.2, 0.014, 6, 20, Math.PI), std(T, 0xff5fb4), 0, 0.15, 0);
+    [-1, 1].forEach(function (sd) { var e = new T.Group(); e.position.set(0.09 * sd, 0.32, 0); e.rotation.z = -0.22 * sd; g.add(e); e.T = T;
+      add(e, new T.SphereGeometry(0.06, 10, 8), bw, 0, 0.17, 0, 0.75, 2.6, 0.45); add(e, new T.SphereGeometry(0.035, 8, 6), bp, 0, 0.17, 0.02, 0.75, 2.6, 0.4); });
+    g = h.propeller = grp(T, head, 'gaHat_propeller'); var pb = std(T, 0x2b62e8), py = std(T, 0xf2c418), pr = std(T, 0xd42a2a);
+    add(g, new T.SphereGeometry(0.192, 18, 9, 0, Math.PI * 2, 0, HALF), pb, 0, 0.2, -0.005, 1, 0.95, 1.04); add(g, new T.CylinderGeometry(0.012, 0.012, 0.09, 6), py, 0, 0.42, 0);
+    m = add(g, new T.BoxGeometry(0.34, 0.008, 0.05), pr, 0, 0.465, 0); m.rotation.y = 0.5; m.name = 'gaProp';
+    // glasses & face (same slot as the glasses row)
+    var arms = function (g, mat) { [-1, 1].forEach(function (sd) { add(g, new T.BoxGeometry(0.012, 0.012, 0.2), mat, 0.158 * sd, 0.18, 0.14); }); };
+    g = G.monocle = grp(T, head, 'gaGl_monocle'); add(g, new T.TorusGeometry(0.05, 0.009, 6, 20), gd, 0.068, 0.17, 0.245); add(g, new T.CircleGeometry(0.048, 16), new T.MeshStandardMaterial({ color: 0xcfeeff, transparent: true, opacity: 0.35, depthWrite: false }), 0.068, 0.17, 0.244);
+    m = add(g, new T.CylinderGeometry(0.003, 0.003, 0.2, 4), gd, 0.11, 0.07, 0.24); m.rotation.z = 0.3;
+    var heartGeo = (function () { var sh = new T.Shape(); sh.moveTo(0, -0.04); sh.bezierCurveTo(-0.06, 0, -0.05, 0.05, 0, 0.025); sh.bezierCurveTo(0.05, 0.05, 0.06, 0, 0, -0.04); return new T.ShapeGeometry(sh, 4); })();
+    var starGeo = (function () { var sh = new T.Shape(); for (var i = 0; i < 10; i++) { var a = i / 10 * Math.PI * 2, r = i % 2 ? 0.022 : 0.052; sh[i ? 'lineTo' : 'moveTo'](Math.sin(a) * r, Math.cos(a) * r); } return new T.ShapeGeometry(sh); })();
+    g = G.heart = grp(T, head, 'gaGl_heart'); var hm = std(T, 0xff2b8a, { emissive: 0x500020, side: T.DoubleSide }); [-1, 1].forEach(function (sd) { add(g, heartGeo, hm, 0.068 * sd, 0.172, 0.248, 1.25, 1.25, 1); }); add(g, new T.BoxGeometry(0.05, 0.01, 0.01), hm, 0, 0.19, 0.247); arms(g, hm);
+    g = G.star = grp(T, head, 'gaGl_star'); var sm = std(T, 0xffd21a, { emissive: 0x504000, side: T.DoubleSide }); [-1, 1].forEach(function (sd) { add(g, starGeo, sm, 0.07 * sd, 0.172, 0.248, 1.15, 1.15, 1); }); add(g, new T.BoxGeometry(0.05, 0.01, 0.01), sm, 0, 0.19, 0.247); arms(g, sm);
+    g = G['3d'] = grp(T, head, 'gaGl_3d'); var fw = std(T, 0xf4f4f0); add(g, new T.BoxGeometry(0.3, 0.085, 0.012), fw, 0, 0.172, 0.243);
+    add(g, new T.PlaneGeometry(0.1, 0.06), new T.MeshBasicMaterial({ color: 0xff2020, transparent: true, opacity: 0.85 }), -0.068, 0.172, 0.25); add(g, new T.PlaneGeometry(0.1, 0.06), new T.MeshBasicMaterial({ color: 0x20c0ff, transparent: true, opacity: 0.85 }), 0.068, 0.172, 0.25); arms(g, fw);
+    g = G.mustache = grp(T, head, 'gaGl_mustache'); var mu = std(T, 0x2a160a, { roughness: 0.9 }); [-1, 1].forEach(function (sd) { m = add(g, new T.SphereGeometry(0.045, 10, 6), mu, 0.045 * sd, 0.085, 0.27, 1.3, 0.45, 0.6); m.rotation.z = 0.35 * sd; });
+    g = G.mask = grp(T, head, 'gaGl_mask'); var mk = std(T, 0x18181e, { roughness: 0.8, side: T.DoubleSide }); add(g, new T.CylinderGeometry(0.205, 0.205, 0.065, 20, 1, true), mk, 0, 0.17, 0);
+    [-1, 1].forEach(function (sd) { m = add(g, new T.BoxGeometry(0.03, 0.12, 0.01), mk, 0.05 * sd, 0.15, -0.21); m.rotation.z = 0.4 * sd; });
+    // backs & extras: on the torso (head.parent.parent), behind the shoulders (-z)
+    var torso = head.parent && head.parent.parent || head; torso.children.filter(function (o) { return /^gaBk/.test(o.name); }).forEach(function (o) { torso.remove(o); });
+    var B = {}; Object.defineProperty(h, 'bk', { value: B, enumerable: false, configurable: true }); var bg = function (n) { var q = new T.Group(); q.name = 'gaBk_' + n; q.T = T; q.position.set(0, 0.3, -0.3); torso.add(q); return q; };
+    g = B.jetpack = bg('jetpack'); var jm = std(T, 0xb8c0cc, { metalness: 0.7, roughness: 0.35 }), jr = std(T, 0xd42a2a), fl = new T.MeshBasicMaterial({ color: 0xff8a1a, transparent: true, opacity: 0.85, toneMapped: false });
+    [-1, 1].forEach(function (sd) { add(g, new T.CylinderGeometry(0.07, 0.07, 0.3, 10), jm, 0.08 * sd, 0, -0.05); add(g, new T.ConeGeometry(0.07, 0.08, 10), jr, 0.08 * sd, 0.19, -0.05);
+      m = add(g, new T.ConeGeometry(0.05, 0.16, 8), fl, 0.08 * sd, -0.24, -0.05); m.rotation.x = Math.PI; m.name = 'gaFlame'; });
+    add(g, new T.BoxGeometry(0.14, 0.2, 0.05), std(T, 0x303038), 0, 0, 0);
+    g = B.cape = bg('cape'); var cp = std(T, 0xd42a2a, { side: T.DoubleSide, roughness: 0.7 }); m = add(g, new T.PlaneGeometry(0.56, 0.95, 1, 3), cp, 0, -0.42, -0.06); m.rotation.x = 0.12;
+    add(g, new T.BoxGeometry(0.4, 0.04, 0.04), gd, 0, 0.04, 0.02);
+    var wingGeo = (function () { var sh = new T.Shape(); sh.moveTo(0, 0); sh.bezierCurveTo(0.15, 0.25, 0.4, 0.3, 0.45, 0.18); sh.bezierCurveTo(0.38, 0.1, 0.42, -0.02, 0.32, -0.08); sh.bezierCurveTo(0.25, -0.2, 0.1, -0.15, 0, 0); return new T.ShapeGeometry(sh, 6); })();
+    var batGeo = (function () { var sh = new T.Shape(); sh.moveTo(0, 0.05); sh.lineTo(0.2, 0.22); sh.lineTo(0.46, 0.18); sh.lineTo(0.4, 0.02); sh.lineTo(0.32, -0.08); sh.lineTo(0.22, 0.0); sh.lineTo(0.14, -0.1); sh.lineTo(0.06, -0.02); sh.lineTo(0, -0.05); return new T.ShapeGeometry(sh); })();
+    [['wings', wingGeo, std(T, 0xf8f8ff, { side: T.DoubleSide, emissive: 0x303040 })], ['batwings', batGeo, std(T, 0x2a1838, { side: T.DoubleSide, roughness: 0.6 })]].forEach(function (w) {
+      g = B[w[0]] = bg(w[0]); [-1, 1].forEach(function (sd) { m = add(g, w[1], w[2], 0.06 * sd, 0.05, -0.04, 1.5 * sd, 1.5, 1); m.rotation.y = -0.45 * sd; }); });
+  }
+  var HAT3D = ['capblue', 'crown', 'helmet', 'beanie', 'cowboy', 'party', 'pirate', 'halo', 'headphones'].concat(NEW.hat.map(function (a) { return a[0]; }));
   function applyRoot(T, root, lk) { lk = lk || P; var cap = capOf(root); if (!cap) return; var h = hatMeshes(T, cap); cap.visible = lk.hat === 'cap';
-    HAT3D.forEach(function (k) { h[k].visible = lk.hat === k; }); for (var g in h.gl) h.gl[g].visible = lk.glasses === g; }
+    HAT3D.forEach(function (k) { h[k].visible = lk.hat === k; }); for (var g in h.gl) h.gl[g].visible = lk.glasses === g; for (var b in h.bk) h.bk[b].visible = lk.back === b; }
   // for Arcade's mp.js (optional): dress any monkey root (e.g. a remote one whose materials keep userData.orig) in a look object
-  function dress(root, lk) { var A = window.__arcade; if (!A || !root || !lk) return; var T = A.THREE, map = {}, ho = find(HOOD, lk.hoodie), fu = find(FUR, lk.fur), sh = find(SHOE, lk.shoes);
+  function dress(root, lk) { var A = window.__arcade; if (!A || !root || !lk) return; var T = A.THREE, map = {}, ho = find(HOOD_ALL, lk.hoodie), fu = find(FUR, lk.fur), sh = find(SHOE, lk.shoes);
     map[0x1d2452] = ho[1]; map[0x141a3a] = ho[2]; map[0x4e2a14] = fu[1]; map[0xd9a779] = fu[2]; map[0x8a1e2c] = sh[1]; map[0xf1e8d6] = sh[2];
     root.traverse(function (o) { if (!o.isMesh || !o.material || !o.material.color) return; var u = o.material.userData, or = u.orig != null ? u.orig : u.gaOrig; if (or != null && map[or] != null) o.material.color.setHex(map[or]); });
-    applyRoot(T, root, { hat: find(HATS, lk.hat)[0], glasses: find(GLAS, lk.glasses)[0] }); }
-  function applyMats() { if (!mats) return; var ho = find(HOOD, P.hoodie), fu = find(FUR, P.fur), sh = find(SHOE, P.shoes);
+    applyRoot(T, root, { hat: find(HATS_ALL, lk.hat)[0], glasses: find(GLAS_ALL, lk.glasses)[0], back: find(OPTS.back, lk.back)[0] }); }
+  function applyMats(L) { if (!mats) return; L = L || P; var ho = find(HOOD_ALL, L.hoodie), fu = find(FUR, L.fur), sh = find(SHOE, L.shoes);
     mats.navy.forEach(function (m) { m.color.setHex(ho[1]); }); mats.rib.forEach(function (m) { m.color.setHex(ho[2]); });
     mats.fur.forEach(function (m) { m.color.setHex(fu[1]); }); mats.tan.forEach(function (m) { m.color.setHex(fu[2]); });
     mats.maroon.forEach(function (m) { m.color.setHex(sh[1]); }); mats.cream.forEach(function (m) { m.color.setHex(sh[2]); }); }
@@ -152,7 +213,7 @@
     var cv = prev.r.domElement, w = cv.clientWidth, h = cv.clientHeight; if (!w || !h) return;
     if (cv.width !== Math.round(w * prev.r.getPixelRatio()) || cv.height !== Math.round(h * prev.r.getPixelRatio())) { prev.r.setSize(w, h, false); }
     prev.cam.aspect = w / h; var fit = Math.max(1, 0.62 / prev.cam.aspect); prev.cam.position.set(0, 1.3, 4.9 * fit); prev.cam.lookAt(0, 1.02, 0); prev.cam.updateProjectionMatrix();
-    if (prev.hat !== P.hat + P.glasses) { prev.hat = P.hat + P.glasses; applyRoot(window.__arcade.THREE, prev.root); }   // the preview always wears the chosen hat, however the pick or load happened
+    var PL = pLook(), pk = PL.hat + PL.glasses + PL.back + PL.hoodie; if (prev.hat !== pk) { prev.hat = pk; applyRoot(window.__arcade.THREE, prev.root, PL); if (W.try) applyMats(PL); }   // the preview always wears the chosen hat, however the pick or load happened
     if (prev.auto && !prev.drag) prev.want += 0.006; prev.rot += (prev.want - prev.rot) * 0.15; prev.root.rotation.y = prev.rot;
     var now = performance.now(), dt = Math.min(0.25, prev.lt ? (now - prev.lt) / 1000 : 0.016); prev.lt = now;
     if (!TP.seen && wc.id === 'gaCv') { TP.seen = true; TP.gone = false; tpStart('in'); }   // first paint of the start screen: beam in
@@ -230,14 +291,18 @@
     + '#gaWStage{position:relative;flex:1 1 auto;min-height:150px;width:100%;max-width:460px}#gaWCv{position:absolute;inset:0;width:100%;height:100%;touch-action:none;cursor:grab}'
     + '#gaWDone{flex:none;font:900 clamp(22px,7vw,32px)/1 "Arial Black",Impact,sans-serif;letter-spacing:.1em;color:#dffbff;padding:12px 48px;border-radius:14px;border:3px solid #00e5ff;background:linear-gradient(#0c1a3aee,#050a1aee);text-shadow:0 0 8px #00e5ff;box-shadow:0 0 18px #00e5ffaa;cursor:pointer}'
     + '#gaWX{position:absolute;top:max(10px,env(safe-area-inset-top));right:10px;width:44px;height:44px;border-radius:50%;border:2px solid #ff3cf0aa;background:#0a0620d9;color:#ffd0fa;font:900 22px/1 Arial;cursor:pointer}'
+    + '.gaO{position:relative}.gaLk{position:absolute;right:-3px;bottom:-5px;font:900 9px/1 Arial;font-style:normal;color:#ffd98a;background:#2a0a3a;border:1px solid #ffd98a;border-radius:6px;padding:1px 2px;pointer-events:none}.gaO.own .gaLk{display:none}.gaO.gaNew:not(.own){opacity:.8}.gaO.try{border-color:#ff3cf0;box-shadow:0 0 10px #ff3cf0}#gaW.gaSt .gaNew,#gaW.gaSt .gaRow[data-k=back]{display:none}'
+    + '#gaWBuy{flex:none;display:flex;align-items:center;gap:10px;padding:8px 12px;border:2px solid #ffd98a;border-radius:12px;background:#1a0a2ad9;font:900 14px "Courier New",monospace}#gaWBuy[hidden]{display:none}'
+    + '#gaWBuyB{font:900 16px "Arial Black",Arial;padding:9px 16px;border-radius:10px;border:2px solid #ffd98a;background:#3a1a00;color:#ffe9a8;cursor:pointer}#gaWBuyB:disabled{opacity:.55;border-color:#888;color:#bbb;background:#222;cursor:default}'
     + '@media (max-height:640px){#gaT{font-size:clamp(24px,7vw,40px);margin-top:18px}.gaRow{padding:3px 4px}.gaO{height:32px}#gaNm{padding:5px 10px}}';
   var ov = null;
-  function row(k, label) { var h = '<div class="gaRow" data-k="' + k + '"><button class="gaA" data-step="-1" aria-label="previous">‹</button><span>' + label + '</span><div class="gaCh">';
-    OPTS[k].forEach(function (o) { var face = k === 'hat' || k === 'glasses' ? o[1] : ''; var bg = k === 'hat' || k === 'glasses' ? '' : 'background:#' + ('00000' + o[1].toString(16)).slice(-6) + ';';
+  function row(k, label, shop) { var h = '<div class="gaRow" data-k="' + k + '"><button class="gaA" data-step="-1" aria-label="previous">‹</button><span>' + label + '</span><div class="gaCh">';
+    (shop ? OPTS : START)[k].forEach(function (o) { var ic = typeof o[1] === 'string', face = ic ? o[1] : ''; var bg = ic ? '' : 'background:#' + ('00000' + o[1].toString(16)).slice(-6) + ';';
+      if (shop && isNew(k, o[0])) face += '<i class="gaLk">🔒' + PRICE[k] + '</i>';
       if (k === 'shoes') bg = 'background:linear-gradient(135deg,#' + ('00000' + o[1].toString(16)).slice(-6) + ' 55%,#' + ('00000' + o[2].toString(16)).slice(-6) + ' 55%);';
-      h += '<button class="gaO" data-v="' + o[0] + '" title="' + o[0] + '" style="' + bg + '">' + face + '</button>'; });
+      h += '<button class="gaO' + (shop && isNew(k, o[0]) ? ' gaNew' : '') + '" data-v="' + o[0] + '" title="' + o[0] + '" style="' + bg + '">' + face + '</button>'; });
     return h + '</div><button class="gaA" data-step="1" aria-label="next">›</button></div>'; }
-  function rows() { return row('hat', 'HAT') + row('glasses', 'GLASSES') + row('hoodie', 'HOODIE COLOUR') + row('fur', 'FUR COLOUR') + row('shoes', 'SHOES'); }
+  function rows(shop) { if (!shop) return row('hoodie', 'HOODIE COLOUR'); return row('hat', 'HAT', shop) + row('glasses', shop ? 'GLASSES & FACE' : 'GLASSES', shop) + (shop ? row('back', 'BACK', shop) : '') + row('hoodie', 'HOODIE COLOUR', shop) + row('fur', 'FUR COLOUR', shop) + row('shoes', 'SHOES', shop); }
   function addCss() { if (document.getElementById('gaCss')) return; var sty = document.createElement('style'); sty.id = 'gaCss'; sty.textContent = css; document.head.appendChild(sty); }
   function build() { var st = document.getElementById('start'); if (!st || ov) return; addCss();
     ov = document.createElement('div'); ov.id = 'gaP';
@@ -252,27 +317,40 @@
   function stars() { var c = ov.querySelector('#gaStars'), w = c.width = 400, h = c.height = 800, g = c.getContext('2d'); for (var i = 0; i < 260; i++) { var r = Math.random(); g.fillStyle = 'rgba(255,255,255,' + (0.3 + Math.random() * 0.7) + ')'; g.fillRect(Math.random() * w, Math.random() * h, r < 0.9 ? 1 : 2, r < 0.9 ? 1 : 2); } }
   function tickets() { var n = 0; try { n = Math.max(0, parseInt(localStorage.getItem('neonarcade.tickets'), 10) || 0); } catch (e) {} var e = ov && ov.querySelector('#gaTkN'); if (e) e.textContent = n.toLocaleString('en'); }
   function syncRows(root, scroll) { [].forEach.call(root.querySelectorAll('.gaRow'), function (r) { var k = r.dataset.k; [].forEach.call(r.querySelectorAll('.gaO'), function (b) { var on = b.dataset.v === P[k]; b.classList.toggle('sel', on);
+      if (b.classList.contains('gaNew')) { b.classList.toggle('own', has(k, b.dataset.v)); b.classList.toggle('try', !!(W.try && W.try.k === k && W.try.v === b.dataset.v)); }
       if (on && scroll) { var ch = b.parentNode; if (ch.scrollWidth > ch.clientWidth) { var br = b.getBoundingClientRect(), cr = ch.getBoundingClientRect(); ch.scrollLeft += (br.left + br.width / 2) - (cr.left + cr.width / 2); } } }); }); }
   function sync(scroll) { if (W.el) syncRows(W.el, scroll); if (!ov) return; syncRows(ov, scroll);
     ov.querySelector('#gaGo').hidden = !(named() && goOK()); ov.querySelector('#gaHint').hidden = named(); }
-  function look() { return { name: P.name, hat: P.hat, hoodie: P.hoodie, fur: P.fur, shoes: P.shoes, glasses: P.glasses }; }
-  function pick(k, v) { if (!OPTS[k] || !OPTS[k].some(function (a) { return a[0] === v; })) return; P[k] = v; save(); sync(true); apply();
+  function look() { return { name: P.name, hat: P.hat, hoodie: P.hoodie, fur: P.fur, shoes: P.shoes, glasses: P.glasses, back: P.back }; }
+  function pLook() { if (!W.try || !W.open) return P; var L = Object.assign({}, P); L[W.try.k] = W.try.v; return L; }
+  function pick(k, v) { if (!OPTS[k] || !OPTS[k].some(function (a) { return a[0] === v; }) || !has(k, v)) return; if (W.try) { W.try = null; buyUI(); } P[k] = v; save(); sync(true); apply();
     try { window.dispatchEvent(new CustomEvent('galacticarcade:look', { detail: look() })); } catch (e) {} }
 
   // ---------- in-game wardrobe (window.__wardrobe.open/close): same rows, live turntable, applies + saves at once ----------
-  var W = { el: null, open: false, opens: 0 };
+  var W = { el: null, open: false, opens: 0, try: null, buys: 0 };
+  // ---------- tickets (Arcade's 'neonarcade.tickets'; same spend as shop.js: play.tickets.total + storage + the #tixN HUD chip) ----------
+  function tk() { var A = window.__arcade; return (A && A.play && A.play.tickets) || null; }
+  function balance() { var t = tk(); if (t) return t.total; return parseInt(localStorage.getItem('neonarcade.tickets'), 10) || 0; }
+  function spend(n) { var t = tk(), b = balance(); if (b < n) return false; if (t) t.total -= n; try { localStorage.setItem('neonarcade.tickets', String(b - n)); } catch (e) {}
+    var el = document.getElementById('tixN'); if (el) el.textContent = String(b - n); try { var A = window.__arcade; if (A.play.refresh) A.play.refresh(); } catch (e) {} return true; }
+  function nameOf(v) { return ({ tophat: 'TOP HAT', wizard: 'WIZARD HAT', viking: 'VIKING HELMET', chef: 'CHEF HAT', bunny: 'BUNNY EARS', propeller: 'PROPELLER CAP', monocle: 'MONOCLE', heart: 'HEART GLASSES', star: 'STAR GLASSES', '3d': '3D GLASSES', mustache: 'MUSTACHE', mask: 'NINJA MASK', jetpack: 'JETPACK', cape: 'HERO CAPE', wings: 'ANGEL WINGS', batwings: 'BAT WINGS' })[v] || (v.toUpperCase() + ' HOODIE'); }
+  function tryOn(k, v) { W.try = { k: k, v: v }; prev.hat = null; buyUI(); sync(); }
+  function buyUI() { if (!W.el) return; var bx = W.el.querySelector('#gaWBuy'); if (!W.try) { bx.hidden = true; apply(); return; } var p = PRICE[W.try.k], b = balance(), btn = W.el.querySelector('#gaWBuyB');
+    bx.hidden = false; W.el.querySelector('#gaWBuyT').textContent = nameOf(W.try.v) + ' · 🎟 ' + b; btn.disabled = b < p; btn.textContent = b < p ? 'Need ' + p + ' tickets' : 'BUY ' + p + ' 🎟'; }
+  function buy() { var t = W.try; if (!t) return false; var p = PRICE[t.k]; if (!spend(p)) { buyUI(); return false; } var o = owned(); if (o.indexOf(t.k + ':' + t.v) < 0) o.push(t.k + ':' + t.v);
+    try { localStorage.setItem(OKEY, JSON.stringify(o)); } catch (e) {} W.buys++; W.try = null; buyUI(); pick(t.k, t.v); return true; }
   function wBuild() { if (W.el) return; addCss(); var d = W.el = document.createElement('div'); d.id = 'gaW'; d.hidden = true; d.setAttribute('role', 'dialog'); d.setAttribute('aria-label', 'Wardrobe');
     d.innerHTML = '<div id="gaWT">WARDROBE</div><button id="gaWX" aria-label="close">✕</button>'
       + '<div id="gaWStage"><canvas id="gaWCv"></canvas><button class="gaAr" id="gaWL" aria-label="rotate left">‹</button><button class="gaAr" id="gaWR" aria-label="rotate right">›</button></div>'
-      + '<div class="gaBox">' + rows() + '</div><button id="gaWDone">DONE</button>';
+      + '<div class="gaBox">' + rows(1) + '</div><div id="gaWBuy" hidden><span id="gaWBuyT"></span><button id="gaWBuyB"></button></div><button id="gaWDone">DONE</button>';
     (document.body || document.documentElement).appendChild(d); }
-  function wOpen() { var A = window.__arcade; wBuild(); if (!W.el.isConnected) document.body.appendChild(W.el); W.el.hidden = false; W.open = true; W.opens++; prev.auto = true; TP.gone = false; if (TP.st === 'out') { TP.st = 'idle'; TP.cb = null; }
+  function wOpen() { var A = window.__arcade; wBuild(); if (!W.el.isConnected) document.body.appendChild(W.el); W.el.hidden = false; W.el.classList.toggle('gaSt', onStart()); W.open = true; W.opens++; prev.auto = true; TP.gone = false; if (TP.st === 'out') { TP.st = 'idle'; TP.cb = null; } W.try = null; buyUI();
     if (A && A.monkey && A.THREE) { apply(); buildScene(); } sync(true); if (!prev.raf) frame(); return true; }
-  function wClose() { if (!W.el || !W.open) return false; W.open = false; W.el.hidden = true; prev.drag = null;
+  function wClose() { if (!W.el || !W.open) return false; W.open = false; W.el.hidden = true; prev.drag = null; if (W.try) { W.try = null; apply(); prev.hat = null; }
     if (prev.r && prev.r.domElement.id === 'gaWCv') freeR();   // free the 2nd WebGL context for the game
     return true; }
   window.__wardrobe = { open: wOpen, close: wClose, applyRemote: function (root, lk) { dress(root, lk); }, get isOpen() { return W.open; }, get el() { return W.el; } };
-  function step(k, d) { var L = OPTS[k], i = 0; for (var j = 0; j < L.length; j++) if (L[j][0] === P[k]) i = j; pick(k, L[(i + d + L.length) % L.length][0]); }
+  function step(k, d, shop) { var L = (shop && !onStart() ? OPTS : shop ? BASE : START)[k].filter(function (a) { return has(k, a[0]); }), i = 0; for (var j = 0; j < L.length; j++) if (L[j][0] === P[k]) i = j; pick(k, L[(i + d + L.length) % L.length][0]); }
   function play(fast) { if (!named() || !goOK() || TP.st === 'out') return; musicStop(); P.name = clean(P.name).trim(); save(); apply(); var inp = document.getElementById('gaIn'); if (inp) inp.blur();
     var cv = ov && ov.querySelector('#gaCv'); if (prev.r && cv && prev.r.domElement === cv && cv.clientWidth && !fast && !window.__gaNoTp) { var done = 0, fin = function () { if (done++) return; TP.gone = true; go2(); }; tpStart('out', fin); setTimeout(function () { if (!done) { TP.st = 'idle'; TP.cb = null; fin(); } }, 2600); return; } go2(); }
   function go2() { var b = document.getElementById('stStart'); if (!b) return; var ev; try { ev = new PointerEvent('pointerup', { bubbles: true, cancelable: true, pointerType: 'touch' }); } catch (e) { ev = new Event('pointerup', { bubbles: true, cancelable: true }); }
@@ -337,11 +415,12 @@
     if (e.type === 'pointerup' && prev.drag) prev.drag = null;
     if (e.type === 'touchstart' && cv && e.cancelable) e.preventDefault();
     if (e.type !== 'click') return; var b;
-    if (t.closest('#gaWDone') || t.closest('#gaWX')) wClose();
+    if (t.closest('#gaWBuyB')) buy();
+    else if (t.closest('#gaWDone') || t.closest('#gaWX')) wClose();
     else if (t.closest('#gaWL')) { prev.auto = false; prev.want -= Math.PI / 4; }
     else if (t.closest('#gaWR')) { prev.auto = false; prev.want += Math.PI / 4; }
-    else if ((b = t.closest('.gaO'))) pick(b.closest('.gaRow').dataset.k, b.dataset.v);
-    else if ((b = t.closest('.gaA'))) step(b.closest('.gaRow').dataset.k, +b.dataset.step); }
+    else if ((b = t.closest('.gaO'))) { var k = b.closest('.gaRow').dataset.k; if (has(k, b.dataset.v)) pick(k, b.dataset.v); else tryOn(k, b.dataset.v); }
+    else if ((b = t.closest('.gaA'))) step(b.closest('.gaRow').dataset.k, +b.dataset.step, 1); }
   EV.forEach(function (ty) { window.addEventListener(ty, grab, { capture: true, passive: false }); });
   window.addEventListener('pointermove', function (e) { if (prev.drag) { prev.want = prev.drag.r + (e.clientX - prev.drag.x) * 0.012; } });
   window.addEventListener('pointercancel', function () { prev.drag = null; });
@@ -351,5 +430,5 @@
     var wrap = setInterval(function () { var U = window.__startUI; if (!U || !U.show || U.show.ga) return; clearInterval(wrap); var o = U.show; U.show = function () { untouch(); TP.seen = false; TP.st = 'idle'; TP.cb = null; var r = o.apply(this, arguments); tickets(); sync(); return r; }; U.show.ga = 1; }, 200); }
   var booted = false; function boot1() { if (booted) return; booted = true; boot(); }
   if (document.readyState === 'loading') { var mo = new MutationObserver(function () { if (document.getElementById('start')) { mo.disconnect(); boot1(); } }); mo.observe(document.documentElement, { childList: true, subtree: true }); document.addEventListener('DOMContentLoaded', boot1); } else boot1();   // build ours the moment #start is parsed
-  window.__gaPlayer = { KEY: KEY, get p() { return P; }, pick: pick, play: play, apply: apply, opts: OPTS, get tag() { return tag; }, get prev() { return prev; }, music: MU, dress: dress, look: look, glasses: GLAS, wardrobe: W, tp: TP };
+  window.__gaPlayer = { KEY: KEY, get p() { return P; }, pick: pick, play: play, apply: apply, opts: BASE, allOpts: OPTS, get tag() { return tag; }, get prev() { return prev; }, music: MU, dress: dress, look: look, glasses: GLAS, wardrobe: W, tp: TP, NEW: NEW, PRICE: PRICE, owned: owned, has: has, buy: buy, tryOn: tryOn, balance: balance };
 })();
