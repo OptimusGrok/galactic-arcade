@@ -22,7 +22,7 @@ const OUT = '/workspace/galactic-shop/shots/';
   await page.waitForTimeout(800); s = await state(); chk(is(s, 'crown'), 'crown still worn holding a prize', s);
   await page.evaluate(() => { localStorage.removeItem('neonarcade.held'); window.__shop.reloadPrizes(); }); await page.waitForTimeout(500); s = await state(); chk(is(s, 'crown'), 'crown still worn after unequip', s);
   // teleport sequence
-  await page.evaluate(() => { window.__tpTimeScale = 6; window.__tp.state = 'walk'; window.__tp.t = 0; });
+  await page.evaluate(() => { window.__tpTimeScale = 6; window.__tp.dest = 'shop'; window.__tp.state = 'walk'; window.__tp.t = 0; });
   await page.waitForFunction(() => window.__tp.state === 'idle', null, { timeout: 120000 }).catch(() => {});
   s = await state(); chk(is(s, 'crown'), 'crown still worn after a teleport', s);
   chk(errors.length === 0, 'no page errors', errors);

@@ -29,7 +29,7 @@ const OUT = '/workspace/galactic-shop/shots/';
   chk(a.pos.join() === p0.join() && !a.dis, 'typing did not move the monkey or start the game', a.pos);
   // choices by tapping swatches / arrows
   // start screen has only the 3-hoodie row (Dave); hat/fur/shoes come from a saved look (wardrobe), set here via pick()
-  await tap('.gaRow[data-k=hoodie] .gaO[data-v=red]'); chk(await page.evaluate(() => document.querySelectorAll('#gaP .gaRow').length === 1 && document.querySelectorAll('#gaP .gaO').length === 3), 'start screen: only the 3 hoodie colours');
+  await tap('.gaRow[data-k=hoodie] .gaO[data-v=red]'); chk(await page.evaluate(() => document.querySelectorAll('#gaP .gaRow').length === 2 && document.querySelectorAll('#gaP .gaO').length === 5), 'start screen: 2 caps + 3 hoodie colours');
   await page.evaluate(() => { const g = window.__gaPlayer; g.pick('hat', 'crown'); g.pick('fur', 'gold'); g.pick('shoes', 'blue'); });
   const r0 = await page.evaluate(() => window.__gaPlayer.prev.want); await tap('#gaR'); const r1 = await page.evaluate(() => window.__gaPlayer.prev.want);
   chk(r1 - r0 > 0.7, 'right arrow rotates the preview');

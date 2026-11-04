@@ -20,7 +20,7 @@
     hoodie: [['galaxy', 0x2a1470, 0x160a40], ['lime', 0x86e02a, 0x4a8a10], ['maroon', 0x6e1430, 0x3c0818], ['sky', 0x6cc8ff, 0x2a7ab8]] };
   var PRICE = { hat: 15, glasses: 10, back: 30, hoodie: 10 }, OKEY = 'galacticarcade.wardrobeOwned';
   var BASE = { hat: HATS, glasses: GLAS, hoodie: HOOD, fur: FUR, shoes: SHOE }, OPTS = {};
-  var START = { hoodie: [HOOD[0], HOOD[1], HOOD[3]] };   // t: Dave "start screen only 3 hoodie colours, no other items" (navy default, red, green)
+  var START = { hat: [HATS[0], HATS[1]], hoodie: [HOOD[0], HOOD[1], HOOD[3]] };   // + Dave: red (pink 'cap') or blue cap   // t: Dave "start screen only 3 hoodie colours, no other items" (navy default, red, green)
   for (var bk in BASE) OPTS[bk] = BASE[bk].concat(NEW[bk] || []); OPTS.back = BACK.concat(NEW.back);
   var HATS_ALL = OPTS.hat, GLAS_ALL = OPTS.glasses, HOOD_ALL = OPTS.hoodie;
   function isNew(k, v) { return !!(NEW[k] && NEW[k].some(function (a) { return a[0] === v; })); }
@@ -147,7 +147,7 @@
     [-1, 1].forEach(function (sd) { m = add(g, new T.BoxGeometry(0.03, 0.12, 0.01), mk, 0.05 * sd, 0.15, -0.21); m.rotation.z = 0.4 * sd; });
     // backs & extras: on the torso (head.parent.parent), behind the shoulders (-z)
     var torso = head.parent && head.parent.parent || head; torso.children.filter(function (o) { return /^gaBk/.test(o.name); }).forEach(function (o) { torso.remove(o); });
-    var B = {}; Object.defineProperty(h, 'bk', { value: B, enumerable: false, configurable: true }); var bg = function (n) { var q = new T.Group(); q.name = 'gaBk_' + n; q.T = T; q.position.set(0, 0.3, -0.3); torso.add(q); return q; };
+    var B = {}; Object.defineProperty(h, 'bk', { value: B, enumerable: false, configurable: true }); var bg = function (n) { var q = new T.Group(); q.name = 'gaBk_' + n; q.T = T; q.position.set(0, 0.3, -0.2); torso.add(q); return q; };
     g = B.jetpack = bg('jetpack'); var jm = std(T, 0xb8c0cc, { metalness: 0.7, roughness: 0.35 }), jr = std(T, 0xd42a2a), fl = new T.MeshBasicMaterial({ color: 0xff8a1a, transparent: true, opacity: 0.85, toneMapped: false });
     [-1, 1].forEach(function (sd) { add(g, new T.CylinderGeometry(0.07, 0.07, 0.3, 10), jm, 0.08 * sd, 0, -0.05); add(g, new T.ConeGeometry(0.07, 0.08, 10), jr, 0.08 * sd, 0.19, -0.05);
       m = add(g, new T.ConeGeometry(0.05, 0.16, 8), fl, 0.08 * sd, -0.24, -0.05); m.rotation.x = Math.PI; m.name = 'gaFlame'; });
@@ -161,7 +161,8 @@
   }
   var HAT3D = ['capblue', 'crown', 'helmet', 'beanie', 'cowboy', 'party', 'pirate', 'halo', 'headphones'].concat(NEW.hat.map(function (a) { return a[0]; }));
   function applyRoot(T, root, lk) { lk = lk || P; var cap = capOf(root); if (!cap) return; var h = hatMeshes(T, cap); cap.visible = lk.hat === 'cap';
-    HAT3D.forEach(function (k) { h[k].visible = lk.hat === k; }); for (var g in h.gl) h.gl[g].visible = lk.glasses === g; for (var b in h.bk) h.bk[b].visible = lk.back === b; }
+    HAT3D.forEach(function (k) { h[k].visible = lk.hat === k; }); for (var g in h.gl) h.gl[g].visible = lk.glasses === g; for (var b in h.bk) h.bk[b].visible = lk.back === b;
+    var bp = cap.parent.parent && cap.parent.parent.parent && cap.parent.parent.parent.getObjectByName('backpack'); if (bp) bp.visible = !lk.back || lk.back === 'none'; }   // Dave: a back item replaces Arcade's backpack (straps stay)
   // for Arcade's mp.js (optional): dress any monkey root (e.g. a remote one whose materials keep userData.orig) in a look object
   function dress(root, lk) { var A = window.__arcade; if (!A || !root || !lk) return; var T = A.THREE, map = {}, ho = find(HOOD_ALL, lk.hoodie), fu = find(FUR, lk.fur), sh = find(SHOE, lk.shoes);
     map[0x1d2452] = ho[1]; map[0x141a3a] = ho[2]; map[0x4e2a14] = fu[1]; map[0xd9a779] = fu[2]; map[0x8a1e2c] = sh[1]; map[0xf1e8d6] = sh[2];
@@ -213,7 +214,8 @@
     var cv = prev.r.domElement, w = cv.clientWidth, h = cv.clientHeight; if (!w || !h) return;
     if (cv.width !== Math.round(w * prev.r.getPixelRatio()) || cv.height !== Math.round(h * prev.r.getPixelRatio())) { prev.r.setSize(w, h, false); }
     prev.cam.aspect = w / h; var fit = Math.max(1, 0.62 / prev.cam.aspect); prev.cam.position.set(0, 1.3, 4.9 * fit); prev.cam.lookAt(0, 1.02, 0); prev.cam.updateProjectionMatrix();
-    var PL = pLook(), pk = PL.hat + PL.glasses + PL.back + PL.hoodie; if (prev.hat !== pk) { prev.hat = pk; applyRoot(window.__arcade.THREE, prev.root, PL); if (W.try) applyMats(PL); }   // the preview always wears the chosen hat, however the pick or load happened
+    var PL = pLook(); if (wc.id === 'gaCv') { PL = Object.assign({}, PL, { glasses: 'none' }); }   // Dave: no eyewear on the start screen (saved glasses kept for the game)
+    var pk = PL.hat + PL.glasses + PL.back + PL.hoodie + wc.id; if (prev.hat !== pk) { prev.hat = pk; applyRoot(window.__arcade.THREE, prev.root, PL); if (W.try) applyMats(PL); }   // the preview always wears the chosen hat, however the pick or load happened
     if (prev.auto && !prev.drag) prev.want += 0.006; prev.rot += (prev.want - prev.rot) * 0.15; prev.root.rotation.y = prev.rot;
     var now = performance.now(), dt = Math.min(0.25, prev.lt ? (now - prev.lt) / 1000 : 0.016); prev.lt = now;
     if (!TP.seen && wc.id === 'gaCv') { TP.seen = true; TP.gone = false; tpStart('in'); }   // first paint of the start screen: beam in
@@ -302,7 +304,7 @@
       if (k === 'shoes') bg = 'background:linear-gradient(135deg,#' + ('00000' + o[1].toString(16)).slice(-6) + ' 55%,#' + ('00000' + o[2].toString(16)).slice(-6) + ' 55%);';
       h += '<button class="gaO' + (shop && isNew(k, o[0]) ? ' gaNew' : '') + '" data-v="' + o[0] + '" title="' + o[0] + '" style="' + bg + '">' + face + '</button>'; });
     return h + '</div><button class="gaA" data-step="1" aria-label="next">›</button></div>'; }
-  function rows(shop) { if (!shop) return row('hoodie', 'HOODIE COLOUR'); return row('hat', 'HAT', shop) + row('glasses', shop ? 'GLASSES & FACE' : 'GLASSES', shop) + (shop ? row('back', 'BACK', shop) : '') + row('hoodie', 'HOODIE COLOUR', shop) + row('fur', 'FUR COLOUR', shop) + row('shoes', 'SHOES', shop); }
+  function rows(shop) { if (!shop) return row('hat', 'HAT') + row('hoodie', 'HOODIE COLOUR'); return row('hat', 'HAT', shop) + row('glasses', shop ? 'GLASSES & FACE' : 'GLASSES', shop) + (shop ? row('back', 'BACK', shop) : '') + row('hoodie', 'HOODIE COLOUR', shop) + row('fur', 'FUR COLOUR', shop) + row('shoes', 'SHOES', shop); }
   function addCss() { if (document.getElementById('gaCss')) return; var sty = document.createElement('style'); sty.id = 'gaCss'; sty.textContent = css; document.head.appendChild(sty); }
   function build() { var st = document.getElementById('start'); if (!st || ov) return; addCss();
     ov = document.createElement('div'); ov.id = 'gaP';

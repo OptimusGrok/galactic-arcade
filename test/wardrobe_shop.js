@@ -8,8 +8,12 @@ let ok = true; const chk = (c, m, x) => { console.log((c ? 'PASS ' : 'FAIL ') + 
   // 1) start screen: only the free options
   let o = await open({ phone: true, w: 412, h: 915, start: true }), page = o.page;
   await page.waitForSelector('#gaP .gaRow');
-  let s = await page.evaluate(() => ({ nw: document.querySelectorAll('#gaP .gaNew,#gaP .gaLk').length, rows: [...document.querySelectorAll('#gaP .gaRow')].map(r => r.dataset.k).join(), hats: document.querySelectorAll('#gaP .gaRow[data-k=hat] .gaO').length, hoods: [...document.querySelectorAll('#gaP .gaO')].map(b => b.dataset.v).join() }));
-  chk(s.nw === 0 && s.rows === 'hoodie' && s.hats === 0 && s.hoods === 'navy,red,green', 'start screen: only 3 hoodie colours, no other items', s);
+  let s = await page.evaluate(() => ({ nw: document.querySelectorAll('#gaP .gaNew,#gaP .gaLk').length, rows: [...document.querySelectorAll('#gaP .gaRow')].map(r => r.dataset.k).join(), hats: document.querySelectorAll('#gaP .gaRow[data-k=hat] .gaO').length, hoods: [...document.querySelectorAll('#gaP .gaO')].map(b => b.dataset.v).join(), gl: 0 }));
+  chk(s.nw === 0 && s.rows === 'hat,hoodie' && s.hats === 2 && s.hoods === 'cap,capblue,navy,red,green' && s.gl === 0, 'start screen: red/blue cap + 3 hoodie colours, no eyewear', s);
+  await page.evaluate(() => { localStorage.setItem('galacticarcade.player', JSON.stringify({ name: 'Dave', hat: 'capblue', hoodie: 'red', fur: 'brown', shoes: 'red', glasses: 'shades' })); }); await page.reload(); await page.waitForFunction(() => window.__gaPlayer && window.__gaPlayer.prev.root && window.__gaPlayer.prev.hat, null, { timeout: 90000 }); await page.waitForTimeout(2500);
+  s = await page.evaluate(() => { const r = window.__gaPlayer.prev.root, w = []; r.traverse(x => { if (/^gaGl_/.test(x.name) && x.visible) w.push(x.name); }); return { gl: w, saved: window.__gaPlayer.p.glasses, sel: [...document.querySelectorAll('#gaP .gaO.sel')].map(b => b.dataset.v).join() }; });
+  chk(s.gl.length === 0 && s.saved === 'shades' && s.sel === 'capblue,red', 'start monkey wears no eyewear (saved shades kept), blue cap + red hoodie selected', s);
+  if (SH) await page.screenshot({ path: OUT + 'start_hat_hoodie.png' });
   await o.close();
   // 2) in-game wardrobe
   o = await open({ phone: true, w: 412, h: 915 }); page = o.page; const { errors } = o;
@@ -33,6 +37,13 @@ let ok = true; const chk = (c, m, x) => { console.log((c ? 'PASS ' : 'FAIL ') + 
   chk(s.p.hat === 'tophat' && s.p.back === 'jetpack' && s.save.back === 'jetpack' && s.own.join() === 'hat:tophat,back:jetpack', 'equipped, saved, ownership stored', s);
   const vis = await page.evaluate(() => { let h = 0, b = 0; window.__arcade.monkey.traverse(x => { if (x.name === 'gaHat_tophat' && x.visible) h = 1; if (x.name === 'gaBk_jetpack' && x.visible) b = 1; }); return h && b; });
   chk(vis, 'the in-room monkey wears the top hat + jetpack');
+  const bpv = () => page.evaluate(() => [window.__arcade.monkey.getObjectByName('backpack').visible, window.__gaPlayer.prev.root.getObjectByName('backpack').visible]);
+  let bp = await bpv(); chk(!bp[0] && !bp[1], 'backpack hidden while a back item is worn (room monkey + preview)', bp);
+  if (SH) { const bs = []; for (const v of ['jetpack', 'cape']) { await page.evaluate(v => { const G = window.__gaPlayer, p = G.prev; if (v === 'jetpack') G.pick('back', v); else G.tryOn('back', v); p.auto = false; p.want = p.rot = Math.PI; }, v); await page.waitForTimeout(900); const f = '/tmp/bnb_' + v + '.png'; await page.locator('#gaWStage').screenshot({ path: f }); bs.push(f); }
+    execSync('python3 -c "from PIL import Image;a,b=[Image.open(f) for f in ' + JSON.stringify(bs).replace(/"/g, "'") + '];m=Image.new(\'RGB\',(a.width*2,a.height));m.paste(a,(0,0));m.paste(b,(a.width,0));m.save(\'' + OUT + 'back_no_backpack.png\')"');
+    await page.evaluate(() => { window.__gaPlayer.pick('back', 'jetpack'); }); }
+  const R = await page.evaluate(() => { const T = window.__arcade.THREE, A = window.__arcade, g = A.monkey.clone(true); window.__wardrobe.applyRemote(g, { hat: 'cap', glasses: 'none', back: 'cape', hoodie: 'navy', fur: 'brown', shoes: 'red' }); const a = g.getObjectByName('backpack').visible; window.__wardrobe.applyRemote(g, { hat: 'cap', glasses: 'none', back: 'none', hoodie: 'navy', fur: 'brown', shoes: 'red' }); return [a, g.getObjectByName('backpack').visible]; });
+  chk(!R[0] && R[1], 'remote monkey: backpack hidden with a cape, back again with none', R);
   await page.evaluate(() => { const p = window.__gaPlayer.prev; p.auto = false; p.want = p.rot = 2.4; }); await page.waitForTimeout(900);
   if (SH) await page.screenshot({ path: OUT + 'wardrobe_shop_bought.png' });
   // montage tiles: neutral lighting (no magenta/cyan rim lights)
