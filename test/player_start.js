@@ -38,7 +38,7 @@ const OUT = '/workspace/galactic-shop/shots/';
     return { p: window.__gaPlayer.p, cols, cap: cap.visible, crown: h.crown.visible, helmet: h.helmet.visible, tag: window.__gaPlayer.tag && window.__gaPlayer.tag.visible }; });
   let L = await look();
   chk(L.p.hat === 'crown' && L.crown && !L.cap && L.cols['1d2452'] === 'd42a2a' && L.cols['4e2a14'] === 'b7862a' && L.cols['8a1e2c'] === '1f4fbf' && L.tag, 'crown/red hoodie/gold fur/blue shoes on the real monkey + name tag', L);
-  await tap('#gaGo'); await page.waitForTimeout(1200); a = await st();
+  await tap('#gaGo'); await page.waitForFunction(() => window.__start.dismissed, null, { timeout: 10000 }).catch(() => {}); await page.waitForTimeout(1200); a = await st();   // PLAY beams the monkey out first (~1.7 s)
   chk(a.dis, 'PLAY starts the game through their START', a.dis);
   const q0 = a.pos; await page.keyboard.down('KeyW'); for (let i = 0; i < 40; i++) await page.evaluate(() => window.__arcade.step && window.__arcade.step(1 / 30)); await page.waitForTimeout(800); await page.keyboard.up('KeyW');
   a = await st(); chk(Math.hypot(a.pos[0] - q0[0], a.pos[1] - q0[1]) > 0.3, 'the monkey moves after starting', [q0, a.pos]);

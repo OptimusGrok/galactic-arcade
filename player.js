@@ -153,7 +153,59 @@
     if (cv.width !== Math.round(w * prev.r.getPixelRatio()) || cv.height !== Math.round(h * prev.r.getPixelRatio())) { prev.r.setSize(w, h, false); }
     prev.cam.aspect = w / h; var fit = Math.max(1, 0.62 / prev.cam.aspect); prev.cam.position.set(0, 1.3, 4.9 * fit); prev.cam.lookAt(0, 1.02, 0); prev.cam.updateProjectionMatrix();
     if (prev.hat !== P.hat + P.glasses) { prev.hat = P.hat + P.glasses; applyRoot(window.__arcade.THREE, prev.root); }   // the preview always wears the chosen hat, however the pick or load happened
-    if (prev.auto && !prev.drag) prev.want += 0.006; prev.rot += (prev.want - prev.rot) * 0.15; prev.root.rotation.y = prev.rot; prev.r.render(prev.scene, prev.cam); }
+    if (prev.auto && !prev.drag) prev.want += 0.006; prev.rot += (prev.want - prev.rot) * 0.15; prev.root.rotation.y = prev.rot;
+    var now = performance.now(), dt = Math.min(0.25, prev.lt ? (now - prev.lt) / 1000 : 0.016); prev.lt = now;
+    if (!TP.seen && wc.id === 'gaCv') { TP.seen = true; TP.gone = false; tpStart('in'); }   // first paint of the start screen: beam in
+    tpRender(tpStep(dt)); }
+  // ---------- start-screen teleport (same look as teleport.js: cyan swirl column, rising sparkles, feet-up dissolve, flash, zap/vwoom) ----------
+  // beams IN when the start screen is first painted (and on every return to it); on PLAY it beams OUT, then the game starts.
+  // Clipping is the preview renderer's own (global) plane, so the real monkey's shared materials are never touched.
+  var TP = { st: 'idle', t: 0, ins: 0, outs: 0, seen: false, cb: null, H: 2, fx: null };
+  function ac1() { if (window.__muted || (window.__mute && window.__mute.on)) return null; var ac = MU.ac || window.__unlockAC; return ac && ac.state === 'running' ? ac : null; }   // never opens audio before a gesture
+  function sZapIn() { try { var ac = ac1(); if (!ac) return; var t = ac.currentTime, o = ac.createOscillator(), g = ac.createGain(); o.type = 'square'; o.frequency.setValueAtTime(2200, t); o.frequency.exponentialRampToValueAtTime(110, t + 0.28);
+    g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.08, t + 0.01); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.32); o.connect(g); g.connect(ac.destination); o.start(t); o.stop(t + 0.34); } catch (e) {} }
+  function sVwoom(D) { try { var ac = ac1(); if (!ac) return; var t = ac.currentTime, o = ac.createOscillator(), o2 = ac.createOscillator(), f = ac.createBiquadFilter(), g = ac.createGain();
+    o.type = 'sawtooth'; o2.type = 'sine'; o.frequency.setValueAtTime(70, t); o.frequency.exponentialRampToValueAtTime(420, t + D); o2.frequency.setValueAtTime(140, t); o2.frequency.exponentialRampToValueAtTime(1100, t + D);
+    f.type = 'lowpass'; f.Q.value = 8; f.frequency.setValueAtTime(200, t); f.frequency.exponentialRampToValueAtTime(3200, t + D);
+    g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.09, t + 0.3); g.gain.setValueAtTime(0.09, t + D - 0.15); g.gain.exponentialRampToValueAtTime(0.0001, t + D + 0.1);
+    o.connect(f); o2.connect(f); f.connect(g); g.connect(ac.destination); [o, o2].forEach(function (x) { x.start(t); x.stop(t + D + 0.15); }); } catch (e) {} }
+  function tpBuild() { if (TP.fx) return TP.fx; var T = window.__arcade.THREE, s = prev.scene;
+    var k = document.createElement('canvas'); k.width = 128; k.height = 128; var q = k.getContext('2d');
+    for (var i = 0; i < 14; i++) { var x = i * 128 / 14 + Math.random() * 4; q.strokeStyle = 'rgba(' + (i % 2 ? '190,255,255' : '80,235,255') + ',' + (0.35 + Math.random() * 0.5) + ')'; q.lineWidth = 2 + Math.random() * 4;
+      q.beginPath(); q.moveTo(x, 128); q.lineTo(x + 64, 0); q.stroke(); q.beginPath(); q.moveTo(x - 128, 128); q.lineTo(x - 64, 0); q.stroke(); }
+    var fd = q.createLinearGradient(0, 0, 0, 128); fd.addColorStop(0, 'rgba(0,0,0,1)'); fd.addColorStop(0.55, 'rgba(0,0,0,0.25)'); fd.addColorStop(1, 'rgba(0,0,0,0)'); q.globalCompositeOperation = 'destination-out'; q.fillStyle = fd; q.fillRect(0, 0, 128, 128);
+    var tx = new T.CanvasTexture(k); tx.wrapS = T.RepeatWrapping; tx.repeat.set(2, 1);
+    var sw = new T.Mesh(new T.CylinderGeometry(0.6, 0.72, 2.3, 32, 1, true), new T.MeshBasicMaterial({ map: tx, transparent: true, opacity: 0, blending: T.AdditiveBlending, depthWrite: false, side: T.DoubleSide, toneMapped: false }));
+    sw.position.y = 1.15; sw.visible = false; s.add(sw);
+    var N = matchMedia('(pointer:coarse)').matches ? 70 : 140, pos = new Float32Array(N * 3), g = new T.BufferGeometry(); g.setAttribute('position', new T.BufferAttribute(pos, 3));
+    var pts = new T.Points(g, new T.PointsMaterial({ color: 0x9ff8ff, size: 0.05, transparent: true, opacity: 0.95, blending: T.AdditiveBlending, depthWrite: false, toneMapped: false })); pts.visible = false; pts.frustumCulled = false; s.add(pts);
+    var rg = [0.25, 0.4, 0.55, 0.7].map(function (r) { var m = new T.Mesh(new T.TorusGeometry(r, 0.018, 6, 48), new T.MeshBasicMaterial({ color: 0x7ff6ff, transparent: true, opacity: 0, blending: T.AdditiveBlending, depthWrite: false, toneMapped: false })); m.rotation.x = Math.PI / 2; m.position.y = 0.02; m.visible = false; s.add(m); return m; });   // charge-up rings (teleport.js pad grooves)
+    var P2 = []; for (var j = 0; j < N; j++) P2.push({ x: 0, y: -9, z: 0, vy: 0, l: 0, t: 1 });
+    var bx = new T.Box3().setFromObject(prev.root); TP.H = Math.max(1, bx.max.y) + 0.1;
+    return (TP.fx = { rg: rg, sw: sw, tx: tx, pts: pts, pos: pos, P: P2, pi: 0, plane: new T.Plane(new T.Vector3(0, 1, 0), 100) }); }
+  function tpEmit(n, h) { var F = TP.fx; for (var k = 0; k < n; k++) { var o = F.P[F.pi = (F.pi + 1) % F.P.length], a = Math.random() * 6.283, r = 0.15 + Math.random() * 0.5;
+      o.x = Math.cos(a) * r; o.z = Math.sin(a) * r; o.y = h + (Math.random() - 0.5) * 0.15; o.vy = 0.6 + Math.random() * 1.2; o.l = 0.6 + Math.random() * 0.5; o.t = 0; } }
+  function tpStart(kind, cb) { if (!prev.scene) { if (cb) cb(); return; } tpBuild(); TP.st = kind; TP.t = 0; TP.cb = cb || null; if (kind === 'in') { TP.ins++; sZapIn(); } else { TP.outs++; sVwoom(1.1); } }
+  // advance one frame; returns the clip plane for the monkey pass (or null = no clipping)
+  function tpStep(dt) { var F = TP.fx; if (!F) return null; F.tx.offset.x = (F.tx.offset.x + dt * 0.9) % 1; var H = TP.H, pl = null, on = TP.st !== 'idle';
+    if (on) { TP.t += dt; var t = TP.t;
+      if (TP.st === 'in') { var D = 1.4, f = Math.min(1, t / D), h = -0.05 + f * H; F.plane.normal.set(0, -1, 0); F.plane.constant = h; pl = F.plane;   // reassembles feet-up
+        F.sw.material.opacity = Math.min(1, t * 3, (D + 0.5 - t) * 2) * 0.85; if (f < 1) tpEmit(Math.round(dt * 120), h);
+        if (t >= D + 0.5) { TP.st = 'idle'; pl = null; } }
+      else { var C = 0.3, D2 = 0.8, f2 = Math.max(0, Math.min(1, (t - C) / D2)), h2 = -0.05 + f2 * H; F.plane.normal.set(0, 1, 0); F.plane.constant = -h2; pl = F.plane;   // dissolves feet-up
+        F.sw.material.opacity = Math.min(1, t * 3) * 0.85; tpEmit(Math.round(dt * 140), h2);
+        if (t >= C + D2 + 0.1) { TP.st = 'idle'; var cb = TP.cb; TP.cb = null; if (cb) cb(); pl = F.plane; F.plane.constant = -99; } } }
+    var rk = TP.st === 'out' ? 1 : TP.st === 'in' ? Math.max(0, Math.min(1, (1.9 - TP.t) * 2)) : 0;
+    F.rg.forEach(function (m, j) { var o = rk * Math.min(1, Math.max(0, ((TP.st === 'out' ? TP.t : TP.t + 1) - j * 0.07) / 0.08)); m.visible = o > 0.01; m.material.opacity = o * (0.75 + 0.25 * Math.sin(TP.t * 30 + j)); });
+    F.sw.visible = on && F.sw.material.opacity > 0.01; F.sw.rotation.y += dt * 2.2;
+    var any = false, p = F.pos; for (var i = 0; i < F.P.length; i++) { var o = F.P[i]; if (o.t < o.l) { o.t += dt; o.y += o.vy * dt; any = true; } else o.y = -9; p[i * 3] = o.x; p[i * 3 + 1] = o.y; p[i * 3 + 2] = o.z; }
+    F.pts.geometry.attributes.position.needsUpdate = true; F.pts.visible = any; return pl; }
+  // monkey hidden after beaming out until the start screen shows again
+  function tpRender(pl) { var r = prev.r; if (TP.gone && !pl) pl = TP.fx && TP.fx.plane;
+    if (!pl) { r.render(prev.scene, prev.cam); return; }
+    r.clippingPlanes = [pl]; var F = TP.fx, a = F.sw.visible, b = F.pts.visible; F.sw.visible = F.pts.visible = false; var keep = []; prev.scene.children.forEach(function (o) { if (o !== prev.root && o.visible && !o.isLight) { keep.push(o); o.visible = false; } });
+    r.render(prev.scene, prev.cam); r.clippingPlanes = []; keep.forEach(function (o) { o.visible = true; }); prev.root.visible = false; F.sw.visible = a; F.pts.visible = b;
+    var ac = r.autoClear; r.autoClear = false; r.render(prev.scene, prev.cam); r.autoClear = ac; prev.root.visible = true; }
   function S() { return window.__start; }
 
   // ---------- DOM ----------
@@ -221,8 +273,9 @@
     return true; }
   window.__wardrobe = { open: wOpen, close: wClose, applyRemote: function (root, lk) { dress(root, lk); }, get isOpen() { return W.open; }, get el() { return W.el; } };
   function step(k, d) { var L = OPTS[k], i = 0; for (var j = 0; j < L.length; j++) if (L[j][0] === P[k]) i = j; pick(k, L[(i + d + L.length) % L.length][0]); }
-  function play() { if (!named() || !goOK()) return; musicStop(); P.name = clean(P.name).trim(); save(); apply(); var inp = document.getElementById('gaIn'); if (inp) inp.blur();
-    var b = document.getElementById('stStart'); if (!b) return; var ev; try { ev = new PointerEvent('pointerup', { bubbles: true, cancelable: true, pointerType: 'touch' }); } catch (e) { ev = new Event('pointerup', { bubbles: true, cancelable: true }); }
+  function play(fast) { if (!named() || !goOK() || TP.st === 'out') return; musicStop(); P.name = clean(P.name).trim(); save(); apply(); var inp = document.getElementById('gaIn'); if (inp) inp.blur();
+    var cv = ov && ov.querySelector('#gaCv'); if (prev.r && cv && prev.r.domElement === cv && cv.clientWidth && !fast && !window.__gaNoTp) { var done = 0, fin = function () { if (done++) return; TP.gone = true; go2(); }; tpStart('out', fin); setTimeout(function () { if (!done) { TP.st = 'idle'; TP.cb = null; fin(); } }, 2600); return; } go2(); }
+  function go2() { var b = document.getElementById('stStart'); if (!b) return; var ev; try { ev = new PointerEvent('pointerup', { bubbles: true, cancelable: true, pointerType: 'touch' }); } catch (e) { ev = new Event('pointerup', { bubbles: true, cancelable: true }); }
     b.dispatchEvent(ev); window.__gaPlayer.started = (window.__gaPlayer.started || 0) + 1; }
   function opts() { var b = document.getElementById('stOpt'); if (!b) return; var ev; try { ev = new PointerEvent('pointerup', { bubbles: true, cancelable: true }); } catch (e) { ev = new Event('pointerup', { bubbles: true }); } b.dispatchEvent(ev); }
 
@@ -259,7 +312,7 @@
     var t = e.target && e.target.closest ? e.target : null, inP = t && t.closest('#gaP');
     if (e.type === 'keydown' || e.type === 'keyup' || e.type === 'keypress') {
       var typing = t && t.id === 'gaIn';
-      if (/^(Enter|NumpadEnter)$/.test(e.code) || e.key === 'Enter') { e.stopImmediatePropagation(); if (e.cancelable) e.preventDefault(); if (e.type === 'keydown' && !e.repeat && named() && goOK()) play(); return; }
+      if (/^(Enter|NumpadEnter)$/.test(e.code) || e.key === 'Enter') { e.stopImmediatePropagation(); if (e.cancelable) e.preventDefault(); if (e.type === 'keydown' && !e.repeat && named() && goOK()) play(1); return; }
       if (typing) { e.stopImmediatePropagation(); return; }   // let the character land in the box; nothing reaches the game
       return; }
     if (!inP) return;
@@ -295,8 +348,8 @@
 
   function boot() { build();
     var t0 = setInterval(function () { var A = window.__arcade; if (!A || !A.monkey || !A.THREE) return; clearInterval(t0); apply(); if (ov) { var go = function () { setTimeout(function () { buildPrev(); frame(); }, 150); }; if (document.readyState === 'complete') go(); else addEventListener('load', go, { once: true }); } }, 100);
-    var wrap = setInterval(function () { var U = window.__startUI; if (!U || !U.show || U.show.ga) return; clearInterval(wrap); var o = U.show; U.show = function () { untouch(); var r = o.apply(this, arguments); tickets(); sync(); return r; }; U.show.ga = 1; }, 200); }
+    var wrap = setInterval(function () { var U = window.__startUI; if (!U || !U.show || U.show.ga) return; clearInterval(wrap); var o = U.show; U.show = function () { untouch(); TP.seen = false; TP.st = 'idle'; TP.cb = null; var r = o.apply(this, arguments); tickets(); sync(); return r; }; U.show.ga = 1; }, 200); }
   var booted = false; function boot1() { if (booted) return; booted = true; boot(); }
   if (document.readyState === 'loading') { var mo = new MutationObserver(function () { if (document.getElementById('start')) { mo.disconnect(); boot1(); } }); mo.observe(document.documentElement, { childList: true, subtree: true }); document.addEventListener('DOMContentLoaded', boot1); } else boot1();   // build ours the moment #start is parsed
-  window.__gaPlayer = { KEY: KEY, get p() { return P; }, pick: pick, play: play, apply: apply, opts: OPTS, get tag() { return tag; }, get prev() { return prev; }, music: MU, dress: dress, look: look, glasses: GLAS, wardrobe: W };
+  window.__gaPlayer = { KEY: KEY, get p() { return P; }, pick: pick, play: play, apply: apply, opts: OPTS, get tag() { return tag; }, get prev() { return prev; }, music: MU, dress: dress, look: look, glasses: GLAS, wardrobe: W, tp: TP };
 })();
