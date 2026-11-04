@@ -53,7 +53,7 @@ const { open, play } = require('./lib'); const PH = process.argv[2] === 'phone',
   const p0 = await ev(() => window.__arcade.monkey.position.toArray()), c0 = (await S()).cells.length;
   if (PH) { const cdp = await page.context().newCDPSession(page); const tp = (type, x, y) => cdp.send('Input.dispatchTouchEvent', { type, touchPoints: type === 'touchEnd' ? [] : [{ x, y, id: 1 }] });
     await tp('touchStart', 100, 650); for (let k = 1; k <= 10; k++) { await tp('touchMove', 100, 650 - k * 6); await page.waitForTimeout(60); } await page.waitForTimeout(900); await tp('touchEnd'); }
-  else { await page.keyboard.down('KeyW'); await page.waitForTimeout(900); await page.keyboard.up('KeyW'); }
+  else { await page.keyboard.down('KeyW'); await page.waitForFunction(p0 => { const m = window.__arcade.monkey.position; return Math.hypot(m.x - p0[0], m.z - p0[2]) > 0.6; }, p0, { timeout: 20000 }).catch(() => {}); await page.keyboard.up('KeyW'); }   // hold until he moves (slow software GL)
   await page.waitForTimeout(300); const p1 = await ev(() => window.__arcade.monkey.position.toArray());
   chk(Math.hypot(p1[0] - p0[0], p1[2] - p0[2]) > 0.5 && (await S()).cells.length === c0, 'a drag still moves the monkey (' + Math.hypot(p1[0] - p0[0], p1[2] - p0[2]).toFixed(2) + ' m) and marks nothing');
   // room 2 shot (mark a cell there through the same tap path)
