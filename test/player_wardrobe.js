@@ -6,7 +6,7 @@ const KEY = 'galacticarcade.player';
 let ok = true; const chk = (c, m, x) => { console.log((c ? 'PASS ' : 'FAIL ') + m + (x !== undefined ? ' ' + JSON.stringify(x).slice(0, 300) : '')); if (!c) ok = false; };
 async function opn(o) { for (let i = 0; ; i++) { try { return await open(Object.assign({ phone: true, w: 412, h: 915 }, o)); } catch (e) { if (i >= 6) throw e; console.log('retry open'); } } }
 (async () => {
-  let o, page, errors, st, p; const all = { hat: ['cap','crown','helmet','beanie','cowboy','party','pirate','halo','headphones','none'], glasses: ['none','shades','round','visor'], hoodie: ['navy','red','blue','green','yellow','purple','pink','orange','teal','black','white'], fur: ['brown','gold','silver','black','white','ginger','pink','blue'], shoes: ['red','blue','black','white','green','pink','gold','purple'] };
+  let o, page, errors, st, p; const all = { hat: ['cap','capblue','crown','helmet','beanie','cowboy','party','pirate','halo','headphones','none'], glasses: ['none','shades','round','visor'], hoodie: ['navy','red','blue','green','yellow','purple','pink','orange','teal','black','white'], fur: ['brown','gold','silver','black','white','ginger','pink','blue'], shoes: ['red','blue','black','white','green','pink','gold','purple'] };
   if (!process.env.ONLY_START) {
   o = await opn({}); ({ page, errors } = o);
   const ready = () => page.waitForFunction(() => window.__arcade && window.__arcade.stats.frames > 3 && window.__gaPlayer && window.__gaPlayer.tag, null, { timeout: 90000 });
@@ -20,12 +20,12 @@ async function opn(o) { for (let i = 0; ; i++) { try { return await open(Object.
   p = await page.evaluate(() => window.__gaPlayer.p); chk(p.hat === 'cap' && p.glasses === 'none', 'unknown hat/glasses fall back', p);
   await page.evaluate(() => { window.__looks = []; addEventListener('galacticarcade:look', e => window.__looks.push(e.detail)); });
   chk(await page.evaluate(() => typeof window.__wardrobe.open === 'function' && typeof window.__wardrobe.close === 'function'), '__wardrobe.open/close exist');
-  await page.evaluate(() => window.__wardrobe.open()); await page.waitForTimeout(1500);
+  await page.evaluate(() => window.__wardrobe.open()); await page.waitForFunction(() => window.__gaPlayer.prev.r && window.__gaPlayer.prev.r.domElement.id === 'gaWCv', null, { timeout: 30000 }).catch(() => {}); await page.waitForTimeout(1000);
   st = await page.evaluate(() => { const e = document.getElementById('gaW'), r = e.getBoundingClientRect(); return { open: window.__wardrobe.isOpen, vis: getComputedStyle(e).display !== 'none', w: r.width, h: r.height, rows: [...e.querySelectorAll('.gaRow')].map(x => x.dataset.k), done: !!e.querySelector('#gaWDone'), prev: !!(window.__gaPlayer.prev.r && window.__gaPlayer.prev.r.domElement.id === 'gaWCv') }; });
   chk(st.open && st.vis && st.w >= 400 && st.h >= 900, 'open(): full-screen panel shown', st);
   chk(st.rows.join() === 'hat,glasses,hoodie,fur,shoes' && st.done, 'panel has all rows + DONE', st.rows);
   chk(st.prev, 'live preview renders in the panel');
-  const f0 = await page.evaluate(() => window.__arcade.stats.frames); await page.waitForTimeout(800); const f1 = await page.evaluate(() => window.__arcade.stats.frames);
+  const f0 = await page.evaluate(() => window.__arcade.stats.frames); await page.waitForTimeout(4000); const f1 = await page.evaluate(() => window.__arcade.stats.frames);
   chk(f1 > f0, 'game keeps running while open', { f0, f1 });
   // taps inside the panel do not move the monkey (tap the panel background a few times + a row button)
   const pos0 = await page.evaluate(() => window.__arcade.monkey.position.toArray());
@@ -51,6 +51,10 @@ async function opn(o) { for (let i = 0; ; i++) { try { return await open(Object.
     if (!good) bad.push([k, v, s]);
   }
   chk(bad.length === 0, 'every option (' + Object.values(all).flat().length + ') changes the monkey, saves and fires galacticarcade:look', bad);
+  // t600: 'cap' is Arcade's real pink cap (default), 'capblue' a blue copy; swatches show those colours
+  const caps = await page.evaluate(() => { const m = window.__arcade.monkey; let cap; m.traverse(x => { if (x.userData.gaCap) cap = x; }); const b = cap.parent.getObjectByName('gaHat_capblue'), hx = g => [...new Set(g.children.filter(o => o.isMesh).map(o => o.material.color.getHex().toString(16)))].sort().join();
+    const sw = [...document.querySelectorAll('#gaW .gaRow[data-k=hat] .gaO')].slice(0, 2).map(x => x.dataset.v + ':' + (x.innerHTML.match(/#[0-9a-f]{6}/) || [''])[0]); return { pink: hx(cap), blue: hx(b), sw, def: window.__gaPlayer.opts.hat[0][0] }; });
+  chk(caps.pink === 'd93a82,ff4f9e' && caps.blue === '1a4fc0,2b7bff' && caps.sw.join() === 'cap:#ff4f9e,capblue:#2b7bff' && caps.def === 'cap', 'pink default cap first, blue cap second, swatches match', caps);
   // hats sit on top of the head: each hat's world bbox top is above the skull top
   const tops = await page.evaluate(() => { const T = window.__arcade.THREE, m = window.__arcade.monkey; let cap; m.traverse(x => { if (x.userData.gaCap) cap = x; }); const h = cap.parent.userData.gaHats, head = cap.parent, r = {};
     m.updateMatrixWorld(true); const skull = new T.Vector3(0, 0.333, 0); head.localToWorld(skull);
@@ -64,7 +68,7 @@ async function opn(o) { for (let i = 0; ; i++) { try { return await open(Object.
     const h = cap.parent.userData.gaHats, vis = []; for (const k in h) if (k !== 'gl' && h[k].visible) vis.push(k); for (const k in h.gl) if (h.gl[k].visible) vis.push('gl:' + k);
     const dup = cap.parent.children.filter(o => /^ga/.test(o.name)).length, localH = A.monkey.getObjectByName('gaHat_pirate').visible;
     A.scene && A.scene.remove(g); return { vis, capVis: cap.visible, hood, dup, localH, saveSame: localStorage.getItem('galacticarcade.player') === before, localSame: JSON.stringify(window.__gaPlayer.p) === loc }; });
-  chk(rem.vis.join() === 'pirate,gl:visor' && !rem.capVis && rem.hood === 0xff7a1a && rem.dup === 11 && !rem.localH && rem.saveSame && rem.localSame, 'applyRemote dresses another monkey root only, no save', rem);
+  chk(rem.vis.join() === 'pirate,gl:visor' && !rem.capVis && rem.hood === 0xff7a1a && rem.dup === 12 && !rem.localH && rem.saveSame && rem.localSame, 'applyRemote dresses another monkey root only, no save', rem);
   // screenshot: wardrobe open with a nice look
   await page.evaluate(() => { const g = window.__gaPlayer; g.pick('hat', 'cowboy'); g.pick('glasses', 'shades'); g.pick('hoodie', 'purple'); g.pick('fur', 'brown'); g.pick('shoes', 'white'); });
   await page.waitForTimeout(2500); await page.screenshot({ path: OUT + 'wardrobe_open.png' });

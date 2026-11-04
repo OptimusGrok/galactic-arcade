@@ -4,7 +4,8 @@
 // button the same pointerup their handler listens for. One storage key: 'galacticarcade.player'.
 (function () {
   var KEY = 'galacticarcade.player', MAXN = 12;
-  var HATS = [['cap', '🧢'], ['crown', '👑'], ['helmet', '🪐'], ['beanie', '🧶'], ['cowboy', '🤠'], ['party', '🥳'], ['pirate', '🏴\u200d☠️'], ['halo', '😇'], ['headphones', '🎧'], ['none', '✕']];
+  // hats: 'cap' = Arcade's real pink cap (0xff4f9e, brim 0xd93a82; the old 🧢 emoji drew it blue), 'capblue' = a blue copy
+  var HATS = [['cap', '<svg viewBox="0 0 40 30" width="32" height="24"><path d="M6 22a14 14 0 0 1 28 0z" fill="#ff4f9e"/><path d="M30 20q8 0 9 3l-9 1z" fill="#d93a82"/><rect x="5" y="20" width="26" height="4" rx="2" fill="#d93a82"/><circle cx="20" cy="8" r="2" fill="#d93a82"/></svg>'], ['capblue', '<svg viewBox="0 0 40 30" width="32" height="24"><path d="M6 22a14 14 0 0 1 28 0z" fill="#2b7bff"/><path d="M30 20q8 0 9 3l-9 1z" fill="#1a4fc0"/><rect x="5" y="20" width="26" height="4" rx="2" fill="#1a4fc0"/><circle cx="20" cy="8" r="2" fill="#1a4fc0"/></svg>'], ['crown', '👑'], ['helmet', '🪐'], ['beanie', '🧶'], ['cowboy', '🤠'], ['party', '🥳'], ['pirate', '🏴\u200d☠️'], ['halo', '😇'], ['headphones', '🎧'], ['none', '✕']];
   var HOOD = [['navy', 0x1d2452, 0x141a3a], ['red', 0xd42a2a, 0x7a1414], ['blue', 0x2b62e8, 0x173a8a], ['green', 0x2fae3a, 0x16601c], ['yellow', 0xf2c418, 0x9a7a08],
     ['purple', 0x7a2bd6, 0x46137f], ['pink', 0xff5fb4, 0xb02a72], ['orange', 0xff7a1a, 0xa8460a], ['teal', 0x13b8a8, 0x0a6b62], ['black', 0x202026, 0x0c0c10], ['white', 0xe8eaf0, 0xa9adb8]];
   var FUR = [['brown', 0x4e2a14, 0xd9a779], ['gold', 0xb7862a, 0xf3d79a], ['silver', 0x8d939c, 0xe4e7ec], ['black', 0x1c1a1c, 0x8a7a70], ['white', 0xeeeae2, 0xffe0cf], ['ginger', 0xc4561c, 0xf6c08a], ['pink', 0xe86aa8, 0xffd0e4], ['blue', 0x3a6ad8, 0xc8dcff]];
@@ -50,7 +51,9 @@
     var vr = new T.Mesh(new T.TorusGeometry(0.31, 0.018, 8, 40), white); hl.add(vr);   // outline ring round the bubble, facing front
     var an = new T.Mesh(new T.CylinderGeometry(0.008, 0.008, 0.12, 6), white); an.position.set(0.12, 0.33, 0); an.rotation.z = -0.35; hl.add(an);
     var tip = new T.Mesh(new T.SphereGeometry(0.025, 10, 8), new T.MeshBasicMaterial({ color: 0xff3cf0, toneMapped: false })); tip.position.set(0.145, 0.39, 0); hl.add(tip);
-    head.add(hl); h.helmet = hl; moreHats(T, head, h); return h; }
+    head.add(hl); h.helmet = hl; moreHats(T, head, h);
+    var cb = cap.clone(true); cb.name = 'gaHat_capblue'; delete cb.userData.gaCap; cb.traverse(function (o) { if (o.isMesh && o.material) { var hx = o.material.color.getHex(); o.material = o.material.clone(); o.material.userData = {}; o.material.color.setHex(hx === 0xd93a82 ? 0x1a4fc0 : 0x2b7bff); } });
+    head.add(cb); h.capblue = cb; return h; }
   // head space: skull centre y 0.15 r 0.18 (top ~0.333), face +z, eyes y 0.165 z ~0.22, ears x +-0.2. Every hat sits ON/above the skull top.
   function std(T, c, o) { return new T.MeshStandardMaterial(Object.assign({ color: c, roughness: 0.6 }, o || {})); }
   function add(g, geo, m, x, y, z, sx, sy, sz) { var e = new g.T.Mesh(geo, m); e.position.set(x || 0, y || 0, z || 0); if (sx) e.scale.set(sx, sy, sz); g.add(e); return e; }
@@ -95,7 +98,7 @@
     [-0.045, 0.045].forEach(function (y) { add(g, new T.CylinderGeometry(0.258, 0.258, 0.012, 32, 1, true, -0.95, 1.9), wt, 0, 0.17 + y, -0.01).material.side = T.DoubleSide; });
     [-1, 1].forEach(function (sd) { add(g, new T.SphereGeometry(0.034, 12, 10), wt, Math.sin(0.95) * 0.255 * sd, 0.17, Math.cos(0.95) * 0.255 - 0.01); });
     add(g, new T.CylinderGeometry(0.212, 0.212, 0.03, 28, 1, true, 0.95, Math.PI * 2 - 1.9), fr, 0, 0.17, -0.01).material.side = T.DoubleSide; }
-  var HAT3D = ['crown', 'helmet', 'beanie', 'cowboy', 'party', 'pirate', 'halo', 'headphones'];
+  var HAT3D = ['capblue', 'crown', 'helmet', 'beanie', 'cowboy', 'party', 'pirate', 'halo', 'headphones'];
   function applyRoot(T, root, lk) { lk = lk || P; var cap = capOf(root); if (!cap) return; var h = hatMeshes(T, cap); cap.visible = lk.hat === 'cap';
     HAT3D.forEach(function (k) { h[k].visible = lk.hat === k; }); for (var g in h.gl) h.gl[g].visible = lk.glasses === g; }
   // for Arcade's mp.js (optional): dress any monkey root (e.g. a remote one whose materials keep userData.orig) in a look object
