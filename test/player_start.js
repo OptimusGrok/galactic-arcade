@@ -50,7 +50,7 @@ const OUT = '/workspace/galactic-shop/shots/';
   a = await st(); L = await look();
   chk(a.val === 'wasd Dave Ro' && !a.go && L.crown && L.cols['1d2452'] === 'd42a2a' && L.cols['4e2a14'] === 'b7862a' && L.cols['8a1e2c'] === '1f4fbf', 'after reload: name pre-filled, look re-applied, PLAY waits for a touch', { a, L });
   await tap('#gaT'); await page.waitForTimeout(2300); a = await st(); chk(a.go, 'after reload: touch + 2 s shows PLAY', a);
-  await tap('.gaRow[data-k=hat] .gaO[data-v=helmet]'); L = await look(); chk(L.helmet && !L.crown && !L.cap, 'helmet works'); await tap('.gaRow[data-k=hat] .gaO[data-v=none]'); L = await look(); chk(!L.helmet && !L.crown && !L.cap, 'no hat works');
+  await tap('.gaRow[data-k=hat] .gaO[data-v=helmet]'); L = await look(); chk(L.helmet && !L.crown && !L.cap, 'helmet works'); await page.evaluate(() => document.querySelector('.gaRow[data-k=hat] .gaO[data-v=none]').scrollIntoView({ inline: 'center', block: 'nearest' })); await page.waitForTimeout(300); await tap('.gaRow[data-k=hat] .gaO[data-v=none]'); L = await look(); chk(!L.helmet && !L.crown && !L.cap, 'no hat works');
   chk(errors.length === 0, 'no page errors', errors);
   await o.close(); process.exit(ok ? 0 : 1);
 })();
