@@ -37,7 +37,7 @@ const Q = MOBILE ? { dpr: 1.5, refl: 0.35, bloom: 0.5 } : { dpr: 2, refl: 0.6, b
 const renderer = new THREE.WebGLRenderer({ antialias: !MOBILE, powerPreference: 'high-performance' }); renderer.localClippingEnabled = true;   // teleporter dissolve
 let dpr = Math.min(devicePixelRatio || 1, Q.dpr);
 renderer.setPixelRatio(dpr);
-renderer.setSize(innerWidth, innerHeight);
+renderer.setSize(innerWidth, innerHeight, false);   // CSS (100vw x 100dvh) owns the on-screen size; resize() matches the buffer to it
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure = 0.9;
 document.body.prepend(renderer.domElement);
@@ -879,14 +879,29 @@ composer.addPass(new RenderPass(scene, camera));
 const bloom = new UnrealBloomPass(new THREE.Vector2(innerWidth * Q.bloom, innerHeight * Q.bloom), 0.75, 0.5, 0.4); bloom.highPassUniforms.smoothWidth.value = 0.6;   // soft knee 0.4..1.0 (was a hard cut at 0.85): cyan/amber tubes (lum >= 1) bloom as before, the 70% pink strips (lum ~0.68) keep a weaker halo instead of losing it
 composer.addPass(bloom);
 composer.addPass(new OutputPass());
-function resize() {
-  camera.aspect = innerWidth / innerHeight; camera.fov = camera.aspect < 0.8 ? 72 : 60; camera.updateProjectionMatrix();
-  renderer.setPixelRatio(dpr); renderer.setSize(innerWidth, innerHeight); composer.setPixelRatio(dpr); composer.setSize(innerWidth, innerHeight);
-  bloom.resolution.set(innerWidth * Q.bloom, innerHeight * Q.bloom);
-  room2.userData.mirror?.getRenderTarget().setSize(Math.round(innerWidth * dpr * Q.refl), Math.round(innerHeight * dpr * Q.refl));
-  mirror.getRenderTarget().setSize(Math.round(innerWidth * dpr * Q.refl), Math.round(innerHeight * dpr * Q.refl));
+// iPad Safari fix: setSize used to write inline px width/height from innerWidth/innerHeight at load, which on iPad can be
+// a stale, short height (toolbar not settled, no later 'resize'), so the canvas covered only the top ~70%. Now the CSS
+// sizes the canvas and we track its real box via ResizeObserver + resize/orientationchange/visualViewport.
+let vw0 = 0, vh0 = 0;
+function viewSize() {
+  const c = renderer.domElement;
+  return [Math.max(1, Math.round(c.clientWidth || innerWidth)), Math.max(1, Math.round(c.clientHeight || innerHeight))];
 }
-addEventListener('resize', resize); resize();
+function resize(force) {
+  const [W, H] = viewSize();
+  if (force !== true && W === vw0 && H === vh0 && renderer.getPixelRatio() === dpr) return;
+  vw0 = W; vh0 = H;
+  camera.aspect = W / H; camera.fov = camera.aspect < 0.8 ? 72 : 60; camera.updateProjectionMatrix();
+  renderer.setPixelRatio(dpr); renderer.setSize(W, H, false); composer.setPixelRatio(dpr); composer.setSize(W, H);
+  bloom.resolution.set(W * Q.bloom, H * Q.bloom);
+  room2.userData.mirror?.getRenderTarget().setSize(Math.round(W * dpr * Q.refl), Math.round(H * dpr * Q.refl));
+  mirror.getRenderTarget().setSize(Math.round(W * dpr * Q.refl), Math.round(H * dpr * Q.refl));
+}
+const resizeSoon = () => { resize(); setTimeout(resize, 120); setTimeout(resize, 600); };
+addEventListener('resize', resizeSoon); addEventListener('orientationchange', resizeSoon); addEventListener('pageshow', resizeSoon);
+window.visualViewport?.addEventListener('resize', resizeSoon);
+if (window.ResizeObserver) new ResizeObserver(() => resize()).observe(renderer.domElement);
+resize(true);
 
 // ---------- simulation ----------
 const R = 0.3, LIM = HALF - 0.35;
