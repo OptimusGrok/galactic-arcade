@@ -54,3 +54,8 @@ Blank cabinets get cyan letter badges when NUMBERS is on. Letters run through ro
 ### Putting a game in a lettered cabinet
 - **Room 1 letters (E-G; A and B are taken):** add the slot key to `FEATURED` in main.js, e.g. "put ORC in B" becomes `'1:1': [orcCab, 'orc']`. To move a game out of a numbered slot, delete its old key. The badge then becomes a number automatically, and plinth, neon and collision all follow.
 - **Room 2 letters (H-Z):** room 2 cabinets are copies of room 1's blank layout (rotated 180 degrees), and the code can't yet put a game there. The first time it's needed, add a small hook: a `FEATURED2` map keyed by `w:i` that hides that copy and places the cabinet in `room2` at the slot's position, with a blocker and world-space front/facing. Slot `w:i` in room 2 sits at world (-x, Z2 - z) of room 1's slot `w:i`.
+
+## 12 — CLAW MACHINE (`clawCab`, play key `claw`)
+- Free-standing, room 1. Grid cells i -7..-6, j -1..0 (2x2): x -5.25..-3.85, z -0.75..0.25, centre (-4.55, -0.25). Base sits on the grid lines.
+- 1 ticket = 1 drop. Game copy: claw-play/index.html, built by tools_build_claw_play.py + tools_claw_arcade.js from claw-machine-pages/index.html (7a535c6).
+- Prizes behave as in the original and go to their own collection (`arcade_clawMachine.collection`). It pays no tickets.

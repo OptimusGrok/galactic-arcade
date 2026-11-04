@@ -79,6 +79,11 @@ export function setupPlay(A) {
       scene(w) { const m = w.NV.G.mode; return m === 'over' ? 'over' : m === 'title' ? 'title' : 'play'; },
       active(w) { return w.NV.G.mode === 'play'; },
       hold(w) { const G = w.NV.G; if (G.mode !== 'play') return false; G.mode = 'pause'; return true; }, unhold(w) { const G = w.NV.G; if (G.mode === 'pause') G.mode = 'play'; }, overHold: 4500, scoresHold: 0 },
+    claw: { key: 'claw', cab: A.clawCab, src: 'claw-play/index.html', credits: 0, games: 0, aspect: (A.clawCab && A.clawCab.userData.aspect) || 1.4, cost: 1,   // CLAW MACHINE (#12): 1 ticket = 1 credit = one drop (Dave: 'It costs 1 ticket to play')
+      demo(w) { w.__demo.start(); }, stopDemo(w) { w.__demo.stop(); },
+      start(w) { w.__clawA.start(); },
+      scene(w) { return w.__clawA.scene(); }, active(w) { return w.__clawA.active(); },
+      hold(w) { return w.__clawA.hold(); }, unhold(w) { w.__clawA.unhold(); }, overHold: 2500, scoresHold: 0 },
     roadster: { key: 'roadster', cab: A.roadsterCab, src: 'mr-play/index.html', credits: 0, games: 0, aspect: 16 / 9, cost: 5,   // MARS ROADSTER: 5 tickets = 1 credit = one race; two seats, each with its own screen
       demo(w) { w.__demo.start(); }, stopDemo(w) { w.__demo.stop(); },
       start(w) { w.__mrA.start(); },
@@ -99,6 +104,7 @@ export function setupPlay(A) {
   };
   if (!A.dsCab) delete MACHINES.ds;
   if (!A.roadsterCab) delete MACHINES.roadster;
+  if (!A.clawCab) delete MACHINES.claw;
   // MARS ROADSTER: sit the monkey in the chosen bucket seat (hands on the wheel) for the zoom, stand him up behind it on the way out
   function seatMonkey(cab, on) { const u = cab.userData, s = u.seats[u.seat], mu = monkey.userData;
     if (on) { monkey.position.set(s.world.x, 0, s.world.z + 0.12); st.face = 0; monkey.rotation.y = 0; st.vel.set(0, 0, 0); st.speed = 0; st.seated = u.seat; if (monkey.userData.pack) monkey.userData.pack.visible = monkey.userData.tail.visible = false;
@@ -138,14 +144,14 @@ export function setupPlay(A) {
     for (const [f, d] of [[988, 0], [1319, 0.08]]) { const o = ac.createOscillator(), g = ac.createGain(); o.type = 'square'; o.frequency.value = f; g.gain.setValueAtTime(0.12, t + d); g.gain.exponentialRampToValueAtTime(0.001, t + d + 0.35); o.connect(g).connect(ac.destination); o.start(t + d); o.stop(t + d + 0.4); } } catch (e) {} }
   const costOf = m => m.cost || 1;
   function refresh() { const m = near || MACHINES.strike;   // the room prompt: always PLAY (zooms into the demo)
-    bPlay.textContent = m.key === 'roadster' ? (m.cab.userData.seat === 'R' ? 'RIGHT SEAT' : 'LEFT SEAT') : 'PLAY'; P.seatShown = m.key === 'roadster' ? m.cab.userData.seat : null; credit.textContent = (costOf(m) > 1 ? costOf(m) + ' TICKETS TO PLAY  ·  ' : '') + 'CREDIT ' + m.credits + '  ·  YOU HAVE ' + T.total + ' 🎟';
+    bPlay.textContent = m.key === 'roadster' ? (m.cab.userData.seat === 'R' ? 'RIGHT SEAT' : 'LEFT SEAT') : 'PLAY'; P.seatShown = m.key === 'roadster' ? m.cab.userData.seat : null; credit.textContent = (costOf(m) > 1 ? costOf(m) + ' TICKETS TO PLAY  ·  ' : m.key === 'claw' ? '1 TICKET TO PLAY  ·  ' : '') + 'CREDIT ' + m.credits + '  ·  YOU HAVE ' + T.total + ' 🎟';
     hint.textContent = coarse ? 'TAP TO PLAY' : 'ENTER / E / SPACE'; }
   function demoRefresh() { const m = P.cur; if (!m) return; const c = costOf(m), has = T.total >= c;
     dInsert.textContent = m.credits > 0 ? (coarse ? 'TAP TO PLAY' : 'TAP / ENTER TO PLAY') : 'INSERT CREDIT'; dInsert.classList.toggle('ready', m.credits > 0);
     dCredit.textContent = 'CREDIT ' + m.credits + '  ·  ' + T.total + ' 🎟';
     bTicket.textContent = has ? (c > 1 ? 'INSERT ' + c + ' TICKETS · ' + c + ' 🎟' : 'INSERT TICKET · 1 🎟') : (c > 1 ? 'NEED ' + c + ' TICKETS' : 'NEED A TICKET'); bTicket.classList.toggle('need', !has);
     const dTag = document.getElementById('dTag'); if (dTag) dTag.style.visibility = m.credits > 0 && m.board ? 'hidden' : '';   // the live board is not a demo
-    dCost.textContent = c > 1 ? c + ' TICKETS TO PLAY' : ''; dCost.style.display = c > 1 ? '' : 'none'; }
+    dCost.textContent = c > 1 ? c + ' TICKETS TO PLAY' : m.key === 'claw' ? '1 TICKET TO PLAY' : ''; dCost.style.display = c > 1 || m.key === 'claw' ? '' : 'none'; }
   function buzz() { try { ac = ac || new (window.AudioContext || window.webkitAudioContext)(); const t = ac.currentTime, o = ac.createOscillator(), g = ac.createGain(); o.type = 'square'; o.frequency.setValueAtTime(180, t); o.frequency.linearRampToValueAtTime(110, t + 0.18); g.gain.setValueAtTime(0.06, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.22); o.connect(g).connect(ac.destination); o.start(t); o.stop(t + 0.25); } catch (e) {} }
   const shake = el => { el.classList.remove('shake'); void el.offsetWidth; el.classList.add('shake'); };
   function insertTicket() {   // demo view button: 1 ticket -> 1 credit
