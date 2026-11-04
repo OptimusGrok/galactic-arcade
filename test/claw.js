@@ -15,14 +15,14 @@ const PHONE = process.argv[2] === 'phone', sfx = PHONE ? '_phone' : '';
     const bad = []; c.traverse(o => { if (o.isMesh && /^(body|top|post)$/.test(o.name) && (o.material.isMeshBasicMaterial || (o.material.emissive && o.material.emissive.getHex()))) bad.push(o.name); });
     const pr = c.getObjectByName('priceTag'), cv = pr && pr.material.map.image;
     const bl = A.blockers.find(k => k.name === 'claw');
-    return { min: [b.min.x, b.min.z], max: [b.max.x, b.max.z], cell: G.cell, origin: G.origin, cells, bad, glow: !!c.getObjectByName('edgeGlow') && c.getObjectByName('edgeGlow').children.length,
-      parts: ['screen', 'glassBack', 'claw', 'gantry', 'plush', 'marquee', 'priceTag', 'chute'].every(k => c.getObjectByName(k)), plush: c.getObjectByName('plush').children.length, bl: !!bl,
+    return { min: [b.min.x, b.min.z], max: [b.max.x, b.max.z], cell: G.cell, origin: G.origin, cells, bad, glow: !!c.getObjectByName('edgeGlow') && (c.getObjectByName('edgeGlow').userData.baked || c.getObjectByName('edgeGlow').children.length),
+      parts: ['screen', 'glassBack', 'claw', 'gantry', 'plush', 'marquee', 'priceTag', 'chute'].every(k => c.getObjectByName(k)), plush: c.getObjectByName('plush').userData.baked || c.getObjectByName('plush').children.length,   // baked into one mesh per material (draw-call fix) bl: !!bl,
       badge: A.scene.children.filter(o => /^machineBadge_/.test(o.name)).map(o => [o.name.slice(13), o.userData.key]).find(x => x[1] === 'r1:claw') }; });
   const near = (a, b) => Math.abs(a - b) < 1e-4, fw = s.max[0] - s.min[0], fd = s.max[1] - s.min[1];
   chk(near(fw, 2 * s.cell[0]) && near(fd, 2 * s.cell[1]) && near(fw, 1.4) && near(fd, 1.0), 'footprint = 2 x 2 grid cells: ' + fw.toFixed(3) + ' x ' + fd.toFixed(3) + ' m');
   const full = s.cells.filter(c => c[2] > 0.999), part = s.cells.filter(c => c[2] <= 0.999);
   chk(full.length === 4 && part.length === 0 && full.map(c => c[0] + ',' + c[1]).sort().join(' ') === '-6,-1 -6,0 -7,-1 -7,0', 'base covers exactly cells ' + JSON.stringify(full.map(c => c[0] + ',' + c[1])) + ' (Dave\'s highlight), edges on grid lines');
-  chk(s.parts && s.plush >= 10 && s.bad.length === 0 && s.glow >= 12 && s.bl, 'glass box, claw, gantry, ' + s.plush + ' plush, no body neon, ' + s.glow + ' edge-glow tubes, collision box');
+  chk(s.parts && s.plush >= 10 && s.bad.length === 0 && s.glow >= 12 && s.bl, 'glass box, claw, gantry, ' + JSON.stringify([s.parts, s.bad, !!s.bl]) + ' ' + s.plush + ' plush, no body neon, ' + s.glow + ' edge-glow tubes, collision box');
   chk(s.badge && s.badge[0] === '12', 'NUMBERS: claw machine = 12 ' + JSON.stringify(s.badge));
   // Dave's view (his screenshot camera), cabinet on the spot
   await page.evaluate(() => { const A = window.__arcade; A.setFloor('carpet'); A.monkey.position.set(-4.3, 0, 3.6); A.st.yaw = -0.5; A.st.pitch = 0.95; A.st.dist = 5.6; A.st.face = Math.PI - 0.5; });   // Dave's screenshot camera (fitted), a bit wider

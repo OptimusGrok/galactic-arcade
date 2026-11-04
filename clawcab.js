@@ -3,6 +3,11 @@
 // edges glow (thin neon tubes on the corner posts and the top/bottom rims). Glass box with a gantry, a 3-prong claw and a pile of plush
 // inside; a '1 TICKET' price plate on the front (Dave: it costs 1 ticket). tick(t): the claw wanders slowly and bobs (attract).
 import * as THREE from 'three';
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
+// health fix: bake a static group into one mesh per material (same look, far fewer draw calls)
+function bake(grp) { grp.updateMatrixWorld(true); const inv = new THREE.Matrix4().copy(grp.matrixWorld).invert(), by = new Map();
+  grp.traverse(o => { if (!o.isMesh) return; const gm = o.geometry.index ? o.geometry.toNonIndexed() : o.geometry.clone(); gm.applyMatrix4(new THREE.Matrix4().multiplyMatrices(inv, o.matrixWorld)); for (const k of Object.keys(gm.attributes)) if (!/^(position|normal|uv)$/.test(k)) gm.deleteAttribute(k); (by.get(o.material) || by.set(o.material, []).get(o.material)).push(gm); });
+  grp.userData.baked = grp.children.length; const keep = [...grp.children]; keep.forEach(c => grp.remove(c)); for (const [mat, gs] of by) { const m = new THREE.Mesh(mergeGeometries(gs), mat); grp.add(m); gs.forEach(x => x.dispose()); } return grp; }
 export const CLAW = { W: 1.40, D: 1.00, BASE_H: 0.82, GLASS_H: 0.92, TOP_H: 0.30 };
 const canvasTex = (w, h, paint) => { const c = document.createElement('canvas'); c.width = w; c.height = h; paint(c.getContext('2d'), w, h); const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 8; return t; };
 export function buildClawCabinet() {
@@ -24,12 +29,13 @@ export function buildClawCabinet() {
   add(new THREE.BoxGeometry(gw, 0.02, gd).translate(0, y0 + 0.01, 0), new THREE.MeshStandardMaterial({ color: 0x3a2380, roughness: 0.6 }), 'clawFloor');
   add(new THREE.BoxGeometry(0.3, 0.16, 0.3).translate(-W / 2 + 0.24, y0 + 0.08, D / 2 - 0.22), new THREE.MeshStandardMaterial({ color: 0xff3fa4, roughness: 0.4, transparent: true, opacity: 0.85 }), 'chute');
   const plush = new THREE.Group(); plush.name = 'plush'; g.add(plush); const cols = [0xb8743a, 0xf4f0ea, 0xffd23a, 0x3dff9a, 0xf0a050, 0xb36bff, 0x3dd6ff, 0xff8ab0, 0x97999b];
-  let k = 0; for (let ix = 0; ix < 5; ix++) for (let iz = 0; iz < 4; iz++) { const x = -0.3 + ix * 0.2 + (iz % 2) * 0.06, z = -0.33 + iz * 0.2; if (x < -0.35 && z > 0.12) continue;
-    const c = cols[k++ % cols.length], m = new THREE.MeshStandardMaterial({ color: c, roughness: 0.85 }), r = 0.075 + ((ix * 7 + iz * 3) % 3) * 0.01, b = new THREE.Group(); b.position.set(x, y0 + 0.02 + r, z); b.rotation.y = (ix * 1.7 + iz) % 6;
+  const pm = {}, eyeM = new THREE.MeshBasicMaterial({ color: 0x1a0f08 }); let k = 0; for (let ix = 0; ix < 5; ix++) for (let iz = 0; iz < 4; iz++) { const x = -0.3 + ix * 0.2 + (iz % 2) * 0.06, z = -0.33 + iz * 0.2; if (x < -0.35 && z > 0.12) continue;
+    const c = cols[k++ % cols.length], m = pm[c] || (pm[c] = new THREE.MeshStandardMaterial({ color: c, roughness: 0.85 })), r = 0.075 + ((ix * 7 + iz * 3) % 3) * 0.01, b = new THREE.Group(); b.position.set(x, y0 + 0.02 + r, z); b.rotation.y = (ix * 1.7 + iz) % 6;
     b.add(new THREE.Mesh(new THREE.SphereGeometry(r, 14, 10), m)); const hd = new THREE.Mesh(new THREE.SphereGeometry(r * 0.72, 14, 10), m); hd.position.set(0, r * 1.05, r * 0.15); b.add(hd);
     for (const e of [-1, 1]) { const ear = new THREE.Mesh(new THREE.SphereGeometry(r * 0.26, 8, 6), m); ear.position.set(e * r * 0.5, r * 1.6, r * 0.1); b.add(ear);
-      const eye = new THREE.Mesh(new THREE.SphereGeometry(r * 0.09, 6, 4), new THREE.MeshBasicMaterial({ color: 0x1a0f08 })); eye.position.set(e * r * 0.25, r * 1.12, r * 0.7); b.add(eye); }
+      const eye = new THREE.Mesh(new THREE.SphereGeometry(r * 0.09, 6, 4), eyeM); eye.position.set(e * r * 0.25, r * 1.12, r * 0.7); b.add(eye); }
     plush.add(b); }
+  bake(plush);
   // gantry + claw
   const steel = new THREE.MeshStandardMaterial({ color: 0xc8ccd4, metalness: 0.9, roughness: 0.25 });
   for (const sz of [-1, 1]) add(new THREE.BoxGeometry(gw, 0.025, 0.025), steel, 'rail', [0, y1 - 0.04, sz * (gd / 2 - 0.03)]);
@@ -56,6 +62,7 @@ export function buildClawCabinet() {
     m.position.copy(a).add(b).multiplyScalar(0.5); m.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), v.normalize()); m.raycast = () => {}; tubes.add(m); };
   for (const sx of [-1, 1]) for (const sz of [-1, 1]) seg(new THREE.Vector3(sx * ex, 0.01, sz * ez), new THREE.Vector3(sx * ex, H, sz * ez));
   for (const y of [0.01, H]) { seg(new THREE.Vector3(-ex, y, ez), new THREE.Vector3(ex, y, ez)); seg(new THREE.Vector3(-ex, y, -ez), new THREE.Vector3(ex, y, -ez)); seg(new THREE.Vector3(-ex, y, -ez), new THREE.Vector3(-ex, y, ez)); seg(new THREE.Vector3(ex, y, -ez), new THREE.Vector3(ex, y, ez)); }
+  bake(tubes); tubes.children.forEach(m => { m.raycast = () => {}; });
   const glow = new THREE.PointLight(0xffc8f0, 0.6, 2.2, 1.6); glow.position.set(0, y1 - 0.1, 0); g.add(glow);
   function tick(t) { const x = Math.sin(t * 0.37) * (gw / 2 - 0.12), z = Math.cos(t * 0.29) * (gd / 2 - 0.12); bridge.position.x = x; claw.position.z = z;
     const drop = 0.22 + 0.08 * Math.sin(t * 0.9); cable.scale.y = drop; head.position.y = -drop; }
