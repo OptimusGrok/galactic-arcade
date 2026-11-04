@@ -360,7 +360,8 @@ export function setupShop({ scene, tp, play, monkey, camera, st } = {}) {
   const QX = 4.45, QZ = -1.95, RO = 1.95, RI = 1.4, A0 = Math.PI * 0.9, A1 = Math.PI * 1.62;
   const ring = (ro, ri, h, a0 = A0, a1 = A1) => { const sh = new THREE.Shape(); sh.absarc(0, 0, ro, a0, a1, false); sh.absarc(0, 0, ri, a1, a0, true);
     return new THREE.ExtrudeGeometry(sh, { depth: h, bevelEnabled: false, curveSegments: 28 }).rotateX(-Math.PI / 2); };
-  add([ring(RO, RI, 1.0).translate(QX, 0.04, QZ)], new THREE.MeshStandardMaterial({ color: 0x0e1638, roughness: 0.35, emissive: 0x060a20 }), 'checkoutCounter');
+  const counterMat = new THREE.MeshStandardMaterial({ color: 0x0e1638, roughness: 0.35, emissive: 0x060a20 });   // shared with the wardrobe island
+  add([ring(RO, RI, 1.0).translate(QX, 0.04, QZ)], counterMat, 'checkoutCounter');
   add([ring(RO + 0.08, RI - 0.05, 0.06).translate(QX, 1.04, QZ)], new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.2, emissive: 0xb0b4bc }), 'checkoutTop');
   { const AL = A1 - A0, CW = 2048, CHh = 256, ft = canvasTex(CW, CHh, (g, w, h) => { g.fillStyle = '#0e1638'; g.fillRect(0, 0, w, h);
       const neon = (c, blur, lw, fn) => { g.save(); g.strokeStyle = c; g.shadowColor = c; g.shadowBlur = blur; g.lineWidth = lw; g.lineCap = 'round'; g.beginPath(); fn(); g.stroke(); g.restore(); };
@@ -507,6 +508,156 @@ export function setupShop({ scene, tp, play, monkey, camera, st } = {}) {
   // t567: second identical table toward the right wall's front (title-wall) corner; clone shares every geometry + material
   const pool2 = pool.clone(); pool2.name = 'poolTable2'; pool2.position.set(PX, 0, PZ2); G.add(pool2);
   const POOLS = [PZ, PZ2];
+  // ---------- wardrobe looks: faithful port of player.js hatMeshes()/moreHats() geometry (player.js exposes no builder; Chief offered to export one).
+  // Builds every hat + glasses into a head-space group (skull centre y 0.15 r 0.18, face +z); the cap / blue cap are clones of Arcade's real monkey cap.
+  function wardrobeLooks(T, cap) { const head = new T.Group(), h = {};
+      var gold = new T.MeshStandardMaterial({ color: 0xffc640, metalness: 1, roughness: 0.25, emissive: 0x402800, emissiveIntensity: 0.5 }), gem = new T.MeshStandardMaterial({ color: 0xff2b6a, roughness: 0.2, emissive: 0x500010 });
+      // crown: sits ON the head (head sphere top is ~0.33 above the head node), not inside it
+      var cr = new T.Group(); cr.position.set(0, 0.315, -0.005); cr.name = 'gaCrown';
+      var band = new T.Mesh(new T.CylinderGeometry(0.135, 0.125, 0.075, 28, 1, true), gold); band.material.side = T.DoubleSide; band.position.y = 0.035; cr.add(band);
+      var rim = new T.Mesh(new T.TorusGeometry(0.128, 0.012, 6, 28), gold); rim.rotation.x = Math.PI / 2; cr.add(rim);
+      for (var i = 0; i < 7; i++) { var a = i / 7 * Math.PI * 2, sp = new T.Mesh(new T.ConeGeometry(0.034, 0.1, 4), gold); sp.position.set(Math.sin(a) * 0.13, 0.12, Math.cos(a) * 0.13); cr.add(sp);
+        var bl = new T.Mesh(new T.SphereGeometry(0.016, 8, 6), gold); bl.position.set(Math.sin(a) * 0.13, 0.175, Math.cos(a) * 0.13); cr.add(bl); }
+      var g1 = new T.Mesh(new T.SphereGeometry(0.024, 10, 8), gem); g1.position.set(0, 0.04, 0.135); cr.add(g1); head.add(cr); h.crown = cr;
+      // space helmet: big glass bubble round the whole head + solid white collar, rim and antenna so it reads at a distance
+      var white = new T.MeshStandardMaterial({ color: 0xf2f4f8, roughness: 0.35, metalness: 0.3 });
+      var hl = new T.Group(); hl.position.set(0, 0.15, 0.01); hl.name = 'gaHelmet';
+      var glass = new T.Mesh(new T.SphereGeometry(0.31, 32, 22), new T.MeshStandardMaterial({ color: 0x9fdcff, roughness: 0.05, metalness: 0.1, transparent: true, opacity: 0.35, emissive: 0x0a2a44, depthWrite: false, side: T.DoubleSide })); glass.renderOrder = 3; hl.add(glass);
+      var col = new T.Mesh(new T.TorusGeometry(0.2, 0.045, 10, 32), white); col.rotation.x = Math.PI / 2; col.position.y = -0.24; hl.add(col);
+      var vr = new T.Mesh(new T.TorusGeometry(0.31, 0.018, 8, 40), white); hl.add(vr);   // outline ring round the bubble, facing front
+      var an = new T.Mesh(new T.CylinderGeometry(0.008, 0.008, 0.12, 6), white); an.position.set(0.12, 0.33, 0); an.rotation.z = -0.35; hl.add(an);
+      var tip = new T.Mesh(new T.SphereGeometry(0.025, 10, 8), new T.MeshBasicMaterial({ color: 0xff3cf0, toneMapped: false })); tip.position.set(0.145, 0.39, 0); hl.add(tip);
+      head.add(hl); h.helmet = hl;
+    if (cap) { const c0 = cap.clone(true); c0.visible = true; c0.traverse(o => { o.visible = true; }); head.add(c0); h.cap = c0;
+      const cb = cap.clone(true); cb.visible = true; cb.traverse(o => { o.visible = true; if (o.isMesh && o.material) { const hx = o.material.color.getHex(); o.material = o.material.clone(); o.material.color.setHex(hx === 0xd93a82 ? 0x1a4fc0 : 0x2b7bff); } }); head.add(cb); h.capblue = cb; }
+    moreHats(T, head, h); return h;
+    function std(T, c, o) { return new T.MeshStandardMaterial(Object.assign({ color: c, roughness: 0.6 }, o || {})); }
+    function add(g, geo, m, x, y, z, sx, sy, sz) { var e = new g.T.Mesh(geo, m); e.position.set(x || 0, y || 0, z || 0); if (sx) e.scale.set(sx, sy, sz); g.add(e); return e; }
+    function grp(T, head, name, y) { var g = new T.Group(); g.name = name; g.position.y = y || 0; g.T = T; head.add(g); return g; }
+    function moreHats(T, head, h) { var HALF = Math.PI / 2, g, m;
+      g = h.beanie = grp(T, head, 'gaHat_beanie'); var knit = std(T, 0x16c2b2, { roughness: 0.95 }), knit2 = std(T, 0xff7a1a, { roughness: 0.95 });
+      add(g, new T.SphereGeometry(0.198, 26, 12, 0, Math.PI * 2, 0, HALF), knit, 0, 0.2, -0.005, 1, 1.0, 1.04);
+      m = add(g, new T.CylinderGeometry(0.203, 0.203, 0.065, 26, 1, true), knit2, 0, 0.215, -0.005, 1, 1, 1.04); m.material.side = T.DoubleSide;
+      add(g, new T.SphereGeometry(0.055, 12, 10), knit2, 0, 0.41, -0.005);
+      g = h.cowboy = grp(T, head, 'gaHat_cowboy'); var lea = std(T, 0x8b5a2b, { roughness: 0.7 }), bnd = std(T, 0x2a1608);
+      add(g, new T.CylinderGeometry(0.34, 0.34, 0.02, 36), lea, 0, 0.29, 0, 1, 1, 0.9);
+      add(g, new T.CylinderGeometry(0.125, 0.155, 0.18, 26), lea, 0, 0.385, 0);
+      add(g, new T.CylinderGeometry(0.152, 0.158, 0.04, 26, 1, true), bnd, 0, 0.32, 0, 1.01, 1, 1.01);
+      add(g, new T.SphereGeometry(0.13, 20, 8, 0, Math.PI * 2, 0, HALF), lea, 0, 0.47, 0, 0.97, 0.22, 1);
+      g = h.party = grp(T, head, 'gaHat_party'); g.rotation.z = -0.14; var pm = std(T, 0xff3cf0, { emissive: 0x400030 }), py = std(T, 0xffe14a, { emissive: 0x302000 });
+      add(g, new T.ConeGeometry(0.115, 0.32, 26), pm, 0, 0.45, 0);
+      [0.35, 0.45, 0.55].forEach(function (y) { var r = 0.115 * (0.61 - y) / 0.32; m = add(g, new T.TorusGeometry(r + 0.004, 0.011, 6, 24), py, 0, y, 0); m.rotation.x = HALF; });
+      add(g, new T.SphereGeometry(0.04, 12, 10), py, 0, 0.62, 0);
+      g = h.pirate = grp(T, head, 'gaHat_pirate', 0.29); var blk = std(T, 0x15151a, { roughness: 0.5 }), wh = std(T, 0xf4f4f0), gd = std(T, 0xffc640, { metalness: 1, roughness: 0.3, emissive: 0x402800 });
+      add(g, new T.SphereGeometry(0.17, 24, 12, 0, Math.PI * 2, 0, HALF), blk, 0, -0.01, 0, 1, 0.85, 1);
+      add(g, new T.SphereGeometry(0.2, 28, 14), blk, 0, 0.09, 0, 1.6, 0.62, 0.5);
+      m = add(g, new T.TorusGeometry(0.2, 0.009, 6, 40), gd, 0, 0.09, 0.0, 1.6, 0.62, 1);
+      add(g, new T.SphereGeometry(0.034, 12, 10), wh, 0, 0.12, 0.1, 1, 1, 0.5);
+      [-0.7, 0.7].forEach(function (a) { m = add(g, new T.BoxGeometry(0.1, 0.014, 0.01), wh, 0, 0.075, 0.1); m.rotation.z = a; });
+      g = h.halo = grp(T, head, 'gaHat_halo', 0.47); g.rotation.x = -0.12;
+      m = add(g, new T.TorusGeometry(0.15, 0.022, 12, 44), new T.MeshBasicMaterial({ color: 0xffe680, toneMapped: false })); m.rotation.x = HALF;
+      m = add(g, new T.TorusGeometry(0.15, 0.05, 10, 44), new T.MeshBasicMaterial({ color: 0xffd040, transparent: true, opacity: 0.25, depthWrite: false, blending: T.AdditiveBlending, toneMapped: false })); m.rotation.x = HALF;
+      g = h.headphones = grp(T, head, 'gaHat_headphones'); var dk = std(T, 0x202028, { roughness: 0.35, metalness: 0.4 }), glow = new T.MeshBasicMaterial({ color: 0xff3cf0, toneMapped: false });
+      add(g, new T.TorusGeometry(0.222, 0.02, 8, 36, Math.PI), dk, 0, 0.15, 0);
+      [-1, 1].forEach(function (sd) { m = add(g, new T.CylinderGeometry(0.078, 0.078, 0.055, 22), dk, 0.232 * sd, 0.15, 0); m.rotation.z = HALF;
+        m = add(g, new T.TorusGeometry(0.062, 0.011, 6, 22), glow, 0.262 * sd, 0.15, 0); m.rotation.y = HALF; });
+      // glasses (their own row)
+      var GL = h.gl = {}, arms = function (g, mat) { [-1, 1].forEach(function (sd) { add(g, new T.BoxGeometry(0.012, 0.012, 0.2), mat, 0.158 * sd, 0.18, 0.14); }); };
+      g = GL.shades = grp(T, head, 'gaGl_shades'); var ln = std(T, 0x07070c, { metalness: 0.7, roughness: 0.08, emissive: 0x1a0016 }), fr = std(T, 0x111114);
+      [-1, 1].forEach(function (sd) { m = add(g, new T.CylinderGeometry(0.052, 0.052, 0.014, 26), ln, 0.068 * sd, 0.172, 0.245, 1.2, 1, 0.82); m.rotation.x = HALF; });
+      add(g, new T.BoxGeometry(0.05, 0.013, 0.012), fr, 0, 0.19, 0.245); add(g, new T.BoxGeometry(0.29, 0.014, 0.012), fr, 0, 0.205, 0.243); arms(g, fr);
+      g = GL.round = grp(T, head, 'gaGl_round'); var rim = std(T, 0xd4a017, { metalness: 0.9, roughness: 0.3 }), gl = new T.MeshStandardMaterial({ color: 0xcfeeff, transparent: true, opacity: 0.3, roughness: 0.05, depthWrite: false });
+      [-1, 1].forEach(function (sd) { add(g, new T.TorusGeometry(0.046, 0.008, 8, 28), rim, 0.066 * sd, 0.17, 0.245); add(g, new T.CircleGeometry(0.044, 24), gl, 0.066 * sd, 0.17, 0.244); });
+      add(g, new T.BoxGeometry(0.04, 0.009, 0.009), rim, 0, 0.18, 0.247); arms(g, rim);
+      g = GL.visor = grp(T, head, 'gaGl_visor'); var vz = new T.MeshStandardMaterial({ color: 0x00e5ff, emissive: 0x0090b0, emissiveIntensity: 0.9, transparent: true, opacity: 0.8, roughness: 0.1, metalness: 0.3, side: T.DoubleSide }), wt = std(T, 0xf2f4f8, { metalness: 0.3 });
+      add(g, new T.CylinderGeometry(0.255, 0.255, 0.08, 32, 1, true, -0.95, 1.9), vz, 0, 0.17, -0.01);
+      [-0.045, 0.045].forEach(function (y) { add(g, new T.CylinderGeometry(0.258, 0.258, 0.012, 32, 1, true, -0.95, 1.9), wt, 0, 0.17 + y, -0.01).material.side = T.DoubleSide; });
+      [-1, 1].forEach(function (sd) { add(g, new T.SphereGeometry(0.034, 12, 10), wt, Math.sin(0.95) * 0.255 * sd, 0.17, Math.cos(0.95) * 0.255 - 0.01); });
+      add(g, new T.CylinderGeometry(0.212, 0.212, 0.03, 28, 1, true, 0.95, Math.PI * 2 - 1.9), fr, 0, 0.17, -0.01).material.side = T.DoubleSide; }
+  }
+  // ---------- WARDROBE CORNER (Dave via Card & Board Games): free-standing island on the right of the teleporter view, mid way between the pad and
+  // the pool tables, facing the pad (-x). Chrome rail of the 11 hoodie colours, white shelf unit with cyan neon + the 9 hats on head stands, lit glass shelf with the 3 glasses,
+  // low shelf of the 8 shoe colourways, full-length mirror, neon WARDROBE sign. ~7 draw calls (merged vertex-colour mesh + neon + glass + mirror + sign).
+  // Near it a WARDROBE button opens player.js's in-game wardrobe (window.__wardrobe.open, same panel as the HUD). Collider leaves a 3.3 m lane to the title wall (straight walk to table 2) and 9 m to the pool tables.
+  let wdLooks = null;
+  const WDS = 0.8, WDX = 1.6, WDZ = 7.5, WDW = 3.1 * WDS, WDD = 0.85 * WDS;   // scale, back-panel x, centre z, half width (along z), depth (toward -x)
+  const wd = new THREE.Group(); wd.name = 'wardrobeCorner'; wd.position.set(WDX, 0, WDZ); wd.rotation.y = -Math.PI / 2; wd.scale.setScalar(WDS); G.add(wd);   // local +z faces -x (the pad side), local +x runs toward +z
+  { const L = [], neon = [], neonP = [], dark = [], q = (geo, c, x, y, z, sx, sy = sx, sz = sx, rx = 0, ry = 0, rz = 0) => part(L, geo, c, x, y, z, sx, sy, sz, rx, ry, rz);
+    const CHR = 0xd6dbe2, WH = 0xffffff;
+    const HOODC = [0x1d2452, 0xd42a2a, 0x2b62e8, 0x2fae3a, 0xf2c418, 0x7a2bd6, 0xff5fb4, 0xff7a1a, 0x13b8a8, 0x202026, 0xe8eaf0];   // player.js HOOD order
+    const SHOEC = [[0x8a1e2c, 0xf1e8d6], [0x1f4fbf, 0xeaf0ff], [0x1a1a1e, 0x4a4a52], [0xf2f2f4, 0xd03040], [0x1f9a3a, 0xe8ffe8], [0xff5fb4, 0xffffff], [0xd9a51c, 0x2a1a08], [0x6a24c4, 0x00e5ff]];
+    // back panel + plinth
+    const HW = 3.1; dark.push(new THREE.BoxGeometry(2 * HW, 2.7, 0.08).translate(0, 1.35, 0.03), new THREE.BoxGeometry(2 * HW, 0.12, 0.85).translate(0, 0.06, 0.425));   // GROK SHOP counter finish
+    for (const zf of [0.075, -0.015]) { neon.push(new THREE.BoxGeometry(2 * HW, 0.03, 0.03).translate(0, 2.7, zf), new THREE.BoxGeometry(0.03, 2.7, 0.03).translate(-HW, 1.35, zf), new THREE.BoxGeometry(0.03, 2.7, 0.03).translate(HW, 1.35, zf));
+      neonP.push(new THREE.BoxGeometry(2 * HW - 0.16, 0.02, 0.02).translate(0, 2.62, zf), new THREE.BoxGeometry(0.02, 2.5, 0.02).translate(-HW + 0.08, 1.37, zf), new THREE.BoxGeometry(0.02, 2.5, 0.02).translate(HW - 0.08, 1.37, zf)); }
+    neon.push(new THREE.BoxGeometry(2 * HW, 0.025, 0.025).translate(0, 0.125, 0.84)); neonP.push(new THREE.BoxGeometry(2 * HW, 0.02, 0.02).translate(0, 0.02, 0.86));
+    for (const sd of [-1, 1]) { neon.push(new THREE.BoxGeometry(0.025, 0.025, 0.85).translate(sd * HW, 0.125, 0.425)); neonP.push(new THREE.BoxGeometry(0.02, 0.02, 0.85).translate(sd * HW, 0.02, 0.425)); }
+    // mirror (left as you face it = local +x after the flip is world -x; build at local x = 2.55)
+    const MXm = 2.6; q(BOX, 0x1a1e2a, MXm, 1.05, 0.12, 0.72, 2.0, 0.06); neonP.push(new THREE.BoxGeometry(0.66, 0.018, 0.02).translate(MXm, 2.03, 0.17), new THREE.BoxGeometry(0.66, 0.018, 0.02).translate(MXm, 0.07, 0.17), new THREE.BoxGeometry(0.018, 1.96, 0.02).translate(MXm - 0.33, 1.05, 0.17), new THREE.BoxGeometry(0.018, 1.96, 0.02).translate(MXm + 0.33, 1.05, 0.17)); neon.push(new THREE.BoxGeometry(0.76, 0.025, 0.02).translate(MXm, 0.03, 0.16), new THREE.BoxGeometry(0.76, 0.025, 0.02).translate(MXm, 2.07, 0.16), new THREE.BoxGeometry(0.025, 2.0, 0.02).translate(MXm - 0.37, 1.05, 0.16), new THREE.BoxGeometry(0.025, 2.0, 0.02).translate(MXm + 0.37, 1.05, 0.16));
+    // clothing rail: two chrome posts + bar, 11 hoodies on hangers
+    const R0 = 0.35, R1 = 2.2, RY = 1.75; for (const x of [R0 - 0.1, R1 + 0.1]) q(CYL, CHR, x, (RY + 0.12) / 2, 0.42, 0.018, RY - 0.12, 0.018);
+    q(CYL, CHR, (R0 + R1) / 2, RY, 0.42, 0.014, R1 - R0 + 0.24, 0.014, 0, 0, Math.PI / 2);
+    HOODC.forEach((c, i) => { const x = R0 + (i + 0.5) * (R1 - R0) / HOODC.length, d = new THREE.Color(c).multiplyScalar(0.72).getHex();
+      const n0 = L.length; q(CON, 0x9aa0a8, x, RY - 0.03, 0.42, 0.07, 0.06, 0.01);                       // hanger hook
+      q(BOX, c, x, RY - 0.3, 0.42, 0.17, 0.34, 0.08); q(BOX, d, x, RY - 0.49, 0.42, 0.172, 0.05, 0.082);   // body + waistband
+      q(SPHl, d, x, RY - 0.1, 0.4, 0.085, 0.075, 0.05); q(SPHl, 0x15151a, x, RY - 0.11, 0.437, 0.05, 0.045, 0.012);   // hood + opening
+      q(BOX, d, x, RY - 0.38, 0.462, 0.11, 0.07, 0.01);                                                   // kangaroo pocket
+      for (const sd of [-1, 1]) { q(BOX, c, x + sd * 0.115, RY - 0.29, 0.42, 0.05, 0.3, 0.06, 0, 0, sd * 0.28); q(BOX, d, x + sd * 0.155, RY - 0.44, 0.42, 0.052, 0.04, 0.062, 0, 0, sd * 0.28); }   // sleeves + cuffs
+      const ry = -0.55; for (let j = n0; j < L.length; j++) L[j].translate(-x, 0, -0.42).rotateY(ry).translate(x, 0, 0.42); });   // fanned like a shop rail
+    // low shoe shelf under the rail: 8 colourways
+    q(BOX, WH, (R0 + R1) / 2, 0.36, 0.5, R1 - R0 + 0.3, 0.04, 0.5); neon.push(new THREE.BoxGeometry(R1 - R0 + 0.3, 0.02, 0.02).translate((R0 + R1) / 2, 0.34, 0.76));
+    SHOEC.forEach(([up, so], i) => { const x = R0 + (i + 0.5) * (R1 - R0) / SHOEC.length;
+      q(BOX, so, x, 0.4, 0.55, 0.11, 0.035, 0.26); q(BOX, up, x, 0.45, 0.53, 0.105, 0.07, 0.22); q(SPHl, up, x, 0.45, 0.65, 0.052, 0.04, 0.06); q(BOX, WH, x, 0.49, 0.47, 0.1, 0.03, 0.08); });
+    // white shelf unit with cyan neon trim: 9 hats on head stands, 3 per shelf
+    const S0 = -1.7, S1 = 0.05, SH = [0.75, 1.35, 1.95], SD2 = 0.45;
+    for (const x of [S0, S1]) { q(BOX, WH, x, 1.25, SD2 / 2 + 0.06, 0.05, 2.5, SD2); neon.push(new THREE.BoxGeometry(0.02, 2.5, 0.02).translate(x, 1.25, SD2 + 0.07)); }
+    q(BOX, WH, (S0 + S1) / 2, 2.5, SD2 / 2 + 0.06, S1 - S0 + 0.05, 0.05, SD2);
+    for (const y of SH) { q(BOX, WH, (S0 + S1) / 2, y, SD2 / 2 + 0.06, S1 - S0, 0.035, SD2); neon.push(new THREE.BoxGeometry(S1 - S0, 0.02, 0.02).translate((S0 + S1) / 2, y - 0.01, SD2 + 0.07)); }
+    // real wardrobe hats (ported player.js builders) on mannequin heads: rows of 4 / 3 / 3, tallest hats on the lower shelves
+    const HS_ = 0.72, ROWS = [[2, ['cap', 'capblue', 'crown', 'beanie']], [1, ['helmet', 'cowboy', 'party']], [0, ['pirate', 'halo', 'headphones']]], stands = [];
+    for (const [r, ks] of ROWS) ks.forEach((k, i) => { const x = S0 + (i + 0.5) * (S1 - S0) / ks.length, y0 = SH[r] + 0.02, z = 0.3;
+      q(CYL, 0xc8ccd4, x, y0 + 0.04, z, 0.025, 0.08, 0.025); stands.push([k, x, y0 + 0.08 + 0.03 * HS_, z]); });
+    // lit glass shelf with the 3 glasses
+    const GX = -2.55; q(BOX, WH, GX, 0.55, 0.3, 0.75, 1.1, 0.5); q(BOX, WH, GX, 1.85, 0.3, 0.75, 0.06, 0.5);
+    for (const sd of [-1, 1]) q(CYL, CHR, GX + sd * 0.35, 1.48, 0.5, 0.012, 0.74, 0.012);
+    neon.push(new THREE.BoxGeometry(0.75, 0.02, 0.02).translate(GX, 1.1, 0.56), new THREE.BoxGeometry(0.6, 0.012, 0.3).translate(GX, 1.82, 0.3));
+    q(CYL, CHR, GX, 1.3, 0.3, 0.008, 0.36, 0.008); q(BOX, 0x1a1e2a, GX, 1.13, 0.3, 0.2, 0.03, 0.12);   // pin stand for the visor
+    const glassSpots = [['shades', GX - 0.17, 1.135, 0.3], ['round', GX + 0.17, 1.135, 0.3], ['visor', GX, 1.42, 0.3]];
+    // bake the ported hats + glasses into 4 merged vertex-colour meshes (plain / metal / glowing / see-through) so the 10 hats + 3 glasses cost 4 draw calls
+    { const A = window.__arcade, mk = getMonkey(); let cap = null;
+      if (mk) mk.traverse(o => { if (!cap && o.isGroup && o.children.some(k => k.isMesh && k.material && k.material.color && k.material.color.getHex() === 0xff4f9e)) cap = o; });
+      const H = wardrobeLooks(THREE, cap), B = { std: [], metal: [], glow: [], glass: [] }, hold = new THREE.Group();
+      const bake = (g, x, y, z, s, oy) => { if (!g) return; g.removeFromParent && g.removeFromParent(); const w = new THREE.Group(); w.position.set(x, y, z); w.scale.setScalar(s); const inner = new THREE.Group(); inner.position.y = oy; inner.add(g); w.add(inner); hold.add(w); };
+      for (const [k, x, y, z] of stands) { bake(H[k], x, y, z, HS_, 0); const hd = new THREE.Mesh(new THREE.SphereGeometry(0.18, 16, 12).translate(0, 0.15, 0), new THREE.MeshStandardMaterial({ color: 0xe9e4dc })); bake(hd, x, y, z, HS_, 0); }
+      for (const [k, x, y, z] of glassSpots) { const g = H.gl && H.gl[k]; if (!g) continue; g.visible = true; bake(g, x, y, z - 0.16, 0.9, -0.16); }
+      hold.updateMatrixWorld(true);
+      hold.traverse(o => { if (!o.isMesh || !o.material) return; let vis = true; for (let e = o; e && e !== hold; e = e.parent) if (e.visible === false && e !== o.parent) vis = vis; const mt = o.material;
+        if (mt.blending === THREE.AdditiveBlending) return;   // halo's soft additive glow: skipped (bright core ring kept)
+        const kind = mt.isMeshBasicMaterial ? 'glow' : mt.transparent ? 'glass' : (mt.metalness || 0) >= 0.6 ? 'metal' : 'std';
+        let g = o.geometry.index ? o.geometry.toNonIndexed() : o.geometry.clone(); for (const n of Object.keys(g.attributes)) if (n !== 'position' && n !== 'normal') g.deleteAttribute(n);
+        if (!g.attributes.normal) g.computeVertexNormals(); g.applyMatrix4(o.matrixWorld); const c = (mt.color || new THREE.Color(0xffffff)), n = g.attributes.position.count, col = new Float32Array(n * 3);
+        for (let i = 0; i < n; i++) { col[i * 3] = c.r; col[i * 3 + 1] = c.g; col[i * 3 + 2] = c.b; } g.setAttribute('color', new THREE.BufferAttribute(col, 3)); B[kind].push(g); });
+      const MAT = { std: new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.55, metalness: 0.1, side: THREE.DoubleSide, emissive: 0x1a1a1e }),
+        metal: new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.28, metalness: 0.85, emissive: 0x3a2800, emissiveIntensity: 0.6 }),
+        glow: new THREE.MeshBasicMaterial({ vertexColors: true, toneMapped: false }),
+        glass: new THREE.MeshStandardMaterial({ vertexColors: true, transparent: true, opacity: 0.4, roughness: 0.05, metalness: 0.2, depthWrite: false, side: THREE.DoubleSide, emissive: 0x0a2a44 }) };
+      for (const k in B) if (B[k].length) { const m = new THREE.Mesh(mergeGeometries(B[k]), MAT[k]); m.name = 'wardrobeLooks_' + k; if (k === 'glass') m.renderOrder = 3; wd.add(m); }
+      wdLooks = { hats: stands.map(s => s[0]).filter(k => H[k]), glasses: glassSpots.map(s => s[0]).filter(k => H.gl && H.gl[k]), capFromMonkey: !!cap }; }
+    wd.add(Object.assign(new THREE.Mesh(mergeGeometries(L), vcMat), { name: 'wardrobeBody' }));
+    wd.add(Object.assign(new THREE.Mesh(mergeGeometries(dark), counterMat), { name: 'wardrobeShell' }));
+    wd.add(Object.assign(new THREE.Mesh(mergeGeometries(neonP), new THREE.MeshBasicMaterial({ color: 0xc04dff, toneMapped: false })), { name: 'wardrobeNeonPurple' }));
+    wd.add(Object.assign(new THREE.Mesh(mergeGeometries(neon), new THREE.MeshBasicMaterial({ color: 0x5ff4ff, toneMapped: false })), { name: 'wardrobeNeon' }));
+    const glass = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.025, 0.45).translate(GX, 1.12, 0.3), new THREE.MeshStandardMaterial({ color: 0xcff6ff, transparent: true, opacity: 0.35, roughness: 0.05, metalness: 0.1, emissive: 0x2aa8c0, emissiveIntensity: 0.4 })); glass.name = 'wardrobeGlass'; wd.add(glass);
+    const envT = canvasTex(256, 128, (g, w, h) => { const gr = g.createLinearGradient(0, 0, 0, h); gr.addColorStop(0, '#3a2a7a'); gr.addColorStop(0.35, '#8a7ad8'); gr.addColorStop(0.5, '#f4f6fa'); gr.addColorStop(0.75, '#d8dce4'); gr.addColorStop(1, '#9aa0aa'); g.fillStyle = gr; g.fillRect(0, 0, w, h);
+      for (let i = 0; i < 9; i++) { g.fillStyle = ['#40f0ff', '#c04dff', '#ff4fd8'][i % 3]; g.fillRect(i * 29, 58, 14, 6); } });   // shop-ish surroundings: violet roof, white walls, neon
+    envT.t.mapping = THREE.EquirectangularReflectionMapping;
+    const mir = new THREE.Mesh(new THREE.PlaneGeometry(0.62, 1.9), new THREE.MeshStandardMaterial({ color: 0xa8c4d4, metalness: 1, roughness: 0.06, envMap: envT.t, envMapIntensity: 1.25, emissive: 0x0c1824 }));
+    mir.position.set(MXm, 1.05, 0.155); mir.name = 'wardrobeMirror'; wd.add(mir);
+    const sgT = canvasTex(512, 128, (g, w, h) => { g.clearRect(0, 0, w, h); g.font = '900 78px "Arial Black", Impact, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
+      const gr = g.createLinearGradient(40, 0, w - 40, 0); ['#00e5ff', '#7a5cff', '#ff4fd8', '#ffb020'].forEach((c, i) => gr.addColorStop(i / 3, c));
+      g.shadowColor = '#ff4fd8'; g.shadowBlur = 26; g.lineWidth = 12; g.strokeStyle = gr; g.strokeText('WARDROBE', w / 2, h / 2); g.shadowColor = '#00e5ff'; g.shadowBlur = 12; g.lineWidth = 5; g.strokeText('WARDROBE', w / 2, h / 2); g.shadowBlur = 0; g.lineWidth = 2; g.strokeStyle = '#ffffff'; g.strokeText('WARDROBE', w / 2, h / 2); });
+    const sign = new THREE.Mesh(new THREE.PlaneGeometry(3.2, 0.8), new THREE.MeshBasicMaterial({ map: sgT.t, transparent: true, depthWrite: false, toneMapped: false })); sign.position.set(0.1, 3.2, 0.08); sign.name = 'wardrobeSign'; wd.add(sign);
+  }
   // ---------- bounds + obstacles ----------
   const R = 0.3, L = HS - 0.35, KX = 0, KZ = 0;
   const extraBounds = { x0: WXp - L, x1: WXp + L, z0: Z0 + SD / 2 + R, z1: L };
@@ -514,7 +665,8 @@ export function setupShop({ scene, tp, play, monkey, camera, st } = {}) {
   const cc = [[-0.86, -CL / 2], [0.84, -CL / 2], [0.84, CL / 2], [-0.86, CL / 2]].map(([a, b]) => toW(a, b));
   const OBST = [{ x0: Math.min(...cc.map(c => c[0])), x1: Math.max(...cc.map(c => c[0])), z0: Math.min(...cc.map(c => c[1])), z1: Math.max(...cc.map(c => c[1])) },
     { x0: -SXW - 0.1, x1: -SXW + 0.1, z0: ZW, z1: ZF }, { x0: SXW - 0.1, x1: SXW + 0.1, z0: ZW, z1: ZF },
-    ...[PZ, PZ2].map(z => ({ x0: PX - PLW - 0.18, x1: PX + PLW + 0.18, z0: z - PLL - 0.18, z1: z + PLL + 0.18 }))];   // pool tables
+    ...[PZ, PZ2].map(z => ({ x0: PX - PLW - 0.18, x1: PX + PLW + 0.18, z0: z - PLL - 0.18, z1: z + PLL + 0.18 })),   // pool tables
+    { x0: WDX - WDD - 0.05, x1: WDX + 0.08, z0: WDZ - WDW, z1: WDZ + WDW }];   // wardrobe island
   const NP = { x: QX + Math.sin(GYAW) * (RO + 0.55), z: QZ + Math.cos(GYAW) * (RO + 0.55) };
   function pushOut(p) { const lx = p.x - WXp, lz = p.z;
     const dx = lx - QX, dz = lz - QZ, d = Math.hypot(dx, dz); if (d < RO + R) { const k = (RO + R) / (d || 1); p.x = WXp + QX + dx * k; p.z = QZ + dz * k; return; }
@@ -649,6 +801,16 @@ export function setupShop({ scene, tp, play, monkey, camera, st } = {}) {
     poolApi.paid += POOL_COST; poolApi.again++; poolApi.games++; poolApi.rewarded = false;
     try { const P = play || (window.__arcade && window.__arcade.play); if (P && P.tickets && P.tickets.save) P.tickets.save(); } catch (e) {} return { ok: true, have: balance() }; };
   Object.assign(poolApi, { openPool, closePool }); api.pool = poolApi; window.__pool = poolApi;
+  // wardrobe corner button: same pill as PLAY POOL (pink neon), opens player.js's in-game wardrobe panel
+  const wdCss = document.createElement('style'); wdCss.textContent = '#wardBtn{position:fixed;left:50%;bottom:calc(max(22px,env(safe-area-inset-bottom)) + 6px);transform:translateX(-50%);z-index:24;display:none;min-width:150px;height:58px;padding:0 26px;border-radius:29px;border:3px solid #ff4fd8;background:#2a0624e8;color:#ffe6fa;font:900 20px/1 "Courier New",monospace;letter-spacing:.12em;box-shadow:0 0 16px #ff4fd8aa,inset 0 0 12px #ff4fd855;text-shadow:0 0 8px #ff4fd8;cursor:pointer;touch-action:none;white-space:nowrap}#wardBtn.on{display:block}#wardBtn:active{transform:translateX(-50%) scale(.95)}';
+  document.head.appendChild(wdCss);
+  const wardBtn = document.createElement('button'); wardBtn.id = 'wardBtn'; wardBtn.textContent = '👕 WARDROBE'; document.body.appendChild(wardBtn);
+  const wardApi = { near: false, opens: 0, x: WDX, z: WDZ, w: WDW, d: WDD };
+  const wardOpen = () => { const w = window.__wardrobe; if (!w || typeof w.open !== 'function' || w.isOpen) return false; clearKeys(); wardBtn.classList.remove('on'); if (api.open) closeShop(); wardApi.opens++; return w.open(); };
+  wardBtn.addEventListener('pointerdown', stop); wardBtn.addEventListener('touchstart', stop, { passive: true });
+  wardBtn.addEventListener('pointerup', e => { e.stopPropagation(); wardOpen(); }); wardBtn.addEventListener('click', e => { e.stopPropagation(); wardOpen(); });
+  addEventListener('keydown', e => { if (wardApi.near && (e.code === 'KeyE' || e.code === 'Enter') && wardBtn.classList.contains('on')) { wardOpen(); e.preventDefault(); e.stopImmediatePropagation(); } }, true);
+  Object.assign(wardApi, { open: wardOpen, btn: wardBtn, looks: wdLooks }); api.wardrobe = wardApi; api.wardrobeLooks = wdLooks;
   // prizes row in the existing INVENTORY panel (inventory.js), injected only while it is open
   const inv = document.getElementById('inv');
   if (inv) new MutationObserver(() => { if (!inv.classList.contains('on')) return; const P = document.getElementById('invP'); if (!P) return; let r = document.getElementById('invPz');
@@ -736,7 +898,7 @@ export function setupShop({ scene, tp, play, monkey, camera, st } = {}) {
       heldObj.visible = (!pm || pm === 'walk') && !(sStat && (sStat.seated || sStat.fp)) && !(tp && tp.locked) && m.visible; if (m.userData) holdPose(m.userData, dt); }
     const inRoom = m.position.x > WXp / 2;
     if (inRoom && !wasIn && st) { st.pitch = 0.04; st.dist = Math.max(st.dist, 5.0); }   // shop-local camera: level, a bit closer (once per visit)
-    wasIn = inRoom; if (!inRoom) { if (btn.classList.contains('on')) btn.classList.remove('on'); for (const b of poolBtns) b.classList.remove('on'); poolApi.near = false; if (api.open) closeShop(); return; }
+    wasIn = inRoom; if (!inRoom) { if (btn.classList.contains('on')) btn.classList.remove('on'); for (const b of poolBtns) b.classList.remove('on'); poolApi.near = false; wardBtn.classList.remove('on'); wardApi.near = false; if (api.open) closeShop(); return; }
     pushOut(m.position);
     const busy = (tp && tp.locked) || (play && play.mode && play.mode !== 'walk') || !!document.querySelector('#inv.on');
     api.near = !busy && Math.hypot(m.position.x - WXp - NP.x, m.position.z - NP.z) < 1.9;
@@ -744,6 +906,9 @@ export function setupShop({ scene, tp, play, monkey, camera, st } = {}) {
     { const lx = m.position.x - WXp, lz = m.position.z, dx = Math.max(0, Math.abs(lx - PX) - PLW - 0.16), ds = POOLS.map(z => Math.hypot(dx, Math.max(0, Math.abs(lz - z) - PLL - 0.16)));
       const w = ds[1] < ds[0] ? 1 : 0; poolApi.which = w; poolApi.near = !busy && !poolApi.open && !api.open && ds[w] < 1.3;   // only the nearer table's button
       poolBtns.forEach((b, i) => b.classList.toggle('on', poolApi.near && i === w)); }
+    { const lx = m.position.x - WXp, lz = m.position.z, wo = window.__wardrobe && window.__wardrobe.isOpen;   // wardrobe corner: within 1.4 m of its front
+      const dx = Math.max(0, (WDX - WDD) - lx), dz = Math.max(0, Math.abs(lz - WDZ) - WDW); wardApi.dist = lx > WDX ? 9 : Math.hypot(dx, dz);
+      wardApi.near = !busy && !wo && !poolApi.open && !api.open && !poolApi.near && wardApi.dist < 1.4; wardBtn.classList.toggle('on', wardApi.near); }
     // Grok idle: gentle bob + sway, head turns toward the player, blinks, mouth moves while talking
     grok.position.y = Math.sin(t * 1.6) * 0.015; grok.rotation.z = Math.sin(t * 0.9) * 0.02;
     grok.getWorldPosition(tmp); const want = Math.atan2(m.position.x - tmp.x, m.position.z - tmp.z) - grok.rotation.y - 0 ;
