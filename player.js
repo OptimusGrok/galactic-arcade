@@ -129,7 +129,11 @@
   function buildPrev() { var cv = ov && ov.querySelector('#gaCv'); if (!cv || !ov.isConnected || prev.r) return; buildScene(); attach(cv); }
   // the preview canvas that should be drawing now: the wardrobe's when it is open, else the start screen's while that is up
   function want() { if (W.el && W.el.isConnected && W.open) return W.el.querySelector('#gaWCv'); if (ov && ov.isConnected && S() && !S().dismissed) return ov.querySelector('#gaCv'); return null; }
-  function attach(cv) { if (prev.r && prev.r.domElement === cv) return; if (prev.r) { try { prev.r.dispose(); prev.r.forceContextLoss(); } catch (e) {} prev.r = null; } if (mkR(cv)) prev.hat = null; }
+  // free the preview's WebGL context AND swap its canvas for a fresh one: a canvas whose context was lost stays lost forever
+  // (getContext returns the dead context), which gave a white preview on the 2nd wardrobe open / start-screen return.
+  function freeR() { var r = prev.r; if (!r) return; prev.r = null; var old = r.domElement; try { r.dispose(); r.forceContextLoss(); } catch (e) {}
+    if (old && old.parentNode) { var n = document.createElement('canvas'); n.id = old.id; old.parentNode.replaceChild(n, old); } prev.frees = (prev.frees || 0) + 1; }
+  function attach(cv) { if (prev.r && prev.r.domElement === cv) return; freeR(); if (!cv.isConnected) return; if (mkR(cv)) prev.hat = null; }
   function buildScene() { var A = window.__arcade, T = A.THREE; if (prev.scene) return;
     var s = prev.scene = new T.Scene(); prev.cam = new T.PerspectiveCamera(30, 1, 0.1, 50);
     s.add(new T.HemisphereLight(0xcfd8ff, 0x302040, 1.6)); var d = new T.DirectionalLight(0xffffff, 2.2); d.position.set(1.5, 3, 3); s.add(d);
@@ -141,7 +145,7 @@
     for (var i = 0; i < 3; i++) { var ring = new T.Mesh(new T.TorusGeometry(0.25 + i * 0.17, 0.012, 6, 48), new T.MeshBasicMaterial({ color: i === 1 ? 0xff3cf0 : 0x00e5ff, toneMapped: false })); ring.rotation.x = Math.PI / 2; ring.position.y = 0.005; s.add(ring); }
     var beam = new T.Mesh(new T.CylinderGeometry(0.62, 0.62, 2.1, 32, 1, true), new T.MeshBasicMaterial({ color: 0x2a6cff, transparent: true, opacity: 0.08, side: T.DoubleSide, depthWrite: false, blending: T.AdditiveBlending })); beam.position.y = 1.05; s.add(beam);
     applyRoot(T, c); }
-  function frame() { prev.raf = requestAnimationFrame(frame); var wc = want(); if (!wc || !prev.scene) return; if (!prev.r || prev.r.domElement !== wc) attach(wc); if (!prev.r) return;
+  function frame() { prev.raf = requestAnimationFrame(frame); var wc = want(); if (!wc || !prev.scene) return; if (!prev.r || prev.r.domElement !== wc) attach(wc); if (!prev.r) return; if (prev.r.getContext().isContextLost()) { if (!prev.lostAt) prev.lostAt = performance.now(); if (performance.now() - prev.lostAt > 600) { prev.lostAt = 0; remake(); } return; } prev.lostAt = 0;
     var cv = prev.r.domElement, w = cv.clientWidth, h = cv.clientHeight; if (!w || !h) return;
     if (cv.width !== Math.round(w * prev.r.getPixelRatio()) || cv.height !== Math.round(h * prev.r.getPixelRatio())) { prev.r.setSize(w, h, false); }
     prev.cam.aspect = w / h; var fit = Math.max(1, 0.62 / prev.cam.aspect); prev.cam.position.set(0, 1.3, 4.9 * fit); prev.cam.lookAt(0, 1.02, 0); prev.cam.updateProjectionMatrix();
@@ -210,7 +214,7 @@
   function wOpen() { var A = window.__arcade; wBuild(); if (!W.el.isConnected) document.body.appendChild(W.el); W.el.hidden = false; W.open = true; W.opens++; prev.auto = true;
     if (A && A.monkey && A.THREE) { apply(); buildScene(); } sync(true); if (!prev.raf) frame(); return true; }
   function wClose() { if (!W.el || !W.open) return false; W.open = false; W.el.hidden = true; prev.drag = null;
-    if (prev.r && prev.r.domElement.id === 'gaWCv') { try { prev.r.dispose(); prev.r.forceContextLoss(); } catch (e) {} prev.r = null; }   // free the 2nd WebGL context for the game
+    if (prev.r && prev.r.domElement.id === 'gaWCv') freeR();   // free the 2nd WebGL context for the game
     return true; }
   window.__wardrobe = { open: wOpen, close: wClose, applyRemote: function (root, lk) { dress(root, lk); }, get isOpen() { return W.open; }, get el() { return W.el; } };
   function step(k, d) { var L = OPTS[k], i = 0; for (var j = 0; j < L.length; j++) if (L[j][0] === P[k]) i = j; pick(k, L[(i + d + L.length) % L.length][0]); }
