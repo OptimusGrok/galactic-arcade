@@ -60,6 +60,11 @@ export function setupTeleport({ scene, monkey, st, HALF, H }) {
   const btn = document.createElement('button'); btn.id = 'tpBtn'; document.body.appendChild(btn);
   const fl = document.createElement('div'); fl.id = 'tpFl'; document.body.appendChild(fl);
   const api = { where: 1, state: 'idle', t: 0, near: 0, pads, plane, whiteRoom: W, PAD1, PAD2, R, get locked() { return api.state !== 'idle'; }, go };
+  // back from the shop (Dave t220u 'when the player returns from the shop to the arcade have this view'): on the pad, facing into room 1,
+  // camera low + close straight behind him. Pure st values, so the follow camera keeps it until the player moves or drags.
+  api.ARRIVE = { face: 0.70, pitch: 0.18, dist: 2.6 };   // tuned in Playwright (phone) against ref/shop_return_view_t220.jpg
+  function arrive() { const A = api.ARRIVE; st.face = A.face; monkey.rotation.y = A.face; st.yaw = A.face + Math.PI; st.pitch = A.pitch; st.dist = A.dist; st.vel.set(0, 0, 0); st.speed = 0; st.lookT = st.t; api.arrivals = (api.arrivals || 0) + 1; }
+  api.arrive = arrive;
   const stop = e => { e.stopPropagation(); e.preventDefault(); };
   btn.addEventListener('pointerdown', stop); btn.addEventListener('touchstart', stop, { passive: false });
   btn.addEventListener('pointerup', e => { stop(e); go(); }); btn.addEventListener('click', stop);
@@ -85,7 +90,7 @@ export function setupTeleport({ scene, monkey, st, HALF, H }) {
         if (f >= 1) { api.state = 'flash'; api.t = 0; } }
       else if (api.state === 'flash') { const D = 0.35; fl.style.opacity = String(Math.sin(Math.PI * Math.min(1, T / D)));
         power(padOf(api.where), 1 - T / D, T);
-        if (T > D / 2 && !api.cut) { api.cut = 1; power(padOf(api.where), 0, 0); const tp = to(); mp.set(tp.x, 0, tp.z); api.where = 3 - api.where; st.camInit = false; plane.normal.set(0, -1, 0); plane.constant = -0.05; }
+        if (T > D / 2 && !api.cut) { api.cut = 1; power(padOf(api.where), 0, 0); const tp = to(); mp.set(tp.x, 0, tp.z); api.where = 3 - api.where; st.camInit = false; if (api.where === 1) arrive(); plane.normal.set(0, -1, 0); plane.constant = -0.05; }
         if (T >= D) { fl.style.opacity = '0'; api.cut = 0; api.state = 'remat'; api.t = 0; zap(false); } }
       else if (api.state === 'remat') { const D = 1.5, f = Math.min(1, T / D), h = -0.05 + f * (MH + 0.1);
         plane.normal.set(0, -1, 0); plane.constant = h; power(padOf(api.where), Math.min(1, (D + 0.4 - T) * 2), T); if (f < 1) emit(Math.round(dt * 240), 1, h, mp.x, mp.z);
