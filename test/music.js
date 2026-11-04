@@ -19,8 +19,8 @@ const PH = process.argv[2] === 'phone', sfx = PH ? '_phone' : '';
   chk(Math.abs(m.le - m.ls - 3225600 / 44100) < 1e-6 && m.len >= 3225600 * 0.99, 'exact 32-bar loop points ' + (m.le - m.ls).toFixed(6) + ' s, decoded ' + m.len + ' samples, ' + m.src);
   // loop wraps: jump the context clock offset so position passes the loop end
   await ev(() => { window.__music.t0 -= 72.5; }); await page.waitForTimeout(1200); m = await M(); chk(m.pos < 5 && m.target > 0.3, 'position wraps past the loop end (pos ' + m.pos.toFixed(2) + ' s)');
-  await at(-16); await page.waitForTimeout(1500); m = await M(); chk(m.target === 0 && m.gain < 0.1, 'fades out down the hallway ' + JSON.stringify([m.target, m.gain]));
-  await at(-30); await page.waitForTimeout(500); m = await M(); chk(m.target === 0, 'room 2 silent');
+  await at(-16); await page.waitForTimeout(1500); m = await M(); chk(m.target > 0.3 && m.gain > 0.15, 't244: keeps playing down the hallway ' + JSON.stringify([m.target, m.gain]));
+  await at(-30); await page.waitForTimeout(500); m = await M(); chk(m.target > 0.3, 't244: keeps playing in room 2');
   await at(4); await page.waitForTimeout(2000); m = await M(); chk(m.target > 0.3 && m.gain > 0.15, 'back up on return to room 1');
   // Viking chip tight under the gold ticket
   const vx = async () => ev(() => { const a = document.getElementById('tix').getBoundingClientRect(), b = document.getElementById('vix').getBoundingClientRect(); return { dx: b.left - a.left, gap: b.top - a.bottom, w: b.width - a.width, shown: b.width > 0 }; });

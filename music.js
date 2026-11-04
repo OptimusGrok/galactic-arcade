@@ -1,5 +1,5 @@
 // Room 1 background music: "Neon Nights" (105 BPM, 32-bar seamless loop, 3225600 samples @ 44.1 kHz), decoded with WebAudio and
-// looped on exact sample points (encoder padding trimmed). Plays in room 1 only, fades out into the hallway / room 2, while a cabinet
+// looped on exact sample points (encoder padding trimmed). Plays in room 1, the hallway and room 2 without a break (t244), while a cabinet
 // is zoomed in / played, on the start screen, when the tab is hidden, or when MUSIC is off in Options ('neonarcade.music' = '0').
 (function () {
   var N = 3225600, SR = 44100, VOL = 0.42, KEY = 'neonarcade.music';
@@ -22,7 +22,7 @@
     if (S && S.dismissed && !loading) load();   // first START (a user gesture already unlocked the context)
     var t = 0;
     if (M.on && !onStart && !document.hidden && A && A.play) {
-      var z = A.monkey.position.z, k = Math.max(0, Math.min(1, (z + 12 + 2.5) / 3));   // 1 inside room 1, fades through the doorway, 0 down the hallway
+      var z = A.monkey.position.z, R = window.__mp && window.__mp.roomOf, k = R && R(A.monkey.position) === 'white' ? Math.max(0, Math.min(1, (z + 12 + 2.5) / 3)) : 1;   // t244: same track plays on through the hallway and room 2 (only the white shop keeps the old fade)
       t = A.play.mode === 'walk' ? VOL * k : 0; }
     if (window.__pa && window.__pa.playing) t *= 0.3;   // duck under the PA announcement
     M.target = t; M.room1 = t > 0;
