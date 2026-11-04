@@ -114,6 +114,10 @@ export function setupShield(A) {   // A: { scene, play, st, monkey, HALF, DOOR_W
   function camBlock(q) { if (S.open) return; const zMin = Z + 0.22; if (q.z < zMin && q.z > -HALF - HALL_GUARD && Math.abs(q.x) < DOOR_W / 2 + 0.3) q.z = zMin; }
   const HALL_GUARD = 6;
   Object.assign(S, { update, block, camBlock, unlock, refresh, panel, group: grp, pop, Z });
-  S.setOpen = o => { S.open = !!o; try { localStorage.setItem(SHIELD_KEY, o ? '1' : '0'); } catch (e) {} grp.visible = !o; offT = -1; U.uOff.value = o ? 1 : 0; fmat.uniforms.uA.value = o ? 0 : 1; };
+  // t236 (Dave: 'Remove the energy shield and the ticket cost'): the shield is gone for good - always open, invisible, free, no pop-up.
+  // Saved games' shield flag is ignored. (Old setOpen kept below as _setOpen for reference only.)
+  S._setOpen = o => { S.open = !!o; try { localStorage.setItem(SHIELD_KEY, o ? '1' : '0'); } catch (e) {} grp.visible = !o; offT = -1; U.uOff.value = o ? 1 : 0; fmat.uniforms.uA.value = o ? 0 : 1; };
+  S.setOpen = () => { S.open = true; grp.visible = false; offT = -1; U.uOff.value = 1; fmat.uniforms.uA.value = 0; pop.classList.remove('on'); S.popShown = false; };
+  S.removed = true; S.setOpen(); S.unlock = () => true;
   return S;
 }

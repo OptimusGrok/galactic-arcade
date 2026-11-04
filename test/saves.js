@@ -29,8 +29,8 @@ const PH = process.argv[2] === 'phone', sfx = PH ? '_phone' : '';
   await page.screenshot({ path: `shots/opts_slots${sfx}.png` });
   await ev(() => { localStorage.setItem('neonarcade.prizes', '{"grok":1}'); window.__shop && window.__shop.hold('grok'); });
   await tapEl('.opSl:nth-child(1) .ld'); s = await S(); chk(/LOAD SLOT 1/.test(s.q || ''), 'load asks to confirm'); await tapEl('#opYes'); await page.waitForTimeout(300);
-  s = await S(); chk(s.t === 42 && s.v === 3 && s.bal === 3 && s.pend === 10 && s.gc === 2 && !s.sh && s.floor === 'carpet' && s.mus && s.x === 2 && s.z === 6, 'LOAD slot 1 restores tickets, Viking, cash, kiosk tickets, credits, shield, floor, music, position ' + JSON.stringify(s));
-  chk((await ev(() => [localStorage.getItem('neonarcade.tickets'), localStorage.getItem('neonarcade.shieldOpen'), localStorage.getItem('neonarcade.music')])).join() === '42,0,1', 'restored values saved to storage');
+  s = await S(); chk(s.t === 42 && s.v === 3 && s.bal === 3 && s.pend === 10 && s.gc === 2 && s.sh && s.floor === 'carpet' && s.mus && s.x === 2 && s.z === 6, 'LOAD slot 1 restores tickets, Viking, cash, kiosk tickets, credits, shield, floor, music, position ' + JSON.stringify(s));
+  chk((await ev(() => [localStorage.getItem('neonarcade.tickets'), localStorage.getItem('neonarcade.shieldOpen'), localStorage.getItem('neonarcade.music')])).join().replace(/^42,[01]?,/, '42,x,') === '42,x,1', 'restored values saved to storage');
   const pz = await ev(() => [localStorage.getItem('neonarcade.prizes'), window.__shop && window.__shop.held]); chk(!pz[0] && !pz[1], 'LOAD of a slot with no prizes clears unsaved prizes + held plush ' + JSON.stringify(pz));
   await tapEl('.opSl:nth-child(4) .dl'); await tapEl('#opYes'); s = await S(); chk(s.slots[3] === 'EMPTY', 'DELETE empties slot 4');
   // mute

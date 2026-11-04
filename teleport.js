@@ -96,7 +96,7 @@ export function setupTeleport({ scene, monkey, st, HALF, H, Z2 }) {
     + '#tpMenu button{min-width:190px;height:46px;padding:0 18px;border-radius:23px;border:3px solid #00e5ff;background:#03141ae8;color:#e6fdff;font:900 17px/1 "Courier New",monospace;letter-spacing:.12em;box-shadow:0 0 12px #00e5ff88;text-shadow:0 0 8px #00e5ff;cursor:pointer;touch-action:none}#tpMenu button:active{transform:scale(.95)}';
   document.head.appendChild(css);
   const btn = document.createElement('button'); btn.id = 'tpBtn'; document.body.appendChild(btn);
-  const menu = document.createElement('div'); menu.id = 'tpMenu'; menu.innerHTML = '<b>WARP TO</b><button data-d="island">LAVA ISLAND</button><button data-d="room2">ROOM 2</button>'; document.body.appendChild(menu);
+  const menu = { classList: { toggle() {}, remove() {} } };   // t236: WARP TO menu removed (Dave: shop and back only)
   const fl = document.createElement('div'); fl.id = 'tpFl'; document.body.appendChild(fl);
   const api = { where: 1, state: 'idle', t: 0, near: 0, pads, plane, whiteRoom: W, PAD1, PAD2, R, get locked() { return api.state !== 'idle'; }, go, dest: null, DEST, ISLE, ROOM2, fxAt };
   // back from the shop (Dave t220u 'when the player returns from the shop to the arcade have this view'): on the pad, facing into room 1,
@@ -107,9 +107,9 @@ export function setupTeleport({ scene, monkey, st, HALF, H, Z2 }) {
   const stop = e => { e.stopPropagation(); e.preventDefault(); };
   btn.addEventListener('pointerdown', stop); btn.addEventListener('touchstart', stop, { passive: false });
   btn.addEventListener('pointerup', e => { stop(e); go(); }); btn.addEventListener('click', stop);
-  for (const b of menu.querySelectorAll('button')) { b.addEventListener('pointerdown', stop); b.addEventListener('touchstart', stop, { passive: false }); b.addEventListener('click', stop); b.addEventListener('pointerup', e => { stop(e); go(b.dataset.d); }); }
+  if (0) for (const b of []) { b.addEventListener('pointerdown', stop); b.addEventListener('touchstart', stop, { passive: false }); b.addEventListener('click', stop); b.addEventListener('pointerup', e => { stop(e); go(b.dataset.d); }); }
   // go(): from room 1 -> 'shop' (default) | 'room2' | 'island'; from the shop always back to the room-1 pad ('arcade')
-  function go(dest) { if (api.state !== 'idle') return; api.dest = api.where === 2 ? 'arcade' : (DEST[dest] && dest !== 'arcade' ? dest : 'shop'); api.state = 'walk'; api.t = 0; btn.classList.remove('on'); menu.classList.remove('on'); }
+  function go(dest) { if (api.state !== 'idle') return; api.dest = api.where === 2 ? 'arcade' : 'shop'; api.state = 'walk'; api.t = 0; btn.classList.remove('on'); menu.classList.remove('on'); }
   // other players' beams (mp.js): swirl + sparkles where they stand; out = beaming away, else arriving
   function fxAt(x, z, out) { swirlAt(x, z, out ? 2.8 : 2.0); for (let i = 0; i < 6; i++) emit(10, 2, 0.05, x, z); }
   let lsw = null;
