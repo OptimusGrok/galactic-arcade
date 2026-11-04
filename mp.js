@@ -123,8 +123,13 @@ body.ingame #mpPill,body.ingame #mpBar,body.ingame #mpChat,body.ingame #mpTags,b
       if (lk) { if (map[orig] != null) c.setHex(map[orig]); } else { const hsl = {}; c.getHSL(hsl); if (hsl.s > 0.25) c.setHSL((hsl.h + h / 360) % 1, hsl.s, hsl.l); } });
     if (cap) cap.visible = !lk || lk.hat === 'cap'; p.look = lk;
     // player.js wardrobe (Chief): new hats / glasses etc. on the remote monkey; materials already carry userData.orig (own())
-    if (lk) try { if (window.__wardrobe && typeof window.__wardrobe.applyRemote === 'function') window.__wardrobe.applyRemote(p.g, lk); } catch (e) {} }
+    if (lk) try { if (window.__wardrobe && typeof window.__wardrobe.applyRemote === 'function') window.__wardrobe.applyRemote(p.g, lk); } catch (e) {}
+    p.top = topOf(p.g); }
   M.paint = paint;
+  // name tag height: just above the highest VISIBLE part (tallest hat: cowboy / party / halo), so it never covers the face or glasses
+  const TB = new THREE.Box3();
+  function topOf(g) { g.updateMatrixWorld(true); let top = -1e9; const seen = o => { for (let q = o; q && q !== g; q = q.parent) if (!q.visible) return false; return true; };
+    g.traverse(o => { if (o.isMesh && o.geometry && seen(o)) { TB.setFromObject(o); if (TB.max.y > top) top = TB.max.y; } }); return top > -1e8 ? Math.max(1.75, top - g.position.y + 0.12) : 1.75; }
   function onLook(pl) { if (!pl || !pl.i || pl.i === id || !pl.look || typeof pl.look !== 'object') return; const p = M.peers.get(pl.i); if (!p) return; M.recv++;
     paint(p, { look: pl.look }); if (pl.name) { p.name = String(pl.name).slice(0, 14); p.tag.textContent = p.name; } }
   function peer(pid, meta) { let p = M.peers.get(pid);
@@ -228,8 +233,8 @@ body.ingame #mpPill,body.ingame #mpBar,body.ingame #mpChat,body.ingame #mpTags,b
       if (u.legs) { const amp = Math.min(1, sp / 2.4) * 0.6, s = Math.sin(p.phase); u.legs[0].leg.rotation.x = s * amp; u.legs[1].leg.rotation.x = -s * amp;
         if (u.arms) { u.arms[0].sh.rotation.x = -s * amp * 0.8; u.arms[1].sh.rotation.x = s * amp * 0.8; if (p.a === 'emo') {} } }
       if (u.tail) { const tk = 0.15 + Math.min(1, sp / 2.4) * 0.35 + (p.a === 'jump' ? 0.4 : 0); u.tail.rotation.z = Math.sin(now / 625 + p.phase) * tk; const seat = /^seat:/.test(p.a); u.tail.visible = u.pack.visible = !seat; }
-      place(p.tag, g, 1.75); }
-    for (const p of [me, ...M.peers.values()]) for (const kd in p.bub) { const b = p.bub[kd]; if (now > b.until) { clearBub(p, kd); continue; } place(b.el, p.g, 1.75, kd === 'emo' ? 22 : 24); }
+      place(p.tag, g, p.top || 1.75); }
+    for (const p of [me, ...M.peers.values()]) for (const kd in p.bub) { const b = p.bub[kd]; if (now > b.until) { clearBub(p, kd); continue; } place(b.el, p.g, p.top || 1.75, kd === 'emo' ? 22 : 24); }
     requestAnimationFrame(frame); }
   requestAnimationFrame(frame);
   // multiplayer is off in automated test browsers unless a test opts in (keeps the suite off the network)
