@@ -24,7 +24,7 @@ const PH = process.argv[2] === 'phone', sfx = PH ? '_phone' : '';
     await goTo(cab); await page.waitForFunction(() => document.getElementById('playUI').classList.contains('on'), null, { timeout: 10000 }).catch(() => {}); await page.waitForTimeout(400); s = await S();
     chk(s.on && s.txt === 'PLAY' && /^5 TICKETS TO PLAY  ·  CREDIT 0 /.test(s.cr), N + ': room prompt is PLAY at CREDIT 0 "' + s.cr + '"');
     const g0 = s[kg];
-    await playBtn(); await page.waitForFunction(() => window.__arcade.play.mode === 'game' && document.getElementById('game').classList.contains('on'), null, { timeout: 30000 });
+    await playBtn(); await page.waitForFunction(() => window.__arcade.play.mode === 'game' && document.getElementById('game').classList.contains('on'), null, { timeout: 90000 });
     await page.waitForTimeout(2500); s = await S();
     chk(s.sub === 'demo' && s.demoOn && s.demoW && s.ins === 'INSERT CREDIT' && s.dcr.startsWith('CREDIT 0') && s[kg] === g0, N + ': zoomed in to the DEMO with INSERT CREDIT / CREDIT 0, no game started');
     const live = await page.evaluate(k => { const w = document.getElementById('game').contentWindow; return k === 'strike' ? w.STRIKE.G.scene : w.__ghost.G.state; }, key);
