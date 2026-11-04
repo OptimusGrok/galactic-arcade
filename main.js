@@ -17,6 +17,7 @@ import { buildCyberCabinet } from './cybercitycab.js';
 import { buildBlasterCabinet } from './blastercab.js';
 import { buildPipCabinet } from './pipcab.js';
 import { buildClawCabinet, CLAW } from './clawcab.js';
+import { buildBBCabinet } from './bbcab.js';
 import { setupMP } from './mp.js';
 import { buildNovaCabinet } from './novacab.js';
 import { buildRoadsterCabinet, MR } from './roadstercab.js';
@@ -314,8 +315,8 @@ const cabinets = [], blockers = [], slots = [], spots = [], eastGhostCabs = [];
 // every wall: 5 evenly spaced slots. The north-west corner ends of the north and west rows hold STRIKE and GHOST 256
 const ROWS = [[-8, -4, 0, 4, 8], [-8, -4, 0, 4, 8], [-8, -4, 0, 4, 8], [-8, -4, 0, 4, 8]];
 const strikeCab = buildStrikeCabinet(), ghostCab = buildGhostCabinet();
-const berserkerCab = buildBerserkerCabinet(), monkeyCab = buildMonkeyCabinet(), orcCab = buildOrcCabinet(), novaCab = buildNovaCabinet(), cyberCab = buildCyberCabinet(), blasterCab = buildBlasterCabinet(), pipCab = buildPipCabinet(), clawCab = buildClawCabinet();
-const FEATURED = { '0:0': [strikeCab, 'strike'], '0:1': [berserkerCab, 'berserker'], '0:3': [monkeyCab, 'monkey'], '1:4': [ghostCab, 'ghost'], '1:3': [orcCab, 'orc'], '0:4': [novaCab, 'nova'], '1:2': [cyberCab, 'cyber'], '1:1': [blasterCab, 'blaster'], '1:0': [pipCab, 'pip'] };   // NOVA TETHER: north wall slot 4 (x=8), right of MONKEY CROSSING (Dave's pick)
+const berserkerCab = buildBerserkerCabinet(), monkeyCab = buildMonkeyCabinet(), orcCab = buildOrcCabinet(), novaCab = buildNovaCabinet(), cyberCab = buildCyberCabinet(), blasterCab = buildBlasterCabinet(), pipCab = buildPipCabinet(), clawCab = buildClawCabinet(), bbCab = buildBBCabinet();
+const FEATURED = { '0:0': [strikeCab, 'strike'], '0:1': [berserkerCab, 'berserker'], '0:3': [monkeyCab, 'monkey'], '1:4': [ghostCab, 'ghost'], '1:3': [orcCab, 'orc'], '0:4': [novaCab, 'nova'], '1:2': [cyberCab, 'cyber'], '1:1': [blasterCab, 'blaster'], '1:0': [pipCab, 'pip'], '2:4': [bbCab, 'bb'] };   // BURROW BUSTER (#13): south wall slot 2:4 (old blank G, x=-8), the corner neighbour of SUPER PIP QUEST   // NOVA TETHER: north wall slot 4 (x=8), right of MONKEY CROSSING (Dave's pick)
    // ORC ATTACK: west wall slot 3 (z=-4), immediately left of GHOST 256 as you face it // north row corner end (x=-8), west row corner end (z=-8)
 // MARS ROADSTER: two-seat driving cabinet, 2 slots wide (south wall C + D = 2:0 x=8 and 2:1 x=4) and 4 cabinets long, into the room
 const roadsterCab = buildRoadsterCabinet(); FEATURED['2:0'] = [roadsterCab, 'roadster'];
@@ -422,7 +423,7 @@ function wallTubeGeo(cabList, flatEast) {
 const wn = new THREE.Mesh(wallTubeGeo([...cabinets, ...featured, ...eastGhostCabs], false), neon(C.pink, 3.5 * PINK_K)); wn.name = 'wallNeonRun'; room.add(wn);
 const playables = [...cabinets, ...featured];   // (+ dsCab, pushed once room 2 exists)
 // ---------- dev toggles (hidden ticket menu): NUMBERS badges over game cabinets, CLIPPING (walk through walls/doors) ----------
-const LATE_NUM = { '1:1': 10, '1:0': 11 };   // games added after DEAD SIGNAL (#9) keep their own fixed number: BLASTER (blank B) = #10, SUPER PIP QUEST (blank A) = #11
+const LATE_NUM = { '1:1': 10, '1:0': 11, '2:4': 13 };   // games added after DEAD SIGNAL (#9) keep their own fixed number: BLASTER (blank B) = #10, SUPER PIP QUEST (blank A) = #11, BURROW BUSTER (blank G) = #13
 const DEV = { numbers: localStorage.getItem('neonarcade.dev.numbers') === '1', clip: localStorage.getItem('neonarcade.dev.clip') === '1', badges: [] };
 { // stable order: room 1 walk, north wall left->right then west wall; only cabinets with a game (blanks get no number)
   const order = ['0:0', '0:1', '0:3', '0:4', '1:2', '1:3', '1:4', '1:0', '1:1', '2:0', '2:1', '2:2', '2:3', '2:4'];
@@ -1108,7 +1109,7 @@ function frame(now) {
     const vis = c => { const sc = c.userData.centre; return (_frus.intersectsSphere(_sph.set(_v.copy(sc).setY(1.2), 1.4)) && camera.position.distanceTo(sc) < 18) || !!window.__forceDemo; };
     const dts = Math.min(gap / 1000, 0.1);
     tickStrikeDemo(demo, dts, vis(strikeCab)); tickGhostDemo(ghostDemo, dts, vis(ghostCab));
-    if (now - (frame.attT || 0) > 120) { frame.attT = now; for (const c of [berserkerCab, monkeyCab, orcCab, novaCab, cyberCab, blasterCab, pipCab, roadsterCab, clawCab]) if (vis(c)) c.userData.tick(now / 1000); }
+    if (now - (frame.attT || 0) > 120) { frame.attT = now; for (const c of [berserkerCab, monkeyCab, orcCab, novaCab, cyberCab, blasterCab, pipCab, roadsterCab, clawCab, bbCab]) if (vis(c)) c.userData.tick(now / 1000); }
     strikeCab.userData.glow.intensity = demo.running ? 1.2 + Math.sin(now * 0.013) * 0.08 + Math.sin(now * 0.031) * 0.06 : 0.6;
     ghostCab.userData.glow.intensity = ghostDemo.running ? 1.1 + Math.sin(now * 0.017) * 0.08 : 0.5;
   }
@@ -1124,7 +1125,7 @@ function frame(now) {
   requestAnimationFrame(frame);
 }
 function stepClock(dt) { st.t += dt; }
-const play = setupPlay({ camera, monkey, dsCab, roadsterCab, strikeCab, ghostCab, berserkerCab, monkeyCab, orcCab, novaCab, cyberCab, blasterCab, pipCab, clawCab, st, pause(on) { paused = on; if (!on && !rafOn) { rafOn = true; last = performance.now(); requestAnimationFrame(frame); } } });
+const play = setupPlay({ camera, monkey, dsCab, roadsterCab, strikeCab, ghostCab, berserkerCab, monkeyCab, orcCab, novaCab, cyberCab, blasterCab, pipCab, clawCab, bbCab, st, pause(on) { paused = on; if (!on && !rafOn) { rafOn = true; last = performance.now(); requestAnimationFrame(frame); } } });
 shield = setupShield({ scene, play, st, monkey, HALF, DOOR_W, DOOR_H });
 tp = setupTeleport({ scene, monkey, st, HALF, H }); window.__tp = tp;
 window.__grid = setupGrid({ THREE, scene, camera, cv, HALF, DOOR_W, HALL_L, Z2 });
@@ -1145,6 +1146,6 @@ const opts = setupOpts({ play, kiosk, shield, st, monkey, setFloor, getFloor: ()
 requestAnimationFrame(frame);
 
 // hooks for tests / future art work
-window.__arcade = { get window() { return windowMode; }, setWindow, get jumping() { return !!st.jump; }, canJump, LAVA, lavaRespawnPoint, get spaceWin() { return spaceWin; }, get kiosk() { return kiosk; }, setFloor, get floor() { return floorMode; }, setWalls, get walls() { return wallsMode; }, wallMat, carpet, mirror, shield, room, room2, Z2, hall, DOOR_W, DOOR_H, HALL_L, berserkerCab, monkeyCab, orcCab, cyberCab, novaCab, blasterCab, pipCab, clawCab, roadsterCab, dsCab, play, get paused() { return paused; }, THREE, scene, camera, renderer, monkey, cabinets, strikeCab, ghostCab, featured, demo, ghostDemo, playables, blockers, st, stats, step, keys, get nearCab() { return nearCab; }, setArt: (i, part, tex, glow) => cabinets[i].userData.setArt(part, tex, glow) };
+window.__arcade = { get window() { return windowMode; }, setWindow, get jumping() { return !!st.jump; }, canJump, LAVA, lavaRespawnPoint, get spaceWin() { return spaceWin; }, get kiosk() { return kiosk; }, setFloor, get floor() { return floorMode; }, setWalls, get walls() { return wallsMode; }, wallMat, carpet, mirror, shield, room, room2, Z2, hall, DOOR_W, DOOR_H, HALL_L, berserkerCab, monkeyCab, orcCab, cyberCab, novaCab, blasterCab, pipCab, clawCab, bbCab, roadsterCab, dsCab, play, get paused() { return paused; }, THREE, scene, camera, renderer, monkey, cabinets, strikeCab, ghostCab, featured, demo, ghostDemo, playables, blockers, st, stats, step, keys, get nearCab() { return nearCab; }, setArt: (i, part, tex, glow) => cabinets[i].userData.setArt(part, tex, glow) };
 const mp = setupMP({ scene, camera, monkey, makeMonkey, st, play, getTp: () => tp, HALF, Z2, HALL_L, WX: 80 }); window.__arcade.mp = mp;   // multiplayer step 1: public room, 10 players
 try { setTimeout(() => { if (window.__shop && window.__shop.reloadPrizes) window.__shop.reloadPrizes(); }, 0); } catch (e) {}   // AUTOSAVE: restore bought prizes + held plush from this device on load (shop.js reads neonarcade.prizes / .held)

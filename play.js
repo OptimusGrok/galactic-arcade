@@ -73,6 +73,11 @@ export function setupPlay(A) {
       start(w) { w.__pip.start(); },
       scene(w) { return w.__pip.scene(); }, active(w) { return w.__pip.active(); },
       hold(w) { return w.__pip.hold(); }, unhold(w) { w.__pip.unhold(); }, overHold: 4500, scoresHold: 0 },
+    bb: { key: 'bb', cab: A.bbCab, src: 'bb-play/index.html', credits: 0, games: 0, aspect: (A.bbCab && A.bbCab.userData.aspect) || 4 / 5, cost: 5,   // BURROW BUSTER (#13, slot 2:4): 5 tickets = 1 credit = one game of 3 lives
+      demo(w) { w.__demo.start(); }, stopDemo(w) { w.__demo.stop(); },
+      start(w) { w.__bb.start(); },
+      scene(w) { return w.__bb.scene(); }, active(w) { return w.__bb.active(); },
+      hold(w) { return w.__bb.hold(); }, unhold(w) { w.__bb.unhold(); }, overHold: 4500, scoresHold: 0 },
     nova: { key: 'nova', cab: A.novaCab, src: 'nova-play/index.html', credits: 0, games: 0, aspect: (A.novaCab && A.novaCab.userData.aspect) || 16 / 9, cost: 5,   // 5 tickets = 1 credit = one run
       demo(w) { w.__demo.start(); }, stopDemo(w) { w.__demo.stop(); },
       start(w) { w.__nova.start(); },
