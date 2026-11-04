@@ -1,0 +1,23 @@
+/* Galactic Arcade - neat cabinet DEMO overlay (cabinet-demo.js). Active only while body.cd-demo is set. */
+body.cd-demo #tix, body.cd-demo #vix { display: none !important; }            /* ONE ticket counter: #cdTix */
+#demoUI.cd { justify-content: flex-end; gap: 0; padding-bottom: max(3vh, calc(env(safe-area-inset-bottom) + 14px)); }
+#demoUI.cd #dTag { top: max(12px, env(safe-area-inset-top)); font: 700 12px 'Courier New', monospace; letter-spacing: .3em; color: var(--cd-pill, #7fe8ff);
+  background: #0a1a1ccc; border: 1px solid #7fe8ff55; padding: 5px 12px; border-radius: 9px; text-shadow: 0 0 6px #00c8ff; }
+#cdTix { position: absolute; top: max(10px, env(safe-area-inset-top)); right: max(10px, env(safe-area-inset-right)); display: flex; align-items: center; gap: 6px;
+  font: 900 18px/1 'Courier New', monospace; color: #3a2400; background: linear-gradient(#ffd75a, #f0a810); border: 2px solid #fff3; border-radius: 10px; padding: 5px 8px 5px 12px;
+  box-shadow: 0 2px 0 #9a6200, 0 0 12px #ffb00066; pointer-events: none; }
+#cdTix i { display: block; width: 30px; height: 20px; border-radius: 4px; background: #b86e00; box-shadow: inset 0 0 0 2px #ffe7a0; position: relative; }
+#cdTix i::after { content: '🐵'; position: absolute; inset: 0; font: 13px/20px system-ui; text-align: center; font-style: normal; }
+#cdPanel { width: min(92vw, 520px); box-sizing: border-box; display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 18px 14px 16px;
+  background: linear-gradient(#1a1406e8, #0d0a04f0); border: 3px solid var(--cd-accent, #ffc020); border-radius: 18px;
+  box-shadow: 0 0 24px color-mix(in srgb, var(--cd-accent, #ffc020) 45%, transparent), inset 0 1px 0 #ffffff22; backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px); }
+#demoUI.cd #dInsert { background: none; padding: 0; font: 900 clamp(26px, 8.4vw, 46px)/1 'Courier New', monospace; letter-spacing: .08em; color: var(--cd-title, #ffe14a); white-space: nowrap; }
+#demoUI.cd #dCredit, #demoUI.cd #dCost { background: none; padding: 0; font: 700 clamp(14px, 4.2vw, 19px)/1.2 'Courier New', monospace; letter-spacing: .14em; color: #fff; text-shadow: 0 1px 0 #000; }
+#demoUI.cd #dCost { color: #fff; }
+#demoUI.cd #bTicket { margin-top: 6px; width: 100%; box-sizing: border-box; display: flex; align-items: center; justify-content: center; gap: 12px; padding: 14px 12px;
+  background: linear-gradient(#ffd85c, #f2a812); background-image: linear-gradient(#ffd85c, #f2a812); color: #2a1a00; text-shadow: none; border: 2px solid #fff6; border-radius: 14px;
+  box-shadow: 0 4px 0 #9a6200, 0 0 18px #ffb00088; font: 900 clamp(18px, 5.6vw, 28px)/1 'Courier New', monospace; letter-spacing: .08em; white-space: nowrap; }
+#demoUI.cd #bTicket::after { content: ''; width: 40px; height: 26px; flex: none; border-radius: 5px; background: #b86e00 var(--tkimg) center/contain no-repeat; box-shadow: inset 0 0 0 2px #ffe7a0; }
+#demoUI.cd #bTicket.need { filter: grayscale(.8); opacity: .8; }
+body.cd-demo #bExit { left: max(10px, env(safe-area-inset-left)); top: calc(max(10px, env(safe-area-inset-top)) + var(--cd-exit, 64px)); width: 44px; height: 44px; }
+#cdPanel { margin-bottom: var(--cd-pb, 0px); }

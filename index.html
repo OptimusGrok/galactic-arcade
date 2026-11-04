@@ -186,6 +186,7 @@ body[data-cab=roadster] #tix.ingame{top:calc(max(10px,env(safe-area-inset-top)) 
 .tkT{border-color:#00e5ff;background:#04202a;color:#bff6ff}.tkT.on{background:#00e5ff;color:#001018}.tkB.z{border-color:#ff3cf0;background:#2a0628;color:#ffd0fa}
 @keyframes stp{0%,100%{opacity:.25;transform:scale(.92)}50%{opacity:.9;transform:scale(1.04)}}
 </style>
+<link rel="stylesheet" href="cabinet-demo.css">
 </head><body>
 <div id="start" role="dialog" aria-label="Galactic Arcade start screen"><div id="stBg"></div><div id="stBox"><picture><source srcset="img/start.webp" type="image/webp"><img src="img/start.jpg" alt="Galactic Arcade — tap to start" draggable="false"></picture><div id="stBtns"><button class="stB" id="stStart">START</button><button class="stB" id="stOpt">OPTIONS</button></div></div>
 <div id="opt" aria-hidden="true"><div id="optP"><div id="optHd"><div id="optT">OPTIONS</div><button id="optX" title="Back">✕</button></div>
@@ -366,6 +367,8 @@ if (document.getElementById('flBtn')) flBtnInit(); else document.addEventListene
 <div id="joy"><div id="knob"></div></div>
 <script src="ticket-art.js"></script>
 <script src="music.js"></script>
+<script src="cabinet-demo.js"></script>
+<script src="cabinet-music.js"></script>
 <script src="pa.js"></script>
 <script type="module" src="main.js"></script>
 <script src="inventory.js"></script>

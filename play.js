@@ -152,6 +152,7 @@ export function setupPlay(A) {
     bPlay.textContent = m.key === 'roadster' ? (m.cab.userData.seat === 'R' ? 'RIGHT SEAT' : 'LEFT SEAT') : 'PLAY'; P.seatShown = m.key === 'roadster' ? m.cab.userData.seat : null; credit.textContent = (costOf(m) > 1 ? costOf(m) + ' TICKETS TO PLAY  ·  ' : m.key === 'claw' ? '1 TICKET TO PLAY  ·  ' : '') + 'CREDIT ' + m.credits + '  ·  YOU HAVE ' + T.total + ' 🎟';
     hint.textContent = coarse ? 'TAP TO PLAY' : 'ENTER / E / SPACE'; }
   function demoRefresh() { const m = P.cur; if (!m) return; const c = costOf(m), has = T.total >= c;
+    if (window.__cabDemo) { window.__cabDemo.render({ key: m.key, credits: m.credits, cost: c, tickets: T.total, coarse, board: !!m.board }); return; }
     dInsert.textContent = m.credits > 0 ? (coarse ? 'TAP TO PLAY' : 'TAP / ENTER TO PLAY') : 'INSERT CREDIT'; dInsert.classList.toggle('ready', m.credits > 0);
     dCredit.textContent = 'CREDIT ' + m.credits + '  ·  ' + T.total + ' 🎟';
     bTicket.textContent = has ? (c > 1 ? 'INSERT ' + c + ' TICKETS · ' + c + ' 🎟' : 'INSERT TICKET · 1 🎟') : (c > 1 ? 'NEED ' + c + ' TICKETS' : 'NEED A TICKET'); bTicket.classList.toggle('need', !has);

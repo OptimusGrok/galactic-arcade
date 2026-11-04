@@ -25,6 +25,7 @@
       var z = A.monkey.position.z, R = window.__mp && window.__mp.roomOf, k = R && R(A.monkey.position) === 'white' ? Math.max(0, Math.min(1, (z + 12 + 2.5) / 3)) : 1;   // t244: same track plays on through the hallway and room 2 (only the white shop keeps the old fade)
       t = A.play.mode === 'walk' ? VOL * k : 0; }
     if (window.__pa && window.__pa.playing) t *= 0.3;   // duck under the PA announcement
+    if (window.__cabMusic) t *= 1 - window.__cabMusic.duck;   // cabinet loop near / in demo (cabinet-music.js)
     M.target = t; M.room1 = t > 0;
     if (g) { if (ac.state === 'suspended' && t > 0) ac.resume(); g.gain.setTargetAtTime(t, ac.currentTime, t > M.gain ? 0.5 : 0.25); M.gain = g.gain.value; }
   }
