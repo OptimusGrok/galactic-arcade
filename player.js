@@ -214,7 +214,7 @@
     var cv = prev.r.domElement, w = cv.clientWidth, h = cv.clientHeight; if (!w || !h) return;
     if (cv.width !== Math.round(w * prev.r.getPixelRatio()) || cv.height !== Math.round(h * prev.r.getPixelRatio())) { prev.r.setSize(w, h, false); }
     prev.cam.aspect = w / h; var fit = Math.max(1, 0.62 / prev.cam.aspect); prev.cam.position.set(0, 1.3, 4.9 * fit); prev.cam.lookAt(0, 1.02, 0); prev.cam.updateProjectionMatrix();
-    var PL = pLook(); if (wc.id === 'gaCv') { PL = Object.assign({}, PL, { glasses: 'none' }); }   // Dave: no eyewear on the start screen (saved glasses kept for the game)
+    var PL = pLook(); if (wc.id === 'gaCv') { PL = Object.assign({}, PL, { glasses: 'none', hat: stHat ? PL.hat : 'none' }); }   // Dave: no hat until a cap is tapped   // Dave: no eyewear on the start screen (saved glasses kept for the game)
     var pk = PL.hat + PL.glasses + PL.back + PL.hoodie + wc.id; if (prev.hat !== pk) { prev.hat = pk; applyRoot(window.__arcade.THREE, prev.root, PL); if (W.try) applyMats(PL); }   // the preview always wears the chosen hat, however the pick or load happened
     if (prev.auto && !prev.drag) prev.want += 0.006; prev.rot += (prev.want - prev.rot) * 0.15; prev.root.rotation.y = prev.rot;
     var now = performance.now(), dt = Math.min(0.25, prev.lt ? (now - prev.lt) / 1000 : 0.016); prev.lt = now;
@@ -297,7 +297,7 @@
     + '#gaWBuy{flex:none;display:flex;align-items:center;gap:10px;padding:8px 12px;border:2px solid #ffd98a;border-radius:12px;background:#1a0a2ad9;font:900 14px "Courier New",monospace}#gaWBuy[hidden]{display:none}'
     + '#gaWBuyB{font:900 16px "Arial Black",Arial;padding:9px 16px;border-radius:10px;border:2px solid #ffd98a;background:#3a1a00;color:#ffe9a8;cursor:pointer}#gaWBuyB:disabled{opacity:.55;border-color:#888;color:#bbb;background:#222;cursor:default}'
     + '@media (max-height:640px){#gaT{font-size:clamp(24px,7vw,40px);margin-top:18px}.gaRow{padding:3px 4px}.gaO{height:32px}#gaNm{padding:5px 10px}}';
-  var ov = null;
+  var ov = null, stHat = false;   // start screen: cap picked this visit?
   function row(k, label, shop) { var h = '<div class="gaRow" data-k="' + k + '"><button class="gaA" data-step="-1" aria-label="previous">‹</button><span>' + label + '</span><div class="gaCh">';
     (shop ? OPTS : START)[k].forEach(function (o) { var ic = typeof o[1] === 'string', face = ic ? o[1] : ''; var bg = ic ? '' : 'background:#' + ('00000' + o[1].toString(16)).slice(-6) + ';';
       if (shop && isNew(k, o[0])) face += '<i class="gaLk">🔒' + PRICE[k] + '</i>';
@@ -319,7 +319,7 @@
     stars(); sync(); tickets(); requestAnimationFrame(function () { sync(true); }); addEventListener('load', function () { sync(true); }, { once: true }); }
   function stars() { var c = ov.querySelector('#gaStars'), w = c.width = 400, h = c.height = 800, g = c.getContext('2d'); for (var i = 0; i < 260; i++) { var r = Math.random(); g.fillStyle = 'rgba(255,255,255,' + (0.3 + Math.random() * 0.7) + ')'; g.fillRect(Math.random() * w, Math.random() * h, r < 0.9 ? 1 : 2, r < 0.9 ? 1 : 2); } }
   function tickets() { var n = 0; try { n = Math.max(0, parseInt(localStorage.getItem('neonarcade.tickets'), 10) || 0); } catch (e) {} var e = ov && ov.querySelector('#gaTkN'); if (e) e.textContent = n.toLocaleString('en'); }
-  function syncRows(root, scroll) { [].forEach.call(root.querySelectorAll('.gaRow'), function (r) { var k = r.dataset.k; [].forEach.call(r.querySelectorAll('.gaO'), function (b) { var on = b.dataset.v === P[k]; b.classList.toggle('sel', on);
+  function syncRows(root, scroll) { [].forEach.call(root.querySelectorAll('.gaRow'), function (r) { var k = r.dataset.k; [].forEach.call(r.querySelectorAll('.gaO'), function (b) { var on = b.dataset.v === P[k] && !(root === ov && k === 'hat' && !stHat); b.classList.toggle('sel', on);
       if (b.classList.contains('gaNew')) { b.classList.toggle('own', has(k, b.dataset.v)); b.classList.toggle('try', !!(W.try && W.try.k === k && W.try.v === b.dataset.v)); }
       if (on && scroll) { var ch = b.parentNode; if (ch.scrollWidth > ch.clientWidth) { var br = b.getBoundingClientRect(), cr = ch.getBoundingClientRect(); ch.scrollLeft += (br.left + br.width / 2) - (cr.left + cr.width / 2); } } }); }); }
   function sync(scroll) { if (W.el) syncRows(W.el, scroll); if (!ov) return; syncRows(ov, scroll);
@@ -361,7 +361,7 @@
   function step(k, d, shop) { var L = (shop && !onStart() ? OPTS : shop ? BASE : START)[k].filter(function (a) { return has(k, a[0]); }), i = 0; for (var j = 0; j < L.length; j++) if (L[j][0] === P[k]) i = j; pick(k, L[(i + d + L.length) % L.length][0]); }
   function play(fast) { if (!named() || !goOK() || TP.st === 'out' || nmFree !== clean(P.name).trim().toLowerCase()) return; if (window.__gaNames) window.__gaNames.claim(P.name); musicStop(); P.name = clean(P.name).trim(); save(); apply(); var inp = document.getElementById('gaIn'); if (inp) inp.blur();
     var cv = ov && ov.querySelector('#gaCv'); if (prev.r && cv && prev.r.domElement === cv && cv.clientWidth && !fast && !window.__gaNoTp) { var done = 0, fin = function () { if (done++) return; TP.gone = true; go2(); }; tpStart('out', fin); setTimeout(function () { if (!done) { TP.st = 'idle'; TP.cb = null; fin(); } }, 2600); return; } go2(); }
-  function go2() { var b = document.getElementById('stStart'); if (!b) return; var ev; try { ev = new PointerEvent('pointerup', { bubbles: true, cancelable: true, pointerType: 'touch' }); } catch (e) { ev = new Event('pointerup', { bubbles: true, cancelable: true }); }
+  function go2() { var b = document.getElementById('stStart'); if (!b) return; if (!stHat && P.hat !== 'none') { P.hat = 'none'; save(); apply(); } /* Dave: no cap picked = start hatless */ var ev; try { ev = new PointerEvent('pointerup', { bubbles: true, cancelable: true, pointerType: 'touch' }); } catch (e) { ev = new Event('pointerup', { bubbles: true, cancelable: true }); }
     b.dispatchEvent(ev); window.__gaPlayer.started = (window.__gaPlayer.started || 0) + 1; }
   function opts() { var b = document.getElementById('stOpt'); if (!b) return; var ev; try { ev = new PointerEvent('pointerup', { bubbles: true, cancelable: true }); } catch (e) { ev = new Event('pointerup', { bubbles: true }); } b.dispatchEvent(ev); }
 
@@ -412,8 +412,8 @@
     if (t.closest('#gaGo')) play();
     else if (t.closest('#gaL')) { prev.auto = false; prev.want -= Math.PI / 4; }
     else if (t.closest('#gaR')) { prev.auto = false; prev.want += Math.PI / 4; }
-    else if ((b = t.closest('.gaO'))) pick(b.closest('.gaRow').dataset.k, b.dataset.v);
-    else if ((b = t.closest('.gaA'))) step(b.closest('.gaRow').dataset.k, +b.dataset.step);
+    else if ((b = t.closest('.gaO'))) { var k0 = b.closest('.gaRow').dataset.k; if (k0 === 'hat') { var off = stHat && P.hat === b.dataset.v; stHat = true; prev.hat = null; pick('hat', off ? 'none' : b.dataset.v); } else pick(k0, b.dataset.v); }   // tap selected cap again = off
+    else if ((b = t.closest('.gaA'))) { if (b.closest('.gaRow').dataset.k === 'hat') { stHat = true; prev.hat = null; } step(b.closest('.gaRow').dataset.k, +b.dataset.step); }
   }
   function wGrab(e) { var t = e.target && e.target.closest ? e.target : null; e.stopImmediatePropagation();   // while the wardrobe is open nothing reaches the game
     if (/^key/.test(e.type)) { if (e.type === 'keydown' && (e.key === 'Escape' || e.key === 'Enter')) { if (e.cancelable) e.preventDefault(); wClose(); } return; }
@@ -436,7 +436,7 @@
 
   function boot() { build();
     var t0 = setInterval(function () { var A = window.__arcade; if (!A || !A.monkey || !A.THREE) return; clearInterval(t0); apply(); if (ov) { var go = function () { setTimeout(function () { buildPrev(); frame(); }, 150); }; if (document.readyState === 'complete') go(); else addEventListener('load', go, { once: true }); } }, 100);
-    var wrap = setInterval(function () { var U = window.__startUI; if (!U || !U.show || U.show.ga) return; clearInterval(wrap); var o = U.show; U.show = function () { untouch(); TP.seen = false; TP.st = 'idle'; TP.cb = null; var r = o.apply(this, arguments); tickets(); sync(); return r; }; U.show.ga = 1; }, 200); }
+    var wrap = setInterval(function () { var U = window.__startUI; if (!U || !U.show || U.show.ga) return; clearInterval(wrap); var o = U.show; U.show = function () { untouch(); stHat = false; TP.seen = false; TP.st = 'idle'; TP.cb = null; var r = o.apply(this, arguments); tickets(); sync(); return r; }; U.show.ga = 1; }, 200); }
   var booted = false; function boot1() { if (booted) return; booted = true; boot(); }
   if (document.readyState === 'loading') { var mo = new MutationObserver(function () { if (document.getElementById('start')) { mo.disconnect(); boot1(); } }); mo.observe(document.documentElement, { childList: true, subtree: true }); document.addEventListener('DOMContentLoaded', boot1); } else boot1();   // build ours the moment #start is parsed
   window.__gaPlayer = { KEY: KEY, get p() { return P; }, pick: pick, play: play, apply: apply, opts: BASE, allOpts: OPTS, get tag() { return tag; }, get prev() { return prev; }, music: MU, dress: dress, look: look, glasses: GLAS, wardrobe: W, tp: TP, NEW: NEW, PRICE: PRICE, owned: owned, has: has, buy: buy, tryOn: tryOn, balance: balance };

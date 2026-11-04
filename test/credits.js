@@ -70,9 +70,9 @@ const PH = process.argv[2] === 'phone', sfx = PH ? '_phone' : '';
   }
   await page.evaluate(() => { localStorage.setItem('neonarcade.tickets', '0'); window.__noUnloadWarn = 1; });
   await page.reload(); await page.waitForFunction(() => window.__arcade && window.__arcade.stats.frames > 3, null, { timeout: 60000 });
-  let r = await S(); chk(r.t === 0 && r.ls === '0' && r.s === 0 && r.g === 0, 'autosave (45261ce): a reload keeps the saved 0 tickets (the 1-ticket gift is only for a brand-new save), credits 0 ' + JSON.stringify(r));
+  let r = await S(); chk(r.t === 0 && r.ls === '0' && r.s === 1 && r.g === 0, 'autosave: a reload keeps the saved 0 tickets and STRIKE\'s unspent credit (play.js neonarcade.credits, t194u); GHOST spent its credit -> 0 ' + JSON.stringify(r));
   await page.addInitScript(() => { window.__sessSeed = { 'neonarcade.tickets': '4' }; }); await page.reload(); await page.waitForFunction(() => window.__arcade && window.__arcade.stats.frames > 3, null, { timeout: 60000 });
-  r = await S(); chk(r.t === 4 && r.s === 0 && r.g === 0, 'a loaded total (4) is used as is; credits start at 0 on every load');
+  r = await S(); chk(r.t === 4 && r.s === 1 && r.g === 0, 'a loaded total (4) is used as is; saved credits (STRIKE 1, GHOST 0) restored ' + JSON.stringify(r));
   chk(requests.filter(u => !u.startsWith('http://localhost') && !/supabase\.co/.test(u)).length === 0, 'no off-site requests (Strike board stubbed)');
   chk(errors.length === 0, 'no page errors ' + errors.join(' | '));
   await o.close(); process.exit(ok ? 0 : 1);

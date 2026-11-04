@@ -30,6 +30,7 @@ const OUT = '/workspace/galactic-shop/shots/';
   // choices by tapping swatches / arrows
   // start screen has only the 3-hoodie row (Dave); hat/fur/shoes come from a saved look (wardrobe), set here via pick()
   await tap('.gaRow[data-k=hoodie] .gaO[data-v=red]'); chk(await page.evaluate(() => document.querySelectorAll('#gaP .gaRow').length === 2 && document.querySelectorAll('#gaP .gaO').length === 5), 'start screen: 2 caps + 3 hoodie colours');
+  await tap('.gaRow[data-k=hat] .gaO[data-v=capblue]');   // a cap tap keeps the hat through PLAY (no tap = start hatless)
   await page.evaluate(() => { const g = window.__gaPlayer; g.pick('hat', 'crown'); g.pick('fur', 'gold'); g.pick('shoes', 'blue'); });
   const r0 = await page.evaluate(() => window.__gaPlayer.prev.want); await tap('#gaR'); const r1 = await page.evaluate(() => window.__gaPlayer.prev.want);
   chk(r1 - r0 > 0.7, 'right arrow rotates the preview');

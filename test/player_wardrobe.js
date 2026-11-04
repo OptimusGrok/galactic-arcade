@@ -98,7 +98,7 @@ async function opn(o) { for (let i = 0; ; i++) { try { return await open(Object.
   chk(inView, 'each row is scrolled so the saved choice is visible');
   chk(JSON.stringify(st.sel) === '{}', 'saved teal hoodie (not one of the 3): none selected', st.sel);
   const pv = await page.evaluate(() => { const r = window.__gaPlayer.prev.root, w = {}; r.traverse(x => { if (/^ga(Hat|Gl)_/.test(x.name) && x.visible) w[x.name] = 1; }); return Object.keys(w); });
-  chk(pv.join() === 'gaHat_party', 'start preview wears the saved party hat, no eyewear', pv);
+  chk(pv.length === 0, 'start preview: no hat, no eyewear (saved party/round kept)', pv);
   const fit = await page.evaluate(() => { const g = document.getElementById('gaP'); return { sh: g.scrollHeight, ch: g.clientHeight, stage: document.getElementById('gaStage').getBoundingClientRect().height }; });
   chk(fit.sh <= fit.ch + 1 && fit.stage >= 130, 'start screen fits a 412x915 phone without scrolling', fit);
   await page.touchscreen.tap(206, 400); await page.waitForTimeout(2600); await page.screenshot({ path: OUT + 'start_wardrobe_options.png' });
