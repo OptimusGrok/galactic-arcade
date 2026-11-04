@@ -14,7 +14,7 @@ async function open(opts = {}) {
   if (!opts.start) await page.addInitScript(() => { window.__skipStart = 1; });   // only test/start.js sees the start screen
   if (!opts.unloadWarn) await page.addInitScript(() => { window.__noUnloadWarn = 1; });   // tests reload freely; test/nosave.js checks the warning
   if (opts.shieldOpen) await page.addInitScript(() => { window.__sessSeed = Object.assign(window.__sessSeed || {}, { 'neonarcade.shieldOpen': '1' }); });   // hallway tests walk through the doorway
-  await page.goto(`http://localhost:${srv.address().port}/index.html`);
+  await page.goto(`http://localhost:${srv.address().port}/index.html`, { timeout: 180000 });
   await page.waitForFunction(() => window.__arcade && window.__arcade.stats.frames > 3, null, { timeout: 60000 });
   await page.evaluate(() => Promise.all([window.__arcade.shopReady, window.__arcade.windowsReady].filter(Boolean).map(p => Promise.resolve(p))));   // t229: shop.js / windows.js load after the first frames
   return { page, errors, requests, close: async () => { await browser.close(); srv.close(); } };

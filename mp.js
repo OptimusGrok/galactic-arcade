@@ -40,17 +40,16 @@ export function setupMP({ scene, camera, monkey, makeMonkey, st, play, getTp, HA
   const hue = parseInt(id.slice(0, 6), 36) % 360;
   const M = window.__mp = { id, get name() { return name; }, state: 'off', reason: '', peers: new Map(), count: 1, full: false, sent: 0, recv: 0, bytes: 0, chatMuted: LSg('neonarcade.mpChatMute') === '1',
     muted: new Set(JSON.parse(LSg('neonarcade.mpMuted') || '[]')), log: [], lastChat: -1e9, emote, chat: sendChat, roomOf, CAP, CHAN, filterText, escapeHtml, cleanMsg };
-  // ---------- HUD: player pill (top centre), emote + CHAT buttons (right, under the cash), chat panel, name panel ----------
+  // ---------- HUD: player pill (top centre), CHAT button (above the backpack, bottom right), chat panel, name panel ----------
   const css = document.createElement('style'); css.textContent = `
 #mpPill{position:fixed;top:max(8px,env(safe-area-inset-top));left:50%;transform:translateX(-50%);z-index:23;display:flex;align-items:center;gap:5px;font:700 13px 'Courier New',monospace;color:#bff;background:#0a0612cc;border:1px solid #2ae5ff66;border-radius:14px;padding:4px 10px;cursor:pointer;user-select:none;-webkit-user-select:none;touch-action:manipulation}
 #mpPill.off{color:#889;border-color:#5566}#mpPill i{font-style:normal}
 #mpNote{position:fixed;top:calc(max(8px,env(safe-area-inset-top)) + 34px);left:50%;transform:translateX(-50%);z-index:23;font:700 12px 'Courier New',monospace;color:#ffe08a;background:#0a0612dd;border:1px solid #ffb00066;border-radius:8px;padding:4px 9px;display:none;pointer-events:none}
-#mpBar{position:fixed;right:max(8px,env(safe-area-inset-right));top:calc(max(8px,env(safe-area-inset-top)) + 96px);z-index:23;display:flex;flex-direction:column;gap:6px}
+#mpBar{position:fixed;right:calc(max(4px,env(safe-area-inset-right)) + 32px);bottom:calc(max(4px,env(safe-area-inset-bottom)) + 112px);z-index:24;display:flex;flex-direction:column;gap:6px}
 #mpBar button{width:40px;height:40px;border-radius:10px;border:1px solid #ff4f9e66;background:#0a0612cc;color:#fff;font:700 18px sans-serif;padding:0;touch-action:manipulation}
 #mpBar #mpChatB{font:700 10px 'Courier New',monospace;color:#bff;border-color:#2ae5ff88}
 body.ingame #mpPill,body.ingame #mpBar,body.ingame #mpChat,body.ingame #mpTags,body.ingame #mpNote{display:none!important}
-#mpChat{position:fixed;right:calc(max(8px,env(safe-area-inset-right)) + 48px);top:calc(max(8px,env(safe-area-inset-top)) + 96px);z-index:24;width:min(300px,64vw);display:none;flex-direction:column;gap:4px;font:12px 'Courier New',monospace}
-#mpChat.on{display:flex}#mpLog{max-height:150px;overflow-y:auto;background:#0a0612dd;border:1px solid #2ae5ff44;border-radius:8px;padding:4px 6px;color:#dde}
+#mpChat{position:fixed;left:max(8px,env(safe-area-inset-left));bottom:calc(max(8px,env(safe-area-inset-bottom)) + var(--mpKb,0px));z-index:25;width:min(300px,calc(100vw - 140px));display:none;flex-direction:column;gap:4px;font:12px 'Courier New',monospace}#mpChat.on{display:flex}#mpLog{max-height:150px;overflow-y:auto;background:#0a0612dd;border:1px solid #2ae5ff44;border-radius:8px;padding:4px 6px;color:#dde}
 #mpLog.min{display:none}#mpLog b{color:#ffe08a}#mpChat form{display:flex;gap:4px;margin:0}#mpIn{flex:1;min-width:0;font:14px 'Courier New',monospace;background:#05030a;color:#fff;border:1px solid #2ae5ff88;border-radius:6px;padding:6px}
 #mpChat button{font:700 11px 'Courier New',monospace;background:#0a0612;color:#bff;border:1px solid #2ae5ff88;border-radius:6px;padding:4px 6px}
 #mpTags{position:fixed;inset:0;pointer-events:none;z-index:22;overflow:hidden}
@@ -64,9 +63,9 @@ body.ingame #mpPill,body.ingame #mpBar,body.ingame #mpChat,body.ingame #mpTags,b
   const pill = el('div', { id: 'mpPill', title: 'Players in the room' }); pill.innerHTML = '<i>👤</i><span id="mpN">1/10</span>';
   const note = el('div', { id: 'mpNote' });
   const bar = el('div', { id: 'mpBar' });
-  for (const k in EMO) { const b = el('button', { id: 'mpE_' + k, title: k, textContent: EMO[k] }, bar); b.addEventListener('click', e => { e.stopPropagation(); emote(k); }); }
+  // t240: emoji buttons removed (Dave); incoming 'emo' events from older clients still show as bubbles
   const chatB = el('button', { id: 'mpChatB', textContent: 'CHAT', title: 'Chat' }, bar);
-  const chatP = el('div', { id: 'mpChat' }); chatP.innerHTML = '<div id="mpLog"></div><form id="mpForm"><input id="mpIn" maxlength="100" autocomplete="off" enterkeyhint="send" placeholder="Say something (100 max)"><button>SEND</button></form><div style="display:flex;gap:4px"><button id="mpLogT" type="button">LOG</button><button id="mpMuteAll" type="button"></button><button id="mpClose" type="button">CLOSE</button></div>';
+  const chatP = el('div', { id: 'mpChat' }); chatP.innerHTML = '<div id="mpLog"></div><div style="display:flex;gap:4px"><button id="mpLogT" type="button">LOG</button><button id="mpMuteAll" type="button"></button><button id="mpClose" type="button">CLOSE</button></div><form id="mpForm"><input id="mpIn" maxlength="100" autocomplete="off" enterkeyhint="send" placeholder="Say something (100 max)"><button>SEND</button></form>';
   const logEl = chatP.querySelector('#mpLog'), inp = chatP.querySelector('#mpIn'), muteAll = chatP.querySelector('#mpMuteAll');
   const tags = el('div', { id: 'mpTags' });
   const nameP = el('div', { id: 'mpName' });
@@ -81,6 +80,9 @@ body.ingame #mpPill,body.ingame #mpBar,body.ingame #mpChat,body.ingame #mpTags,b
   chatB.addEventListener('click', e => { e.stopPropagation(); openChat(!chatP.classList.contains('on')); });
   chatP.querySelector('#mpClose').onclick = () => openChat(false);
   chatP.querySelector('#mpForm').addEventListener('submit', e => { e.preventDefault(); const r = sendChat(inp.value); if (r.ok) inp.value = ''; else if (r.why === 'rate') flash('Slow down: 1 message every 2 s'); });
+  // t240: keep the bar just above the phone keyboard (visualViewport shrinks when it opens)
+  const vv = window.visualViewport, kbFit = () => { const k = vv ? Math.max(0, Math.round(window.innerHeight - vv.height - vv.offsetTop)) : 0; chatP.style.setProperty('--mpKb', k + 'px'); M.kb = k; };
+  if (vv) { vv.addEventListener('resize', kbFit); vv.addEventListener('scroll', kbFit); } inp.addEventListener('focus', () => setTimeout(kbFit, 300)); kbFit();
   inp.addEventListener('blur', () => { try { window.scrollTo(0, 0); } catch (e) {} });   // phone keyboard closes: snap the page back so the controls sit where they were
   const nameSet = () => LSg('neonarcade.mpNameSet') === '1';
   function showName(on) { if (!on) { nameP.classList.remove('on'); return; }

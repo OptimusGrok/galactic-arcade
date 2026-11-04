@@ -17,8 +17,8 @@ const PH = process.argv[2] === 'phone', sfx = PH ? '_phone' : '';
   const box = await ev(() => { const b = new window.__arcade.THREE.Box3().setFromObject(window.__arcade.kiosk.K), b0 = 0; return { kh: b.max.y, cx: (b.min.x + b.max.x) / 2, cz: (b.min.z + b.max.z) / 2, y0: b.min.y }; });
   chk(Math.abs(box.cx) < 0.05 && Math.abs(box.cz) < 0.2 && box.y0 > -0.6 && box.kh > 1.3 && box.kh < 1.8, 'kiosk at the centre of room 1 on the floor, about the monkey\'s height ' + JSON.stringify(box));
   chk(!k.use && k.cashOn && /\$5/.test(k.cash) && k.bal === 5, 'not near: no USE; cash HUD shows $5');
-  const cr = await ev(() => { const a = document.getElementById('cash').getBoundingClientRect(), u = document.getElementById('ui').getBoundingClientRect(); return { top: a.top, uiB: u.bottom, right: innerWidth - a.right }; });
-  chk(cr.top >= cr.uiB && cr.right < 20, 'cash HUD top-right, below the V / fullscreen / home buttons ' + JSON.stringify(cr));
+  const cr = await ev(() => { const a = document.getElementById('cash').getBoundingClientRect(), u = document.getElementById('ui').getBoundingClientRect(), p = document.getElementById('mpPill').getBoundingClientRect(); return { top: a.top, l: a.left, r: a.right, pR: p.right, uiL: u.left }; });
+  chk(cr.top < 20 && cr.l >= cr.pR && cr.r <= cr.uiL, 't240: cash HUD top centre, right of the players pill, clear of the V / fullscreen buttons ' + JSON.stringify(cr));
   await page.screenshot({ path: `shots/kiosk_room${sfx}.png` });
   // collision: walking into it stops at its face
   await ev(() => { const A = window.__arcade; A.monkey.position.set(0, 0, 0.55); A.step(0.016); }); const pz = await ev(() => window.__arcade.monkey.position.z); chk(pz > 0.5, 'kiosk blocks the monkey (pushed to z ' + pz.toFixed(2) + ')');
@@ -54,7 +54,7 @@ const PH = process.argv[2] === 'phone', sfx = PH ? '_phone' : '';
   await ev(at => { window.__kioskNow = () => at + 59 * 6e4 + 5000; window.__kiosk.showCash(); }, at); k = await K(); chk(k.bal === 3 && /\+\$2 in 0m/.test(k.cash), 'after 59 min still $3 with countdown: ' + k.cash);
   await ev(at => { window.__kioskNow = () => at + 36e5 + 1000; window.__kiosk.showCash(); }, at); k = await K(); chk(k.bal === 5 && !/in/.test(k.cash), 'after 1 h refilled to $5');
   await ev(at => { window.__kioskNow = () => at + 5 * 36e5; window.__kiosk.showCash(); }, at); k = await K(); chk(k.bal === 5, 'no stacking past $5 (5 h later still $5)');
-  await page.screenshot({ path: `shots/kiosk_cash${sfx}.png`, clip: { x: (PH ? 412 : 1280) - 200, y: 0, width: 200, height: 110 } });
+  await page.screenshot({ path: `shots/kiosk_cash${sfx}.png`, clip: { x: (PH ? 412 : 1280) / 2 - 60, y: 0, width: 200, height: 110 } });
   // no auto-save: a reload starts fresh ($5, empty tray) unless a slot is loaded
   await ev(() => { delete window.__kioskNow; window.__kiosk.setState({ bal: 2, at: Date.now() - 6e5, pending: 60 }); window.__noUnloadWarn = 1; });
   await page.reload(); await page.waitForTimeout(2500);

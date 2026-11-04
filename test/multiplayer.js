@@ -45,7 +45,12 @@ const PHONE = process.argv[2] === 'phone';
   const bp0 = await b.evaluate(() => { const m = window.__arcade.monkey; const r = [m.position.x, m.position.z]; window.__tp.go(); return r; }); const hid = await a.waitForFunction(() => !window.__mp.peers.get('bbbb2222').g.visible, null, { timeout: 15000 }).then(() => false, () => true);
   await b.waitForTimeout(1500); await b.evaluate(() => { window.__tp.__s = window.__tp.state; window.__tp.state = 'idle'; window.__tp.where = 1; window.__tp.cut = 0; }); await b.evaluate(bp => window.__arcade.monkey.position.set(bp[0], 0, bp[1]), bp0); const back = await a.waitForFunction(() => window.__mp.peers.get('bbbb2222').g.visible, null, { timeout: 15000 }).then(() => true, () => false);
   chk(hid === false && back, 'a teleporting player is hidden, back when idle');
-  // emote + chat
+  // t240 HUD: no emoji buttons, CHAT right above the backpack, chat bar bottom-left with LOG / CHAT ON / CLOSE on top of the input
+  const hud = await a.evaluate(() => { const R = s => document.querySelector(s) && document.querySelector(s).getBoundingClientRect(); const c = R('#mpChatB'), p = R('#bPack');
+    window.__mp.openChat(true); const ch = R('#mpChat'), row = R('#mpLogT'), f = R('#mpForm'); window.__mp.openChat(false);
+    return { emo: document.querySelectorAll('[id^=mpE_]').length, above: !!(c && p && c.bottom <= p.top + 2 && c.left >= p.left && c.right <= p.right), left: ch.left < 20 && ch.bottom > innerHeight - 40, rowTop: row.bottom <= f.top + 1, clear: ch.right <= p.left }; });
+  chk(hud.emo === 0 && hud.above && hud.left && hud.rowTop && hud.clear, 't240 HUD: emoji buttons gone, CHAT above the backpack, chat bar bottom-left, LOG row on top ' + JSON.stringify(hud));
+  // emote (old clients can still send) + chat
   await b.evaluate(() => window.__mp.emote('wave')); await a.waitForTimeout(300);
   chk(await a.evaluate(() => { const p = window.__mp.peers.get('bbbb2222'); return !!p.bub.emo && p.bub.emo.el.textContent === '👋'; }), 'emote (wave) shows as a bubble over the sender on the other device');
   if (PHONE) await b.tap('#mpChatB'); else await b.click('#mpChatB');
