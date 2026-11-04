@@ -20,9 +20,16 @@ const PH = process.argv[2] === 'phone';
   chk(L.over.length === 0, 'no overlap with other HUD items ' + JSON.stringify(L.over));
   const tap = async () => { const b = await page.locator('#wdBtn').boundingBox(); if (PH) await page.touchscreen.tap(b.x + b.width / 2, b.y + b.height / 2); else await page.mouse.click(b.x + b.width / 2, b.y + b.height / 2); await page.waitForTimeout(600); };
   const p0 = await page.evaluate(() => { const m = window.__arcade.monkey.position; return [m.x, m.y, m.z]; });
+  const real = await page.evaluate(() => !!(window.__wardrobe && window.__wardrobe.open));
   await tap();
-  const t = await page.evaluate(() => { const e = document.querySelector('.wdToast'); return e && e.style.display !== 'none' ? e.textContent : ''; });
-  chk(t === 'Coming soon', "no __wardrobe yet -> 'Coming soon' toast");
+  if (real) {   // player.js wardrobe present (combined build): the real panel opens
+    const op = await page.evaluate(() => !!window.__wardrobe.isOpen);
+    chk(op, 'player.js wardrobe present -> tap opens the real panel');
+    if (process.env.WD_SHOT) await page.screenshot({ path: process.env.WD_SHOT });
+    await page.evaluate(() => window.__wardrobe.close()); await page.waitForTimeout(400);
+  } else {
+    const t = await page.evaluate(() => { const e = document.querySelector('.wdToast'); return e && e.style.display !== 'none' ? e.textContent : ''; });
+    chk(t === 'Coming soon', "no __wardrobe yet -> 'Coming soon' toast"); }
   await page.evaluate(() => { window.__wdOpen = 0; window.__wardrobe = { open() { window.__wdOpen++; }, close() {} }; });
   await tap(); await page.waitForTimeout(500);
   const s = await page.evaluate(() => { const m = window.__arcade.monkey.position, st = window.__arcade.st; return { n: window.__wdOpen, p: [m.x, m.y, m.z], jump: !!(st && st.jump), mode: window.__arcade.play.mode }; });
@@ -34,11 +41,11 @@ const PH = process.argv[2] === 'phone';
   const B = await dev('bbbb2222'), b = B.page;
   await page.waitForFunction(() => window.__mp.peers.size === 1, null, { timeout: 15000 }).catch(() => {}); await b.waitForFunction(() => window.__mp.peers.has('aaaa1111'), null, { timeout: 15000 }).catch(() => {});
   const on = await page.evaluate(() => window.__mp.state);
-  await page.evaluate(() => { localStorage.setItem('galacticarcade.player', JSON.stringify({ name: 'Dave', hat: 'tophat', hoodie: 'green', fur: 'silver', shoes: 'blue', glasses: 'shades' })); dispatchEvent(new Event('galacticarcade:look')); });
+  await page.evaluate(() => { localStorage.setItem('galacticarcade.player', JSON.stringify({ name: 'Dave', hat: 'cowboy', hoodie: 'green', fur: 'silver', shoes: 'blue', glasses: 'shades' })); dispatchEvent(new Event('galacticarcade:look')); });
   await b.waitForFunction(() => { const p = window.__mp.peers.get('aaaa1111'); return p && p.look && p.look.glasses === 'shades'; }, null, { timeout: 1500 }).catch(() => {});
   const r = await b.evaluate(() => { const p = window.__mp.peers.get('aaaa1111'); return p && { look: p.look, name: p.name }; });
   const sent = await page.evaluate(() => ({ ls: window.__mp.lookSent || 0, ev: window.__mpMockLog.sent.filter(e => e === 'look').length }));
   chk(on === 'on' && sent.ls === 1 && sent.ev === 1, "'galacticarcade:look' -> one 'look' broadcast + presence track " + JSON.stringify(sent));
-  chk(r && r.name === 'Dave' && r.look.glasses === 'shades' && r.look.hat === 'tophat' && r.look.fur === 'silver' && r.look.hoodie === 'green', 'remote monkey gets the new look within 1.5 s, new fields (glasses, new hat) passed as-is ' + JSON.stringify(r));
+  chk(r && r.name === 'Dave' && r.look.glasses === 'shades' && r.look.hat === 'cowboy' && r.look.fur === 'silver' && r.look.hoodie === 'green', 'remote monkey gets the new look within 1.5 s, new fields (glasses, new hat) passed as-is ' + JSON.stringify(r));
   const errs = all.flatMap(o => o.errors); chk(errs.length === 0, 'no page errors ' + errs.join('|'));
   for (const o of all) await o.close(); process.exit(ok ? 0 : 1); })();

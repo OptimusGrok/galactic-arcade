@@ -121,11 +121,12 @@ body.ingame #mpPill,body.ingame #mpBar,body.ingame #mpChat,body.ingame #mpTags,b
     p.g.traverse(o => { if (!o.isMesh || !o.material || o.material.userData.orig == null) return; const orig = o.material.userData.orig, c = o.material.color; c.setHex(orig);
       if (orig === 0xff4f9e && o.parent && o.parent.isGroup) cap = o.parent; if (o.userData.noTint) return;
       if (lk) { if (map[orig] != null) c.setHex(map[orig]); } else { const hsl = {}; c.getHSL(hsl); if (hsl.s > 0.25) c.setHSL((hsl.h + h / 360) % 1, hsl.s, hsl.l); } });
-    if (cap) cap.visible = !lk || lk.hat === 'cap'; p.look = lk; }
+    if (cap) cap.visible = !lk || lk.hat === 'cap'; p.look = lk;
+    // player.js wardrobe (Chief): new hats / glasses etc. on the remote monkey; materials already carry userData.orig (own())
+    if (lk) try { if (window.__wardrobe && typeof window.__wardrobe.applyRemote === 'function') window.__wardrobe.applyRemote(p.g, lk); } catch (e) {} }
   M.paint = paint;
   function onLook(pl) { if (!pl || !pl.i || pl.i === id || !pl.look || typeof pl.look !== 'object') return; const p = M.peers.get(pl.i); if (!p) return; M.recv++;
-    paint(p, { look: pl.look }); if (pl.name) { p.name = String(pl.name).slice(0, 14); p.tag.textContent = p.name; }
-    try { if (window.__wardrobe && typeof window.__wardrobe.applyRemote === 'function') window.__wardrobe.applyRemote(p.g, pl.look); } catch (e) {} }
+    paint(p, { look: pl.look }); if (pl.name) { p.name = String(pl.name).slice(0, 14); p.tag.textContent = p.name; } }
   function peer(pid, meta) { let p = M.peers.get(pid);
     if (!p) { const g = makeMonkey(); g.name = 'remoteMonkey_' + pid; own(g); scene.add(g); g.visible = false;
       const tag = el('div', { className: 'mpTag' }, tags); tag.addEventListener('click', e => { e.stopPropagation(); toggleMute(pid); });
