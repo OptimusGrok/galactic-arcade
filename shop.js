@@ -894,6 +894,7 @@ export function setupShop({ scene, tp, play, monkey, camera, st } = {}) {
     if (HOLDABLES[id]) {
       let g; try { g = HOLDABLES[id].build(THREE); } catch (e) { console.warn('holdable build', id, e); return null; }
       if (!g) return null; g.name = 'heldPrize'; g.userData.id = id; g.userData.kind = HOLDABLES[id].kind;
+      if (g.userData.gripY == null) g.userData.gripY = HOLDABLES[id].kind === 'hand' ? 0.06 : 0;
       g.traverse(o => { if (o.isMesh) { o.frustumCulled = false; o.castShadow = false; } }); return g;
     }
     const g = new THREE.Group(); g.name = 'heldPrize'; g.userData.id = id; let kind = 'hug';
@@ -911,7 +912,7 @@ export function setupShop({ scene, tp, play, monkey, camera, st } = {}) {
       else { part(L, CYL, 0xffffff, 0, 0.1, 0, 0.008, 0.22, 0.008);
         const t = id === 'rainbow' ? 1 : id === 'cherry' ? 2 : 0, cg = setUV(new THREE.CircleGeometry(0.1, 22), 0, 1, 0, 1), uv = cg.attributes.uv; for (let q = 0; q < uv.count; q++) uv.setX(q, (t + uv.getX(q)) / 3);
         const pop = new THREE.Mesh(cg.translate(0, 0.3, 0.012), new THREE.MeshBasicMaterial({ map: sw.t, side: THREE.DoubleSide, toneMapped: false })); g.add(pop); }
-      g.add(vm(L, new THREE.MeshBasicMaterial({ vertexColors: true, toneMapped: false }))); g.userData.size = 0.3; }
+      g.add(vm(L, new THREE.MeshBasicMaterial({ vertexColors: true, toneMapped: false }))); g.userData.size = 0.3; g.userData.gripY = id === 'gummy' ? 0.06 : 0.10; }
     else { const L = []; toy3(L, id, 0, 0, 0, 1.6, 0, 0); if (!L.length) part(L, BOX, 0x00e5ff, 0, 0.15, 0, 0.24, 0.3, 0.1); g.add(vm(L)); g.userData.size = 0.45; }   // never an empty merge (t552: it threw and froze the game loop)
     g.userData.kind = kind; g.traverse(o => { if (o.isMesh) { o.frustumCulled = false; o.castShadow = false; } }); return g;
   }
@@ -936,13 +937,36 @@ export function setupShop({ scene, tp, play, monkey, camera, st } = {}) {
   function heldPrimary() { const h = readHeld(); return h.R || h.L || null; }
   let heldObjs = { R: null, L: null, hug: null };
   function dropObj(o) { if (o && o.parent) o.parent.remove(o); }
+  function openHand(a) {
+    a.hand.visible = true; a.hand.scale.set(1, 1, 1); a.hand.rotation.set(0, 0, 0);
+    for (let i = 0; i < a.hand.children.length; i++) {
+      const ch = a.hand.children[i];
+      if (ch.name === 'heldPrize' || ch.userData.id) continue;   // never touch the mounted prize
+      ch.visible = true; if (ch.userData._hs) ch.scale.copy(ch.userData._hs); else ch.scale.set(1, 1, 1);
+    }
+  }
+  function closeFist(a) {
+    // tuck finger meshes only — heldPrize is a hand child and must keep full scale
+    for (let i = 0; i < a.hand.children.length; i++) {
+      const ch = a.hand.children[i];
+      if (ch.name === 'heldPrize' || ch.userData.id) continue;
+      if (!ch.userData._hs) ch.userData._hs = ch.scale.clone();
+      ch.scale.setScalar(0.28); ch.visible = true;
+    }
+    a.hand.visible = true; a.hand.scale.setScalar(1.08); a.hand.rotation.set(0.45, 0, 0);   // mild uniform fist curl (non-uniform would warp candy)
+  }
   function clearArmPose(u) {
-    for (const a of u.arms || []) { a.hand.visible = true; a.hand.scale.setScalar(1); a.hand.rotation.x = 0; a.sh.rotation.set(0, 0, 0.08 * a.sd); a.el.rotation.set(0, 0, 0); }
+    for (const a of u.arms || []) { openHand(a); a.sh.rotation.set(0, 0, 0.08 * a.sd); a.el.rotation.set(0, 0, 0); }
   }
   function mountOne(obj, u, where) {
-    if (where === 'hug') { const big = obj.userData.id === 'grok'; obj.position.set(0, big ? 0.12 : 0.1, big ? 0.36 : 0.33); obj.rotation.set(0, 0, 0); u.torso.add(obj); }
-    else if (where === 'R') { obj.position.set(0.0, -0.34, 0.07); obj.rotation.set(-1.2, 0, 0); u.arms[1].el.add(obj); }
-    else { obj.position.set(0.0, -0.34, 0.07); obj.rotation.set(-1.2, 0, 0); u.arms[0].el.add(obj); }   // L = arms[0]
+    if (where === 'hug') { const big = obj.userData.id === 'grok'; obj.position.set(0, big ? 0.12 : 0.1, big ? 0.36 : 0.33); obj.rotation.set(0, 0, 0); u.torso.add(obj); return; }
+    // hand items: parent to the fist mesh; grip point (stick / toy base) sits inside the closed fist, candy/top upright and visible
+    const arm = where === 'R' ? u.arms[1] : u.arms[0];
+    const grip = obj.userData.gripY != null ? obj.userData.gripY : 0.08;
+    // stick base sits in the palm; candy/top sticks upright above the closed fist
+    obj.position.set(0, -grip + 0.01, 0.02);
+    obj.rotation.set(0.05, 0, 0);
+    arm.hand.add(obj);
   }
   function syncHeld() {
     const h = readHeld(), m = getMonkey(), u = m && m.userData; if (!u || !u.torso || !u.arms || u.arms.length < 2) return;
@@ -958,18 +982,23 @@ export function setupShop({ scene, tp, play, monkey, camera, st } = {}) {
     if (wantR && !heldObjs.R) { const o = buildHeld(wantR); if (o) { heldObjs.R = o; mountOne(o, u, 'R'); } }
     if (wantL && !heldObjs.L) { const o = buildHeld(wantL); if (o) { heldObjs.L = o; mountOne(o, u, 'L'); } }
   }
-  // arms wrap round a hug prize; hand prizes tuck into that fist (after main.js walk/idle pose)
+  // arms wrap round a hug prize; hand prizes sit in a closed fist (after main.js walk/idle pose)
   function holdPose(u, dt) {
     const hug = heldObjs.hug && heldObjs.hug.visible, hasR = heldObjs.R && heldObjs.R.visible, hasL = heldObjs.L && heldObjs.L.visible;
     if (!hug && !hasR && !hasL) return;
     if (hug) {
       const big = heldObjs.hug.userData.id === 'grok';
-      for (const a of u.arms) { a.hand.visible = true; a.hand.scale.setScalar(1); a.hand.rotation.x = 0;
+      for (const a of u.arms) { openHand(a);
         a.sh.rotation.set(big ? -0.75 : -0.6, 0, -a.sd * (big ? 0.05 : 0.18)); a.el.rotation.set(big ? -0.7 : -1.25, 0, -a.sd * (big ? 0.75 : 0.55)); }
     } else {
-      for (const a of u.arms) { a.hand.visible = true; a.hand.scale.setScalar(1); a.hand.rotation.x = 0;
-        if (a.sd > 0 && hasR) { a.sh.rotation.set(-0.45, 0, 0.12); a.el.rotation.set(-1.2, 0, 0); }
-        else if (a.sd < 0 && hasL) { a.sh.rotation.set(-0.45, 0, -0.12); a.el.rotation.set(-1.2, 0, 0); } }
+      for (const a of u.arms) {
+        const holding = (a.sd > 0 && hasR) || (a.sd < 0 && hasL);
+        if (holding) {
+          a.sh.rotation.set(-0.55, 0, a.sd * 0.16);
+          a.el.rotation.set(-0.95, 0, 0);
+          closeFist(a);
+        } else { openHand(a); }
+      }
     }
     if (u.phone) u.phone.visible = false;
   }
@@ -1010,7 +1039,10 @@ export function setupShop({ scene, tp, play, monkey, camera, st } = {}) {
   Object.defineProperty(api, 'heldObjs', { get: () => ({ R: heldObjs.R, L: heldObjs.L, hug: heldObjs.hug }) });
   // INVENTORY: PRIZES chips (tap = hold in R / hug, tap the held one = put away)
   const css2 = document.createElement('style'); css2.textContent = '#invPz{flex-direction:column;align-items:stretch!important}#invPz .pzT{display:flex;justify-content:space-between;color:#dffbff;font-weight:800}#invPz .pzT small{color:#9ff8ff;font-weight:600}#pzChips{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}' +
-    '.pzC{min-height:48px;padding:6px 14px;border-radius:24px;border:2px solid #00e5ff88;background:#00222ccc;color:#dffbff;font:800 14px Arial,sans-serif;cursor:pointer;touch-action:manipulation}.pzC.on{border-color:#ffe08a;background:#ffb00044;color:#fff;box-shadow:0 0 12px #ffb000aa}.pzC b{color:#ffe08a;margin-left:6px}#inv.on{touch-action:pan-y}#invP{max-height:calc(100vh - 24px);max-height:calc(100dvh - 24px);box-sizing:border-box;overflow-y:auto;-webkit-overflow-scrolling:touch;touch-action:pan-y;overscroll-behavior:contain;padding-top:0!important}#invHd{position:sticky;top:0;z-index:3;margin:0 -18px 14px!important;padding:12px 18px 10px;background:#12051ff7;border-bottom:1px solid #00e5ff44}#pzChips{display:grid!important;grid-template-columns:repeat(3,1fr);gap:8px}#invPz .pzC{position:relative;display:flex;flex-direction:column;align-items:center;gap:4px;min-height:0;padding:6px 4px 8px;border-radius:14px;font:800 11px/1.15 Arial,sans-serif;text-align:center}#invPz .pzC .pzN{min-height:2.3em;display:flex;align-items:center;justify-content:center}#invPz .pzC img{width:100%;aspect-ratio:1;border-radius:10px;background:radial-gradient(#1d3a52,#071019);pointer-events:none}#invPz .pzC b{position:absolute;right:6px;bottom:10px;margin:0;padding:1px 6px;border-radius:9px;background:#000a;font-size:12px}#invPz .pzC.on{box-shadow:0 0 14px #ffb000cc;border-width:3px}.pzU{display:block;width:100%;min-height:52px;margin-top:10px;padding:0 14px;border-radius:26px;border:2px solid #ff6b8b;background:#3a0614cc;color:#ffe1e8;font:900 16px Arial,sans-serif;letter-spacing:.06em;cursor:pointer;touch-action:manipulation}';
+    '.pzC{min-height:48px;padding:6px 14px;border-radius:24px;border:2px solid #00e5ff88;background:#00222ccc;color:#dffbff;font:800 14px Arial,sans-serif;cursor:pointer;touch-action:manipulation}.pzC.on{border-color:#ffe08a;background:#ffb00044;color:#fff;box-shadow:0 0 12px #ffb000aa}.pzC b{color:#ffe08a;margin-left:6px}#inv.on{touch-action:pan-y}#invP{max-height:calc(100vh - 24px);max-height:calc(100dvh - 24px);box-sizing:border-box;overflow-y:auto;-webkit-overflow-scrolling:touch;touch-action:pan-y;overscroll-behavior:contain;padding-top:0!important}#invHd{position:sticky;top:0;z-index:3;margin:0 -18px 14px!important;padding:12px 18px 10px;background:#12051ff7;border-bottom:1px solid #00e5ff44}#pzChips{display:grid!important;grid-template-columns:repeat(3,1fr);gap:8px}#invPz .pzC{position:relative;display:flex;flex-direction:column;align-items:center;gap:4px;min-height:0;padding:6px 4px 8px;border-radius:14px;font:800 11px/1.15 Arial,sans-serif;text-align:center}#invPz .pzC .pzN{min-height:2.3em;display:flex;align-items:center;justify-content:center}#invPz .pzC img{width:100%;aspect-ratio:1;border-radius:10px;background:radial-gradient(#1d3a52,#071019);pointer-events:none}#invPz .pzC b{position:absolute;right:6px;bottom:10px;margin:0;padding:1px 6px;border-radius:9px;background:#000a;font-size:12px}#invPz .pzC.on{box-shadow:0 0 14px #ffb000cc;border-width:3px}' +
+    '.pzSlot{position:absolute;left:6px;top:6px;z-index:2;min-width:22px;height:22px;padding:0 6px;border-radius:11px;background:#ffb000;color:#1a0a00;font:900 12px/22px Arial,sans-serif;letter-spacing:.04em;box-shadow:0 0 8px #ffb000aa}' +
+    '.pzAway{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}.pzAway .pzU{flex:1 1 120px;margin:0;min-height:44px;font-size:13px;letter-spacing:.04em}' +
+    '.pzU{display:block;width:100%;min-height:52px;margin-top:10px;padding:0 14px;border-radius:26px;border:2px solid #ff6b8b;background:#3a0614cc;color:#ffe1e8;font:900 16px Arial,sans-serif;letter-spacing:.06em;cursor:pointer;touch-action:manipulation}';
   document.head.appendChild(css2);
   // t555-557: prize tiles - square picture (rendered once from the held 3D model / box art into a cached dataURL), name ON TOP of the picture
   const ICON = {}; let iconR = null, iconQ = [], iconT = 0;
@@ -1025,12 +1057,24 @@ export function setupShop({ scene, tp, play, monkey, camera, st } = {}) {
     } catch (e) { console.warn('prize icons', e); }
     try { if (iconR) { iconR.dispose(); iconR.forceContextLoss(); iconR = null; } } catch (e) {}   // free the extra GL context on phones
     for (const im of document.querySelectorAll('img[data-ic]')) if (ICON[im.dataset.ic]) im.src = ICON[im.dataset.ic]; }
+  function slotOf(id) { const h = readHeld(); if (h.R === id) return 'R'; if (h.L === id) return 'L'; return null; }
   function renderChips() { const r = document.getElementById('invPz'); if (!r) return; const p = prizes(), h = readHeld(), ids = ITEMS.map(i => i.id).filter(id => p[id]);
-    const primary = h.R || h.L; const unequipName = primary ? nameOfHeld(primary) : '';
-    r.innerHTML = '<div class="pzT"><span>PRIZES</span><small>' + (ids.length ? 'tap one to hold it · tap again to put away' : 'none yet - visit Grok!') + '</small></div>' + (primary ? '<button class="pzU" data-pz="__unequip">✋ UNEQUIP · put ' + unequipName + ' away</button>' : '') + '<div id="pzChips">' +
-      ids.map(id => `<button class="pzC${isHeld(id) ? ' on' : ''}" data-pz="${id}"><span class="pzN">${isHeld(id) ? '✋ ' : ''}${byId[id].name}</span><img data-ic="${id}" alt="" src="${iconFor(id) || 'data:image/gif;base64,R0lGODlhAQABAAAAACw='}">${p[id] > 1 ? '<b>×' + p[id] + '</b>' : ''}</button>`).join('') + '</div>'; }
+    let away = '';
+    if (h.R && h.L) away = '<div class="pzAway"><button class="pzU" data-pz="__unequipR">🤚 put R away</button><button class="pzU" data-pz="__unequipL">🤚 put L away</button><button class="pzU" data-pz="__unequip">✋ put both away</button></div>';
+    else if (h.R || h.L) { const s = h.R ? 'R' : 'L', id = h.R || h.L; away = '<div class="pzAway"><button class="pzU" data-pz="__unequip">✋ put ' + s + ' away · ' + nameOfHeld(id) + '</button></div>'; }
+    const hint = ids.length ? 'tap empty → R then L · tap held to put that hand away' : 'none yet - visit Grok!';
+    r.innerHTML = '<div class="pzT"><span>PRIZES</span><small>' + hint + '</small></div>' + away + '<div id="pzChips">' +
+      ids.map(id => { const sl = slotOf(id); return `<button class="pzC${sl ? ' on' : ''}" data-pz="${id}">${sl ? '<span class="pzSlot">' + sl + '</span>' : ''}<span class="pzN">${byId[id].name}</span><img data-ic="${id}" alt="" src="${iconFor(id) || 'data:image/gif;base64,R0lGODlhAQABAAAAACw='}">${p[id] > 1 ? '<b>×' + p[id] + '</b>' : ''}</button>`; }).join('') + '</div>'; }
   document.addEventListener('click', e => { const b = e.target.closest && e.target.closest('[data-pz]'); if (!b) return; e.stopPropagation(); const id = b.dataset.pz;
-    if (id === '__unequip') unhold(); else if (isHeld(id)) { const h = readHeld(); if (h.R === id) unhold('R'); else if (h.L === id) unhold('L'); else unhold(); } else hold(id); }, true);
+    if (id === '__unequip') unhold();
+    else if (id === '__unequipR') unhold('R');
+    else if (id === '__unequipL') unhold('L');
+    else if (isHeld(id)) { const h = readHeld(); if (h.R === id) unhold('R'); else if (h.L === id) unhold('L'); else unhold(); }
+    else {
+      const m = metaOf(id); if (m && m.kind === 'hug') hold(id);
+      else { const h = readHeld(); if (!h.R) hold(id, 'R'); else if (!h.L) hold(id, 'L'); else hold(id, 'R'); }
+    }
+  }, true);
 
   // ---------- per frame ----------
   let wasIn = false, t = 0, blinkT = 2, faceState = '';

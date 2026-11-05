@@ -70,17 +70,18 @@ const fs = require('fs');
     if (V.head) V.head.rotation.set(0.08, 0.75, 0);
     const forward = new THREE.Vector3(Math.sin(gyaw), 0, Math.cos(gyaw));
     const right = new THREE.Vector3(forward.z, 0, -forward.x);
-    const cam = new THREE.Vector3(gx, 1.45, gz).add(right.multiplyScalar(2.35)).add(forward.multiplyScalar(-1.0));
+    // ~3.4 m three-quarter side (less behind → avoids pad occlusion): full body mid-stride + cabinet
+    const cam = new THREE.Vector3(gx, 1.35, gz).add(right.multiplyScalar(3.4)).add(forward.multiplyScalar(-0.6));
     A.monkey.visible = false;
-    window.__camOverride = { pos: [cam.x, cam.y, cam.z], at: [gx, 1.1, gz], showMonkey: false };
+    window.__camOverride = { pos: [cam.x, cam.y, cam.z], at: [gx, 0.9, gz], showMonkey: false, bloom: 0.25 };
     return { headY: V.head && +V.head.rotation.y.toFixed(2), leg0: +V.legs[0].hip.rotation.x.toFixed(2) };
   });
   console.log('walkPose', JSON.stringify(walkPose));
   chk(Math.abs(walkPose.leg0) > 0.2, 'visible step pose');
   chk(Math.abs(walkPose.headY) > 0.3, 'head turned');
   await page.waitForTimeout(500);
-  await page.screenshot({ path: S + 'grok4_walk.png' });
-  console.log('shot walk', fs.statSync(S + 'grok4_walk.png').size);
+  await page.screenshot({ path: S + 'grok5_walk.png' });
+  console.log('shot walk', fs.statSync(S + 'grok5_walk.png').size);
 
   // --- hands side ---
   const handsMeta = await page.evaluate(() => {
@@ -89,7 +90,7 @@ const fs = require('fs');
     // put him back at cab playing pose via skip helpers
     window.__shop.update = window.__savedShopUpdate;
     V.skipTo('play');
-    for (let i = 0; i < 10; i++) window.__shop.update(1 / 30);
+    for (let i = 0; i < 36; i++) window.__shop.update(1 / 30);
     // freeze again
     window.__savedShopUpdate = window.__shop.update;
     window.__shop.update = function () {};
@@ -105,13 +106,15 @@ const fs = require('fs');
     if (joy) { const toJoy = joy.clone().sub(g.position); toJoy.y = 0; if (toJoy.dot(side) < 0) side.negate(); }
     const at = (joy || g.position.clone()).clone(); at.y = 1.16;
     if (btn0) { at.lerp(btn0, 0.35); at.y = 1.16; }
-    // 2.8m pure side, slight aisle back so we see Grok profile + panel
+    // ~5.4 m three-quarter: whole Grok + cabinet, hands on stick+buttons (phone FOV 72)
     const cam = g.position.clone()
-      .add(side.clone().multiplyScalar(2.8))
-      .add(face.clone().multiplyScalar(-0.5));
-    cam.y = 1.55;
+      .add(side.clone().multiplyScalar(5.0))
+      .add(face.clone().multiplyScalar(-2.0));
+    cam.y = 1.7;
+    const at2 = g.position.clone(); at2.y = 0.8;
+    if (joy) at2.lerp(joy, 0.15); at2.y = 0.8;
     A.monkey.visible = false;
-    window.__camOverride = { pos: [cam.x, cam.y, cam.z], at: [at.x, at.y, at.z], showMonkey: false };
+    window.__camOverride = { pos: [cam.x, cam.y, cam.z], at: [at2.x, at2.y, at2.z], showMonkey: false, bloom: 0.2 };
 
     const tipDist = (arm, palm) => {
       if (!arm || !palm || !palm.visible) return 99;
@@ -134,8 +137,8 @@ const fs = require('fs');
   console.log('handsMeta', JSON.stringify(handsMeta));
   chk(handsMeta.dL < 0.25 && handsMeta.dR < 0.25, 'hands near controls dL=' + handsMeta.dL + ' dR=' + handsMeta.dR);
   await page.waitForTimeout(500);
-  await page.screenshot({ path: S + 'grok4_hands_side.png' });
-  console.log('shot hands', fs.statSync(S + 'grok4_hands_side.png').size);
+  await page.screenshot({ path: S + 'grok5_hands.png' });
+  console.log('shot hands', fs.statSync(S + 'grok5_hands.png').size);
 
   // --- tickets: resume, pump to ~7, shot ---
   const tixSnap = await page.evaluate(() => {

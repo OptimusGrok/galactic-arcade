@@ -103,18 +103,33 @@ export function setupGrokVisit({ scene, tp, play, monkey, camera, st } = {}) {
   try { pickVoice(); speechSynthesis.onvoiceschanged = pickVoice; } catch (e) {}
   const muted = () => !!(window.__muted || (window.__mute && window.__mute.on));
   const actx = () => { try { const AC = window.AudioContext || window.webkitAudioContext; return window.__unlockAC = window.__unlockAC || new AC(); } catch (e) { return null; } };
+  // Prefetch+decode off the walk path: queue at beam-in, drain 1 clip per idle slice (no decodeAudioData mid-stride).
+  let warmQ = [], warmBusy = false, clipEl = null;
   function loadClip(id) {
-    if (bufs[id] || bufs[id] === false) return;
-    bufs[id] = null;
-    const ac = actx(); if (!ac) return;
-    fetch(clipUrl(id)).then(r => r.arrayBuffer()).then(b => new Promise((ok, no) => ac.decodeAudioData(b, ok, no)))
+    if (!id || bufs[id] || bufs[id] === false || bufs[id] === null) return;
+    bufs[id] = null;   // in-flight
+    const ac = actx(); if (!ac) { bufs[id] = false; return; }
+    fetch(clipUrl(id)).then(r => r.arrayBuffer()).then(b => new Promise((ok, no) => ac.decodeAudioData(b.slice(0), ok, no)))
       .then(buf => { bufs[id] = buf; }).catch(() => { bufs[id] = false; });
   }
-  function warmClips() { ['hi','cheer','twenty','twenty_done', ...REMARK_CLIPS, ...IDLE_CLIPS, ...CHAT.map(c => c.id)].forEach(loadClip); }
-  warmClips();
+  function queueClips() {
+    const ids = ['hi','cheer','twenty','twenty_done', ...REMARK_CLIPS, ...IDLE_CLIPS, ...CHAT.map(c => c.id)];
+    const seen = Object.create(null);
+    warmQ = [];
+    for (const id of ids) { if (seen[id] || bufs[id] || bufs[id] === false || bufs[id] === null) continue; seen[id] = 1; warmQ.push(id); }
+  }
+  function warmSlice(n = 1) {
+    let k = 0;
+    while (k < n && warmQ.length) {
+      const id = warmQ.shift();
+      if (!bufs[id] && bufs[id] !== false && bufs[id] !== null) loadClip(id);
+      k++;
+    }
+  }
   function stopVoice() {
     try { if (playingSrc) { playingSrc.stop(); } } catch (e) {}
     playingSrc = null;
+    try { if (clipEl) { clipEl.pause(); clipEl.currentTime = 0; } } catch (e) {}
     try { speechSynthesis.cancel(); } catch (e) {}
   }
   function playBuf(buf, ac) {
@@ -123,12 +138,16 @@ export function setupGrokVisit({ scene, tp, play, monkey, camera, st } = {}) {
     src.onended = () => { if (playingSrc === src) playingSrc = null; };
     api.voice = 'webaudio';
   }
+  // Reused <audio> fallback — never new Audio() per line (avoids decode spikes on the walk).
   function playClipEl(clipId) {
-    const a = new Audio(clipUrl(clipId)); a.preload = 'auto';
+    const a = clipEl || (clipEl = new Audio());
+    try { a.pause(); } catch (e) {}
+    a.preload = 'auto';
+    if (a.src !== clipUrl(clipId)) a.src = clipUrl(clipId);
     const go = () => {
       try { a.currentTime = 0; } catch (e) {}
       return Promise.resolve(a.play()).then(() => {
-        api.voice = 'clip'; talkT = Math.max(talkT, a.duration || talkT); happyT = talkT + 1.0;
+        api.voice = 'clip'; talkT = Math.max(talkT, (a.duration && isFinite(a.duration) ? a.duration : talkT)); happyT = talkT + 1.0;
       });
     };
     return go().catch(() => new Promise((res, rej) => {
@@ -143,26 +162,14 @@ export function setupGrokVisit({ scene, tp, play, monkey, camera, st } = {}) {
     stopVoice();
     const ac = actx();
     try { if (ac && ac.state !== 'running') ac.resume(); } catch (e) {}
-    // t639u: when a GuyNeural clip id is given, ALWAYS use that clip — never fall back to a different TTS voice
+    // t639u: clip id always plays that clip (never TTS). Prefer pre-decoded WebAudio; else reused <audio>
+    // — never kick off decodeAudioData from say (walk path was +22% CPU from mid-stride decode).
     if (clipId) {
-      loadClip(clipId);
       const buf = bufs[clipId];
       if (buf && buf !== false && ac) {
         try { playBuf(buf, ac); return; } catch (e) {}
       }
-      // buffer still loading — wait briefly then play clip (Audio element), never TTS
-      if (buf == null) {
-        let tries = 0;
-        const wait = () => {
-          tries++;
-          const b = bufs[clipId];
-          if (b && b !== false && ac) { try { playBuf(b, ac); return; } catch (e) {} }
-          if (tries < 12) { setTimeout(wait, 80); return; }
-          playClipEl(clipId).catch(() => { api.voice = 'clip-miss'; });
-        };
-        setTimeout(wait, 60);
-        return;
-      }
+      if (bufs[clipId] === undefined) warmQ.push(clipId);   // fill later via warmSlice, not here
       playClipEl(clipId).catch(() => { api.voice = 'clip-miss'; });
       return;
     }
@@ -303,6 +310,9 @@ export function setupGrokVisit({ scene, tp, play, monkey, camera, st } = {}) {
     cab = pickCab();
     if (!cab) { api.state = 'idle'; api.force = false; return; }
     api.cab = cab; api.reason = reason; api.started++; api.state = 'arrive'; phaseT = 0;
+    queueClips();
+    // fire every queued decode now (arrive/greet/look window) so walk only hits playBuf — never mid-stride decodeAudioData
+    const kick = warmQ.splice(0, warmQ.length); for (const id of kick) loadClip(id);
     api.tickets = 0; api.machinesDone = 0; nextTixAt = 0; showTixHud(false);
     if (api.fast || reason === 'test') playDur = 4;
     else playDur = PLAY_S;
@@ -710,6 +720,8 @@ export function setupGrokVisit({ scene, tp, play, monkey, camera, st } = {}) {
 
   function tick(dt) {
     t += dt; api.sessT += dt; phaseT += dt;
+    // stragglers only (begin already kicked the full queue); never decode during walk
+    if (warmQ.length && (api.state === 'arrive' || api.state === 'greet' || api.state === 'look' || api.state === 'idle')) warmSlice(1);
     if (grok.visible) {
       blinkT -= dt; if (blinkT < -0.12) blinkT = 2 + Math.random() * 3;
       talkT = Math.max(0, talkT - dt); happyT = Math.max(0, happyT - dt);
