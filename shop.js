@@ -589,15 +589,20 @@ export function setupShop({ scene, tp, play, monkey, camera, st } = {}) {
     const SHOEC = [[0x8a1e2c, 0xf1e8d6], [0x1f4fbf, 0xeaf0ff], [0x1a1a1e, 0x4a4a52], [0xf2f2f4, 0xd03040], [0x1f9a3a, 0xe8ffe8], [0xff5fb4, 0xffffff], [0xd9a51c, 0x2a1a08], [0x6a24c4, 0x00e5ff]];
     // back panel + plinth
     const HW = 3.1; dark.push(new THREE.BoxGeometry(2 * HW, 2.7, 0.08).translate(0, 1.35, 0.03), new THREE.BoxGeometry(2 * HW, 0.12, 0.85).translate(0, 0.06, 0.425));   // GROK SHOP counter finish
-    for (const zf of [0.075, -0.015]) { neon.push(new THREE.BoxGeometry(2 * HW, 0.03, 0.03).translate(0, 2.7, zf), new THREE.BoxGeometry(0.03, 2.7, 0.03).translate(-HW, 1.35, zf), new THREE.BoxGeometry(0.03, 2.7, 0.03).translate(HW, 1.35, zf));
-      neonP.push(new THREE.BoxGeometry(2 * HW - 0.16, 0.02, 0.02).translate(0, 2.62, zf), new THREE.BoxGeometry(0.02, 2.5, 0.02).translate(-HW + 0.08, 1.37, zf), new THREE.BoxGeometry(0.02, 2.5, 0.02).translate(HW - 0.08, 1.37, zf)); }
+    const HWR = HW + 0.62;   // t626: the back panel's right edge now includes the mirror wing, so its neon outline runs round the whole piece (no seam post at HW)
+    for (const zf of [0.075, -0.015]) { neon.push(new THREE.BoxGeometry(HW + HWR + 0.03, 0.03, 0.03).translate((HWR - HW) / 2, 2.7, zf), new THREE.BoxGeometry(0.03, 2.7, 0.03).translate(-HW, 1.35, zf), new THREE.BoxGeometry(0.03, 2.7, 0.03).translate(HWR, 1.35, zf));
+      neonP.push(new THREE.BoxGeometry(HW + HWR - 0.16, 0.02, 0.02).translate((HWR - HW) / 2, 2.62, zf), new THREE.BoxGeometry(0.02, 2.5, 0.02).translate(-HW + 0.08, 1.37, zf), new THREE.BoxGeometry(0.02, 2.5, 0.02).translate(HWR - 0.08, 1.37, zf)); }
     neon.push(new THREE.BoxGeometry(2 * HW, 0.025, 0.025).translate(0, 0.125, 0.84)); neonP.push(new THREE.BoxGeometry(2 * HW, 0.02, 0.02).translate(0, 0.02, 0.86));
     for (const sd of [-1, 1]) { neon.push(new THREE.BoxGeometry(0.025, 0.025, 0.85).translate(sd * HW, 0.125, 0.425)); neonP.push(new THREE.BoxGeometry(0.02, 0.02, 0.85).translate(sd * HW, 0.02, 0.425)); }
     // mirror (left as you face it = local +x after the flip is world -x; build at local x = 2.55)
     // Dave t625: mirror twice as wide, extended to the right as you face it (local +x); left edge (2.29) stays put, so it overhangs the island end on a wing panel
-    const MXm = 2.6 + 0.31, MW = 1.24, MH = MW / 2; q(BOX, 0x1a1e2a, MXm, 1.05, 0.12, MW + 0.1, 2.0, 0.06); dark.push(new THREE.BoxGeometry(0.62, 2.7, 0.08).translate(HW + 0.31, 1.35, 0.03));
-    neonP.push(new THREE.BoxGeometry(MW + 0.04, 0.018, 0.02).translate(MXm, 2.03, 0.17), new THREE.BoxGeometry(MW + 0.04, 0.018, 0.02).translate(MXm, 0.07, 0.17), new THREE.BoxGeometry(0.018, 1.96, 0.02).translate(MXm - MH - 0.02, 1.05, 0.17), new THREE.BoxGeometry(0.018, 1.96, 0.02).translate(MXm + MH + 0.02, 1.05, 0.17));
-    neon.push(new THREE.BoxGeometry(MW + 0.14, 0.025, 0.02).translate(MXm, 0.03, 0.16), new THREE.BoxGeometry(MW + 0.14, 0.025, 0.02).translate(MXm, 2.07, 0.16), new THREE.BoxGeometry(0.025, 2.0, 0.02).translate(MXm - MH - 0.06, 1.05, 0.16), new THREE.BoxGeometry(0.025, 2.0, 0.02).translate(MXm + MH + 0.06, 1.05, 0.16), new THREE.BoxGeometry(0.03, 2.7, 0.03).translate(HW + 0.62, 1.35, 0.075), new THREE.BoxGeometry(0.62, 0.03, 0.03).translate(HW + 0.31, 2.7, 0.075));
+    const MXm = 2.6 + 0.31, MW = 1.24, MH = MW / 2; dark.push(new THREE.BoxGeometry(0.62, 2.7, 0.08).translate(HW + 0.31, 1.35, 0.03), new THREE.BoxGeometry(0.62, 0.12, 0.85).translate(HW + 0.31, 0.06, 0.425));   // wing panel + plinth continue the island
+    // t626 polished frame: one rounded-rect bezel (bevelled extrude, glossy dark) + continuous cyan inner neon line just proud of the glass + purple outer line. 3 merged pieces, no seams.
+    const rr = (w, h, r) => { const sh = new THREE.Shape(), x = -w / 2, y = -h / 2; sh.moveTo(x + r, y); sh.lineTo(x + w - r, y); sh.quadraticCurveTo(x + w, y, x + w, y + r); sh.lineTo(x + w, y + h - r); sh.quadraticCurveTo(x + w, y + h, x + w - r, y + h); sh.lineTo(x + r, y + h); sh.quadraticCurveTo(x, y + h, x, y + h - r); sh.lineTo(x, y + r); sh.quadraticCurveTo(x, y, x + r, y); return sh; };
+    const ring = (ow, oh, or_, iw, ih, ir, d, bv) => { const sh = rr(ow, oh, or_); sh.holes.push(rr(iw, ih, ir)); return new THREE.ExtrudeGeometry(sh, { depth: d, bevelEnabled: bv > 0, bevelThickness: bv, bevelSize: bv, bevelSegments: 3, curveSegments: 6 }); };
+    const bezelG = ring(MW + 0.1, 2.0, 0.07, MW + 0.004, 1.904, 0.02, 0.03, 0.012).translate(MXm, 1.05, 0.13);
+    neon.push(ring(MW + 0.03, 1.934, 0.035, MW + 0.006, 1.91, 0.022, 0.006, 0).translate(MXm, 1.05, 0.184));
+    neonP.push(ring(MW + 0.15, 2.05, 0.09, MW + 0.13, 2.03, 0.082, 0.006, 0).translate(MXm, 1.05, 0.15));
     // clothing rail: two chrome posts + bar, 11 hoodies on hangers
     const R0 = 0.35, R1 = 2.2, RY = 1.75; for (const x of [R0 - 0.1, R1 + 0.1]) q(CYL, CHR, x, (RY + 0.12) / 2, 0.42, 0.018, RY - 0.12, 0.018);
     q(CYL, CHR, (R0 + R1) / 2, RY, 0.42, 0.014, R1 - R0 + 0.24, 0.014, 0, 0, Math.PI / 2);
@@ -649,12 +654,13 @@ export function setupShop({ scene, tp, play, monkey, camera, st } = {}) {
       wdLooks = { hats: stands.map(s => s[0]).filter(k => H[k]), glasses: glassSpots.map(s => s[0]).filter(k => H.gl && H.gl[k]), capFromMonkey: !!cap }; }
     wd.add(Object.assign(new THREE.Mesh(mergeGeometries(L), vcMat), { name: 'wardrobeBody' }));
     wd.add(Object.assign(new THREE.Mesh(mergeGeometries(dark), counterMat), { name: 'wardrobeShell' }));
-    wd.add(Object.assign(new THREE.Mesh(mergeGeometries(neonP), new THREE.MeshBasicMaterial({ color: 0xc04dff, toneMapped: false })), { name: 'wardrobeNeonPurple' }));
-    wd.add(Object.assign(new THREE.Mesh(mergeGeometries(neon), new THREE.MeshBasicMaterial({ color: 0x5ff4ff, toneMapped: false })), { name: 'wardrobeNeon' }));
+    wd.add(Object.assign(new THREE.Mesh(mergeGeometries(neonP.map(g => g.index ? g.toNonIndexed() : g)), new THREE.MeshBasicMaterial({ color: 0xc04dff, toneMapped: false })), { name: 'wardrobeNeonPurple' }));
+    wd.add(Object.assign(new THREE.Mesh(mergeGeometries(neon.map(g => g.index ? g.toNonIndexed() : g)), new THREE.MeshBasicMaterial({ color: 0x5ff4ff, toneMapped: false })), { name: 'wardrobeNeon' }));
     const glass = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.025, 0.45).translate(GX, 1.12, 0.3), new THREE.MeshStandardMaterial({ color: 0xcff6ff, transparent: true, opacity: 0.35, roughness: 0.05, metalness: 0.1, emissive: 0x2aa8c0, emissiveIntensity: 0.4 })); glass.name = 'wardrobeGlass'; wd.add(glass);
     /* Dave: live planar mirror (Reflector). t625 freeze fix: the room's floor is also a Reflector, so this mirror's onBeforeRender ran once per pass
        (floor's virtual camera + main camera) and the every-other-call skip landed the real render on the floor pass every frame -> wrong, stale image.
        Now: only the main camera triggers it, once per frame, when the mirror is inside the camera frustum and within 12 m of the camera. 512x420 (~same pixels as 384x512 before). */
+    { const bz = new THREE.Mesh(bezelG, new THREE.MeshStandardMaterial({ color: 0x10121a, roughness: 0.18, metalness: 0.7, emissive: 0x05060c })); bz.name = 'wardrobeMirrorBezel'; wd.add(bz); }
     const mir = new Reflector(new THREE.PlaneGeometry(MW, 1.9), { textureWidth: 512, textureHeight: 420, color: 0xa8c4d4, multisample: 0 });
     mir.position.set(MXm, 1.05, 0.155); mir.name = 'wardrobeMirror'; wd.add(mir);
     const _mirObr = mir.onBeforeRender, _mirPos = new THREE.Vector3(), _camPos = new THREE.Vector3(), _mirN = new THREE.Vector3(), _toCam = new THREE.Vector3(), _fr = new THREE.Frustum(), _pm = new THREE.Matrix4();

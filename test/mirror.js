@@ -23,6 +23,11 @@ const { open } = require('./lib');
       const g2 = await grab(); await page.evaluate(() => window.__arcade.monkey.scale.copy(window.__mkS)); await page.waitForTimeout(1200); const hide = diff(g1, g2);
       chk(hide > 1, '1st person: monkey appears in reflection (diff with vs without monkey)', +hide.toFixed(2)); }
     await page.screenshot({ path: '/workspace/galactic-shop/shots/' + (fp ? 'mirror_fp.png' : 'mirror_wide_3p.png') }); }
+  for (const [nm, off, side] of [['mirror_frame_front', 3.4, 0.6], ['mirror_frame_angle', 2.0, 2.0]]) {
+    await page.evaluate(([M, off, side]) => { const A = window.__arcade; A.st.fp = false; A.monkey.position.set(M.p[0] + M.n[0] * 1.0, 0, M.p[2] - 0.2); A.st.yaw = Math.atan2(M.n[0], M.n[2]) + Math.PI;
+      window.__camOverride = { pos: [M.p[0] + M.n[0] * off, 1.15, M.p[2] + side], at: [M.p[0], 1.05, M.p[2]], showMonkey: true }; }, [M, off, side]);
+    await page.waitForTimeout(2000); await page.screenshot({ path: '/workspace/galactic-shop/shots/' + nm + '.png' }); }
+  await page.evaluate(() => { delete window.__camOverride; });
   const cost = await page.evaluate(async () => { const W = window.__shop.wardrobe; let s = 0, n = 0; for (let i = 0; i < 20; i++) { await new Promise(r => requestAnimationFrame(r)); s += W.mirror.last; n++; } return +(s / n).toFixed(2); });
   console.log('MIRROR_COST_MS ' + cost);
   chk(!errors.length, 'no page errors', errors.slice(0, 2));
