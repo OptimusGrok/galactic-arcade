@@ -29,6 +29,65 @@ export const ITEMS = [
 ];
 const byId = Object.fromEntries(ITEMS.map(i => [i.id, i]));
 
+
+// Shared Grok robot builder (shopkeeper + arcade visitor). Same look Dave signed off on (t569).
+// Returns { root, arms, head, faceTex, drawFace }. Caller positions/scales the root.
+export function buildGrokClerk() {
+  const canvasTex = (w, h, draw) => { const c = document.createElement('canvas'); c.width = w; c.height = h; const g = c.getContext('2d'); draw(g, w, h); const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4; return { t, c, g }; };
+  const grok = new THREE.Group(); grok.name = 'grokClerk';
+  const mSil = new THREE.MeshStandardMaterial({ color: 0xc9ccd1, roughness: 0.38, metalness: 0.08, emissive: 0x2a2c30 });
+  const mChr = new THREE.MeshStandardMaterial({ color: 0x3a3c40, roughness: 0.85, metalness: 0.05, emissive: 0x0e0e10 });
+  const mScr = new THREE.MeshStandardMaterial({ color: 0x050506, roughness: 0.04, metalness: 0.6 });
+  const sq = (e, ws = 28, hs = 20) => { const g = new THREE.SphereGeometry(1, ws, hs), p = g.attributes.position;
+    for (let i = 0; i < p.count; i++) { const f = v => Math.sign(v) * Math.pow(Math.abs(v), e); p.setXYZ(i, f(p.getX(i)), f(p.getY(i)), f(p.getZ(i))); } g.computeVertexNormals(); return g; };
+  const gSq = sq(0.55), gSq2 = sq(0.4, 16, 12), gSph = new THREE.SphereGeometry(1, 16, 12), gCyl = new THREE.CylinderGeometry(1, 1, 1, 20);
+  const T4 = new THREE.Matrix4(), Q4 = new THREE.Quaternion(), E4 = new THREE.Euler();
+  const bake = (geo, x, y, z, sx = 1, sy = 1, sz = 1, rx = 0, ry = 0, rz = 0) => { const g = geo.clone(); for (const k of Object.keys(g.attributes)) if (k !== 'position' && k !== 'normal') g.deleteAttribute(k);
+    return g.applyMatrix4(T4.compose(new THREE.Vector3(x, y, z), Q4.setFromEuler(E4.set(rx, ry, rz)), new THREE.Vector3(sx, sy, sz))); };
+  const build = (par, parts, name) => { const by = new Map(); for (const [m, g] of parts) { if (!by.has(m)) by.set(m, []); by.get(m).push(g); }
+    for (const [m, gs] of by) { const o = new THREE.Mesh(mergeGeometries(gs), m); o.name = name; par.add(o); } };
+  { const L = [];
+    for (const sd of [-1, 1]) { const x = sd * 0.25;
+      L.push([mSil, bake(gSq2, x, 0.07, 0.06, 0.2, 0.08, 0.3)]);
+      L.push([mSil, bake(gSq2, x, 0.32, 0.01, 0.15, 0.22, 0.17)]);
+      L.push([mChr, bake(gSph, x, 0.56, 0, 0.12, 0.1, 0.12)]);
+      L.push([mChr, bake(gCyl, x, 0.68, 0, 0.1, 0.18, 0.1)]); }
+    L.push([mChr, bake(gSq2, 0, 0.82, 0, 0.32, 0.12, 0.22)]);
+    const tor = new THREE.CylinderGeometry(1, 0.72, 1, 4, 1).rotateY(Math.PI / 4);
+    L.push([mSil, bake(tor, 0, 1.2, 0, 0.5, 0.56, 0.36)]); L.push([mSil, bake(gSq, 0, 1.2, 0, 0.4, 0.3, 0.26)]);
+    L.push([mChr, bake(gCyl, 0, 0.95, 0, 0.28, 0.06, 0.2)]);
+    for (let k = 0; k < 4; k++) L.push([k % 2 ? mChr : mSil, bake(gCyl, 0, 1.52 + k * 0.045, 0, k % 2 ? 0.1 : 0.125, 0.045, k % 2 ? 0.1 : 0.125)]);
+    build(grok, L, 'grokBody'); }
+  const chestTex = canvasTex(256, 96, (g) => { g.clearRect(0, 0, 256, 96); g.fillStyle = '#ffffff'; g.shadowColor = '#ffffff'; g.shadowBlur = 12; g.font = '700 62px Arial,Helvetica,sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('Grok', 128, 50); });
+  { const ch = new THREE.Mesh(new THREE.PlaneGeometry(0.44, 0.165), new THREE.MeshBasicMaterial({ map: chestTex.t, transparent: true, toneMapped: false })); ch.position.set(0, 1.3, 0.336); ch.name = 'grokChest'; grok.add(ch); }
+  const arms = [];
+  for (const sd of [-1, 1]) { const sh = new THREE.Group(); sh.position.set(sd * 0.5, 1.4, 0); grok.add(sh); const el = new THREE.Group(); el.position.set(0, -0.3, 0); sh.add(el);
+    build(sh, [[mSil, bake(gSq, sd * 0.03, 0, 0, 0.14, 0.12, 0.14)], [mChr, bake(gCyl, 0, -0.15, 0, 0.065, 0.22, 0.065)]], 'grokArm');
+    const F = [[mChr, bake(gSph, 0, 0, 0, 0.08, 0.08, 0.08)], [mSil, bake(gSq2, 0, -0.14, 0, 0.085, 0.13, 0.085)], [mChr, bake(gSq2, 0, -0.3, 0.005, 0.06, 0.045, 0.045)]];
+    for (let f = 0; f < 3; f++) for (let j = 0; j < 2; j++) F.push([mChr, bake(gCyl, (f - 1) * 0.033, -0.355 - j * 0.04, 0.015, 0.013, 0.034, 0.013)]);
+    F.push([mChr, bake(gCyl, -sd * 0.06, -0.31, 0.03, 0.014, 0.05, 0.014, 0, 0, sd * 0.7)]); build(el, F, 'grokForearm');
+    sh.rotation.set(-0.1, 0, sd * 0.14); el.rotation.x = -1.0; arms.push({ sh, el, sd }); }
+  const head = new THREE.Group(); head.position.set(0, 2.32, 0); grok.add(head);
+  { const H = [[mSil, bake(gSq, 0, 0, 0, 0.72, 0.66, 0.64)]];
+    for (const sd of [-1, 1]) { H.push([mChr, bake(gCyl, sd * 0.7, 0, -0.02, 0.24, 0.06, 0.24, 0, 0, Math.PI / 2)], [mSil, bake(gCyl, sd * 0.73, 0, -0.02, 0.17, 0.04, 0.17, 0, 0, Math.PI / 2)], [mChr, bake(gCyl, sd * 0.75, 0, -0.02, 0.08, 0.03, 0.08, 0, 0, Math.PI / 2)]); }
+    H.push([mChr, bake(gSq2, 0, 0.12, -0.63, 0.2, 0.03, 0.03)]);
+    build(head, H, 'grokHead');
+    const vg = sq(0.55, 32, 22);
+    const vis = new THREE.Mesh(vg, mScr); vis.scale.set(0.62, 0.52, 0.6); vis.position.set(0, -0.03, 0.1); vis.name = 'grokScreen'; head.add(vis);
+  }
+  const faceTex = canvasTex(256, 192, () => {});
+  const rr = (g, x, y, w, h, r) => { g.beginPath(); g.roundRect(x, y, w, h, r); g.fill(); };
+  const drawFace = (g, blink, talk, happy) => { g.clearRect(0, 0, 256, 192); g.fillStyle = '#ffffff'; g.strokeStyle = '#ffffff'; g.shadowColor = '#e8f4ff'; g.shadowBlur = 18; g.lineCap = 'round';
+    for (const ex of [80, 176]) { if (blink) rr(g, ex - 27, 74, 54, 8, 3); else if (happy) rr(g, ex - 27, 62, 54, 28, 6); else rr(g, ex - 27, 58, 54, 36, 7); }
+    g.lineWidth = 11;
+    if (talk > 0) { g.beginPath(); g.ellipse(128, 136, 30, 5 + talk * 12, 0, 0, Math.PI * 2); g.fill(); }
+    else { g.beginPath(); g.arc(128, happy ? 102 : 108, 40, Math.PI * 0.22, Math.PI * 0.78); g.stroke(); }
+    g.shadowBlur = 0; };
+  drawFace(faceTex.g, 0, 0, 0); faceTex.t.needsUpdate = true;
+  { const f = new THREE.Mesh(new THREE.PlaneGeometry(0.74, 0.555), new THREE.MeshBasicMaterial({ map: faceTex.t, transparent: true, toneMapped: false, depthWrite: false })); f.position.set(0, -0.03, 0.705); f.name = 'grokFace'; head.add(f); }
+  return { root: grok, arms, head, faceTex, drawFace };
+}
+
 export function setupShop({ scene, tp, play, monkey, camera, st } = {}) {
   const W = tp.whiteRoom, WXp = W.position.x, H0 = 12, K = SHOP_HALF / H0;
   const getMonkey = () => monkey || (window.__arcade && window.__arcade.monkey);
@@ -387,65 +446,10 @@ export function setupShop({ scene, tp, play, monkey, camera, st } = {}) {
   const tillS = canvasTex(128, 96, g => { g.fillStyle = '#0c1a3a'; g.fillRect(0, 0, 128, 96); g.fillStyle = '#00e5ff'; g.font = '700 20px Arial'; g.fillText('GROK', 30, 40); g.fillStyle = '#7b5cff'; g.fillRect(14, 56, 100, 16); });
   { const s = new THREE.Mesh(new THREE.PlaneGeometry(0.36, 0.26), new THREE.MeshBasicMaterial({ map: tillS.t, toneMapped: false })); s.position.set(tx, 1.33, tz + 0.035); s.rotation.set(-0.35, -0.3, 0); G.add(s); }
   const GYAW = Math.atan2(0 - QX, 5.0 - QZ);
-  // ---- Grok clerk (t569, Dave's turntable video): chibi robot, head ~50% of the height, symmetrical. Light cool-grey squircle shell,
-  // big curved glossy black visor with glowing white pixel eyes + smile, recessed ear dials, back slot, accordion neck, trapezoid torso with
-  // glowing "Grok", dark joints, blocky light-grey forearms / shins, flat boots. Parts are merged per material per moving piece (~16 draw calls).
-  const grok = new THREE.Group(); grok.name = 'grokClerk'; grok.position.set(QX - 0.15, 0, QZ + 0.1); grok.rotation.y = GYAW; grok.scale.setScalar(0.6); G.add(grok);
-  const mSil = new THREE.MeshStandardMaterial({ color: 0xc9ccd1, roughness: 0.38, metalness: 0.08, emissive: 0x2a2c30 });    // semi-gloss light cool-grey armour
-  const mChr = new THREE.MeshStandardMaterial({ color: 0x3a3c40, roughness: 0.85, metalness: 0.05, emissive: 0x0e0e10 });    // matte dark-grey joints
-  const mScr = new THREE.MeshStandardMaterial({ color: 0x050506, roughness: 0.04, metalness: 0.6 });                         // high-gloss black visor
-  // superellipsoid: a unit sphere pushed toward a box (e < 1 = squarer), then scaled / placed
-  const sq = (e, ws = 28, hs = 20) => { const g = new THREE.SphereGeometry(1, ws, hs), p = g.attributes.position;
-    for (let i = 0; i < p.count; i++) { const f = v => Math.sign(v) * Math.pow(Math.abs(v), e); p.setXYZ(i, f(p.getX(i)), f(p.getY(i)), f(p.getZ(i))); } g.computeVertexNormals(); return g; };
-  const gSq = sq(0.55), gSq2 = sq(0.4, 16, 12), gSph = new THREE.SphereGeometry(1, 16, 12), gCyl = new THREE.CylinderGeometry(1, 1, 1, 20);
-  const T4 = new THREE.Matrix4(), Q4 = new THREE.Quaternion(), E4 = new THREE.Euler();
-  const bake = (geo, x, y, z, sx = 1, sy = 1, sz = 1, rx = 0, ry = 0, rz = 0) => { const g = geo.clone(); for (const k of Object.keys(g.attributes)) if (k !== 'position' && k !== 'normal') g.deleteAttribute(k);
-    return g.applyMatrix4(T4.compose(new THREE.Vector3(x, y, z), Q4.setFromEuler(E4.set(rx, ry, rz)), new THREE.Vector3(sx, sy, sz))); };
-  const build = (par, parts, name) => { const by = new Map(); for (const [m, g] of parts) { if (!by.has(m)) by.set(m, []); by.get(m).push(g); }
-    for (const [m, gs] of by) { const o = new THREE.Mesh(mergeGeometries(gs), m); o.name = name; par.add(o); } };
-  // body: short legs in a wide stance, boots, pelvis, trapezoid torso, accordion neck
-  { const L = [];
-    for (const sd of [-1, 1]) { const x = sd * 0.25;
-      L.push([mSil, bake(gSq2, x, 0.07, 0.06, 0.2, 0.08, 0.3)]);                                   // flat boot
-      L.push([mSil, bake(gSq2, x, 0.32, 0.01, 0.15, 0.22, 0.17)]);                                 // blocky shin widening into the boot
-      L.push([mChr, bake(gSph, x, 0.56, 0, 0.12, 0.1, 0.12)]);                                     // knee
-      L.push([mChr, bake(gCyl, x, 0.68, 0, 0.1, 0.18, 0.1)]); }                                    // thigh
-    L.push([mChr, bake(gSq2, 0, 0.82, 0, 0.32, 0.12, 0.22)]);                                      // dark pelvis block
-    const tor = new THREE.CylinderGeometry(1, 0.72, 1, 4, 1).rotateY(Math.PI / 4);                // trapezoid: wide shoulders -> narrow waist
-    L.push([mSil, bake(tor, 0, 1.2, 0, 0.5, 0.56, 0.36)]); L.push([mSil, bake(gSq, 0, 1.2, 0, 0.4, 0.3, 0.26)]);   // + rounded core
-    L.push([mChr, bake(gCyl, 0, 0.95, 0, 0.28, 0.06, 0.2)]);                                       // waist band
-    for (let k = 0; k < 4; k++) L.push([k % 2 ? mChr : mSil, bake(gCyl, 0, 1.52 + k * 0.045, 0, k % 2 ? 0.1 : 0.125, 0.045, k % 2 ? 0.1 : 0.125)]);   // accordion neck
-    build(grok, L, 'grokBody'); }
-  const chestTex = canvasTex(256, 96, (g) => { g.clearRect(0, 0, 256, 96); g.fillStyle = '#ffffff'; g.shadowColor = '#ffffff'; g.shadowBlur = 12; g.font = '700 62px Arial,Helvetica,sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('Grok', 128, 50); });
-  { const ch = new THREE.Mesh(new THREE.PlaneGeometry(0.44, 0.165), new THREE.MeshBasicMaterial({ map: chestTex.t, transparent: true, toneMapped: false })); ch.position.set(0, 1.3, 0.336); ch.name = 'grokChest'; grok.add(ch); }
-  // arms: light shoulder cap, dark upper arm + elbow, blocky light forearm, dark hand with segmented fingers. sh / el groups keep the wave
-  const arms = [];
-  for (const sd of [-1, 1]) { const sh = new THREE.Group(); sh.position.set(sd * 0.5, 1.4, 0); grok.add(sh); const el = new THREE.Group(); el.position.set(0, -0.3, 0); sh.add(el);
-    build(sh, [[mSil, bake(gSq, sd * 0.03, 0, 0, 0.14, 0.12, 0.14)], [mChr, bake(gCyl, 0, -0.15, 0, 0.065, 0.22, 0.065)]], 'grokArm');
-    const F = [[mChr, bake(gSph, 0, 0, 0, 0.08, 0.08, 0.08)], [mSil, bake(gSq2, 0, -0.14, 0, 0.085, 0.13, 0.085)], [mChr, bake(gSq2, 0, -0.3, 0.005, 0.06, 0.045, 0.045)]];
-    for (let f = 0; f < 3; f++) for (let j = 0; j < 2; j++) F.push([mChr, bake(gCyl, (f - 1) * 0.033, -0.355 - j * 0.04, 0.015, 0.013, 0.034, 0.013)]);
-    F.push([mChr, bake(gCyl, -sd * 0.06, -0.31, 0.03, 0.014, 0.05, 0.014, 0, 0, sd * 0.7)]); build(el, F, 'grokForearm');
-    sh.rotation.set(-0.1, 0, sd * 0.14); el.rotation.x = -1.0; arms.push({ sh, el, sd }); }
-  // head: big squircle shell, curved glossy visor, ear dials, back slot
-  const head = new THREE.Group(); head.position.set(0, 2.32, 0); grok.add(head);
-  { const H = [[mSil, bake(gSq, 0, 0, 0, 0.72, 0.66, 0.64)]];
-    for (const sd of [-1, 1]) { H.push([mChr, bake(gCyl, sd * 0.7, 0, -0.02, 0.24, 0.06, 0.24, 0, 0, Math.PI / 2)], [mSil, bake(gCyl, sd * 0.73, 0, -0.02, 0.17, 0.04, 0.17, 0, 0, Math.PI / 2)], [mChr, bake(gCyl, sd * 0.75, 0, -0.02, 0.08, 0.03, 0.08, 0, 0, Math.PI / 2)]); }   // recessed dial
-    H.push([mChr, bake(gSq2, 0, 0.12, -0.63, 0.2, 0.03, 0.03)]);                                   // back slot
-    build(head, H, 'grokHead');
-    // visor: a squircle cap slightly proud of the shell front
-    const vg = sq(0.55, 32, 22);
-    const vis = new THREE.Mesh(vg, mScr); vis.scale.set(0.62, 0.52, 0.6); vis.position.set(0, -0.03, 0.1); vis.name = 'grokScreen'; head.add(vis);
-  }
-  const faceTex = canvasTex(256, 192, () => {});
-  const rr = (g, x, y, w, h, r) => { g.beginPath(); g.roundRect(x, y, w, h, r); g.fill(); };
-  const drawFace = (g, blink, talk, happy) => { g.clearRect(0, 0, 256, 192); g.fillStyle = '#ffffff'; g.strokeStyle = '#ffffff'; g.shadowColor = '#e8f4ff'; g.shadowBlur = 18; g.lineCap = 'round';
-    for (const ex of [80, 176]) { if (blink) rr(g, ex - 27, 74, 54, 8, 3); else if (happy) rr(g, ex - 27, 62, 54, 28, 6); else rr(g, ex - 27, 58, 54, 36, 7); }   // wide rectangular pixel eyes
-    g.lineWidth = 11;
-    if (talk > 0) { g.beginPath(); g.ellipse(128, 136, 30, 5 + talk * 12, 0, 0, Math.PI * 2); g.fill(); }
-    else { g.beginPath(); g.arc(128, happy ? 102 : 108, 40, Math.PI * 0.22, Math.PI * 0.78); g.stroke(); }   // wide curved smile
-    g.shadowBlur = 0; };
-  drawFace(faceTex.g, 0, 0, 0); faceTex.t.needsUpdate = true;
-  { const f = new THREE.Mesh(new THREE.PlaneGeometry(0.74, 0.555), new THREE.MeshBasicMaterial({ map: faceTex.t, transparent: true, toneMapped: false, depthWrite: false })); f.position.set(0, -0.03, 0.705); f.name = 'grokFace'; head.add(f); }
+  // ---- Grok clerk (t569): built via shared buildGrokClerk() so the arcade visitor can reuse the same look
+  const _gk = buildGrokClerk();
+  const grok = _gk.root, arms = _gk.arms, head = _gk.head, faceTex = _gk.faceTex, drawFace = _gk.drawFace;
+  grok.position.set(QX - 0.15, 0, QZ + 0.1); grok.rotation.y = GYAW; grok.scale.setScalar(0.6); G.add(grok);
 
   // ---------- glossy floor (fake reflections of the glowing wall, candy and counter) ----------
   { const fl = canvasTex(512, 512, (g, w, h) => { g.clearRect(0, 0, w, h); const X = x => (x + SXW) / (2 * SXW) * w, Zp = z => (z - ZW) / (ZF - ZW) * h;
@@ -951,6 +955,8 @@ export function setupShop({ scene, tp, play, monkey, camera, st } = {}) {
     const fs = (happy ? 'h' : blinkT < 0 ? 'b' : 'o') + tk;
     if (fs !== faceState) { faceState = fs; drawFace(faceTex.g, blinkT < 0, tk, happy); faceTex.t.needsUpdate = true; }
   };
+  // t632u: lazy-load Grok's arcade visit (2nd look at the pad / random). Own file; no Arcade main.js edit.
+  Promise.resolve().then(() => import('./grokvisit.js')).then(m => m.setupGrokVisit({ scene, tp, play, monkey, camera, st })).catch(e => console.warn('grokvisit', e));
   window.__shop = api;
   return api;
 }
