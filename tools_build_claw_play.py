@@ -21,6 +21,12 @@ keys = sorted(set(re.findall(r"localStorage\.\w+\('([^']+)'", s)))
 if keys != ['clawMachine.collection']: fail(N, 'storage keys', f'unexpected keys {keys}')
 s = s.replace("'clawMachine.collection'", "'arcade_clawMachine.collection'")
 if re.search(r"localStorage\.(get|set|remove)Item\('(?!arcade_)", s): fail(N, 'storage keys', 'a non-isolated key remains')
+# t293u (Dave): no PUSH text on the prize door, no green CREDITS pill, no gold circle-arrow FRONT button (the view still snaps front on demo/new credit)
+s = inject(s, N, 'hide:push', "g.fillText('PUSH',cx2,by+bh*.58);", "")
+i = s.find("const ct='CREDITS: '+credits"); j = s.find("g.fillText('FRONT',rr.x,rr.y+rr.r+10);}", i)
+if i < 0 or j < 0: fail(N, 'hide:hud', 'CREDITS pill / FRONT button code moved')
+s = s[:i] + "g.textBaseline='middle';" + s[j + len("g.fillText('FRONT',rr.x,rr.y+rr.r+10);}"):]
+s = inject(s, N, 'hide:resetHit', "function inReset(x,y){const r=L.reset;return r&&", "function inReset(x,y){return false;const r=L.reset;return r&&")
 s = inject(s, N, 'arcade:hooks', '\nwindow.__claw={', '\n' + open('tools_claw_arcade.js').read() + '\nwindow.__claw={')
 g = open('tools_play_guard.html').read().replace("||x.origin==='https://kfupqtafhaflzaoqtenf.supabase.co'", "")
 assert 'supabase' not in g
