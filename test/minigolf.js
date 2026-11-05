@@ -31,6 +31,15 @@ const SH = '/workspace/ga-golf/shots/';
   await setT(12); await page.waitForTimeout(600); await page.locator('#gfBtn').tap(); await page.waitForTimeout(500); s = await G();
   chk(s.open && (await tix()) === 7, 'paying deducts 5 (12 -> ' + (await tix()) + ') and opens the shield');
   // 4. walk down the stairs into the room (real collisions, no hand-off)
+  // 4a. Dave's bug: the REAL frame loop + touch joystick (no A.step, no teleport) must get past the shop's east wall line into the basement
+  { const cdp = await page.context().newCDPSession(page), T = (type, y) => cdp.send('Input.dispatchTouchEvent', { type, touchPoints: type === 'touchEnd' ? [] : [{ x: 90, y, id: 1 }] });
+    await T('touchStart', 560); await T('touchMove', 540); await T('touchMove', 505);
+    let r = null; for (let i = 0; i < 120; i++) { r = await page.evaluate(() => { const A = window.__arcade, g = window.__minigolf, p = A.monkey.position; A.st.yaw = -Math.PI / 2; return { x: +p.x.toFixed(2), y: +p.y.toFixed(2), below: g.below, XS: g.XS }; }); if (r.below && r.x > r.XS + 0.6) break; await page.waitForTimeout(500); }
+    await T('touchEnd'); console.log('joystick', JSON.stringify(r));
+    chk(r.below && r.x > r.XS + 0.6 && r.y < -4.5, 'touch joystick walks down every step, past the doorway onto the basement walkway (x=' + r.x + ', y=' + r.y + ')');
+    await page.evaluate(() => { const A = window.__arcade; A.st.vel.set(0, 0, 0); A.st.yaw = Math.PI * 0.75; }); await page.waitForTimeout(2500); await page.screenshot({ path: SH + 'golf_doorway_fixed_phone.png' });
+    // back up to just inside the shield for the scripted part below
+    await page.evaluate(() => { const A = window.__arcade, g = window.__minigolf; A.monkey.position.set(g.X0 + 0.3, 0, g.entry.z); A.st.vel.set(0, 0, 0); }); }
   await walk(4.2, -Math.PI / 2, null); s = await G(); console.log('stairs', JSON.stringify(s));
   chk(s.below && !s.open && s.y < -1, 'on the stairs going down (y=' + s.y + '), shield re-armed behind');
   await page.waitForTimeout(1500); await page.screenshot({ path: SH + 'golf_room_enter_phone.png' });
