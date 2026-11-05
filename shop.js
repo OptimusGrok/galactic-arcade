@@ -594,7 +594,10 @@ export function setupShop({ scene, tp, play, monkey, camera, st } = {}) {
     neon.push(new THREE.BoxGeometry(2 * HW, 0.025, 0.025).translate(0, 0.125, 0.84)); neonP.push(new THREE.BoxGeometry(2 * HW, 0.02, 0.02).translate(0, 0.02, 0.86));
     for (const sd of [-1, 1]) { neon.push(new THREE.BoxGeometry(0.025, 0.025, 0.85).translate(sd * HW, 0.125, 0.425)); neonP.push(new THREE.BoxGeometry(0.02, 0.02, 0.85).translate(sd * HW, 0.02, 0.425)); }
     // mirror (left as you face it = local +x after the flip is world -x; build at local x = 2.55)
-    const MXm = 2.6; q(BOX, 0x1a1e2a, MXm, 1.05, 0.12, 0.72, 2.0, 0.06); neonP.push(new THREE.BoxGeometry(0.66, 0.018, 0.02).translate(MXm, 2.03, 0.17), new THREE.BoxGeometry(0.66, 0.018, 0.02).translate(MXm, 0.07, 0.17), new THREE.BoxGeometry(0.018, 1.96, 0.02).translate(MXm - 0.33, 1.05, 0.17), new THREE.BoxGeometry(0.018, 1.96, 0.02).translate(MXm + 0.33, 1.05, 0.17)); neon.push(new THREE.BoxGeometry(0.76, 0.025, 0.02).translate(MXm, 0.03, 0.16), new THREE.BoxGeometry(0.76, 0.025, 0.02).translate(MXm, 2.07, 0.16), new THREE.BoxGeometry(0.025, 2.0, 0.02).translate(MXm - 0.37, 1.05, 0.16), new THREE.BoxGeometry(0.025, 2.0, 0.02).translate(MXm + 0.37, 1.05, 0.16));
+    // Dave t625: mirror twice as wide, extended to the right as you face it (local +x); left edge (2.29) stays put, so it overhangs the island end on a wing panel
+    const MXm = 2.6 + 0.31, MW = 1.24, MH = MW / 2; q(BOX, 0x1a1e2a, MXm, 1.05, 0.12, MW + 0.1, 2.0, 0.06); dark.push(new THREE.BoxGeometry(0.62, 2.7, 0.08).translate(HW + 0.31, 1.35, 0.03));
+    neonP.push(new THREE.BoxGeometry(MW + 0.04, 0.018, 0.02).translate(MXm, 2.03, 0.17), new THREE.BoxGeometry(MW + 0.04, 0.018, 0.02).translate(MXm, 0.07, 0.17), new THREE.BoxGeometry(0.018, 1.96, 0.02).translate(MXm - MH - 0.02, 1.05, 0.17), new THREE.BoxGeometry(0.018, 1.96, 0.02).translate(MXm + MH + 0.02, 1.05, 0.17));
+    neon.push(new THREE.BoxGeometry(MW + 0.14, 0.025, 0.02).translate(MXm, 0.03, 0.16), new THREE.BoxGeometry(MW + 0.14, 0.025, 0.02).translate(MXm, 2.07, 0.16), new THREE.BoxGeometry(0.025, 2.0, 0.02).translate(MXm - MH - 0.06, 1.05, 0.16), new THREE.BoxGeometry(0.025, 2.0, 0.02).translate(MXm + MH + 0.06, 1.05, 0.16), new THREE.BoxGeometry(0.03, 2.7, 0.03).translate(HW + 0.62, 1.35, 0.075), new THREE.BoxGeometry(0.62, 0.03, 0.03).translate(HW + 0.31, 2.7, 0.075));
     // clothing rail: two chrome posts + bar, 11 hoodies on hangers
     const R0 = 0.35, R1 = 2.2, RY = 1.75; for (const x of [R0 - 0.1, R1 + 0.1]) q(CYL, CHR, x, (RY + 0.12) / 2, 0.42, 0.018, RY - 0.12, 0.018);
     q(CYL, CHR, (R0 + R1) / 2, RY, 0.42, 0.014, R1 - R0 + 0.24, 0.014, 0, 0, Math.PI / 2);
@@ -649,19 +652,26 @@ export function setupShop({ scene, tp, play, monkey, camera, st } = {}) {
     wd.add(Object.assign(new THREE.Mesh(mergeGeometries(neonP), new THREE.MeshBasicMaterial({ color: 0xc04dff, toneMapped: false })), { name: 'wardrobeNeonPurple' }));
     wd.add(Object.assign(new THREE.Mesh(mergeGeometries(neon), new THREE.MeshBasicMaterial({ color: 0x5ff4ff, toneMapped: false })), { name: 'wardrobeNeon' }));
     const glass = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.025, 0.45).translate(GX, 1.12, 0.3), new THREE.MeshStandardMaterial({ color: 0xcff6ff, transparent: true, opacity: 0.35, roughness: 0.05, metalness: 0.1, emissive: 0x2aa8c0, emissiveIntensity: 0.4 })); glass.name = 'wardrobeGlass'; wd.add(glass);
-    /* Dave: live planar mirror (Reflector), phone-cheap: 384x512, every other frame, only when player within ~6 m and facing */
-    const mir = new Reflector(new THREE.PlaneGeometry(0.62, 1.9), { textureWidth: 384, textureHeight: 512, color: 0xa8c4d4, multisample: 0 });
+    /* Dave: live planar mirror (Reflector). t625 freeze fix: the room's floor is also a Reflector, so this mirror's onBeforeRender ran once per pass
+       (floor's virtual camera + main camera) and the every-other-call skip landed the real render on the floor pass every frame -> wrong, stale image.
+       Now: only the main camera triggers it, once per frame, when the mirror is inside the camera frustum and within 12 m of the camera. 512x420 (~same pixels as 384x512 before). */
+    const mir = new Reflector(new THREE.PlaneGeometry(MW, 1.9), { textureWidth: 512, textureHeight: 420, color: 0xa8c4d4, multisample: 0 });
     mir.position.set(MXm, 1.05, 0.155); mir.name = 'wardrobeMirror'; wd.add(mir);
-    const _mirObr = mir.onBeforeRender, _mirPos = new THREE.Vector3(), _camPos = new THREE.Vector3(), _mirN = new THREE.Vector3(), _toCam = new THREE.Vector3();
-    let mirFlip = 0, mirMs = 0, mirRenders = 0, mirLast = 0;
+    const _mirObr = mir.onBeforeRender, _mirPos = new THREE.Vector3(), _camPos = new THREE.Vector3(), _mirN = new THREE.Vector3(), _toCam = new THREE.Vector3(), _fr = new THREE.Frustum(), _pm = new THREE.Matrix4();
+    let mirMs = 0, mirRenders = 0, mirLast = 0, mirFrame = -1;
     mir.onBeforeRender = function (renderer, scene, camera) {
+      const A = window.__arcade; if (A && A.camera && camera !== A.camera) return;   /* another reflector's virtual camera: skip */
+      const f = renderer.info.render.frame; if (f === mirFrame) return;
       mir.getWorldPosition(_mirPos); camera.getWorldPosition(_camPos);
-      if (_mirPos.distanceToSquared(_camPos) > 36) return;   /* 6 m */
-      mir.getWorldDirection(_mirN);
-      if (_mirN.dot(_toCam.copy(_camPos).sub(_mirPos).normalize()) < 0.12) return;   /* facing away / edge-on */
-      if ((++mirFlip & 1) === 0) return;
+      if (_mirPos.distanceToSquared(_camPos) > 144) return;   /* 12 m: the 3rd-person camera sits ~4-7 m behind the player, the old 6 m gate froze it */
+      mir.getWorldDirection(_mirN); if (_mirN.dot(_toCam.copy(_camPos).sub(_mirPos)) <= 0) return;   /* behind the glass */
+      if (!mir.geometry.boundingSphere) mir.geometry.computeBoundingSphere();
+      _fr.setFromProjectionMatrix(_pm.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse)); if (!_fr.intersectsObject(mir)) return;
+      mirFrame = f; const mk = A && A.monkey, hid = mk && !mk.visible;   /* first person: main.js hides the local monkey; show it for the mirror pass only */
+      if (hid) mk.visible = true;
       const t0 = performance.now();
       _mirObr.call(this, renderer, scene, camera);
+      if (hid) mk.visible = false;
       mirLast = mirMs = performance.now() - t0; mirRenders++;
     };
     wd.userData.mirrorStats = { get ms() { return mirMs; }, get last() { return mirLast; }, get renders() { return mirRenders; }, mesh: mir };
@@ -678,7 +688,7 @@ export function setupShop({ scene, tp, play, monkey, camera, st } = {}) {
   const OBST = [{ x0: Math.min(...cc.map(c => c[0])), x1: Math.max(...cc.map(c => c[0])), z0: Math.min(...cc.map(c => c[1])), z1: Math.max(...cc.map(c => c[1])) },
     { x0: -SXW - 0.1, x1: -SXW + 0.1, z0: ZW, z1: ZF }, { x0: SXW - 0.1, x1: SXW + 0.1, z0: ZW, z1: ZF },
     ...[PZ, PZ2].map(z => ({ x0: PX - PLW - 0.18, x1: PX + PLW + 0.18, z0: z - PLL - 0.18, z1: z + PLL + 0.18 })),   // pool tables
-    { x0: WDX - WDD - 0.05, x1: WDX + 0.08, z0: WDZ - WDW, z1: WDZ + WDW }];   // wardrobe island
+    { x0: WDX - WDD - 0.05, x1: WDX + 0.08, z0: WDZ - WDW, z1: WDZ + WDW }, { x0: WDX - 0.25, x1: WDX + 0.08, z0: WDZ + WDW - 0.1, z1: WDZ + WDW + 0.66 * WDS }];   // wardrobe island + mirror wing
   const NP = { x: QX + Math.sin(GYAW) * (RO + 0.55), z: QZ + Math.cos(GYAW) * (RO + 0.55) };
   function pushOut(p) { const lx = p.x - WXp, lz = p.z;
     const dx = lx - QX, dz = lz - QZ, d = Math.hypot(dx, dz); if (d < RO + R) { const k = (RO + R) / (d || 1); p.x = WXp + QX + dx * k; p.z = QZ + dz * k; return; }

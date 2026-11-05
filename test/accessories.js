@@ -17,7 +17,7 @@ const { open } = require('./lib');
       chk(await page.evaluate(() => window.__wardrobe.isOpen && window.__gaPlayer.wardrobe.shop === true), n + ' tap ' + (k + 1) + ': accessories panel opens (shop mode) and stays open');
       await page.evaluate(() => window.__wardrobe.close()); await page.waitForTimeout(500); }
   }
-  await page.evaluate(([x, z]) => { const A = window.__arcade, s = A.scene.getObjectByName('wardrobeSign'), p = new A.THREE.Vector3(); s.getWorldPosition(p); A.monkey.position.set(x, 0, z);
+  await page.evaluate(([x, z]) => { const A = window.__arcade, s = A.scene.getObjectByName('wardrobeMirror'), p = new A.THREE.Vector3(); s.getWorldPosition(p); A.monkey.position.set(x, 0, z);
     window.__camOverride = { pos: [p.x - 4.6, 2.3, p.z], at: [p.x, 1.7, p.z], showMonkey: true }; }, [sides.front[0] + I.wx, I.z]);
   await page.waitForTimeout(2500);
   const cost = await page.evaluate(async () => { const W = window.__shop.wardrobe; const n0 = W.mirror.renders; await new Promise(r => setTimeout(r, 1200)); return { renders: W.mirror.renders - n0, ms: +W.mirror.ms.toFixed(2), last: +W.mirror.last.toFixed(2) }; });
