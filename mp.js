@@ -105,7 +105,7 @@ body.ingame #mpPill,body.ingame #mpBar,body.ingame #mpChat,body.ingame #mpTags,b
     if (play.mode !== 'walk' && play.cur) return (play.cur.key === 'roadster' || play.cur.key === 'deadsignal' ? 'seat:' : 'play:') + play.cur.key;
     if (st.jump) return 'jump'; return st.speed > 0.15 ? 'walk' : 'idle'; }
   const r2 = v => Math.round(v * 100) / 100;
-  function snap() { const p = monkey.position; return { i: id, x: r2(p.x), y: r2(p.y), z: r2(p.z), r: Math.round(monkey.rotation.y * 100) / 100, m: roomOf(p), a: animOf() }; }
+  function snap() { const p = monkey.position; return { i: id, x: r2(p.x), y: r2(p.y), z: r2(p.z), r: Math.round(monkey.rotation.y * 100) / 100, m: roomOf(p), a: animOf(), gb: window.__minigolf && window.__minigolf.ballSnap ? window.__minigolf.ballSnap() : undefined }; }   // t275u gb: my golf ball while putting
   let ch = null, lib = null, client = null, lastSent = '', lastAt = 0, sendTimer = 0, joinedAt = 0, retry = 0, retryT = 0, joinT = 0, gen = 0;
   function send(event, payload) { if (!ch || M.state !== 'on') return false; try { const r = ch.send({ type: 'broadcast', event, payload }); if (r && r.catch) r.catch(() => {}); } catch (e) { return false; } M.sent++; M.bytes += JSON.stringify(payload).length; return true; }
   function tick() { if (M.state !== 'on') return; const s = snap(), j = JSON.stringify(s), now = performance.now();
@@ -130,7 +130,7 @@ body.ingame #mpPill,body.ingame #mpBar,body.ingame #mpChat,body.ingame #mpTags,b
     p.top = topOf(p.g); }
   M.paint = paint;
   // name tag height: just above the highest VISIBLE part (tallest hat: cowboy / party / halo), so it never covers the face or glasses
-  const TB = new THREE.Box3();
+  const TB = new THREE.Box3(), GBV = new THREE.Vector3();
   function topOf(g) { g.updateMatrixWorld(true); let top = -1e9; const seen = o => { for (let q = o; q && q !== g; q = q.parent) if (!q.visible) return false; return true; };
     g.traverse(o => { if (o.isMesh && o.geometry && seen(o)) { TB.setFromObject(o); if (TB.max.y > top) top = TB.max.y; } }); return top > -1e8 ? Math.max(1.75, top - g.position.y + 0.12) : 1.75; }
   function onLook(pl) { if (!pl || !pl.i || pl.i === id || !pl.look || typeof pl.look !== 'object') return; const p = M.peers.get(pl.i); if (!p) return; M.recv++;
@@ -140,11 +140,12 @@ body.ingame #mpPill,body.ingame #mpBar,body.ingame #mpChat,body.ingame #mpTags,b
       const tag = el('div', { className: 'mpTag' }, tags); tag.addEventListener('click', e => { e.stopPropagation(); toggleMute(pid); });
       p = { id: pid, name: 'Monkey', g, tag, cur: null, tgt: null, a: 'idle', m: 'room1', last: performance.now(), phase: 0, bub: {} }; M.peers.set(pid, p); }
     if (meta) paint(p, meta); else if (!p.lookKey) paint(p, { hue: 0 }); if (meta && meta.name) p.name = String(meta.name).slice(0, 14); p.tag.textContent = p.name; p.tag.classList.toggle('mute', M.muted.has(pid)); return p; }
-  function drop(pid) { const p = M.peers.get(pid); if (!p) return; scene.remove(p.g); p.g.traverse(o => { if (o.isMesh) o.material.dispose(); }); p.tag.remove(); for (const k in p.bub) p.bub[k].el.remove(); M.peers.delete(pid); }
+  function drop(pid) { const p = M.peers.get(pid); if (!p) return; if (p.ball) { scene.remove(p.ball); p.ball.geometry.dispose(); p.ball.material.dispose(); } scene.remove(p.g); p.g.traverse(o => { if (o.isMesh) o.material.dispose(); }); p.tag.remove(); for (const k in p.bub) p.bub[k].el.remove(); M.peers.delete(pid); }
   function toggleMute(pid) { if (M.muted.has(pid)) M.muted.delete(pid); else M.muted.add(pid); LSs('neonarcade.mpMuted', JSON.stringify([...M.muted])); const p = M.peers.get(pid); if (p) { p.tag.classList.toggle('mute', M.muted.has(pid)); if (M.muted.has(pid)) clearBub(p, 'chat'); } renderLog(); }
   M.toggleMute = toggleMute;
   function onState(s) { if (!s || s.i === id || typeof s.x !== 'number') return; M.recv++; const p = peer(s.i); p.last = performance.now();
-    p.tgt = { x: s.x, y: s.y || 0, z: s.z, r: s.r || 0 }; if (!p.cur) p.cur = Object.assign({}, p.tgt); p.a = String(s.a || 'idle'); p.m = String(s.m || 'room1'); }
+    p.tgt = { x: s.x, y: s.y || 0, z: s.z, r: s.r || 0 }; if (!p.cur) p.cur = Object.assign({}, p.tgt); p.a = String(s.a || 'idle'); p.m = String(s.m || 'room1');
+    p.gb = Array.isArray(s.gb) && s.gb.length === 3 && s.gb.every(Number.isFinite) ? s.gb : null; }
   // ---------- bubbles (emotes / chat), chat log ----------
   const me = { g: monkey, bub: {}, id };
   function bubble(p, kind, text, ms) { clearBub(p, kind); const b = el('div', { className: 'mpBub' + (kind === 'emo' ? ' emo' : ''), textContent: text }, tags); p.bub[kind] = { el: b, until: performance.now() + ms }; }
@@ -237,6 +238,8 @@ body.ingame #mpPill,body.ingame #mpBar,body.ingame #mpChat,body.ingame #mpTags,b
       if (u.legs) { const amp = Math.min(1, sp / 2.4) * 0.6, s = Math.sin(p.phase); u.legs[0].leg.rotation.x = s * amp; u.legs[1].leg.rotation.x = -s * amp;
         if (u.arms) { u.arms[0].sh.rotation.x = -s * amp * 0.8; u.arms[1].sh.rotation.x = s * amp * 0.8; if (p.a === 'emo') {} } }
       if (u.tail) { const tk = 0.15 + Math.min(1, sp / 2.4) * 0.35 + (p.a === 'jump' ? 0.4 : 0); u.tail.rotation.z = Math.sin(now / 625 + p.phase) * tk; const seat = /^seat:/.test(p.a); u.tail.visible = u.pack.visible = !seat; }
+      if (p.gb || p.ball) { if (!p.ball) { p.ball = new THREE.Mesh(new THREE.SphereGeometry(0.071, 12, 8), new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: 0x777777 })); p.ball.name = 'mpGolfBall'; scene.add(p.ball); }   // t275u: their mini golf ball
+        p.ball.visible = !!p.gb && g.visible; if (p.gb) { if (!p.ball.userData.on) p.ball.position.fromArray(p.gb); else p.ball.position.lerp(GBV.fromArray(p.gb), k); } p.ball.userData.on = !!p.gb; }
       place(p.tag, g, p.top || 1.75); }
     for (const p of [me, ...M.peers.values()]) for (const kd in p.bub) { const b = p.bub[kd]; if (now > b.until) { clearBub(p, kd); continue; } place(b.el, p.g, p.top || 1.75, kd === 'emo' ? 22 : 24); }
     requestAnimationFrame(frame); }

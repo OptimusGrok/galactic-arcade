@@ -932,6 +932,7 @@ let shield = null, kiosk = null, tp = null, shop = null, golf = null;   // red e
 const CLIP_AREA = [{ x0: -LIM, x1: LIM, z0: Z2 - LIM, z1: LIM }, { x0: WX - LIM, x1: WX + LIM, z0: -LIM, z1: LIM }];   // noclip: outer building envelope only (both rooms + hallway span)
 function collide(p) {
   if (DEV.clip) { clampAreas(p, CLIP_AREA); collideCabs(p); return; }   // walls, doors, shield and plinths off; cabinets stay solid
+  if (golf && golf.below) { golf.collideBelow(p, R); return; }   // t275u: down in the mini golf room, golf.js owns the walls
   clampAreas(p, AREAS);
   if (shield) shield.block(p, R);
   if (golf) golf.block(p, R);   // mini golf stairs + shield (golf.js)
@@ -1059,8 +1060,8 @@ function step(dt) {
   if (st.iceSlide && dt > 0) { st.vel.x = (monkey.position.x - px0) / dt; st.vel.z = (monkey.position.z - pz0) / dt; }   // a wall / cabinet soaks up the slide instead of pinning you against it
   if (st.jump) { const J = st.jump; J.t += dt; J.vx = st.vel.x; J.vz = st.vel.z; const k = Math.min(1, J.t / JUMP_T); monkey.position.y = 4 * JUMP_H * k * (1 - k); st.airMax = Math.max(st.airMax || 0, monkey.position.y);
     if (k >= 1) { monkey.position.y = 0; st.jump = null; st.landT = st.t; st.lands = (st.lands || 0) + 1; thud(); } }
-  if (golf && !st.jump) { if (golf.inWell) golf.ground(monkey.position); else if (monkey.position.y < 0) monkey.position.y = 0; }   // down the mini golf stairs
-  if (!st.jump && floorMode === 'lava' && !st.seated && !st.lavaFall && play.mode === 'walk' && !(tp && tp.locked) && !(shop && shop.open) && !LAVA.onPath(monkey.position.x, monkey.position.z)) lavaFallStart();
+  if (golf && !st.jump) { if (golf.below) golf.ground(monkey.position); else if (monkey.position.y < 0) monkey.position.y = 0; }   // down the mini golf stairs
+  if (!st.jump && floorMode === 'lava' && !st.seated && !st.lavaFall && !(golf && golf.below) && play.mode === 'walk' && !(tp && tp.locked) && !(shop && shop.open) && !LAVA.onPath(monkey.position.x, monkey.position.z)) lavaFallStart();
   st.speed = Math.hypot(st.vel.x, st.vel.z);
   if (st.speed > 0.15) { const target = Math.atan2(st.vel.x, st.vel.z); let d = target - st.face; d = Math.atan2(Math.sin(d), Math.cos(d)); st.face += d * (1 - Math.exp(-dt * 12)); }
   monkey.rotation.y = st.face;
@@ -1093,11 +1094,12 @@ function step(dt) {
     showcase(dt);
     const dir = tmp.set(Math.sin(st.yaw) * Math.cos(st.pitch), Math.sin(st.pitch), Math.cos(st.yaw) * Math.cos(st.pitch));
     camPos.copy(dir).multiplyScalar(st.dist).add(camTarget);
+    if (golf && golf.below) golf.camClamp(camPos); else {
     camPush(camPos);
-    camPos.y = THREE.MathUtils.clamp(camPos.y, 0.25, inHallZ(camPos.z) ? DOOR_H - 0.25 : H - 1.2);
+    camPos.y = THREE.MathUtils.clamp(camPos.y, 0.25, inHallZ(camPos.z) ? DOOR_H - 0.25 : H - 1.2); }
     if (!st.camInit || camPos.distanceTo(camera.position) > 6) { camera.position.copy(camPos); st.camInit = true; }   // first frame / teleport
     else camera.position.lerp(camPos, 1 - Math.exp(-dt * 14));
-    camPush(camera.position); camera.lookAt(camTarget);
+    if (golf && golf.below) golf.camClamp(camera.position); else camPush(camera.position); camera.lookAt(camTarget);
   }
 }
 function animateMonkey(dt) {
@@ -1186,7 +1188,7 @@ function frame(now) {
   const t0 = performance.now();
   { const dtc = Math.min(gap / 1000, 0.05); if (play.update(dtc, kiosk && kiosk.mode !== 'walk' && kiosk.mode !== 'pick' ? null : nearCab) || (kiosk && kiosk.update(dtc))) stepClock(dtc); else step(dtc); }
   shield.update(Math.min(gap / 1000, 0.05));
-  if (golf) golf.update(Math.min(gap / 1000, 0.05));
+  if (golf) { golf.update(Math.min(gap / 1000, 0.05)); golf.cam(camera, Math.min(gap / 1000, 0.05)); }   // t275u: putting camera
   bloom.strength = camera.position.x > WX / 2 ? 0.12 : 0.75;   // white room: no glare
   if (shop) shop.update(Math.min(gap / 1000, 0.05));
   winds.update();
@@ -1219,7 +1221,7 @@ function arcadePause(on) { paused = on; if (!on && !rafOn) { rafOn = true; last 
 const play = setupPlay({ camera, monkey, dsCab, roadsterCab, strikeCab, ghostCab, berserkerCab, monkeyCab, orcCab, novaCab, cyberCab, blasterCab, pipCab, clawCab, bbCab, st, pause(on) { paused = on; if (!on && !rafOn) { rafOn = true; last = performance.now(); requestAnimationFrame(frame); } } });
 shield = setupShield({ scene, play, st, monkey, HALF, DOOR_W, DOOR_H });
 tp = setupTeleport({ scene, monkey, st, HALF, H, Z2 }); window.__tp = tp;
-golf = setupGolf({ scene, play, st, monkey, WX, pause: on => play.pauseArcade ? play.pauseArcade(on) : arcadePause(on) }); window.__minigolf = golf;
+golf = setupGolf({ scene, play, st, monkey, WX, camera }); window.__minigolf = golf;
 window.__grid = setupGrid({ THREE, scene, camera, cv, HALF, DOOR_W, HALL_L, Z2 });
 // FAST LOAD (t229): the prize shop (shop.js + its ~1.2 MB of murals) is imported after the first room frames, or straight away when the
 // teleporter is used; window.__arcade.shopReady resolves once it is set up (same setupShop call as before, Chief's shop.js unchanged).

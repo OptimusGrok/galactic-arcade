@@ -28,3 +28,15 @@ for f in os.listdir(SRC + '/src'):
 for f in os.listdir(SRC + '/vendor'): shutil.copy(SRC + '/vendor/' + f, OUT + '/vendor/' + f)
 open(OUT + '/src/game.js', 'w').write(g); open(OUT + '/index.html', 'w').write(idx); shutil.copy('tools_golf_arcade.js', OUT + '/arcade.js')
 print('ok', sorted(os.listdir(OUT + '/src')))
+# ---- golf-world/: the same hole builders + ball physics as ES modules for the IN-WORLD golf room under the shop stairs (golf.js),
+# importing the arcade's own three.js (import map) instead of the copy's vendor build. Unchanged apart from the import lines.
+W = 'golf-world'
+if os.path.isdir(W): shutil.rmtree(W)
+os.makedirs(W)
+for f in ['holes.js', 'physics.js', 'strikeArt.js']:
+    t = open(SRC + '/src/' + f).read()
+    t = t.replace("'../vendor/BufferGeometryUtils.js?v=7'", "'three/addons/utils/BufferGeometryUtils.js'").replace("'./physics.js?v=7'", "'./physics.js'").replace("'./strikeArt.js?v=7'", "'./strikeArt.js'")
+    if 'vendor/' in t or '?v=7' in t: fail(N, 'world:' + f, 'unrewritten import left')
+    open(W + '/' + f, 'w').write(t)
+require(open(W + '/holes.js').read(), N, 'world:buildHole', r'export function buildHole\(THREE, index\)')
+print('world ok', sorted(os.listdir(W)))
