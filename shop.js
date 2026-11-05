@@ -792,7 +792,7 @@ export function setupShop({ scene, tp, play, monkey, camera, st } = {}) {
     const k = window.__arcade && window.__arcade.keys; if (k) for (const c in k) k[c] = false; }
   function buy(id) { const it = byId[id]; if (!it) return false; const b = balance();
     if (b < it.price) { say(`Ah, the ${it.name} is ${it.price} tickets and you've got ${b}. Win a few more games and come back!`); return false; }
-    spend(it.price); try { window.__announce && window.__announce('buy', { item: it.name, cost: it.price }); } catch (e) {} addPrize(id); api.buys++; setHeld(id); say(`Great choice! Enjoy your ${it.name}!`); fill(); return true; }
+    spend(it.price); try { window.__announce && window.__announce('buy', { item: it.name, cost: it.price }); } catch (e) {} addPrize(id); api.buys++; hold(id); say(`Great choice! Enjoy your ${it.name}!`); fill(); return true; }
   btn.addEventListener('pointerup', e => { e.stopPropagation(); unlock(); if (!api.open) holoTapT = performance.now(); openShop(); });   // t559: greet inside the tap gesture
   btn.addEventListener('click', e => { e.stopPropagation(); openShop(); });
   // Taps act on pointerup of the element that got the pointerdown. On Android Chrome the synthesized 'click' can be touch-adjusted onto a
@@ -867,12 +867,35 @@ export function setupShop({ scene, tp, play, monkey, camera, st } = {}) {
     if (!r) { r = document.createElement('div'); r.id = 'invPz'; r.className = 'invR'; r.style.cssText = 'border-color:#00e5ff88;background:#021a22cc;flex-wrap:wrap'; P.appendChild(r); }
     renderChips(); }).observe(inv, { attributes: true, attributeFilter: ['class'] });
 
-  // ---------- HELD PRIZE: the player's monkey carries one bought prize (built with the same shelf builders) ----------
+  // ---------- HELD PRIZES: L/R hand slots (hug = both arms). registerHoldable for claw/external items. ----------
   const HK = 'neonarcade.held';
+  const HOLDABLES = Object.create(null);   // id -> { name, kind:'hug'|'hand', build(THREE)->Object3D }
   const vcStd = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.7, metalness: 0.05, emissive: 0x303034 });
   const vm = (L, mat = vcStd) => new THREE.Mesh(mergeGeometries(L), mat);
-  // kind: 'hug' = both arms around it at the chest, 'hand' = right hand
+  function registerHoldable(id, opts) {
+    if (!id || !opts || typeof opts.build !== 'function') return false;
+    HOLDABLES[id] = { name: opts.name || String(id), kind: opts.kind === 'hug' ? 'hug' : 'hand', build: opts.build };
+    return true;
+  }
+  function metaOf(id) {
+    if (!id) return null;
+    if (HOLDABLES[id]) return HOLDABLES[id];
+    if (byId[id]) return { name: byId[id].name, kind: CC[id] ? 'hand' : 'hug', build: null };
+    return null;
+  }
+  function ownedHoldable(id) {
+    if (!id) return false;
+    if (HOLDABLES[id]) return true;   // claw / external — Arcade owns inventory
+    return !!(byId[id] && prizes()[id]);
+  }
+  function nameOfHeld(id) { const m = metaOf(id); return (m && m.name) || (byId[id] && byId[id].name) || String(id); }
+  // kind: 'hug' = both arms around it at the chest, 'hand' = one fist
   function buildHeld(id) {
+    if (HOLDABLES[id]) {
+      let g; try { g = HOLDABLES[id].build(THREE); } catch (e) { console.warn('holdable build', id, e); return null; }
+      if (!g) return null; g.name = 'heldPrize'; g.userData.id = id; g.userData.kind = HOLDABLES[id].kind;
+      g.traverse(o => { if (o.isMesh) { o.frustumCulled = false; o.castShadow = false; } }); return g;
+    }
     const g = new THREE.Group(); g.name = 'heldPrize'; g.userData.id = id; let kind = 'hug';
     if (MON[id]) { const L = []; monkeyPlush(L, 0, 0, 0, ...MON[id], 1.0); g.add(vm(L)); g.userData.size = 0.56; }
     else if (id === 'grok') { const L = [], s = 0.62; grokPlush(L, 0, 0, 0, s); g.add(vm(L));
@@ -892,28 +915,100 @@ export function setupShop({ scene, tp, play, monkey, camera, st } = {}) {
     else { const L = []; toy3(L, id, 0, 0, 0, 1.6, 0, 0); if (!L.length) part(L, BOX, 0x00e5ff, 0, 0.15, 0, 0.24, 0.3, 0.1); g.add(vm(L)); g.userData.size = 0.45; }   // never an empty merge (t552: it threw and froze the game loop)
     g.userData.kind = kind; g.traverse(o => { if (o.isMesh) { o.frustumCulled = false; o.castShadow = false; } }); return g;
   }
-  const heldId = () => { try { const v = localStorage.getItem(HK); return v && byId[v] && prizes()[v] ? v : null; } catch (e) { return null; } };
-  let heldObj = null, heldMount = null;
-  function setHeld(id) { if (id && !(byId[id] && prizes()[id])) id = null; try { if (id) localStorage.setItem(HK, id); else localStorage.removeItem(HK); } catch (e) {} syncHeld(); renderChips(); return id; }
-  function syncHeld() { const id = heldId(), m = getMonkey(), u = m && m.userData; if (!u || !u.torso) return;
-    if (heldObj && heldObj.userData.id === id) return;
-    if (heldObj) { heldObj.parent && heldObj.parent.remove(heldObj); heldObj = null; heldMount = null;
-      for (const a of u.arms || []) { a.hand.visible = true; a.hand.scale.setScalar(1); a.hand.rotation.x = 0; a.sh.rotation.set(0, 0, 0.08 * a.sd); a.el.rotation.set(0, 0, 0); } }   // back to the normal arm pose (main.js re-poses next frame)
-    if (!id) return; heldObj = buildHeld(id);
-    if (heldObj.userData.kind === 'hand') { heldMount = u.arms[1].el; heldObj.position.set(0.0, -0.34, 0.07); heldObj.rotation.set(-1.2, 0, 0); }   // right fist, pop held upright
-    else { heldMount = u.torso; const big = id === 'grok'; heldObj.position.set(0, big ? 0.12 : 0.1, big ? 0.36 : 0.33); heldObj.rotation.set(0, 0, 0); }   // hugged to the chest
-    heldMount.add(heldObj); }
-  // arms wrap round the prize (applied after main.js's walk / idle pose; arm swing is replaced by the hug)
-  function holdPose(u, dt) { if (!heldObj || !heldObj.visible) return; const hug = heldObj.userData.kind === 'hug', big = heldObj.userData.id === 'grok';
-    for (const a of u.arms) { a.hand.visible = true; a.hand.scale.setScalar(1); a.hand.rotation.x = 0;
-      if (hug) { a.sh.rotation.set(big ? -0.75 : -0.6, 0, -a.sd * (big ? 0.05 : 0.18)); a.el.rotation.set(big ? -0.7 : -1.25, 0, -a.sd * (big ? 0.75 : 0.55)); }
-      else if (a.sd > 0) { a.sh.rotation.set(-0.45, 0, 0.12); a.el.rotation.set(-1.2, 0, 0); } }
-    if (u.phone) u.phone.visible = false; }
-  // save slots (session.js / opts.js): re-read 'neonarcade.prizes' + 'neonarcade.held' and re-sync the held plush, chips and open price list.
-  // Nothing is cached (prizes()/heldId() read localStorage), so this is safe to call any time, repeatedly, even before the monkey exists.
-  api.reloadPrizes = () => { try { syncHeld(); } catch (e) {} try { renderChips(); } catch (e) {} try { if (api.open) fill(); } catch (e) {} return heldId(); };
-  api.hold = setHeld; Object.defineProperty(api, 'held', { get: heldId }); Object.defineProperty(api, 'heldObj', { get: () => heldObj });
-  // INVENTORY: PRIZES chips (tap = hold, tap the held one = put away)
+  function readHeld() {
+    try {
+      const v = localStorage.getItem(HK); if (!v) return { R: null, L: null };
+      if (v.charAt(0) === '{') {
+        const o = JSON.parse(v); let R = o.R || null, L = o.L || null;
+        if (R && !ownedHoldable(R)) R = null; if (L && !ownedHoldable(L)) L = null;
+        if (R && metaOf(R) && metaOf(R).kind === 'hug') L = null;   // hug clears the other hand
+        if (L && metaOf(L) && metaOf(L).kind === 'hug') { R = L; L = null; }
+        return { R, L };
+      }
+      return { R: ownedHoldable(v) ? v : null, L: null };   // legacy string id
+    } catch (e) { return { R: null, L: null }; }
+  }
+  function writeHeld(slots) {
+    const R = slots.R || null, L = slots.L || null;
+    try { if (!R && !L) localStorage.removeItem(HK); else localStorage.setItem(HK, JSON.stringify({ R, L })); } catch (e) {}
+  }
+  function isHeld(id) { if (!id) return false; const h = readHeld(); return h.R === id || h.L === id; }
+  function heldPrimary() { const h = readHeld(); return h.R || h.L || null; }
+  let heldObjs = { R: null, L: null, hug: null };
+  function dropObj(o) { if (o && o.parent) o.parent.remove(o); }
+  function clearArmPose(u) {
+    for (const a of u.arms || []) { a.hand.visible = true; a.hand.scale.setScalar(1); a.hand.rotation.x = 0; a.sh.rotation.set(0, 0, 0.08 * a.sd); a.el.rotation.set(0, 0, 0); }
+  }
+  function mountOne(obj, u, where) {
+    if (where === 'hug') { const big = obj.userData.id === 'grok'; obj.position.set(0, big ? 0.12 : 0.1, big ? 0.36 : 0.33); obj.rotation.set(0, 0, 0); u.torso.add(obj); }
+    else if (where === 'R') { obj.position.set(0.0, -0.34, 0.07); obj.rotation.set(-1.2, 0, 0); u.arms[1].el.add(obj); }
+    else { obj.position.set(0.0, -0.34, 0.07); obj.rotation.set(-1.2, 0, 0); u.arms[0].el.add(obj); }   // L = arms[0]
+  }
+  function syncHeld() {
+    const h = readHeld(), m = getMonkey(), u = m && m.userData; if (!u || !u.torso || !u.arms || u.arms.length < 2) return;
+    let wantHug = null, wantR = null, wantL = null;
+    if (h.R && metaOf(h.R) && metaOf(h.R).kind === 'hug') wantHug = h.R;
+    else { wantR = h.R; wantL = h.L; }
+    // drop mismatched
+    if (heldObjs.hug && heldObjs.hug.userData.id !== wantHug) { dropObj(heldObjs.hug); heldObjs.hug = null; clearArmPose(u); }
+    if (heldObjs.R && heldObjs.R.userData.id !== wantR) { dropObj(heldObjs.R); heldObjs.R = null; }
+    if (heldObjs.L && heldObjs.L.userData.id !== wantL) { dropObj(heldObjs.L); heldObjs.L = null; }
+    if (!wantHug && !wantR && !wantL) { clearArmPose(u); return; }
+    if (wantHug && !heldObjs.hug) { const o = buildHeld(wantHug); if (o) { heldObjs.hug = o; mountOne(o, u, 'hug'); } }
+    if (wantR && !heldObjs.R) { const o = buildHeld(wantR); if (o) { heldObjs.R = o; mountOne(o, u, 'R'); } }
+    if (wantL && !heldObjs.L) { const o = buildHeld(wantL); if (o) { heldObjs.L = o; mountOne(o, u, 'L'); } }
+  }
+  // arms wrap round a hug prize; hand prizes tuck into that fist (after main.js walk/idle pose)
+  function holdPose(u, dt) {
+    const hug = heldObjs.hug && heldObjs.hug.visible, hasR = heldObjs.R && heldObjs.R.visible, hasL = heldObjs.L && heldObjs.L.visible;
+    if (!hug && !hasR && !hasL) return;
+    if (hug) {
+      const big = heldObjs.hug.userData.id === 'grok';
+      for (const a of u.arms) { a.hand.visible = true; a.hand.scale.setScalar(1); a.hand.rotation.x = 0;
+        a.sh.rotation.set(big ? -0.75 : -0.6, 0, -a.sd * (big ? 0.05 : 0.18)); a.el.rotation.set(big ? -0.7 : -1.25, 0, -a.sd * (big ? 0.75 : 0.55)); }
+    } else {
+      for (const a of u.arms) { a.hand.visible = true; a.hand.scale.setScalar(1); a.hand.rotation.x = 0;
+        if (a.sd > 0 && hasR) { a.sh.rotation.set(-0.45, 0, 0.12); a.el.rotation.set(-1.2, 0, 0); }
+        else if (a.sd < 0 && hasL) { a.sh.rotation.set(-0.45, 0, -0.12); a.el.rotation.set(-1.2, 0, 0); } }
+    }
+    if (u.phone) u.phone.visible = false;
+  }
+  function applyHeldVis() {
+    const m = getMonkey(), pm = play && play.mode, A = window.__arcade, sStat = A && A.st;
+    const vis = !!(m && m.visible) && (!pm || pm === 'walk') && !(sStat && (sStat.seated || sStat.fp)) && !(tp && tp.locked);
+    for (const k of ['R', 'L', 'hug']) if (heldObjs[k]) heldObjs[k].visible = vis;
+    if (vis && m && m.userData) holdPose(m.userData, 0);
+  }
+  // hold(id, slot?): slot 'R'|'L' (default R). Hug ignores slot and clears both hands. Legacy: hold('id'), hold(null), hold('{"R":..}'), hold({R,L}).
+  function hold(id, slot) {
+    if (id == null || id === '') { unhold(slot); return readHeld(); }
+    if (typeof id === 'object') { writeHeld({ R: ownedHoldable(id.R) ? id.R : null, L: ownedHoldable(id.L) ? id.L : null }); syncHeld(); renderChips(); return readHeld(); }
+    if (typeof id === 'string' && id.charAt(0) === '{') {
+      try { const o = JSON.parse(id); writeHeld({ R: ownedHoldable(o.R) ? o.R : null, L: ownedHoldable(o.L) ? o.L : null }); syncHeld(); renderChips(); return readHeld(); } catch (e) { return readHeld(); }
+    }
+    if (!ownedHoldable(id)) return readHeld();
+    const m = metaOf(id); let h = readHeld();
+    if (m.kind === 'hug') h = { R: id, L: null };   // hug clears L (and replaces R)
+    else {
+      const s = (slot === 'L' || slot === 'R') ? slot : 'R';
+      if (h.R && metaOf(h.R) && metaOf(h.R).kind === 'hug') h.R = null;   // hand clears hug
+      h[s] = id;
+    }
+    writeHeld(h); syncHeld(); renderChips(); return readHeld();
+  }
+  function unhold(slot) {
+    let h = readHeld();
+    if (slot === 'R' || slot === 'L') h[slot] = null;
+    else h = { R: null, L: null };
+    writeHeld(h); syncHeld(); renderChips(); return h;
+  }
+  // save slots (session.js / opts.js): re-read prizes + held and re-sync meshes / chips / open price list.
+  api.reloadPrizes = () => { try { syncHeld(); } catch (e) {} try { renderChips(); } catch (e) {} try { if (api.open) fill(); } catch (e) {} return readHeld(); };
+  api.hold = hold; api.unhold = unhold; api.registerHoldable = registerHoldable;
+  Object.defineProperty(api, 'held', { get: readHeld });
+  Object.defineProperty(api, 'heldObj', { get: () => heldObjs.hug || heldObjs.R || heldObjs.L || null });
+  Object.defineProperty(api, 'heldObjs', { get: () => ({ R: heldObjs.R, L: heldObjs.L, hug: heldObjs.hug }) });
+  // INVENTORY: PRIZES chips (tap = hold in R / hug, tap the held one = put away)
   const css2 = document.createElement('style'); css2.textContent = '#invPz{flex-direction:column;align-items:stretch!important}#invPz .pzT{display:flex;justify-content:space-between;color:#dffbff;font-weight:800}#invPz .pzT small{color:#9ff8ff;font-weight:600}#pzChips{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}' +
     '.pzC{min-height:48px;padding:6px 14px;border-radius:24px;border:2px solid #00e5ff88;background:#00222ccc;color:#dffbff;font:800 14px Arial,sans-serif;cursor:pointer;touch-action:manipulation}.pzC.on{border-color:#ffe08a;background:#ffb00044;color:#fff;box-shadow:0 0 12px #ffb000aa}.pzC b{color:#ffe08a;margin-left:6px}#inv.on{touch-action:pan-y}#invP{max-height:calc(100vh - 24px);max-height:calc(100dvh - 24px);box-sizing:border-box;overflow-y:auto;-webkit-overflow-scrolling:touch;touch-action:pan-y;overscroll-behavior:contain;padding-top:0!important}#invHd{position:sticky;top:0;z-index:3;margin:0 -18px 14px!important;padding:12px 18px 10px;background:#12051ff7;border-bottom:1px solid #00e5ff44}#pzChips{display:grid!important;grid-template-columns:repeat(3,1fr);gap:8px}#invPz .pzC{position:relative;display:flex;flex-direction:column;align-items:center;gap:4px;min-height:0;padding:6px 4px 8px;border-radius:14px;font:800 11px/1.15 Arial,sans-serif;text-align:center}#invPz .pzC .pzN{min-height:2.3em;display:flex;align-items:center;justify-content:center}#invPz .pzC img{width:100%;aspect-ratio:1;border-radius:10px;background:radial-gradient(#1d3a52,#071019);pointer-events:none}#invPz .pzC b{position:absolute;right:6px;bottom:10px;margin:0;padding:1px 6px;border-radius:9px;background:#000a;font-size:12px}#invPz .pzC.on{box-shadow:0 0 14px #ffb000cc;border-width:3px}.pzU{display:block;width:100%;min-height:52px;margin-top:10px;padding:0 14px;border-radius:26px;border:2px solid #ff6b8b;background:#3a0614cc;color:#ffe1e8;font:900 16px Arial,sans-serif;letter-spacing:.06em;cursor:pointer;touch-action:manipulation}';
   document.head.appendChild(css2);
@@ -924,16 +1019,18 @@ export function setupShop({ scene, tp, play, monkey, camera, st } = {}) {
     try { if (!iconR) { iconR = new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true }); iconR.setSize(128, 128, false); iconR.setPixelRatio(1); iconR.outputColorSpace = THREE.SRGBColorSpace; }
       const sc = new THREE.Scene(); sc.add(new THREE.HemisphereLight(0xffffff, 0x445566, 2.2)); const dl = new THREE.DirectionalLight(0xffffff, 1.6); dl.position.set(1, 2, 3); sc.add(dl);
       const cam = new THREE.PerspectiveCamera(30, 1, 0.01, 20), box = new THREE.Box3(), c = new THREE.Vector3(), sz = new THREE.Vector3();
-      for (const id of q) { let g; try { g = buildHeld(id); } catch (e) { continue; } g.rotation.y = -0.5; sc.add(g); g.updateMatrixWorld(true); box.setFromObject(g); box.getCenter(c); box.getSize(sz);
+      for (const id of q) { let g; try { g = buildHeld(id); } catch (e) { continue; } if (!g) continue; g.rotation.y = -0.5; sc.add(g); g.updateMatrixWorld(true); box.setFromObject(g); box.getCenter(c); box.getSize(sz);
         const r = Math.max(sz.x, sz.y, sz.z) * 0.62 || 0.3; cam.position.set(c.x, c.y + r * 0.35, c.z + r / Math.tan(15 * Math.PI / 180)); cam.lookAt(c);
         iconR.render(sc, cam); ICON[id] = iconR.domElement.toDataURL('image/png'); sc.remove(g); }
     } catch (e) { console.warn('prize icons', e); }
     try { if (iconR) { iconR.dispose(); iconR.forceContextLoss(); iconR = null; } } catch (e) {}   // free the extra GL context on phones
     for (const im of document.querySelectorAll('img[data-ic]')) if (ICON[im.dataset.ic]) im.src = ICON[im.dataset.ic]; }
-  function renderChips() { const r = document.getElementById('invPz'); if (!r) return; const p = prizes(), h = heldId(), ids = ITEMS.map(i => i.id).filter(id => p[id]);
-    r.innerHTML = '<div class="pzT"><span>PRIZES</span><small>' + (ids.length ? 'tap one to hold it · tap again to put away' : 'none yet - visit Grok!') + '</small></div>' + (h ? '<button class="pzU" data-pz="__unequip">✋ UNEQUIP · put ' + byId[h].name + ' away</button>' : '') + '<div id="pzChips">' +
-      ids.map(id => `<button class="pzC${id === h ? ' on' : ''}" data-pz="${id}"><span class="pzN">${id === h ? '✋ ' : ''}${byId[id].name}</span><img data-ic="${id}" alt="" src="${iconFor(id) || 'data:image/gif;base64,R0lGODlhAQABAAAAACw='}">${p[id] > 1 ? '<b>×' + p[id] + '</b>' : ''}</button>`).join('') + '</div>'; }
-  document.addEventListener('click', e => { const b = e.target.closest && e.target.closest('[data-pz]'); if (!b) return; e.stopPropagation(); const id = b.dataset.pz; setHeld(id === '__unequip' || heldId() === id ? null : id); }, true);
+  function renderChips() { const r = document.getElementById('invPz'); if (!r) return; const p = prizes(), h = readHeld(), ids = ITEMS.map(i => i.id).filter(id => p[id]);
+    const primary = h.R || h.L; const unequipName = primary ? nameOfHeld(primary) : '';
+    r.innerHTML = '<div class="pzT"><span>PRIZES</span><small>' + (ids.length ? 'tap one to hold it · tap again to put away' : 'none yet - visit Grok!') + '</small></div>' + (primary ? '<button class="pzU" data-pz="__unequip">✋ UNEQUIP · put ' + unequipName + ' away</button>' : '') + '<div id="pzChips">' +
+      ids.map(id => `<button class="pzC${isHeld(id) ? ' on' : ''}" data-pz="${id}"><span class="pzN">${isHeld(id) ? '✋ ' : ''}${byId[id].name}</span><img data-ic="${id}" alt="" src="${iconFor(id) || 'data:image/gif;base64,R0lGODlhAQABAAAAACw='}">${p[id] > 1 ? '<b>×' + p[id] + '</b>' : ''}</button>`).join('') + '</div>'; }
+  document.addEventListener('click', e => { const b = e.target.closest && e.target.closest('[data-pz]'); if (!b) return; e.stopPropagation(); const id = b.dataset.pz;
+    if (id === '__unequip') unhold(); else if (isHeld(id)) { const h = readHeld(); if (h.R === id) unhold('R'); else if (h.L === id) unhold('L'); else unhold(); } else hold(id); }, true);
 
   // ---------- per frame ----------
   let wasIn = false, t = 0, blinkT = 2, faceState = '';
@@ -945,8 +1042,7 @@ export function setupShop({ scene, tp, play, monkey, camera, st } = {}) {
     try { drainToyJobs(6); } catch (e) {}
     if (tp && st && tp.where !== tpWhere) { tpWhere = tp.where; if (tp.where === 2) { const yaw = -Math.PI / 4; st.yaw = yaw; st.face = yaw + Math.PI; st.camInit = false; } }   // t563: arrive in the corner facing into the room
     t += dt; if (api_sky) api_sky.uniforms.uT.value = t; const m = getMonkey(); if (!m) return;
-    syncHeld(); if (heldObj) { const pm = play && play.mode, A = window.__arcade, sStat = A && A.st;
-      heldObj.visible = (!pm || pm === 'walk') && !(sStat && (sStat.seated || sStat.fp)) && !(tp && tp.locked) && m.visible; if (m.userData) holdPose(m.userData, dt); }
+    syncHeld(); applyHeldVis();
     const inRoom = m.position.x > WXp / 2;
     if (inRoom && !wasIn && st) { st.pitch = 0.04; st.dist = Math.max(st.dist, 5.0); }   // shop-local camera: level, a bit closer (once per visit)
     wasIn = inRoom; if (!inRoom) { if (btn.classList.contains('on')) btn.classList.remove('on'); for (const b of poolBtns) b.classList.remove('on'); poolApi.near = false; wardBtn.classList.remove('on'); wardApi.near = false; if (api.open) closeShop(); return; }
