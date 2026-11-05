@@ -24,6 +24,7 @@ import { buildRoadsterCabinet, MR } from './roadstercab.js';
 import { buildDeadSignalStation, DS } from './dscab.js';
 import { setupPlay } from './play.js';
 import { setupShield } from './shield.js';
+import { setupGolf } from './golf.js';
 import { setupKiosk } from './kiosk.js';
 import { setupOpts } from './opts.js';
 import { setupTeleport, WX } from './teleport.js';
@@ -927,12 +928,13 @@ function clampAreas(p, areas, pad = 0) {
   for (const a of areas) { const x = THREE.MathUtils.clamp(p.x, a.x0 - pad, a.x1 + pad), z = THREE.MathUtils.clamp(p.z, a.z0 - pad, a.z1 + pad), d = (x - p.x) ** 2 + (z - p.z) ** 2; if (d < bd) { bd = d; best = [x, z]; } if (!d) break; }
   p.x = best[0]; p.z = best[1]; return p;
 }
-let shield = null, kiosk = null, tp = null, shop = null;   // red energy shield in the doorway (shield.js)
+let shield = null, kiosk = null, tp = null, shop = null, golf = null;   // red energy shield in the doorway (shield.js)
 const CLIP_AREA = [{ x0: -LIM, x1: LIM, z0: Z2 - LIM, z1: LIM }, { x0: WX - LIM, x1: WX + LIM, z0: -LIM, z1: LIM }];   // noclip: outer building envelope only (both rooms + hallway span)
 function collide(p) {
   if (DEV.clip) { clampAreas(p, CLIP_AREA); collideCabs(p); return; }   // walls, doors, shield and plinths off; cabinets stay solid
   clampAreas(p, AREAS);
   if (shield) shield.block(p, R);
+  if (golf) golf.block(p, R);   // mini golf stairs + shield (golf.js)
   collideCabs(p, false);
 }
 function collideCabs(p, onlyCabs = true) {
@@ -1057,6 +1059,7 @@ function step(dt) {
   if (st.iceSlide && dt > 0) { st.vel.x = (monkey.position.x - px0) / dt; st.vel.z = (monkey.position.z - pz0) / dt; }   // a wall / cabinet soaks up the slide instead of pinning you against it
   if (st.jump) { const J = st.jump; J.t += dt; J.vx = st.vel.x; J.vz = st.vel.z; const k = Math.min(1, J.t / JUMP_T); monkey.position.y = 4 * JUMP_H * k * (1 - k); st.airMax = Math.max(st.airMax || 0, monkey.position.y);
     if (k >= 1) { monkey.position.y = 0; st.jump = null; st.landT = st.t; st.lands = (st.lands || 0) + 1; thud(); } }
+  if (golf && !st.jump) { if (golf.inWell) golf.ground(monkey.position); else if (monkey.position.y < 0) monkey.position.y = 0; }   // down the mini golf stairs
   if (!st.jump && floorMode === 'lava' && !st.seated && !st.lavaFall && play.mode === 'walk' && !(tp && tp.locked) && !(shop && shop.open) && !LAVA.onPath(monkey.position.x, monkey.position.z)) lavaFallStart();
   st.speed = Math.hypot(st.vel.x, st.vel.z);
   if (st.speed > 0.15) { const target = Math.atan2(st.vel.x, st.vel.z); let d = target - st.face; d = Math.atan2(Math.sin(d), Math.cos(d)); st.face += d * (1 - Math.exp(-dt * 12)); }
@@ -1183,6 +1186,7 @@ function frame(now) {
   const t0 = performance.now();
   { const dtc = Math.min(gap / 1000, 0.05); if (play.update(dtc, kiosk && kiosk.mode !== 'walk' && kiosk.mode !== 'pick' ? null : nearCab) || (kiosk && kiosk.update(dtc))) stepClock(dtc); else step(dtc); }
   shield.update(Math.min(gap / 1000, 0.05));
+  if (golf) golf.update(Math.min(gap / 1000, 0.05));
   bloom.strength = camera.position.x > WX / 2 ? 0.12 : 0.75;   // white room: no glare
   if (shop) shop.update(Math.min(gap / 1000, 0.05));
   winds.update();
@@ -1211,9 +1215,11 @@ function frame(now) {
   requestAnimationFrame(frame);
 }
 function stepClock(dt) { st.t += dt; }
+function arcadePause(on) { paused = on; if (!on && !rafOn) { rafOn = true; last = performance.now(); requestAnimationFrame(frame); } }
 const play = setupPlay({ camera, monkey, dsCab, roadsterCab, strikeCab, ghostCab, berserkerCab, monkeyCab, orcCab, novaCab, cyberCab, blasterCab, pipCab, clawCab, bbCab, st, pause(on) { paused = on; if (!on && !rafOn) { rafOn = true; last = performance.now(); requestAnimationFrame(frame); } } });
 shield = setupShield({ scene, play, st, monkey, HALF, DOOR_W, DOOR_H });
 tp = setupTeleport({ scene, monkey, st, HALF, H, Z2 }); window.__tp = tp;
+golf = setupGolf({ scene, play, st, monkey, WX, pause: on => play.pauseArcade ? play.pauseArcade(on) : arcadePause(on) }); window.__minigolf = golf;
 window.__grid = setupGrid({ THREE, scene, camera, cv, HALF, DOOR_W, HALL_L, Z2 });
 // FAST LOAD (t229): the prize shop (shop.js + its ~1.2 MB of murals) is imported after the first room frames, or straight away when the
 // teleporter is used; window.__arcade.shopReady resolves once it is set up (same setupShop call as before, Chief's shop.js unchanged).
