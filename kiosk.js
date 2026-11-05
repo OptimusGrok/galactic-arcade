@@ -99,7 +99,7 @@ export function setupKiosk({ room, camera, monkey, st, play, blockers }) {
   function renderView() { kv.querySelectorAll('.kOff').forEach((b, i) => { b.classList.toggle('dis', C.bal < OFFERS[i][0]); b.classList.toggle('sel', S.sel === i); });
     $('kInfo').textContent = S.msg || (S.entry ? 'ENTER $' + S.entry + '  ·  # TO BUY' : 'CASH $' + C.bal + (pending ? '  ·  ' + pending + ' 🎟 TO DISPENSE' : '')); }
   function buy(i) { const [d, t] = OFFERS[i]; if (C.bal < d) { S.msg = 'NOT ENOUGH CASH'; kv.classList.remove('shake'); void kv.offsetWidth; kv.classList.add('shake'); renderView(); drawFace(); return false; }
-    C.bal -= d; saveC(); pending += t; saveP(); K_.buys++; S.sel = i; S.msg = '+' + t + ' TICKETS'; S.entry = ''; showCash(); drawFace(); renderView(); beep(880); setTimeout(() => beep(1320), 90); return true; }
+    C.bal -= d; saveC(); pending += t; saveP(); K_.buys++; try { window.__announce && window.__announce('buy', { item: t + ' Tickets', cost: d }); } catch (e) {} S.sel = i; S.msg = '+' + t + ' TICKETS'; S.entry = ''; showCash(); drawFace(); renderView(); beep(880); setTimeout(() => beep(1320), 90); return true; }
   K_.buy = buy;
   function key(k) { S.msg = ''; if (/\d/.test(k)) S.entry = (S.entry + k).slice(-2); else if (k === '*') S.entry = ''; else if (k === '#') { const i = OFFERS.findIndex(o => String(o[0]) === S.entry); if (i < 0) { S.msg = 'CHOOSE $1, $5 OR $10'; S.entry = ''; } else return buy(i); }
     beep(660); drawFace(); renderView(); }

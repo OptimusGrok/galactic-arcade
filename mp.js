@@ -22,6 +22,10 @@ async function getLib() {
   try { await loadScript(CDN, 8000); } catch (e) { await loadScript(LOCAL, 8000); }   // CDN first (shared browser cache), our own copy as the fallback
   if (!window.supabase || !window.supabase.createClient) throw new Error('no supabase-js'); return window.supabase;
 }
+// purchase broadcasts (for Arcade Helper's player-alert watcher): announce('buy', { item, cost }) -> event 'buy', payload { i, n, item, cost }
+// on the public channel. No-op (false) when multiplayer is off / not connected; never throws. Clients that don't know an event ignore it.
+export function announce(type, payload) { try { const m = window.__mp; return !!(m && m.announce && m.announce(type, payload)); } catch (e) { return false; } }
+window.__announce = announce;
 export function setupMP({ scene, camera, monkey, makeMonkey, st, play, getTp, HALF, Z2, HALL_L, WX }) {
   const id = window.__mpId || (LSg('neonarcade.mpId') || (() => { const v = Math.random().toString(36).slice(2, 10); LSs('neonarcade.mpId', v); return v; })());
   // name + look come from the start screen (player.js, key galacticarcade.player); neonarcade.mpName is only a fallback for no name yet
@@ -155,6 +159,9 @@ body.ingame #mpPill,body.ingame #mpBar,body.ingame #mpChat,body.ingame #mpTags,b
   function renderLog() { logEl.textContent = ''; if (M.chatMuted) { el('div', { textContent: 'Chat is off', style: 'opacity:.6' }, logEl); return; }
     for (const l of M.log) { if (M.muted.has(l.pid)) continue; const d = el('div', {}, logEl); el('b', { textContent: l.who + ': ' }, d); d.appendChild(document.createTextNode(l.text)); }
     logEl.scrollTop = logEl.scrollHeight; }
+  function announce(type, payload) { try { if (M.state !== 'on' || typeof type !== 'string' || !type) return false; const o = payload || {};
+      return send(type, { i: id, n: name, item: String(o.item == null ? '' : o.item).slice(0, 60), cost: Number.isFinite(+o.cost) ? +o.cost : 0 }) !== false; } catch (e) { return false; } }
+  M.announce = announce;
   function sendChat(raw) { const now = performance.now(), text = cleanMsg(raw); if (!text) return { ok: false, why: 'empty' };
     if (now - M.lastChat < RATE_MS) return { ok: false, why: 'rate' }; M.lastChat = now;
     bubble(me, 'chat', text, 5000); addLog(name, id, text); send('chat', { i: id, n: name, t: text }); return { ok: true, text }; }

@@ -87,7 +87,7 @@ export function setupShield(A) {   // A: { scene, play, st, monkey, HALF, DOOR_W
   function unlock() {
     if (S.open) return false;
     if (tickets() < SHIELD_COST) { S.fails++; refresh(); btn.animate([{ marginLeft: '0' }, { marginLeft: '-12px' }, { marginLeft: '10px' }, { marginLeft: '-6px' }, { marginLeft: '0' }], { duration: 320 }); hum(); return false; }
-    play.spend(SHIELD_COST); S.open = true; S.unlocks++; try { localStorage.setItem(SHIELD_KEY, '1'); } catch (e) {}
+    play.spend(SHIELD_COST); try { window.__announce && window.__announce('buy', { item: 'Hallway Shield', cost: SHIELD_COST }); } catch (e) {} S.open = true; S.unlocks++; try { localStorage.setItem(SHIELD_KEY, '1'); } catch (e) {}
     powerDown(); offT = performance.now(); pop.classList.remove('on'); S.popShown = false; return true;
   }
   const PAD = 0.04;

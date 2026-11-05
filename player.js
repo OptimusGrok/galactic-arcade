@@ -358,7 +358,7 @@
   function tryOn(k, v) { W.try = { k: k, v: v }; prev.hat = null; buyUI(); sync(); }
   function buyUI() { if (!W.el) return; var bx = W.el.querySelector('#gaWBuy'); if (!W.try) { bx.hidden = true; apply(); return; } var p = priceOf(W.try.k, W.try.v), b = balance(), btn = W.el.querySelector('#gaWBuyB');
     bx.hidden = false; W.el.querySelector('#gaWBuyT').textContent = nameOf(W.try.v) + ' · 🎟 ' + b; btn.disabled = b < p; btn.textContent = b < p ? 'Need ' + p + ' tickets' : 'BUY ' + p + ' 🎟'; }
-  function buy() { var t = W.try; if (!t) return false; var p = priceOf(t.k, t.v); if (!spend(p)) { buyUI(); return false; } var o = owned(); if (o.indexOf(t.k + ':' + t.v) < 0) o.push(t.k + ':' + t.v);
+  function buy() { var t = W.try; if (!t) return false; var p = priceOf(t.k, t.v); if (!spend(p)) { buyUI(); return false; } if (p > 0) { try { window.__announce && window.__announce('buy', { item: nameOf(t.v), cost: p }); } catch (e) {} } var o = owned(); if (o.indexOf(t.k + ':' + t.v) < 0) o.push(t.k + ':' + t.v);
     try { localStorage.setItem(OKEY, JSON.stringify(o)); } catch (e) {} W.buys++; W.try = null; buyUI(); pick(t.k, t.v); return true; }
   function wBuild() { if (W.el) return; addCss(); var d = W.el = document.createElement('div'); d.id = 'gaW'; d.hidden = true; d.setAttribute('role', 'dialog'); d.setAttribute('aria-label', 'Wardrobe');
     d.innerHTML = '<div id="gaWT">WARDROBE</div><button id="gaWX" aria-label="close">✕</button>'

@@ -7,6 +7,7 @@
 import * as THREE from 'three';
 import { buildHole } from './golf-world/holes.js';
 import { makeBall, putt as puttBall, stepBall, inBounds, BALL_R, STOP_SPEED, STROKE_CAP } from './golf-world/physics.js';
+const buyNote = (item, cost) => { try { window.__announce && window.__announce('buy', { item, cost }); } catch (e) {} };   // purchase broadcast (mp.js)
 export const GOLF_COST = 5, GOLF_HOLES = 3;
 export const golfPayout = s => (s === 1 ? 5 : s === 2 ? 4 : s === 3 ? 3 : 0);
 export function setupGolf({ scene, play, st, monkey, WX, camera }) {
@@ -130,7 +131,7 @@ export function setupGolf({ scene, play, st, monkey, WX, camera }) {
     if (S.open) return true;
     if (tickets() < GOLF_COST) { S.fails++; refresh(); btn.animate([{ marginLeft: '0' }, { marginLeft: '-12px' }, { marginLeft: '10px' }, { marginLeft: '0' }], { duration: 300 }); tone(70, 60, 0.4, 'sawtooth', 0.07); return false; }
     if (!play.spend(GOLF_COST)) return false;
-    S.open = true; S.pays++; offT = performance.now(); tone(440, 38, 1.1, 'sawtooth', 0.09); pop.classList.remove('on'); S.popShown = false; return true;
+    S.open = true; S.pays++; buyNote('Mini Golf', GOLF_COST); offT = performance.now(); tone(440, 38, 1.1, 'sawtooth', 0.09); pop.classList.remove('on'); S.popShown = false; return true;
   }
   function arm() { S.open = false; offT = -1; U.uOff.value = 0; shield.visible = true; }
   
