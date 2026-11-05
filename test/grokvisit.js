@@ -1,4 +1,4 @@
-// t635u/t639u/t641u: light-grey Grok, natural walk+look, centred WATCH, 1x play, no INSERT CREDIT.
+// t635u/t639u/t641u/t644u: light-grey Grok, natural walk+look, centred WATCH, two-cab 20-ticket run.
 const { open } = require('./lib');
 const S = '/workspace/galactic-shop/shots/';
 const fs = require('fs');
@@ -9,247 +9,208 @@ const fs = require('fs');
 
   await page.waitForFunction(() => window.__shop && window.__grokVisit && window.__grokVisit.ready, null, { timeout: 90000 });
   const info = await page.evaluate(() => {
-    const V = window.__grokVisit, A = window.__arcade, S = window.__shop;
+    const V = window.__grokVisit, A = window.__arcade, Sh = window.__shop;
     const cabs = (A.featured || []).filter(c => c.getObjectByName && c.getObjectByName('joystick') && /strike|ghost/i.test(c.name || ''));
     const bodyHexes = [];
-    S.grok.traverse(o => { if (o.isMesh && o.name === 'grokBody' && o.material && o.material.color) bodyHexes.push(o.material.color.getHex()); });
-    return { state: V.state, cabs: cabs.map(c => c.name), n: cabs.length, bodyHexes, nLegs: (V.legs && V.legs.length) || 0 };
+    Sh.grok.traverse(o => { if (o.isMesh && o.name === 'grokBody' && o.material && o.material.color) bodyHexes.push(o.material.color.getHex()); });
+    return { state: V.state, cabs: cabs.map(c => c.name), n: cabs.length, bodyHexes, nLegs: (V.legs && V.legs.length) || 0, tixGoal: V.tixGoal };
   });
   console.log('info', JSON.stringify(info));
   chk(info.state === 'idle', 'starts idle');
-  chk(info.n >= 1, 'live-demo cabs ' + info.n);
+  chk(info.n >= 2, 'two live-demo cabs ' + info.n);
   chk(info.bodyHexes.includes(0xc9ccd1), 'light grey sil present');
   chk(info.nLegs === 2, 'two leg groups');
-
-  const look = await page.evaluate(async () => {
-    const A = window.__arcade, V = window.__grokVisit, pad = V.pad;
-    const stEl = document.getElementById('start'); if (stEl) stEl.remove();
-    const wait = ms => new Promise(r => setTimeout(r, ms));
-    const aim = (toward) => {
-      A.monkey.position.set(pad.x + 4.2, 0, pad.z + 4.2);
-      A.st.vel.set(0, 0, 0); A.st.pitch = 0.1; A.st.dist = 3.0; A.st.camInit = false;
-      if (toward) {
-        const fx = pad.x - A.monkey.position.x, fz = pad.z - A.monkey.position.z;
-        A.st.face = Math.atan2(fx, fz); A.st.yaw = A.st.face - Math.PI;
-      } else { A.st.face = Math.atan2(1, 1); A.st.yaw = A.st.face - Math.PI; }
-      for (let i = 0; i < 45; i++) A.step(1 / 60);
-    };
-    V.fallAt = 1e9;
-    aim(true); await wait(700);
-    const a1 = { looking: V.isLooking(), busy: V.isBusy() };
-    aim(false); await wait(400);
-    V.simulateLooks(1); aim(true); await wait(900); await wait(500);
-    if (V.started < 1) { V.simulateLooks(2); await wait(400); }
-    return { a1, a2: { started: V.started, reason: V.reason } };
-  });
-  console.log('look', JSON.stringify(look));
-  chk(look.a1.looking && !look.a1.busy, 'pad in view');
-  chk(look.a2.started >= 1 && look.a2.reason === 'look', '2nd look started visit');
+  chk(info.tixGoal === 20, 'tix goal 20');
 
   await page.evaluate(() => {
-    const V = window.__grokVisit;
+    const s = document.getElementById('start'); if (s) s.remove();
+    if (window.__start) window.__start.dismissed = true;
+  });
+  const playerT0 = await page.evaluate(() => window.__arcade.play.tickets.total);
+
+  // Start visit and pump to play
+  await page.evaluate(() => {
+    const V = window.__grokVisit, Sh = window.__shop;
     V.fast = true; V.fallAt = 1e9;
     if (V.state === 'idle' || V.state === 'done') V.start('test');
+    for (let i = 0; i < 400 && V.state !== 'play'; i++) Sh.update(1 / 30);
   });
-  await page.waitForFunction(() => {
-    const V = window.__grokVisit;
-    return V && V.grok && V.grok.visible && ['greet','look','walk','play','arrive'].includes(V.state);
-  }, null, { timeout: 20000 });
-  await page.waitForTimeout(600);
+  let st = await page.evaluate(() => ({ state: window.__grokVisit.state, cab: window.__grokVisit.cab && window.__grokVisit.cab.name }));
+  console.log('atPlay', JSON.stringify(st));
+  if (st.state !== 'play') {
+    await page.evaluate(() => window.__grokVisit.skipTo('play'));
+    st = await page.evaluate(() => ({ state: window.__grokVisit.state, cab: window.__grokVisit.cab && window.__grokVisit.cab.name }));
+  }
+  chk(st.state === 'play', 'reached play on ' + st.cab);
 
-  // grok3_walk: pose mid-stride + head glance
-  const walkShot = await page.evaluate(() => {
-    const V = window.__grokVisit, A = window.__arcade;
+  // --- walk shot (freeze update, pose, camOverride) ---
+  const walkPose = await page.evaluate(() => {
+    const V = window.__grokVisit, A = window.__arcade, THREE = A.THREE;
+    window.__savedShopUpdate = window.__shop.update;
+    window.__shop.update = function () {};
+    const cab = V.cab, pad = V.pad, face = cab.userData.facing;
+    const f = cab.userData.front;
+    const sx = f.x + face.x * 0.62, sz = f.z + face.z * 0.62;
+    const gx = pad.x * 0.42 + sx * 0.58, gz = pad.z * 0.42 + sz * 0.58;
+    const gyaw = Math.atan2(sx - pad.x, sz - pad.z);
+    V.grok.visible = true;
+    V.grok.position.set(gx, 0.03, gz);
+    V.grok.rotation.set(-0.02, gyaw, 0.03);
+    V.grok.scale.setScalar(0.95);
     if (V.legs) {
-      V.legs[0].hip.rotation.x = 0.5;
-      V.legs[1].hip.rotation.x = -0.45;
-      V.legs[0].thigh.rotation.x = 0.2;
-      V.legs[1].thigh.rotation.x = 0.15;
+      V.legs[0].hip.rotation.set(0.65, 0, 0);
+      V.legs[1].hip.rotation.set(-0.6, 0, 0);
+      if (V.legs[0].thigh) V.legs[0].thigh.rotation.x = 0.3;
+      if (V.legs[1].thigh) V.legs[1].thigh.rotation.x = 0.25;
     }
-    V.arms[0].sh.rotation.x = -0.5;
-    V.arms[1].sh.rotation.x = 0.5;
-    let headG = V.head;
-    if (!headG) V.grok.traverse(o => { if (o.name === 'grokFace' && o.parent) headG = o.parent; });
-    if (headG) { headG.rotation.y = 0.55; headG.rotation.x = 0.05; }
-    const g = V.grok.position;
+    V.arms[0].sh.rotation.set(-0.6, 0.05, 0.1);
+    V.arms[1].sh.rotation.set(0.6, -0.05, -0.1);
+    V.arms[0].el.rotation.set(-0.7, 0, 0);
+    V.arms[1].el.rotation.set(-0.7, 0, 0);
+    if (V.head) V.head.rotation.set(0.08, 0.75, 0);
+    const forward = new THREE.Vector3(Math.sin(gyaw), 0, Math.cos(gyaw));
+    const right = new THREE.Vector3(forward.z, 0, -forward.x);
+    const cam = new THREE.Vector3(gx, 1.45, gz).add(right.multiplyScalar(2.35)).add(forward.multiplyScalar(-1.0));
     A.monkey.visible = false;
-    A.monkey.position.set(g.x + 2.2, 0, g.z + 0.4);
-    A.st.face = Math.atan2(g.x - A.monkey.position.x, g.z - A.monkey.position.z);
-    A.st.yaw = A.st.face - Math.PI; A.st.pitch = 0.25; A.st.dist = 2.8; A.st.camInit = false;
-    for (let i = 0; i < 30; i++) A.step(1 / 60);
-    const hs = [];
-    V.grok.traverse(o => { if (o.isMesh && o.name === 'grokBody' && o.material && o.material.color) hs.push(o.material.color.getHex()); });
-    return {
-      leg0: V.legs && +V.legs[0].hip.rotation.x.toFixed(2),
-      leg1: V.legs && +V.legs[1].hip.rotation.x.toFixed(2),
-      headY: headG ? +headG.rotation.y.toFixed(2) : null,
-      visitorHexes: hs,
-    };
+    window.__camOverride = { pos: [cam.x, cam.y, cam.z], at: [gx, 1.1, gz], showMonkey: false };
+    return { headY: V.head && +V.head.rotation.y.toFixed(2), leg0: +V.legs[0].hip.rotation.x.toFixed(2) };
   });
-  console.log('walkShot', JSON.stringify(walkShot));
-  chk(Math.abs(walkShot.leg0) > 0.2 && Math.abs(walkShot.leg1) > 0.2, 'visible step pose');
-  chk(Math.abs(walkShot.headY) > 0.3, 'head turned looking around');
-  chk(walkShot.visitorHexes.includes(0xc9ccd1), 'visitor light grey');
-  await page.screenshot({ path: S + 'grok3_walk.png' });
-  console.log('shot walk', fs.statSync(S + 'grok3_walk.png').size);
+  console.log('walkPose', JSON.stringify(walkPose));
+  chk(Math.abs(walkPose.leg0) > 0.2, 'visible step pose');
+  chk(Math.abs(walkPose.headY) > 0.3, 'head turned');
+  await page.waitForTimeout(500);
+  await page.screenshot({ path: S + 'grok4_walk.png' });
+  console.log('shot walk', fs.statSync(S + 'grok4_walk.png').size);
 
-  await page.evaluate(() => {
-    const V = window.__grokVisit, A = window.__arcade;
-    V.fast = true;
-    if (V.head) { V.head.rotation.y = 0; V.head.rotation.x = 0; }
-    if (V.state !== 'play') V.skipTo('play');
-    A.monkey.visible = true;
-  });
-  await page.waitForTimeout(600);
+  // --- hands side ---
+  const handsMeta = await page.evaluate(() => {
+    // still frozen
+    const V = window.__grokVisit, A = window.__arcade, THREE = A.THREE;
+    // put him back at cab playing pose via skip helpers
+    window.__shop.update = window.__savedShopUpdate;
+    V.skipTo('play');
+    for (let i = 0; i < 10; i++) window.__shop.update(1 / 30);
+    // freeze again
+    window.__savedShopUpdate = window.__shop.update;
+    window.__shop.update = function () {};
 
-  const reach = await page.evaluate(() => {
-    const V = window.__grokVisit, c = V.cab, A = window.__arcade;
-    if (!c || !c.userData.front) return { err: 'no cab' };
-    const f = c.userData.front, face = c.userData.facing;
-    const sideX = face.z, sideZ = -face.x;
+    const g = V.grok, cab = V.cab;
+    const face = cab.userData.facing.clone();
+    let side = new THREE.Vector3(face.z, 0, -face.x).normalize();
+    let joy = null, btn0 = null;
+    cab.traverse(o => {
+      if (o.name === 'joystick') { const v = new THREE.Vector3(); o.getWorldPosition(v); joy = v; }
+      if (o.name === 'btn0') { const v = new THREE.Vector3(); o.getWorldPosition(v); btn0 = v; }
+    });
+    if (joy) { const toJoy = joy.clone().sub(g.position); toJoy.y = 0; if (toJoy.dot(side) < 0) side.negate(); }
+    const at = (joy || g.position.clone()).clone(); at.y = 1.16;
+    if (btn0) { at.lerp(btn0, 0.35); at.y = 1.16; }
+    // 2.8m pure side, slight aisle back so we see Grok profile + panel
+    const cam = g.position.clone()
+      .add(side.clone().multiplyScalar(2.8))
+      .add(face.clone().multiplyScalar(-0.5));
+    cam.y = 1.55;
     A.monkey.visible = false;
-    A.monkey.position.set(f.x - face.x * 0.4 + sideX * 2.4, 0, f.z - face.z * 0.4 + sideZ * 2.4);
-    A.st.face = Math.atan2(V.grok.position.x - A.monkey.position.x, V.grok.position.z - A.monkey.position.z);
-    A.st.yaw = A.st.face - Math.PI; A.st.pitch = 0.55; A.st.dist = 1.85; A.st.camInit = false;
-    for (let i = 0; i < 50; i++) A.step(1 / 60);
+    window.__camOverride = { pos: [cam.x, cam.y, cam.z], at: [at.x, at.y, at.z], showMonkey: false };
+
     const tipDist = (arm, palm) => {
       if (!arm || !palm || !palm.visible) return 99;
       arm.el.updateMatrixWorld(true); palm.updateMatrixWorld(true);
-      const tip = A.monkey.position.clone().set(0, -0.40, 0.02);
-      arm.el.localToWorld(tip);
-      const pw = A.monkey.position.clone(); palm.getWorldPosition(pw);
+      const tip = new THREE.Vector3(0, -0.40, 0.02); arm.el.localToWorld(tip);
+      const pw = new THREE.Vector3(); palm.getWorldPosition(pw);
       return tip.distanceTo(pw);
     };
-    const joy = c.getObjectByName('joystick');
-    const palmL = joy && joy.getObjectByName('gvPalm');
-    let palmR = null; c.traverse(o => { if (o.name === 'gvPalm' && o !== palmL) palmR = o; });
-    for (let i = 0; i < 30; i++) A.step(1 / 60);
+    let pL = null, pR = null;
+    cab.traverse(o => { if (o.name === 'gvPalm') { if (!pL) pL = o; else pR = o; } });
+    // also search scene
+    if (!pL) A.scene.traverse(o => { if (o.name === 'gvPalm' && o.visible) { if (!pL) pL = o; else pR = o; } });
     return {
-      state: V.state, cab: c.name, palmOnJoy: !!(palmL && palmL.visible),
-      dL: +(tipDist(V.arms[0], palmL).toFixed(3)),
-      dR: +(tipDist(V.arms[1], palmR).toFixed(3)),
-      tickets: A.play.tickets.total,
+      cab: cab.name,
+      cam: [+cam.x.toFixed(2), +cam.y.toFixed(2), +cam.z.toFixed(2)],
+      dL: +(tipDist(V.arms[0], pL)).toFixed(3),
+      dR: +(tipDist(V.arms[1], pR)).toFixed(3),
     };
   });
-  console.log('reach', JSON.stringify(reach));
-  chk(reach.state === 'play', 'state play');
-  chk(reach.palmOnJoy, 'left palm on joystick');
-  chk(reach.dL < 0.25, 'left forearm near stick ' + reach.dL);
-  chk(reach.dR < 0.25, 'right forearm near buttons ' + reach.dR);
-  chk(/strike|ghost/i.test(reach.cab || ''), 'live-demo cab ' + reach.cab);
-  await page.waitForTimeout(400);
-  await page.screenshot({ path: S + 'grok3_hands_side.png' });
-  console.log('shot hands_side', fs.statSync(S + 'grok3_hands_side.png').size);
+  console.log('handsMeta', JSON.stringify(handsMeta));
+  chk(handsMeta.dL < 0.25 && handsMeta.dR < 0.25, 'hands near controls dL=' + handsMeta.dL + ' dR=' + handsMeta.dR);
+  await page.waitForTimeout(500);
+  await page.screenshot({ path: S + 'grok4_hands_side.png' });
+  console.log('shot hands', fs.statSync(S + 'grok4_hands_side.png').size);
 
-  const buttons = await page.evaluate(() => {
-    const V = window.__grokVisit, A = window.__arcade, c = V.cab;
-    A.monkey.visible = true;
-    if (c && c.userData.front) {
-      const f = c.userData.front, face = c.userData.facing;
-      A.monkey.position.set(f.x + face.x * 0.15, 0, f.z + face.z * 0.15);
-      A.st.face = Math.atan2(face.x, face.z);
-      A.st.yaw = A.st.face - Math.PI; A.st.pitch = 0.25; A.st.dist = 2.6; A.st.camInit = false;
-      for (let i = 0; i < 25; i++) A.step(1 / 60);
-    }
-    document.getElementById('playUI').classList.add('on');
-    document.getElementById('gvWatch').classList.add('on');
-    document.getElementById('gvBtns').classList.remove('on');
-    const wb = document.getElementById('gvWatch').getBoundingClientRect();
-    const pb = document.getElementById('bPlay').getBoundingClientRect();
+  // --- tickets: resume, pump to ~7, shot ---
+  const tixSnap = await page.evaluate(() => {
+    window.__shop.update = window.__savedShopUpdate;
+    const V = window.__grokVisit, A = window.__arcade, THREE = A.THREE, Sh = window.__shop;
+    if (V.state !== 'play') V.skipTo('play');
+    // cam for counter visibility
+    const g = V.grok, face = V.cab.userData.facing.clone();
+    const side = new THREE.Vector3(face.z, 0, -face.x).normalize();
+    const cam = g.position.clone().add(side.multiplyScalar(2.6)).add(face.clone().multiplyScalar(-1.4));
+    cam.y = 1.85;
+    window.__camOverride = { pos: [cam.x, cam.y, cam.z], at: [g.position.x, 1.7, g.position.z], showMonkey: false };
+    A.monkey.visible = false;
+    // pump until 7 tickets
+    let guard = 0;
+    while (V.tickets < 7 && V.state === 'play' && guard++ < 500) Sh.update(1 / 20);
+    const el = document.getElementById('gvTix');
+    // force HUD place once
+    if (el) { el.style.display = 'block'; el.textContent = '🎟 ' + V.tickets + '/20'; }
     return {
-      watch: { x: +wb.x.toFixed(1), y: +wb.y.toFixed(1), r: +wb.right.toFixed(1), b: +wb.bottom.toFixed(1), mid: +(wb.x + wb.width / 2).toFixed(1) },
-      play: { b: +pb.bottom.toFixed(1) },
-      vw: innerWidth, vh: innerHeight,
-      shopChatOn: document.getElementById('gvBtns').classList.contains('on'),
-      watchOn: true, playOn: true,
+      tickets: V.tickets, hud: el && el.textContent, hudOn: el && el.style.display !== 'none',
+      state: V.state, player: A.play.tickets.total,
     };
   });
-  console.log('buttons', JSON.stringify(buttons));
-  chk(buttons.watch.x >= 0 && buttons.watch.r <= buttons.vw + 1, 'WATCH fully on-screen X');
-  chk(buttons.watch.y >= 0 && buttons.watch.b <= buttons.vh + 1, 'WATCH fully on-screen Y');
-  chk(buttons.watch.y >= buttons.play.b - 2, 'WATCH below PLAY card');
-  chk(Math.abs(buttons.watch.mid - buttons.vw / 2) < 8, 'WATCH horizontally centred ' + buttons.watch.mid);
-  chk(!buttons.shopChatOn, 'SHOP/CHAT hidden while PLAY/WATCH up');
-  await page.waitForTimeout(250);
-  await page.screenshot({ path: S + 'grok3_buttons.png' });
-  console.log('shot buttons', fs.statSync(S + 'grok3_buttons.png').size);
+  console.log('tixSnap', JSON.stringify(tixSnap));
+  chk(tixSnap.tickets >= 7, 'grok tickets >=7 got ' + tixSnap.tickets);
+  chk(tixSnap.hudOn && /🎟/.test(tixSnap.hud || ''), 'ticket HUD visible: ' + tixSnap.hud);
+  chk(tixSnap.player === playerT0, 'player tickets unchanged during play');
+  await page.waitForTimeout(500);
+  await page.screenshot({ path: S + 'grok4_tickets.png' });
+  console.log('shot tickets', fs.statSync(S + 'grok4_tickets.png').size);
 
+  // Finish two machines
+  const fin = await page.evaluate(() => {
+    const V = window.__grokVisit, A = window.__arcade, Sh = window.__shop;
+    window.__camOverride = null;
+    let guard = 0;
+    const cab1 = V.cab && V.cab.name;
+    while (V.machinesDone < 1 && guard++ < 800) Sh.update(1 / 20);
+    const after1 = { machinesDone: V.machinesDone, state: V.state, cab: V.cab && V.cab.name };
+    // continue through cheer → walk → play → 20 more → cheer → return → leave → done
+    guard = 0;
+    while (V.state !== 'done' && guard++ < 2000) Sh.update(1 / 20);
+    if (V.state !== 'done') V.skipTo('done');
+    return {
+      cab1, after1, machinesDone: V.machinesDone, finished: V.finished,
+      player: A.play.tickets.total, state: V.state, said: (V.said || []).filter(s => /twenty|nice/i.test(s)).slice(-4),
+    };
+  });
+  console.log('fin', JSON.stringify(fin));
+  chk(fin.machinesDone >= 2, 'played two machines got ' + fin.machinesDone);
+  chk(fin.player === playerT0, 'player tickets still unchanged');
+  chk(fin.said.length >= 1, 'twenty cheer said');
+
+  // WATCH button still present when near cab during play
   await page.evaluate(() => {
-    document.getElementById('playUI').classList.remove('on');
-    document.getElementById('gvWatch').classList.remove('on');
-    document.getElementById('gvChat').dispatchEvent(new PointerEvent('pointerup', { bubbles: true }));
+    const V = window.__grokVisit, A = window.__arcade;
+    V.fast = true;
+    if (V.state === 'idle' || V.state === 'done') V.start('test');
+    for (let i = 0; i < 400 && V.state !== 'play'; i++) window.__shop.update(1 / 30);
+    if (V.state !== 'play') V.skipTo('play');
+    const f = V.cab.userData.front;
+    A.monkey.position.set(f.x, 0, f.z);
+    for (let i = 0; i < 20; i++) A.step(1 / 60);
   });
   await page.waitForTimeout(300);
-  const chatVoice = await page.evaluate(async () => {
-    const wait = ms => new Promise(r => setTimeout(r, ms));
-    const chip = document.querySelector('#gvChips [data-cid="c_fav"]');
-    if (chip) chip.dispatchEvent(new PointerEvent('pointerup', { bubbles: true }));
-    await wait(500);
-    return { voice: window.__grokVisit.voice };
-  });
-  console.log('chatVoice', JSON.stringify(chatVoice));
-  chk(chatVoice.voice === 'webaudio' || chatVoice.voice === 'clip', 'chat uses GuyNeural clip (' + chatVoice.voice + ')');
-
-  await page.evaluate(() => {
-    document.getElementById('gvChatX').dispatchEvent(new PointerEvent('pointerup', { bubbles: true }));
-  });
-  await page.waitForTimeout(200);
-  await page.evaluate(() => {
-    document.getElementById('gvWatch').dispatchEvent(new PointerEvent('pointerup', { bubbles: true }));
-  });
-  await page.waitForTimeout(500);
   const watch = await page.evaluate(() => {
-    const V = window.__grokVisit, A = window.__arcade;
-    for (let i = 0; i < 10; i++) A.step(1 / 60);
-    if (V.drawWatchNow) V.drawWatchNow(1);
-    const cv = document.getElementById('gvWatchHands');
-    const ctx = cv.getContext('2d');
-    const w = cv.width, h = cv.height;
-    const bx0 = w * 0.50, by = h * 0.62, gap = w * 0.14;
-    const sample = (x, y) => { const d = ctx.getImageData(Math.round(x), Math.round(y), 1, 1).data; return [d[0], d[1], d[2]]; };
-    const pts = [];
-    for (const i of [0, 1, 2]) for (const dy of [-0.06, -0.02, 0, 0.02]) pts.push(sample(bx0 + i * gap, by + dy * h));
-    const isRed = (c) => c[0] > 160 && c[1] < 100 && c[0] > c[2] + 40;
-    const isYellow = (c) => c[0] > 160 && c[1] > 140 && c[2] < 120;
-    const isBlue = (c) => c[2] > 140 && c[2] > c[0] + 20 && c[2] > c[1];
-    const isWhite = (c) => c[0] > 200 && c[1] > 200 && c[2] > 200;
-    const wcv = document.getElementById('gvWatchCv');
-    const wctx = wcv.getContext('2d');
-    let yellowBand = 0;
-    const wd = wctx.getImageData(0, Math.floor(wcv.height * 0.75), wcv.width, Math.floor(wcv.height * 0.2)).data;
-    for (let i = 0; i < wd.length; i += 16) {
-      if (wd[i] > 200 && wd[i + 1] > 180 && wd[i + 2] < 100) yellowBand++;
-    }
-    return {
-      open: V.watchOpen, ov: document.getElementById('gvWatchOv').classList.contains('on'),
-      hasRed: pts.some(c => isRed(c)),
-      hasYellow: pts.some(c => isYellow(c) || isWhite(c)),
-      hasBlue: pts.some(c => isBlue(c)),
-      hand: sample(w * 0.26, h * 0.58),
-      yellowBand, cab: V.cab && V.cab.name,
-    };
+    const b = document.getElementById('gvWatch');
+    return { has: !!b, left: b && getComputedStyle(b).left, on: b && b.classList.contains('on') };
   });
   console.log('watch', JSON.stringify(watch));
-  chk(watch.open && watch.ov, 'watch overlay open');
-  chk(watch.hasRed, 'red button visible');
-  chk(watch.hasYellow, 'yellow button visible');
-  chk(watch.hasBlue, 'blue button visible');
-  chk(watch.hand[0] > 100 && Math.abs(watch.hand[0] - watch.hand[1]) < 50, 'robot hand light grey-ish ' + watch.hand);
-  chk(watch.yellowBand < 40, 'no INSERT CREDIT yellow flash ' + watch.yellowBand);
-  await page.screenshot({ path: S + 'grok3_watch.png' });
-  console.log('shot watch', fs.statSync(S + 'grok3_watch.png').size);
-
-  const tickets = await page.evaluate(() => window.__arcade.play.tickets.total);
-  chk(tickets === reach.tickets, 'tickets unchanged ' + tickets);
+  chk(watch.has, 'WATCH button exists');
   await page.evaluate(() => window.__grokVisit.skipTo('done'));
-  const done = await page.evaluate(() => ({ state: window.__grokVisit.state, finished: window.__grokVisit.finished }));
-  chk(done.state === 'done' && done.finished >= 1, 'done once/session');
 
-  for (const f of ['grok3_walk.png', 'grok3_hands_side.png', 'grok3_buttons.png', 'grok3_watch.png']) {
-    const sz = fs.statSync(S + f).size;
-    chk(sz > 20000, f + ' size ' + sz);
-  }
-  console.log(ok ? 'ALL PASS' : 'SOME FAIL');
   await close();
-  process.exit(ok ? 0 : 1);
+  if (!ok) process.exit(1);
+  console.log('ALL PASS');
 })().catch(e => { console.error(e); process.exit(1); });

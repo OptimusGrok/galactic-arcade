@@ -1,16 +1,22 @@
-// t635u/t639u/t641u (Dave): light-grey Grok, natural walk+look, hands on controls, centred WATCH,
-// SHOP+CHAT near him, male voice 1 clips, WATCH overlay. Lazy from shop.js; no Arcade edits.
+// t635u/t639u/t641u/t644u (Dave): light-grey Grok, natural walk+look, hands on controls, centred WATCH,
+// SHOP+CHAT near him, male voice 1 clips, WATCH overlay, two-cab 20-ticket run + floating counter.
+// Lazy from shop.js; no Arcade edits. Grok's tickets never touch the player's.
 import { buildGrokClerk } from './shop.js';
 
 const HI = "Hi! I'm Grok! Watch this!";
 const CHEER = 'Nice!';
-const PLAY_S = 50;
+const TWENTY_NEXT = 'Twenty tickets! On to the next one!';
+const TWENTY_DONE = "Twenty tickets! That's me done!";
+const PLAY_S = 60;             // safety cap per machine (~20 tickets @ 2.5s)
 const LOOK_NEED = 0.5;
 const LOOK_RAD = 0.42;
 const SCALE = 0.95;   // near human height so arms reach stick+buttons
 const NEAR_R = 1.85;
 const WALK_SPD = 1.05;          // m/s calm walk
 const LOOK_AROUND_S = 3.4;
+const TIX_GOAL = 20;
+const TIX_EVERY = 2.5;          // seconds per Grok ticket during play
+const TIX_EVERY_FAST = 0.12;
 
 const REMARKS = [
   'Ooh, close one!', "This one's my favourite!", 'Watch the combo!', 'Easy peasy!',
@@ -40,7 +46,7 @@ const CHAT = [
 ];
 
 const CLIP = {
-  hi: 'hi', cheer: 'cheer',
+  hi: 'hi', cheer: 'cheer', twenty: 'twenty', twenty_done: 'twenty_done',
   r01: 'r01', r02: 'r02', r03: 'r03', r04: 'r04', r05: 'r05',
   r06: 'r06', r07: 'r07', r08: 'r08', r09: 'r09', r10: 'r10',
   idle01: 'idle01', idle02: 'idle02', idle03: 'idle03', idle04: 'idle04',
@@ -104,7 +110,7 @@ export function setupGrokVisit({ scene, tp, play, monkey, camera, st } = {}) {
     fetch(clipUrl(id)).then(r => r.arrayBuffer()).then(b => new Promise((ok, no) => ac.decodeAudioData(b, ok, no)))
       .then(buf => { bufs[id] = buf; }).catch(() => { bufs[id] = false; });
   }
-  function warmClips() { ['hi','cheer', ...REMARK_CLIPS, ...IDLE_CLIPS, ...CHAT.map(c => c.id)].forEach(loadClip); }
+  function warmClips() { ['hi','cheer','twenty','twenty_done', ...REMARK_CLIPS, ...IDLE_CLIPS, ...CHAT.map(c => c.id)].forEach(loadClip); }
   warmClips();
   function stopVoice() {
     try { if (playingSrc) { playingSrc.stop(); } } catch (e) {}
@@ -170,6 +176,7 @@ export function setupGrokVisit({ scene, tp, play, monkey, camera, st } = {}) {
     ready: true, state: 'idle', lookCount: 0, looks: 0, started: 0, finished: 0, said: [],
     cab: null, reason: null, fallAt: 120 + Math.random() * 120, sessT: 0, force: false,
     near: false, chatOpen: false, watchOpen: false, remarks: 0,
+    tickets: 0, machinesDone: 0, tixGoal: TIX_GOAL,   // Grok's own winnings (never touch player tickets)
     start(reason = 'debug') { if (api.state !== 'idle' && api.state !== 'done') return false; api.force = true; api.reason = reason; begin(reason); return true; },
     get grok() { return grok; }, get pad() { return pad; }, get arms() { return arms; }, get legs() { return legs; }, get head() { return head; },
   };
@@ -177,7 +184,7 @@ export function setupGrokVisit({ scene, tp, play, monkey, camera, st } = {}) {
   api.fast = false;
   api.drawWatchNow = (idx) => { if (api.watchOpen) { sizeWatch(); drawWatchFrame(); drawWatchHands(idx == null ? 1 : idx); } };
   api.skipTo = (stName) => {
-    if (stName === 'play' && cab) { const s = standAtCab(); grok.position.set(s.x, 0, s.z); grok.rotation.y = s.yaw; grok.scale.setScalar(SCALE); grok.visible = true; bindControls(); api.state = 'play'; phaseT = 0; playDur = api.fast ? 3 : playDur; showNear(true); return true; }
+    if (stName === 'play' && cab) { const s = standAtCab(); grok.position.set(s.x, 0, s.z); grok.rotation.y = s.yaw; grok.scale.setScalar(SCALE); grok.visible = true; startPlayAtCab(); showNear(true); return true; }
     if (stName === 'leave') { resetControls(); hideUI(); grok.position.set(pad.x, 0, pad.z); grok.visible = true; api.state = 'leave'; phaseT = 0; fx.start(pad.x, pad.z, 'out'); powerPad(1); return true; }
     if (stName === 'done') { resetControls(); hideUI(); grok.visible = false; powerPad(0); fx.stop(); api.state = 'done'; api.finished++; return true; }
     if (stName === 'look') { api.state = 'look'; phaseT = 0; grok.visible = true; grok.scale.setScalar(SCALE); return true; }
@@ -216,10 +223,11 @@ export function setupGrokVisit({ scene, tp, play, monkey, camera, st } = {}) {
   api.isLooking = padLooking;
   api.isBusy = busy;
 
-  function pickCab() {
+  function pickCab(exclude) {
     // t639u: only cabs whose attract is a live demo (no INSERT CREDIT / INSERT COIN flash). Canvas-attract cabs excluded.
     const list = (A().featured || []).filter(c => {
       if (!c || !c.getObjectByName) return false;
+      if (exclude && c === exclude) return false;
       if (!c.getObjectByName('joystick')) return false;
       const n = (c.userData && c.userData.name) || c.name || '';
       if (!/strike|ghost/i.test(n)) return false;
@@ -235,18 +243,104 @@ export function setupGrokVisit({ scene, tp, play, monkey, camera, st } = {}) {
   let cab = null, joy = null, btns = [], joyBase = null, btnBase = [];
   let playDur = PLAY_S, remarkAt = 0, idleLineAt = 0;
   let lookYawT = 0;
+  let nextTixAt = 0, tixHudAt = 0, scrubAt = 0, ikFrame = 0;
+  const _aimL = new THREE.Vector3(), _aimR = new THREE.Vector3();
+
+  // cheap ticket printouts from the cabinet front (pooled sprites; Grok's own, not the player's)
+  const tixPool = [];
+  (function makeTixPool() {
+    const c = document.createElement('canvas'); c.width = 64; c.height = 32;
+    const g = c.getContext('2d');
+    g.fillStyle = '#f5c542'; g.fillRect(2, 2, 60, 28);
+    g.strokeStyle = '#8a5a10'; g.lineWidth = 2; g.strokeRect(2, 2, 60, 28);
+    g.fillStyle = '#5a3a08'; g.font = 'bold 14px monospace'; g.fillText('TICKET', 8, 22);
+    const tex = new THREE.CanvasTexture(c); tex.colorSpace = THREE.SRGBColorSpace;
+    const mat = new THREE.MeshBasicMaterial({ map: tex, transparent: true, depthWrite: false, toneMapped: false });
+    for (let i = 0; i < 8; i++) {
+      const m = new THREE.Mesh(new THREE.PlaneGeometry(0.14, 0.07), mat.clone());
+      m.visible = false; m.frustumCulled = false; scene.add(m);
+      tixPool.push({ m, age: 0, life: 0, vx: 0, vy: 0, vz: 0 });
+    }
+  })();
+  function spitTicket() {
+    if (!cab || !cab.userData || !cab.userData.front) return;
+    const slot = tixPool.find(o => !o.m.visible) || tixPool[(Math.random() * tixPool.length) | 0];
+    const f = cab.userData.front, face = cab.userData.facing || new THREE.Vector3(0, 0, 1);
+    const side = new THREE.Vector3(face.z, 0, -face.x);
+    slot.m.position.set(f.x - face.x * 0.15 + side.x * 0.25, 0.55, f.z - face.z * 0.15 + side.z * 0.25);
+    slot.m.rotation.set(0.2, Math.atan2(face.x, face.z) + Math.PI, 0);
+    slot.m.visible = true; slot.age = 0; slot.life = 1.1;
+    slot.vx = side.x * (0.15 + Math.random() * 0.25) - face.x * 0.4;
+    slot.vz = side.z * (0.15 + Math.random() * 0.25) - face.z * 0.4;
+    slot.vy = 0.55 + Math.random() * 0.35;
+  }
+  function tickTixFx(dt) {
+    for (const o of tixPool) {
+      if (!o.m.visible) continue;
+      o.age += dt; o.vy -= 2.8 * dt;
+      o.m.position.x += o.vx * dt; o.m.position.y += o.vy * dt; o.m.position.z += o.vz * dt;
+      o.m.rotation.z += dt * 4;
+      o.m.material.opacity = Math.max(0, 1 - o.age / o.life);
+      if (o.age >= o.life || o.m.position.y < 0.02) { o.m.visible = false; o.m.material.opacity = 1; }
+    }
+  }
+
+  // floating 🎟 N/20 over Grok's head (DOM, projected; throttled)
+  const tixEl = document.createElement('div');
+  tixEl.id = 'gvTix';
+  tixEl.style.cssText = 'position:fixed;left:0;top:0;transform:translate(-50%,-120%);z-index:26;display:none;pointer-events:none;padding:4px 10px;border-radius:12px;border:1.5px solid #f5c542;background:#1a1208ee;color:#ffe9a0;font:800 13px/1 "Courier New",monospace;letter-spacing:.06em;text-shadow:0 0 6px #f5c542;box-shadow:0 0 10px #f5c54288;white-space:nowrap';
+  document.body.appendChild(tixEl);
+  function showTixHud(on) { tixEl.style.display = on ? 'block' : 'none'; if (!on) return; tixEl.textContent = '🎟 ' + api.tickets + '/' + TIX_GOAL; }
+  function placeTixHud() {
+    if (tixEl.style.display === 'none' || !grok.visible || !camera) return;
+    ndc.set(grok.position.x, 2.35 * SCALE, grok.position.z).project(camera);
+    if (ndc.z > 1 || ndc.z < -1) { tixEl.style.opacity = '0'; return; }
+    const x = (ndc.x * 0.5 + 0.5) * innerWidth, y = (-ndc.y * 0.5 + 0.5) * innerHeight;
+    tixEl.style.left = x + 'px'; tixEl.style.top = y + 'px'; tixEl.style.opacity = '1';
+  }
 
   function begin(reason) {
     cab = pickCab();
     if (!cab) { api.state = 'idle'; api.force = false; return; }
     api.cab = cab; api.reason = reason; api.started++; api.state = 'arrive'; phaseT = 0;
-    if (api.fast || reason === 'test') playDur = 3;
+    api.tickets = 0; api.machinesDone = 0; nextTixAt = 0; showTixHud(false);
+    if (api.fast || reason === 'test') playDur = 4;
+    else playDur = PLAY_S;
     grok.position.set(pad.x, 0, pad.z);
     grok.rotation.set(0, Math.atan2(0 - pad.x, 0 - pad.z), 0);
     grok.scale.setScalar(0.01); grok.visible = true;
     fx.start(pad.x, pad.z, 'in');
     try { if (tp.fxAt) tp.fxAt(pad.x, pad.z, false); } catch (e) {}
     powerPad(1); zap();
+  }
+
+  function startPlayAtCab() {
+    bindControls();
+    api.tickets = 0; showTixHud(true);
+    const every = (api.fast || api.reason === 'test') ? TIX_EVERY_FAST : TIX_EVERY;
+    nextTixAt = t + every;
+    playDur = api.fast || api.reason === 'test' ? 4 : PLAY_S;
+    remarkAt = t + 8 + Math.random() * 5;
+    api.state = 'play'; phaseT = 0;
+  }
+
+  function awardTicket() {
+    if (api.tickets >= TIX_GOAL) return;
+    api.tickets++;
+    // NEVER touch player tickets / play.tickets / localStorage neonarcade.tickets
+    tixEl.textContent = '🎟 ' + api.tickets + '/' + TIX_GOAL;
+    spitTicket();
+    if (api.tickets >= TIX_GOAL) {
+      resetControls();
+      api.machinesDone++;
+      const more = api.machinesDone < 2 && pickCab(cab);
+      if (more) say(TWENTY_NEXT, 'twenty');
+      else say(TWENTY_DONE, 'twenty_done');
+      // also fire a short Nice! cheer after the twenty line settles in non-fast
+      happyT = Math.max(happyT, 1.2);
+      api.state = 'cheer'; phaseT = 0;
+      watchB.classList.remove('on'); if (api.watchOpen) closeWatch();
+    }
   }
 
   function powerPad(k) {
@@ -368,17 +462,19 @@ export function setupGrokVisit({ scene, tp, play, monkey, camera, st } = {}) {
       const b = btns[pressIdx] || btns[0];
       if (palmR.parent !== b) { if (palmR.parent) palmR.parent.remove(palmR); b.add(palmR); palmR.position.set(0, 0.04, 0); palmR.rotation.set(0.15, 0, 0); palmR.visible = true; }
     }
-    // aim arms at palm world positions so hands look glued on
-    if (palmL.visible) { const tL = palmL.getWorldPosition(new THREE.Vector3()); aimArm(arms[0], tL, 0.45); }
-    if (palmR.visible) { const tR = palmR.getWorldPosition(new THREE.Vector3()); aimArm(arms[1], tR, 0.45); }
-    // keep elbows bent toward panel (no clamp that pulls hands off the stick)
+    // aim arms every other frame (t644u perf) — reuse temps, no per-frame alloc
+    ikFrame++;
+    if ((ikFrame & 1) === 0) {
+      if (palmL.visible) { palmL.getWorldPosition(_aimL); aimArm(arms[0], _aimL, 0.45); }
+      if (palmR.visible) { palmR.getWorldPosition(_aimR); aimArm(arms[1], _aimR, 0.45); }
+    }
     try {
       // t639u: actual gameplay at normal 1x speed (no 2.6x speed-up)
       if (cab.userData && typeof cab.userData.tick === 'function') cab.userData.tick(t);
     } catch (e) {}
     try { if (cab.userData.glow) cab.userData.glow.intensity = 1.35 + Math.sin(t * 10) * 0.1; } catch (e) {}
-    scrubInsertCredit(cab);
-    // watch overlay sync
+    // scrub INSERT CREDIT at most ~2 Hz
+    if (t >= scrubAt) { scrubAt = t + 0.5; scrubInsertCredit(cab); }
     if (api.watchOpen) drawWatchHands(pressIdx);
   }
 
@@ -448,7 +544,7 @@ export function setupGrokVisit({ scene, tp, play, monkey, camera, st } = {}) {
     btnsRow.classList.toggle('on', !!on && !api.chatOpen && !api.watchOpen && !playCard && !(window.__shop && window.__shop.open));
   }
   function hideUI() {
-    showNear(false); closeChat(); closeWatch(); watchB.classList.remove('on');
+    showNear(false); closeChat(); closeWatch(); watchB.classList.remove('on'); showTixHud(false);
   }
 
   function openChat() {
@@ -625,6 +721,7 @@ export function setupGrokVisit({ scene, tp, play, monkey, camera, st } = {}) {
       else if (api.state !== 'walk' && api.state !== 'return') grok.position.y = Math.sin(t * 1.6) * 0.015;
     }
     fx.tick(dt);
+    tickTixFx(dt);
 
     // near UI while visiting
     if (grok.visible && api.state !== 'idle' && api.state !== 'done' && api.state !== 'leave' && api.state !== 'arrive') {
@@ -751,8 +848,7 @@ export function setupGrokVisit({ scene, tp, play, monkey, camera, st } = {}) {
         for (const L of legs) { L.hip.rotation.x = 0; L.thigh.rotation.x = 0; }
         if (api.state === 'walk') {
           grok.position.set(to.x, 0, to.z); grok.rotation.y = toYaw; head.rotation.y = 0; head.rotation.x = 0;
-          bindControls(); playDur = api.fast || api.reason === 'test' ? 3 : (45 + Math.random() * 15);
-          api.state = 'play'; phaseT = 0; remarkAt = t + 8 + Math.random() * 5;
+          startPlayAtCab();
         } else {
           grok.position.set(pad.x, 0, pad.z); head.rotation.y = 0; head.rotation.x = 0;
           api.state = 'leave'; phaseT = 0;
@@ -767,12 +863,22 @@ export function setupGrokVisit({ scene, tp, play, monkey, camera, st } = {}) {
     if (api.state === 'play') {
       animatePlay(dt);
       head.rotation.x = -0.12 + Math.sin(t * 2) * 0.03;
-      if (t >= remarkAt && !talkT) {
+      // t644u: Grok's own tickets tick up; never touches the player's balance
+      const every = (api.fast || api.reason === 'test') ? TIX_EVERY_FAST : TIX_EVERY;
+      if (t >= nextTixAt && api.tickets < TIX_GOAL) {
+        nextTixAt = t + every * (0.85 + Math.random() * 0.3);
+        awardTicket();
+      }
+      if (t >= tixHudAt) { tixHudAt = t + 0.12; placeTixHud(); }
+      if (t >= remarkAt && !talkT && api.tickets < TIX_GOAL) {
         remarkAt = t + 10 + Math.random() * 5;
         const i = (Math.random() * REMARKS.length) | 0;
         say(REMARKS[i], REMARK_CLIPS[i]); api.remarks++;
       }
-      if (phaseT >= playDur) { resetControls(); say(CHEER, 'cheer'); api.state = 'cheer'; phaseT = 0; watchB.classList.remove('on'); if (api.watchOpen) closeWatch(); }
+      // safety: if somehow stuck past playDur without 20, force the cheer path
+      if (api.state === 'play' && phaseT >= playDur && api.tickets < TIX_GOAL) {
+        api.tickets = TIX_GOAL - 1; awardTicket();
+      }
       return;
     }
 
@@ -782,9 +888,20 @@ export function setupGrokVisit({ scene, tp, play, monkey, camera, st } = {}) {
         a.sh.rotation.x += (-2.2 - a.sh.rotation.x) * Math.min(1, dt * 5);
         a.el.rotation.x += (-0.2 - a.el.rotation.x) * Math.min(1, dt * 5);
       });
-      if (phaseT > (api.fast || api.reason === 'test' ? 0.4 : 1.6)) {
+      if (t >= tixHudAt) { tixHudAt = t + 0.12; placeTixHud(); }
+      if (phaseT > (api.fast || api.reason === 'test' ? 0.5 : 2.2)) {
         idleArms(dt);
-        walkTo(pad.x, pad.z, Math.atan2(0 - pad.x, 0 - pad.z), 'return');
+        const next = api.machinesDone < 2 ? pickCab(cab) : null;
+        if (next) {
+          // walk to the other Strike/Ghost machine
+          cab = next; api.cab = cab;
+          showTixHud(false);
+          const s = standAtCab();
+          walkTo(s.x, s.z, s.yaw, 'walk');
+        } else {
+          showTixHud(false);
+          walkTo(pad.x, pad.z, Math.atan2(0 - pad.x, 0 - pad.z), 'return');
+        }
       }
       return;
     }

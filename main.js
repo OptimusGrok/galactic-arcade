@@ -1210,6 +1210,7 @@ function frame(now) {
   shield.update(Math.min(gap / 1000, 0.05));
   if (golf) { golf.update(Math.min(gap / 1000, 0.05)); golf.cam(camera, Math.min(gap / 1000, 0.05)); }   // t275u: putting camera
   bloom.strength = camera.position.x > WX / 2 ? 0.12 : 0.75;   // white room: no glare
+  if (window.__camOverride && window.__camOverride.bloom != null) bloom.strength = window.__camOverride.bloom; // screenshots / tests
   if (shop) { const gb = golf && golf.below, gx = monkey.position.x, gz = monkey.position.z; shop.update(Math.min(gap / 1000, 0.05)); if (gb) { monkey.position.x = gx; monkey.position.z = gz; } }   // golf basement: the shop's own prop push-out (east wall obstacles, x<=93.6) must not apply under its floor
   winds.update();
   if (tp && !st.beamed && window.__start && window.__start.dismissed && !(window.__skipStart && !window.__beamTest)) { st.beamed = true; const b = beamSpot(); tp.beamIn(b.x, b.z); }   // t282u: once per session, first Play
