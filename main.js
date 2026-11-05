@@ -1192,6 +1192,7 @@ function frame(now) {
   bloom.strength = camera.position.x > WX / 2 ? 0.12 : 0.75;   // white room: no glare
   if (shop) { const gb = golf && golf.below, gx = monkey.position.x, gz = monkey.position.z; shop.update(Math.min(gap / 1000, 0.05)); if (gb) { monkey.position.x = gx; monkey.position.z = gz; } }   // golf basement: the shop's own prop push-out (east wall obstacles, x<=93.6) must not apply under its floor
   winds.update();
+  if (tp && !st.beamed && window.__start && window.__start.dismissed && !(window.__skipStart && !window.__beamTest)) { st.beamed = true; const b = beamSpot(); tp.beamIn(b.x, b.z); }   // t282u: once per session, first Play
   if (tp) tp.update(Math.min(gap / 1000, 0.05), !!document.querySelector('#bPack.on') && !document.querySelector('#inv.on'));
   if (window.__camOverride) { const o = window.__camOverride; camera.position.set(...o.pos); camera.lookAt(...o.at); if (!o.showMonkey) monkey.visible = false; } // screenshots / tests
   camera.updateMatrixWorld();
@@ -1221,6 +1222,13 @@ function arcadePause(on) { paused = on; if (!on && !rafOn) { rafOn = true; last 
 const play = setupPlay({ camera, monkey, dsCab, roadsterCab, strikeCab, ghostCab, berserkerCab, monkeyCab, orcCab, novaCab, cyberCab, blasterCab, pipCab, clawCab, bbCab, st, pause(on) { paused = on; if (!on && !rafOn) { rafOn = true; last = performance.now(); requestAnimationFrame(frame); } } });
 shield = setupShield({ scene, play, st, monkey, HALF, DOOR_W, DOOR_H });
 tp = setupTeleport({ scene, monkey, st, HALF, H, Z2 }); window.__tp = tp;
+// t282u: open floor spot near the usual spawn (0,0,5) with a small random offset (so simultaneous joiners don't overlap): not on a pad,
+// not inside a cabinet/collider (collide() must leave it unmoved), on the path when the floor is lava.
+function beamSpot() { const pads = [tp.PAD1, tp.PAD2].filter(Boolean), q = new THREE.Vector3();
+  for (let i = 0; i < 30; i++) { const a = Math.random() * Math.PI * 2, r = i < 29 ? 0.35 + Math.random() * 0.9 : 0; q.set(Math.sin(a) * r, 0, 5 + Math.cos(a) * r);
+    if (pads.some(p => Math.hypot(q.x - p.x, q.z - p.z) < tp.R + 1)) continue; const x = q.x, z = q.z; collide(q); if (Math.hypot(q.x - x, q.z - z) > 1e-4) continue;
+    return { x, z }; } return { x: 0, z: 5 }; }
+window.__beamSpot = beamSpot;
 golf = setupGolf({ scene, play, st, monkey, WX, camera }); window.__minigolf = golf;
 window.__grid = setupGrid({ THREE, scene, camera, cv, HALF, DOOR_W, HALL_L, Z2 });
 // FAST LOAD (t229): the prize shop (shop.js + its ~1.2 MB of murals) is imported after the first room frames, or straight away when the

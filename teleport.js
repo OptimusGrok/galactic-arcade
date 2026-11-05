@@ -112,6 +112,20 @@ export function setupTeleport({ scene, monkey, st, HALF, H, Z2 }) {
   function go(dest) { if (api.state !== 'idle') return; api.dest = api.where === 2 ? 'arcade' : 'shop'; api.state = 'walk'; api.t = 0; btn.classList.remove('on'); menu.classList.remove('on'); }
   // other players' beams (mp.js): swirl + sparkles where they stand; out = beaming away, else arriving
   function fxAt(x, z, out) { swirlAt(x, z, out ? 2.8 : 2.0); for (let i = 0; i < 6; i++) emit(10, 2, 0.05, x, z); }
+  // t282u START BEAM-IN (Dave: 'teleport in at the start of the game but not on a pad'): a free-standing light column + the pad's
+  // rematerialise (clip plane sweeping up) + sparkles + zapIn sound at an open floor spot. Same 'remat' state, so movement is locked
+  // (api.locked) and mp.js sends 'bin' while api.beaming. beamAt() = just the column for other players' beam-ins (mp.js).
+  const colGeo = new THREE.CylinderGeometry(0.55, 0.75, 1, 24, 1, true); colGeo.translate(0, 0.5, 0);
+  const cols = [];
+  function beamAt(x, z, life = 1.6) { let c = cols.find(o => !o.busy); if (!c) { const m = new THREE.Mesh(colGeo, new THREE.MeshBasicMaterial({ color: 0x55eeff, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide, toneMapped: false }));
+      m.name = 'beamColumn'; m.renderOrder = 6; m.userData.golfNoCut = true; scene.add(m); c = { m }; cols.push(c); }
+    c.busy = true; c.t = 0; c.life = life; c.m.position.set(x, 0, z); c.m.scale.set(1, 6, 1); c.m.visible = true; swirlAt(x, z, life); for (let i = 0; i < 8; i++) emit(10, 2, 0.05, x, z); return c; }
+  function colStep(dt) { for (const c of cols) { if (!c.busy) continue; c.t += dt; const u = c.t / c.life; if (u >= 1) { c.busy = false; c.m.visible = false; continue; }
+    c.m.material.opacity = Math.min(1, u * 6) * (1 - u) * 0.75 * (0.85 + 0.15 * Math.sin(c.t * 40)); const w = 1 - u * 0.5; c.m.scale.set(w, 6, w); } }
+  function beamIn(x, z) { if (api.state !== 'idle') return false; monkey.position.set(x, 0, z); st.vel.set(0, 0, 0); st.speed = 0; st.camInit = false;
+    clip(); plane.normal.set(0, -1, 0); plane.constant = -0.05; arrPad = null; api.beaming = true; api.state = 'remat'; api.t = 0; api.beamIns = (api.beamIns || 0) + 1;
+    beamAt(x, z, 1.9); zapIn(); zap(false, 0.05); return true; }
+  Object.assign(api, { beamIn, beamAt, beaming: false });
   let lsw = null;
   const from = () => api.where === 1 ? PAD1 : PAD2, to = () => api.dest === 'shop' ? PAD2 : api.dest === 'arcade' ? PAD1 : DEST[api.dest].pos, padOf = w => pads[w - 1];
   let arrPad = null;
@@ -145,9 +159,9 @@ export function setupTeleport({ scene, monkey, st, HALF, H, Z2 }) {
         if (T >= D) { fl.style.opacity = '0'; api.cut = 0; api.state = 'remat'; api.t = 0; zapIn(); zap(false, 0.05); } }
       else if (api.state === 'remat') { const D = 1.5, f = Math.min(1, T / D), h = -0.05 + f * (MH + 0.1);
         plane.normal.set(0, -1, 0); plane.constant = h; if (arrPad) power(arrPad, Math.min(1, (D + 0.4 - T) * 2), T); if (f < 1) { emit(Math.round(dt * 240), 1, h, mp.x, mp.z); emit(Math.round(dt * 50), 2, 0.05, mp.x, mp.z); }
-        if (T >= D + 0.4) { plane.normal.set(0, 1, 0); plane.constant = 100; if (arrPad) power(arrPad, 0, 0); api.state = 'idle'; api.t = 0; api.trips = (api.trips || 0) + 1; } }
+        if (T >= D + 0.4) { plane.normal.set(0, 1, 0); plane.constant = 100; if (arrPad) power(arrPad, 0, 0); api.state = 'idle'; api.t = 0; if (api.beaming) api.beaming = false; else api.trips = (api.trips || 0) + 1; } }
     }
-    swirlStep(dt);
+    swirlStep(dt); colStep(dt);
     // pixels
     let n = 0;
     for (let i = 0; i < N; i++) { const o = P[i]; if (o.t >= o.life) continue; o.t += dt; const u = o.t / o.life;
