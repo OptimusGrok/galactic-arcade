@@ -56,17 +56,14 @@
     return v; }
   function fill() { var v = vals(); I.vals = v; document.getElementById('invGn').textContent = v.gold; document.getElementById('invVn').textContent = v.viking; document.getElementById('invV').style.display = v.viking > 0 ? '' : 'none';   // Viking row only once one is won
     document.getElementById('invCn').textContent = '$' + v.cash; document.getElementById('invCr').textContent = v.refill; vikArt(); try { fillMy(); } catch (e) {} }
-  // t284u PRIZES: GROK SHOP prizes are drawn by shop.js itself (#invPz, tap to hold); this adds the rest, read from their own sources of truth:
-  // wardrobe items bought (player.js owned(), 'galacticarcade.wardrobeOwned'; free start items + the base brown fur / red shoes excluded) and
-  // plushes WON in the claw machine ('arcade_clawMachine.collection'). Display-only. 'No prizes yet' when there is nothing at all.
-  var WN = { tophat: 'TOP HAT', wizard: 'WIZARD HAT', viking: 'VIKING HELMET', chef: 'CHEF HAT', bunny: 'BUNNY EARS', propeller: 'PROPELLER CAP', monocle: 'MONOCLE', heart: 'HEART GLASSES', star: 'STAR GLASSES', '3d': '3D GLASSES', mustache: 'MUSTACHE', mask: 'NINJA MASK', jetpack: 'JETPACK', cape: 'HERO CAPE', wings: 'ANGEL WINGS', batwings: 'BAT WINGS' };
-  var WE = { hat: '\uD83C\uDFA9', glasses: '\uD83D\uDD76\uFE0F', back: '\uD83C\uDF92', hoodie: '\uD83E\uDDE5', fur: '\uD83D\uDC12', shoes: '\uD83D\uDC5F' }, WC = { hat: '#ffb020', glasses: '#3dd6ff', back: '#3dff9a', hoodie: '#ff3cf0', fur: '#c08a5a', shoes: '#ff5a5a' };
+  // t284u/t285u PRIZES: GROK SHOP prizes are drawn by shop.js itself (#invPz, tap to hold); this adds the claw machine plushes WON
+  // (arcade_clawMachine.collection). Wardrobe accessories stay in the wardrobe tab. Display-only.
+  // 'No prizes yet' when there is nothing at all.
   var CLAW = { bear: ['TEDDY BEAR', '\uD83E\uDDF8', '#b8c4d6'], bunny: ['BUNNY', '\uD83D\uDC30', '#b8c4d6'], duck: ['DUCKY', '\uD83E\uDD86', '#b8c4d6'], frog: ['FROG', '\uD83D\uDC38', '#b8c4d6'], cat: ['KITTY', '\uD83D\uDC31', '#3dff9a'], octopus: ['OCTOPUS', '\uD83D\uDC19', '#3dff9a'],
     penguin: ['PENGUIN', '\uD83D\uDC27', '#3dd6ff'], alien: ['ALIEN', '\uD83D\uDC7D', '#3dd6ff'], monkey: ['MONKEY', '\uD83D\uDC35', '#ffb020'], grok: ['GROK', '\uD83E\uDD16', '#ffb020'] };
   function J(k, d) { try { return JSON.parse(localStorage.getItem(k)) || d; } catch (e) { return d; } }
-  function myPrizes() { var out = [], gp = window.__gaPlayer, o = gp && gp.owned ? gp.owned() : J('galacticarcade.wardrobeOwned', []);
-    (Array.isArray(o) ? o : []).forEach(function (id) { var i = String(id).indexOf(':'), k = id.slice(0, i), v = id.slice(i + 1); if (!v || v === 'none' || id === 'fur:brown' || id === 'shoes:red') return;
-      if (gp && gp.isFree && gp.isFree(k, v)) return; out.push({ src: 'wardrobe', id: id, name: WN[v] || (v.toUpperCase() + (k === 'hoodie' ? ' HOODIE' : k === 'fur' ? ' FUR' : k === 'shoes' ? ' SHOES' : '')), ic: WE[k] || '\u2728', c: WC[k], n: 1 }); });
+  // t285u (Dave): wardrobe accessories stay in the wardrobe tab only; the backpack = GROK SHOP prizes + claw machine plushes
+  function myPrizes() { var out = [];
     var cl = J('arcade_clawMachine.collection', {}); Object.keys(CLAW).forEach(function (k) { var n = cl[k] | 0; if (n > 0) out.push({ src: 'claw', id: 'claw:' + k, name: CLAW[k][0] + ' PLUSH', ic: CLAW[k][1], c: CLAW[k][2], n: n }); });
     return out; }
   function shopCount() { var p = J('neonarcade.prizes', {}), n = 0; for (var k in p) if ((p[k] | 0) > 0) n++; return n; }
@@ -74,7 +71,7 @@
     var L = myPrizes(), sc = shopCount(); P.classList.toggle('noShop', !sc); I.prizes = { shop: sc, mine: L.map(function (x) { return x.id + (x.n > 1 ? 'x' + x.n : ''); }) };
     var key = sc + '|' + I.prizes.mine.join(); if (el.dataset.k === key) return; el.dataset.k = key; var esc = function (t) { return String(t).replace(/[&<>"]/g, function (c) { return '&#' + c.charCodeAt(0) + ';'; }); };
     if (!L.length) { el.style.display = sc ? 'none' : ''; el.innerHTML = '<div class="pzH"><span>PRIZES</span></div><div class="myE">No prizes yet</div>'; return; }
-    el.style.display = ''; el.innerHTML = '<div class="pzH"><span>' + (sc ? 'MORE PRIZES' : 'PRIZES') + '</span><small>wardrobe buys \u00B7 claw wins</small></div><div id="invMyL">' +
+    el.style.display = ''; el.innerHTML = '<div class="pzH"><span>' + (sc ? 'CLAW PRIZES' : 'PRIZES') + '</span><small>won in the claw machine</small></div><div id="invMyL">' +
       L.map(function (x) { return '<span class="myC" data-my="' + esc(x.id) + '" style="--c:' + (x.c || '#ff3cf0') + '"><i>' + x.ic + '</i>' + esc(x.name) + (x.n > 1 ? ' <b>\u00D7' + x.n + '</b>' : '') + '</span>'; }).join('') + '</div>'; }
   I.fillMy = fillMy;
   function canShow() { var a = A(), p = a.play, s = window.__start; if (!p) return 'loading'; if (s && s.shown && !s.dismissed) return 'start'; if (p.mode !== 'walk') return 'game';

@@ -19,7 +19,8 @@ const { open } = require('./lib');
     await openInv();
     const f = await p.evaluate(() => { const pz = document.getElementById('invPz'), my = document.getElementById('invMy'); return { pz: pz ? pz.textContent : '', pzv: pz ? getComputedStyle(pz).display : 'none', my: my.textContent, order: my.previousElementSibling && my.previousElementSibling.id }; });
     chk(f.pzv !== 'none' && /GROK/i.test(f.pz) && /×2/.test(f.pz), 'shop prize listed with count ' + f.pz.slice(0, 80));
-    chk(/TOP HAT/.test(f.my), 'bought wardrobe item listed');
+    chk(!/TOP HAT/.test(f.my + f.pz), 'bought wardrobe item NOT in the backpack (stays in the wardrobe tab)');
+    chk(/CLAW PRIZES/.test(f.my), 'claw box titled CLAW PRIZES under the shop PRIZES');
     chk(/PENGUIN PLUSH/.test(f.my) && /×3/.test(f.my), 'claw-won plush listed with count');
     chk(!/HOODIE|BROWN FUR|RED SHOES/.test(f.my), 'free starter items not listed');
     chk(f.order === 'invPz', 'my section sits below the shop prizes');
@@ -29,7 +30,7 @@ const { open } = require('./lib');
     const s = await p.evaluate(() => { const P = document.getElementById('invP'), r = P.getBoundingClientRect(); P.scrollTop = 9999; return { top: r.top, bot: r.bottom, sh: P.scrollHeight, ch: P.clientHeight, st: P.scrollTop, h: innerHeight }; });
     chk(s.top >= 0 && s.bot <= s.h && (s.sh <= s.ch || s.st > 0), 'panel fits the 390x700 screen and scrolls ' + JSON.stringify(s));
     await p.evaluate(() => { document.getElementById('invP').scrollTop = 0; }); await p.waitForTimeout(300);
-    await p.screenshot({ path: '/workspace/ga-prizes/shots/backpack_prizes_phone.png' });
+    await p.screenshot({ path: '/workspace/ga-prizes/shots/backpack_prizes_v2_phone.png' });
     const errs = o.errors.filter(x => !/supabase|Failed to load resource|net::/i.test(x)); chk(!errs.length, 'no page errors ' + errs.slice(0, 2).join(' | '));
   } catch (e) { chk(false, 'exception ' + e.stack); }
   await o.close(); console.log(ok ? 'ALL PASS' : 'SOME FAIL'); process.exit(ok ? 0 : 1); })();
