@@ -1026,7 +1026,7 @@ function lavaFallStep(dt) { const f = st.lavaFall; f.t += dt; const k = Math.min
   if (k >= 1) { const p = lavaRespawnPoint(f.x, f.z); monkey.position.set(p.x, 0, p.z); st.vel.set(0, 0, 0); st.lavaFall = null; st.lastRespawn = [p.x, p.z]; return false; }
   return true; }
 let nearCab = null;
-const ICE_SLIP = 3.2;   // m/s (run 5.2, walk 2.4)
+const ICE_SLIP = 3.2, ICE_COAST = 4.6;   // m/s (run 5.2, walk 2.4)
 function step(dt) {
   st.t += dt;
   if (st.lavaFall && lavaFallStep(dt)) return;   // LAVA floor: sinking into the lava, then back on the nearest path
@@ -1049,7 +1049,8 @@ function step(dt) {
   else {   // ICE (t260): above ~62% of run speed you lose grip and slide/drift (low friction) until you slow under 1.2 m/s; slow walking stays grippy
     const onIce = floorMode === 'ice' && !st.seated && play.mode === 'walk' && !(shop && shop.open) && !(tp && tp.locked);
     if (!onIce) st.iceSlide = false; else { const sp = Math.hypot(st.vel.x, st.vel.z); if (sp > ICE_SLIP) { if (!st.iceSlide) st.iceSlides = (st.iceSlides || 0) + 1; st.iceSlide = true; } else if (sp < 1.2) st.iceSlide = false; }
-    st.vel.lerp(tv, 1 - Math.exp(-dt * (st.iceSlide ? 0.7 : 10)));
+    st.iceCoast = !!st.iceSlide && mag < 0.01;   // let go at speed: glide ~1 m with legs still (t262)
+    st.vel.lerp(tv, 1 - Math.exp(-dt * (st.iceCoast ? ICE_COAST : st.iceSlide ? 2.5 : 10)));
   }
   const px0 = monkey.position.x, pz0 = monkey.position.z;
   monkey.position.addScaledVector(st.vel, dt); collide(monkey.position);
@@ -1097,7 +1098,7 @@ function step(dt) {
   }
 }
 function animateMonkey(dt) {
-  const u = monkey.userData, sp = st.speed, runK = THREE.MathUtils.clamp((sp - 2.4) / 2.8, 0, 1);
+  const coast = !!st.iceCoast && !st.jump, u = monkey.userData, sp = coast ? 0 : st.speed, runK = THREE.MathUtils.clamp((sp - 2.4) / 2.8, 0, 1);
   st.phase += dt * (sp > 0.05 ? 3 + sp * 2.1 : 0);
   const sw = Math.min(1, sp / 2.4), s = Math.sin(st.phase), c = Math.cos(st.phase), t = st.t, P = st.play;
   const amp = (0.55 + runK * 0.35) * sw;
@@ -1107,7 +1108,7 @@ function animateMonkey(dt) {
   u.legs[0].leg.rotation.x -= P * 0.2; u.legs[1].leg.rotation.x += P * 0.05;
   if (u.tail) { const k = 0.15 + sw * 0.35 + (st.jump ? 0.4 : 0); u.tail.rotation.z = Math.sin(t * 1.6 + (sp > 0.05 ? st.phase : 0)) * k; u.tail.rotation.x = (st.jump ? -0.35 : 0) + Math.sin(t * 1.1) * 0.06;
     const seat = !!st.seated; u.pack.visible = !seat; u.tail.visible = !seat; }   // seated in the Roadster: pack + tail tucked away so they don't clip the seat
-  u.torso.rotation.x = 0.06 + runK * 0.22 + P * 0.38; u.torso.rotation.y = s * 0.1 * sw;
+  u.torso.rotation.x = 0.06 + runK * 0.22 + P * 0.38 - (coast ? 0.12 : 0); u.torso.rotation.y = s * 0.1 * sw;
   u.neck.rotation.x = -u.torso.rotation.x * 0.6; u.head.rotation.y = Math.sin(t * 0.7) * 0.15 * (1 - sw);
   for (const a of u.arms) {
     const ph = a.sd > 0 ? s : -s;
@@ -1235,7 +1236,7 @@ const opts = setupOpts({ play, kiosk, shield, st, monkey, setFloor, getFloor: ()
 requestAnimationFrame(frame);
 
 // hooks for tests / future art work
-window.__arcade = { get window() { return windowMode; }, setWindow, get jumping() { return !!st.jump; }, canJump, LAVA, lavaRespawnPoint, get spaceWin() { return spaceWin; }, get kiosk() { return kiosk; }, setFloor, get floor() { return floorMode; }, setWalls, get walls() { return wallsMode; }, wallMat, carpet, mirror, shield, room, room2, Z2, hall, DOOR_W, DOOR_H, HALL_L, berserkerCab, monkeyCab, orcCab, cyberCab, novaCab, blasterCab, pipCab, clawCab, bbCab, roadsterCab, dsCab, play, get paused() { return paused; }, THREE, scene, camera, renderer, monkey, cabinets, strikeCab, ghostCab, featured, demo, ghostDemo, playables, blockers, st, stats, step, keys, get nearCab() { return nearCab; }, setArt: (i, part, tex, glow) => cabinets[i].userData.setArt(part, tex, glow) };
+window.__arcade = { animateMonkey: dt => animateMonkey(dt), get window() { return windowMode; }, setWindow, get jumping() { return !!st.jump; }, canJump, LAVA, lavaRespawnPoint, get spaceWin() { return spaceWin; }, get kiosk() { return kiosk; }, setFloor, get floor() { return floorMode; }, setWalls, get walls() { return wallsMode; }, wallMat, carpet, mirror, shield, room, room2, Z2, hall, DOOR_W, DOOR_H, HALL_L, berserkerCab, monkeyCab, orcCab, cyberCab, novaCab, blasterCab, pipCab, clawCab, bbCab, roadsterCab, dsCab, play, get paused() { return paused; }, THREE, scene, camera, renderer, monkey, cabinets, strikeCab, ghostCab, featured, demo, ghostDemo, playables, blockers, st, stats, step, keys, get nearCab() { return nearCab; }, setArt: (i, part, tex, glow) => cabinets[i].userData.setArt(part, tex, glow) };
 const mp = setupMP({ scene, camera, monkey, makeMonkey, st, play, getTp: () => tp, HALF, Z2, HALL_L, WX: 80 }); window.__arcade.mp = mp;   // multiplayer step 1: public room, 10 players
 // after the first room frames: pull in the shop, then the window scenery, off the critical path
 { const idle = f => (window.requestIdleCallback ? requestIdleCallback(f, { timeout: 1500 }) : setTimeout(f, 200));
