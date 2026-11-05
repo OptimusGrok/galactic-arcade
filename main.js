@@ -614,7 +614,22 @@ cobbleMat.onBeforeCompile = sh => { floorWP(sh, `float ch(vec2 p){ return fract(
     .replace('#include <emissivemap_fragment>', 'totalEmissiveRadiance = diffuseColor.rgb * 0.45 * fCb;')
     .replace('#include <roughnessmap_fragment>', '#include <roughnessmap_fragment>\n roughnessFactor = mix(1.0, 0.55, fCb * dome);'); };   // stones a little self-lit (readable under the neon), tops slightly polished by feet
 cobbleMat.emissive.setHex(0xffffff);
-const floorMats = { carpet: carpet.material, checkers: checkMat, lava: lavaMat, cobble: cobbleMat };
+// ICE (t260): glossy pale-blue ice - world-space Voronoi cracks + frost noise, low roughness for neon sheen; procedural (no texture, same 1 draw call)
+const iceMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.12, metalness: 0.15 });
+iceMat.onBeforeCompile = sh => { floorWP(sh, `float ih(vec2 p){ return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+    vec2 ih2(vec2 p){ return fract(sin(vec2(dot(p, vec2(127.1, 311.7)), dot(p, vec2(269.5, 183.3)))) * 43758.5453); }
+    float in1(vec2 p){ vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f); return mix(mix(ih(i), ih(i + vec2(1, 0)), f.x), mix(ih(i + vec2(0, 1)), ih(i + vec2(1, 1)), f.x), f.y); }`);
+  sh.fragmentShader = sh.fragmentShader.replace('#include <map_fragment>', `vec2 cp = vFW.xz * 0.55; vec2 ci = floor(cp), cf = fract(cp); float d1 = 8.0, d2 = 8.0;
+    for (int j = -1; j <= 1; j++) for (int i = -1; i <= 1; i++) { vec2 o = vec2(float(i), float(j)), r = o + ih2(ci + o) - cf; float d = dot(r, r); if (d < d1) { d2 = d1; d1 = d; } else if (d < d2) d2 = d; }
+    float crack = (1.0 - smoothstep(0.0, 0.012, sqrt(d2) - sqrt(d1))) * (0.35 + 0.65 * in1(vFW.xz * 2.2));
+    float fn = in1(vFW.xz * 1.3) * 0.6 + in1(vFW.xz * 4.7) * 0.4, frost = smoothstep(0.55, 0.85, fn);
+    vec3 ic = mix(vec3(0.20, 0.45, 0.70), vec3(0.45, 0.72, 0.92), fn);
+    ic = mix(ic, vec3(0.85, 0.95, 1.0), frost * 0.45 + crack * 0.6);
+    diffuseColor.rgb = ic; float fIce = 0.42 + 0.25 * frost + 0.4 * crack;`)
+    .replace('#include <emissivemap_fragment>', 'totalEmissiveRadiance = diffuseColor.rgb * fIce;')
+    .replace('#include <roughnessmap_fragment>', '#include <roughnessmap_fragment>\n roughnessFactor = mix(0.08, 0.6, max(frost, crack));'); };
+iceMat.emissive.setHex(0xffffff);
+const floorMats = { carpet: carpet.material, checkers: checkMat, lava: lavaMat, cobble: cobbleMat, ice: iceMat };
 for (const m of [carpet, carpet2]) m.onBeforeRender = () => { lavaU.uT.value = performance.now() / 1000 % 1000; };
 // with the carpet on, the reflector / hex overlay only cover the hallway (room 1 no longer pays for a mirror pass there)
 let floorMode = 'neon';
@@ -632,7 +647,7 @@ try { const f = localStorage.getItem(FLOOR_KEY); if (floorMats[f]) setFloor(f); 
 window.__setFloor = setFloor;   // the start screen's Options menu calls this
 // pre-compile the CHECKERS / LAVA shaders a few seconds after load so the first tap on those tiles doesn't stall the phone
 setTimeout(() => { try { const m0 = carpet.material, v0 = carpet.visible; carpet.visible = true;
-  for (const m of [checkMat, lavaMat, cobbleMat]) if (m !== m0) { carpet.material = m; renderer.compile(scene, camera); }
+  for (const m of [checkMat, lavaMat, cobbleMat, iceMat]) if (m !== m0) { carpet.material = m; renderer.compile(scene, camera); }
   carpet.material = m0; carpet.visible = v0; } catch (e) {} }, 4000);
 
 // which room is the camera in, and can it see the other one through a doorway?
@@ -1011,6 +1026,7 @@ function lavaFallStep(dt) { const f = st.lavaFall; f.t += dt; const k = Math.min
   if (k >= 1) { const p = lavaRespawnPoint(f.x, f.z); monkey.position.set(p.x, 0, p.z); st.vel.set(0, 0, 0); st.lavaFall = null; st.lastRespawn = [p.x, p.z]; return false; }
   return true; }
 let nearCab = null;
+const ICE_SLIP = 3.2;   // m/s (run 5.2, walk 2.4)
 function step(dt) {
   st.t += dt;
   if (st.lavaFall && lavaFallStep(dt)) return;   // LAVA floor: sinking into the lava, then back on the nearest path
@@ -1030,8 +1046,14 @@ function step(dt) {
   const vmax = (run ? 5.2 : 2.4) * mag;
   const tv = tmp.set(wx / n * vmax, 0, wz / n * vmax);
   if (st.jump) st.vel.set(st.jump.vx, 0, st.jump.vz).lerp(tmp.set(tv.x, 0, tv.z), 0.08);   // mid-air: carry the run-up, only a touch of steering
-  else st.vel.lerp(tv, 1 - Math.exp(-dt * 10));
+  else {   // ICE (t260): above ~62% of run speed you lose grip and slide/drift (low friction) until you slow under 1.2 m/s; slow walking stays grippy
+    const onIce = floorMode === 'ice' && !st.seated && play.mode === 'walk' && !(shop && shop.open) && !(tp && tp.locked);
+    if (!onIce) st.iceSlide = false; else { const sp = Math.hypot(st.vel.x, st.vel.z); if (sp > ICE_SLIP) { if (!st.iceSlide) st.iceSlides = (st.iceSlides || 0) + 1; st.iceSlide = true; } else if (sp < 1.2) st.iceSlide = false; }
+    st.vel.lerp(tv, 1 - Math.exp(-dt * (st.iceSlide ? 0.7 : 10)));
+  }
+  const px0 = monkey.position.x, pz0 = monkey.position.z;
   monkey.position.addScaledVector(st.vel, dt); collide(monkey.position);
+  if (st.iceSlide && dt > 0) { st.vel.x = (monkey.position.x - px0) / dt; st.vel.z = (monkey.position.z - pz0) / dt; }   // a wall / cabinet soaks up the slide instead of pinning you against it
   if (st.jump) { const J = st.jump; J.t += dt; J.vx = st.vel.x; J.vz = st.vel.z; const k = Math.min(1, J.t / JUMP_T); monkey.position.y = 4 * JUMP_H * k * (1 - k); st.airMax = Math.max(st.airMax || 0, monkey.position.y);
     if (k >= 1) { monkey.position.y = 0; st.jump = null; st.landT = st.t; st.lands = (st.lands || 0) + 1; thud(); } }
   if (!st.jump && floorMode === 'lava' && !st.seated && !st.lavaFall && play.mode === 'walk' && !(tp && tp.locked) && !(shop && shop.open) && !LAVA.onPath(monkey.position.x, monkey.position.z)) lavaFallStart();
