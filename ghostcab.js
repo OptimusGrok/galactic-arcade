@@ -79,8 +79,8 @@ export function buildGhostCabinet() {
 export function startGhostDemo(cab) {
   const f = document.createElement('iframe'); f.src = 'ghost-demo/index.html'; f.tabIndex = -1; f.setAttribute('aria-hidden', 'true'); f.title = 'ghost demo';
   f.style.cssText = 'position:fixed;left:-700px;top:0;width:304px;height:600px;border:0;pointer-events:none;visibility:hidden';
-  document.body.appendChild(f);
   const d = { ready: false, frames: 0, running: false, err: null, iframe: f };
+  d.attach = () => { if (!f.isConnected) document.body.appendChild(f); };   // t295u: main.js attaches it after the start screen (the iframe's boot froze the phone's first frames)
   const blank = document.createElement('canvas'); blank.width = 4; blank.height = 4; cab.userData.crt.uniforms.map.value = new THREE.CanvasTexture(blank);
   f.addEventListener('load', () => {
     try { const w = f.contentWindow, gh = w.__ghost; if (!gh || !w.__bot) throw new Error('ghost hooks missing');

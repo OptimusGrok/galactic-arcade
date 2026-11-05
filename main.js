@@ -35,7 +35,7 @@ const MOBILE = matchMedia('(pointer:coarse)').matches || /Android|iPhone|iPad/i.
 const Q = MOBILE ? { dpr: 1.5, refl: 0.35, bloom: 0.5 } : { dpr: 2, refl: 0.6, bloom: 0.5 };
 
 // ---------- renderer / scene ----------
-const renderer = new THREE.WebGLRenderer({ antialias: !MOBILE, powerPreference: 'high-performance' }); renderer.localClippingEnabled = true;   // teleporter dissolve
+const renderer = new THREE.WebGLRenderer({ antialias: !MOBILE, powerPreference: 'high-performance' }); renderer.localClippingEnabled = true; if (!/[?&]glcheck/.test(location.search)) renderer.debug.checkShaderErrors = false;   // t295u: no sync getProgramInfoLog per shader (~3.9 s of the start-screen freeze at 4x CPU); ?glcheck turns it back on   // teleporter dissolve
 let dpr = Math.min(devicePixelRatio || 1, Q.dpr);
 renderer.setPixelRatio(dpr);
 renderer.setSize(innerWidth, innerHeight, false);   // CSS (100vw x 100dvh) owns the on-screen size; resize() matches the buffer to it
@@ -648,7 +648,7 @@ try { const f = localStorage.getItem(FLOOR_KEY); if (floorMats[f]) setFloor(f); 
 window.__setFloor = setFloor;   // the start screen's Options menu calls this
 // pre-compile the CHECKERS / LAVA shaders a few seconds after load so the first tap on those tiles doesn't stall the phone
 setTimeout(() => { try { const m0 = carpet.material, v0 = carpet.visible; carpet.visible = true;
-  for (const m of [checkMat, lavaMat, cobbleMat, iceMat]) if (m !== m0) { carpet.material = m; renderer.compile(scene, camera); }
+  for (const m of [checkMat, lavaMat, cobbleMat, iceMat]) if (m !== m0) { carpet.material = m; if (renderer.compileAsync) renderer.compileAsync(scene, camera).catch(() => {}); else renderer.compile(scene, camera); }
   carpet.material = m0; carpet.visible = v0; } catch (e) {} }, 4000);
 
 // which room is the camera in, and can it see the other one through a doorway?
@@ -1178,10 +1178,27 @@ function idlePose(dt, u, sw) {
 
 // ---------- loop + adaptive quality ----------
 const demo = startStrikeDemo(strikeCab), ghostDemo = startGhostDemo(ghostCab), _v = new THREE.Vector3();
+// t295u start-screen freeze: the two attract-demo iframes (strike-demo ~1.8 s pix + ~1.2 s cityDecor at 4x CPU, ghost-demo) booted on the main
+// thread during the start screen's first frames. Load them only once the start screen is gone (or skipped), one per idle slot.
+{ const idle = f => (window.requestIdleCallback ? requestIdleCallback(f, { timeout: 2000 }) : setTimeout(f, 300));
+  const t = setInterval(() => { const S = window.__start; if (!(window.__skipStart || (S && S.dismissed) || !document.getElementById('start'))) return; clearInterval(t);
+    idle(() => { demo.attach(); idle(() => ghostDemo.attach()); }); }, 200); }
 const _frus = new THREE.Frustum(), _pm = new THREE.Matrix4(), _sph = new THREE.Sphere();
 const stats = { frames: 0, cpu: 0, cpuAvg: 0, gapAvg: 16, quality: dpr };
 let last = performance.now(), slow = 0, fast = 0;
 let paused = false, rafOn = true;
+// t295u start-screen freeze: the first room render compiled ~100 shader programs in one frame (getProgramParameter/link stalls,
+// ~8 s at 4x CPU in swiftshader, a visible freeze on a phone). While the opaque start screen is up, the room is not drawn; its shaders are
+// compiled in small slices (one top-level group per idle slot, KHR_parallel_shader_compile when the GPU has it). Play renders either way.
+const warm = { done: !!window.__skipStart || !document.getElementById('start'), n: 0, ms: 0 };
+if (!warm.done) { const idle = f => (window.requestIdleCallback ? requestIdleCallback(f, { timeout: 400 }) : setTimeout(f, 30));
+  const seen = new WeakSet(), list = [], scan = () => { for (const o of scene.children) for (const c of (o.isGroup && o.children.length > 8 ? o.children : [o])) if (!seen.has(c)) { seen.add(c); list.push(c); } };
+  scan(); let rescans = 0;
+  const next = () => { if (warm.done) return; if (!list.length && rescans < 40) { rescans++; scan(); if (!list.length) return setTimeout(next, 250); }   // shop / window scenery arrive later: compile them too
+    const o = list.shift(); if (!o) { warm.done = true; return; } const t = performance.now();
+    (o.visible ? renderer.compileAsync(o, camera, scene) : Promise.resolve()).catch(() => {}).then(() => { warm.n++; warm.ms += performance.now() - t; idle(next); }); };
+  setTimeout(() => idle(next), 300); }
+window.__warm = warm;
 function frame(now) {
   const gap = Math.max(0, Math.min(100, now - last)); last = now;   // rAF time can be a hair before a resume timestamp
   if (paused) { rafOn = false; return; }   // full-screen game running: arcade render loop stopped
@@ -1207,7 +1224,7 @@ function frame(now) {
     ghostCab.userData.glow.intensity = ghostDemo.running ? 1.1 + Math.sin(now * 0.017) * 0.08 : 0.5;
   }
   if (spaceWin) spaceWin.update(now);
-  composer.render();
+  if (warm.done || !document.getElementById('start') || (window.__start && window.__start.dismissed)) composer.render();   // t295u: the opaque start screen hides the room; let its shaders compile in slices first
   const cpu = performance.now() - t0;
   stats.frames++; stats.cpu = cpu; stats.cpuAvg += (cpu - stats.cpuAvg) * 0.05; stats.gapAvg += (gap - stats.gapAvg) * 0.05;
   if (!window.__noAdapt) {

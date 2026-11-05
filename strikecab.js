@@ -213,8 +213,8 @@ export function startStrikeDemo(cab) {
   const f = document.createElement('iframe');
   f.src = 'strike-demo/index.html'; f.title = 'strike demo'; f.tabIndex = -1; f.setAttribute('aria-hidden', 'true');
   f.style.cssText = `position:fixed;left:-${300 * S + 50}px;top:0;width:${270 * S}px;height:${480 * S}px;border:0;pointer-events:none;visibility:hidden`;
-  document.body.appendChild(f);
   const demo = { ready: false, frames: 0, texture: null, running: false, iframe: f, err: null };
+  demo.attach = () => { if (!f.isConnected) document.body.appendChild(f); };   // t295u: main.js attaches it after the start screen (the iframe's boot froze the phone's first frames)
   const blank = document.createElement('canvas'); blank.width = 4; blank.height = 4;
   cab.userData.crt.uniforms.map.value = new THREE.CanvasTexture(blank);
   f.addEventListener('load', () => {
