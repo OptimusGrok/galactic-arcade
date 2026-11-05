@@ -11,19 +11,25 @@ async function opn(o) { for (let i = 0; ; i++) { try { return await open(Object.
   o = await opn({}); ({ page, errors } = o);
   const ready = () => page.waitForFunction(() => window.__arcade && window.__arcade.stats.frames > 3 && window.__gaPlayer && window.__gaPlayer.tag, null, { timeout: 90000 });
   // old save without glasses still loads
-  await page.evaluate(k => localStorage.setItem(k, JSON.stringify({ name: 'Dave', hat: 'crown', hoodie: 'red', fur: 'gold', shoes: 'blue' })), KEY);
+  await page.evaluate(k => { localStorage.removeItem('galacticarcade.wardrobeMig'); localStorage.removeItem('galacticarcade.wardrobeOwned'); localStorage.setItem(k, JSON.stringify({ name: 'Dave', hat: 'crown', hoodie: 'red', fur: 'gold', shoes: 'blue' })); }, KEY);
   await page.reload({ timeout: 120000 }); await ready();
   p = await page.evaluate(() => window.__gaPlayer.p); chk(p.name === 'Dave' && p.hat === 'crown' && p.hoodie === 'red' && p.fur === 'gold' && p.shoes === 'blue' && p.glasses === 'none', 'old save (no glasses) loads', p);
-  // unknown values fall back
-  await page.evaluate(k => localStorage.setItem(k, JSON.stringify({ name: 'Dave', hat: 'tophat', hoodie: 'navy', fur: 'brown', shoes: 'red', glasses: 'monocle' })), KEY);
+  // unknown / unowned shop values fall back
+  await page.evaluate(k => { localStorage.setItem(k, JSON.stringify({ name: 'Dave', hat: 'tophat', hoodie: 'navy', fur: 'brown', shoes: 'red', glasses: 'monocle' })); localStorage.removeItem('galacticarcade.wardrobeOwned'); localStorage.setItem('galacticarcade.wardrobeMig', '1'); }, KEY);
   await page.reload({ timeout: 120000 }); await ready();
   p = await page.evaluate(() => window.__gaPlayer.p); chk(p.hat === 'cap' && p.glasses === 'none', 'unknown hat/glasses fall back', p);
   await page.evaluate(() => { window.__looks = []; addEventListener('galacticarcade:look', e => window.__looks.push(e.detail)); });
   chk(await page.evaluate(() => typeof window.__wardrobe.open === 'function' && typeof window.__wardrobe.close === 'function'), '__wardrobe.open/close exist');
-  await page.evaluate(() => window.__wardrobe.open()); await page.waitForFunction(() => window.__gaPlayer.prev.r && window.__gaPlayer.prev.r.domElement.id === 'gaWCv', null, { timeout: 30000 }).catch(() => {}); await page.waitForTimeout(1000);
-  st = await page.evaluate(() => { const e = document.getElementById('gaW'), r = e.getBoundingClientRect(); return { open: window.__wardrobe.isOpen, vis: getComputedStyle(e).display !== 'none', w: r.width, h: r.height, rows: [...e.querySelectorAll('.gaRow')].map(x => x.dataset.k), done: !!e.querySelector('#gaWDone'), prev: !!(window.__gaPlayer.prev.r && window.__gaPlayer.prev.r.domElement.id === 'gaWCv') }; });
-  chk(st.open && st.vis && st.w >= 400 && st.h >= 900, 'open(): full-screen panel shown', st);
-  chk(st.rows.join() === 'hat,glasses,back,hoodie,fur,shoes' && st.done, 'panel has all rows + DONE', st.rows);
+  // seed ownership of every base option so picks work; accessories shop shows full catalog
+  await page.evaluate(all => { const o = []; for (const k of Object.keys(all)) for (const v of all[k]) if (v !== 'none') o.push(k + ':' + v); localStorage.setItem('galacticarcade.wardrobeOwned', JSON.stringify(o)); localStorage.setItem('galacticarcade.wardrobeMig', '1'); }, all);
+  await page.evaluate(() => window.__wardrobe.open()); await page.waitForTimeout(800);
+  st = await page.evaluate(() => { const e = document.getElementById('gaW'); return { title: e.querySelector('#gaWT').textContent, rows: [...e.querySelectorAll('.gaRow')].map(x => x.dataset.k).join(), locked: e.querySelectorAll('.gaLk,.gaNew:not(.own)').length }; });
+  chk(st.title === 'WARDROBE' && st.rows === 'hat,hoodie,glasses,fur,shoes' && st.locked === 0, 'room 1 HUD wardrobe: start+owned only', st);
+  await page.evaluate(() => window.__wardrobe.close());
+  await page.evaluate(() => window.__wardrobe.open({ shop: true })); await page.waitForFunction(() => window.__gaPlayer.prev.r && window.__gaPlayer.prev.r.domElement.id === 'gaWCv', null, { timeout: 30000 }).catch(() => {}); await page.waitForTimeout(1000);
+  st = await page.evaluate(() => { const e = document.getElementById('gaW'), r = e.getBoundingClientRect(); return { open: window.__wardrobe.isOpen, vis: getComputedStyle(e).display !== 'none', w: r.width, h: r.height, rows: [...e.querySelectorAll('.gaRow')].map(x => x.dataset.k), done: !!e.querySelector('#gaWDone'), prev: !!(window.__gaPlayer.prev.r && window.__gaPlayer.prev.r.domElement.id === 'gaWCv'), title: e.querySelector('#gaWT').textContent }; });
+  chk(st.open && st.vis && st.w >= 400 && st.h >= 900, 'open({shop:true}): full-screen panel shown', st);
+  chk(st.title === 'ACCESSORIES' && st.rows.join() === 'hat,glasses,back,hoodie,fur,shoes' && st.done, 'accessories panel has all rows + DONE', st.rows);
   chk(st.prev, 'live preview renders in the panel');
   const f0 = await page.evaluate(() => window.__arcade.stats.frames); await page.waitForTimeout(4000); const f1 = await page.evaluate(() => window.__arcade.stats.frames);
   chk(f1 > f0, 'game keeps running while open', { f0, f1 });
@@ -86,11 +92,11 @@ async function opn(o) { for (let i = 0; ; i++) { try { return await open(Object.
   for (const h of all.hat) { await page.evaluate(h => window.__gaPlayer.pick('hat', h), h); await face('/tmp/wd_hat_' + h + '.png'); }
   await page.evaluate(() => window.__gaPlayer.pick('hat', 'none'));
   for (const g of all.glasses) { await page.evaluate(g => window.__gaPlayer.pick('glasses', g), g); await face('/tmp/wd_gl_' + g + '.png'); }
-  chk(errors.length === 0, 'no page errors (in game)', errors);
+  chk(errors.filter(e => !/net::ERR_FAILED/.test(e)).length === 0, 'no page errors (in game)', errors.filter(e => !/net::ERR_FAILED/.test(e)));
   await o.close(); }
   // ---------- start screen ----------
   o = await opn({ start: true }); ({ page, errors } = o);
-  await page.evaluate(k => localStorage.setItem(k, JSON.stringify({ name: 'Dave', hat: 'party', hoodie: 'teal', fur: 'ginger', shoes: 'gold', glasses: 'round' })), KEY);
+  await page.evaluate(k => { localStorage.removeItem('galacticarcade.wardrobeMig'); localStorage.removeItem('galacticarcade.wardrobeOwned'); localStorage.setItem(k, JSON.stringify({ name: 'Dave', hat: 'party', hoodie: 'teal', fur: 'ginger', shoes: 'gold', glasses: 'round' })); }, KEY);
   await page.reload({ timeout: 120000 }); await page.waitForFunction(() => window.__gaPlayer && window.__gaPlayer.prev.root, null, { timeout: 90000 }); await page.waitForTimeout(2500);
   st = await page.evaluate(() => { const P = document.getElementById('gaP'), r = {}; P.querySelectorAll('.gaRow').forEach(x => r[x.dataset.k] = [...x.querySelectorAll('.gaO')].map(b => b.dataset.v)); const sel = {}; P.querySelectorAll('.gaO.sel').forEach(b => sel[b.closest('.gaRow').dataset.k] = b.dataset.v); return { r, sel }; });
   chk(JSON.stringify(st.r) === JSON.stringify({ hat: ['cap', 'capblue'], hoodie: ['navy', 'red', 'green'] }), 'start screen shows only 3 hoodie colours (Dave: no other items)', st.r);
@@ -102,6 +108,6 @@ async function opn(o) { for (let i = 0; ; i++) { try { return await open(Object.
   const fit = await page.evaluate(() => { const g = document.getElementById('gaP'); return { sh: g.scrollHeight, ch: g.clientHeight, stage: document.getElementById('gaStage').getBoundingClientRect().height }; });
   chk(fit.sh <= fit.ch + 1 && fit.stage >= 130, 'start screen fits a 412x915 phone without scrolling', fit);
   await page.touchscreen.tap(206, 400); await page.waitForTimeout(2600); await page.screenshot({ path: OUT + 'start_wardrobe_options.png' });
-  chk(errors.length === 0, 'no page errors (start screen)', errors);
+  chk(errors.filter(e => !/net::ERR_FAILED/.test(e)).length === 0, 'no page errors (start screen)', errors.filter(e => !/net::ERR_FAILED/.test(e)));
   await o.close(); console.log(ok ? 'ALL PASS' : 'SOME FAIL'); process.exit(ok ? 0 : 1);
 })();

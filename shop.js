@@ -5,6 +5,7 @@
 // price list of every item opens. Buying spends play.tickets.total (persisted to 'neonarcade.tickets'); prizes -> 'neonarcade.prizes'.
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
+import { Reflector } from 'three/addons/objects/Reflector.js';
 
 let api_sky = null;
 export const SHOP_HALF = 14;
@@ -580,7 +581,7 @@ export function setupShop({ scene, tp, play, monkey, camera, st } = {}) {
   // low shelf of the 8 shoe colourways, full-length mirror, neon WARDROBE sign. ~7 draw calls (merged vertex-colour mesh + neon + glass + mirror + sign).
   // Near it a WARDROBE button opens player.js's in-game wardrobe (window.__wardrobe.open, same panel as the HUD). Collider leaves a 3.3 m lane to the title wall (straight walk to table 2) and 9 m to the pool tables.
   let wdLooks = null;
-  const WDS = 0.8, WDX = 1.6, WDZ = 7.5, WDW = 3.1 * WDS, WDD = 0.85 * WDS;   // scale, back-panel x, centre z, half width (along z), depth (toward -x)
+  const WDS = 1.04, WDX = 1.75, WDZ = 7.5, WDW = 3.1 * WDS, WDD = 0.85 * WDS;   // scale, back-panel x, centre z, half width (along z), depth (toward -x)
   const wd = new THREE.Group(); wd.name = 'wardrobeCorner'; wd.position.set(WDX, 0, WDZ); wd.rotation.y = -Math.PI / 2; wd.scale.setScalar(WDS); G.add(wd);   // local +z faces -x (the pad side), local +x runs toward +z
   { const L = [], neon = [], neonP = [], dark = [], q = (geo, c, x, y, z, sx, sy = sx, sz = sx, rx = 0, ry = 0, rz = 0) => part(L, geo, c, x, y, z, sx, sy, sz, rx, ry, rz);
     const CHR = 0xd6dbe2, WH = 0xffffff;
@@ -648,11 +649,22 @@ export function setupShop({ scene, tp, play, monkey, camera, st } = {}) {
     wd.add(Object.assign(new THREE.Mesh(mergeGeometries(neonP), new THREE.MeshBasicMaterial({ color: 0xc04dff, toneMapped: false })), { name: 'wardrobeNeonPurple' }));
     wd.add(Object.assign(new THREE.Mesh(mergeGeometries(neon), new THREE.MeshBasicMaterial({ color: 0x5ff4ff, toneMapped: false })), { name: 'wardrobeNeon' }));
     const glass = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.025, 0.45).translate(GX, 1.12, 0.3), new THREE.MeshStandardMaterial({ color: 0xcff6ff, transparent: true, opacity: 0.35, roughness: 0.05, metalness: 0.1, emissive: 0x2aa8c0, emissiveIntensity: 0.4 })); glass.name = 'wardrobeGlass'; wd.add(glass);
-    const envT = canvasTex(256, 128, (g, w, h) => { const gr = g.createLinearGradient(0, 0, 0, h); gr.addColorStop(0, '#3a2a7a'); gr.addColorStop(0.35, '#8a7ad8'); gr.addColorStop(0.5, '#f4f6fa'); gr.addColorStop(0.75, '#d8dce4'); gr.addColorStop(1, '#9aa0aa'); g.fillStyle = gr; g.fillRect(0, 0, w, h);
-      for (let i = 0; i < 9; i++) { g.fillStyle = ['#40f0ff', '#c04dff', '#ff4fd8'][i % 3]; g.fillRect(i * 29, 58, 14, 6); } });   // shop-ish surroundings: violet roof, white walls, neon
-    envT.t.mapping = THREE.EquirectangularReflectionMapping;
-    const mir = new THREE.Mesh(new THREE.PlaneGeometry(0.62, 1.9), new THREE.MeshStandardMaterial({ color: 0xa8c4d4, metalness: 1, roughness: 0.06, envMap: envT.t, envMapIntensity: 1.25, emissive: 0x0c1824 }));
+    /* Dave: live planar mirror (Reflector), phone-cheap: 384x512, every other frame, only when player within ~6 m and facing */
+    const mir = new Reflector(new THREE.PlaneGeometry(0.62, 1.9), { textureWidth: 384, textureHeight: 512, color: 0xa8c4d4, multisample: 0 });
     mir.position.set(MXm, 1.05, 0.155); mir.name = 'wardrobeMirror'; wd.add(mir);
+    const _mirObr = mir.onBeforeRender, _mirPos = new THREE.Vector3(), _camPos = new THREE.Vector3(), _mirN = new THREE.Vector3(), _toCam = new THREE.Vector3();
+    let mirFlip = 0, mirMs = 0, mirRenders = 0, mirLast = 0;
+    mir.onBeforeRender = function (renderer, scene, camera) {
+      mir.getWorldPosition(_mirPos); camera.getWorldPosition(_camPos);
+      if (_mirPos.distanceToSquared(_camPos) > 36) return;   /* 6 m */
+      mir.getWorldDirection(_mirN);
+      if (_mirN.dot(_toCam.copy(_camPos).sub(_mirPos).normalize()) < 0.12) return;   /* facing away / edge-on */
+      if ((++mirFlip & 1) === 0) return;
+      const t0 = performance.now();
+      _mirObr.call(this, renderer, scene, camera);
+      mirLast = mirMs = performance.now() - t0; mirRenders++;
+    };
+    wd.userData.mirrorStats = { get ms() { return mirMs; }, get last() { return mirLast; }, get renders() { return mirRenders; }, mesh: mir };
     const sgT = canvasTex(512, 128, (g, w, h) => { g.clearRect(0, 0, w, h); g.font = '900 54px "Arial Black", Impact, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
       const gr = g.createLinearGradient(40, 0, w - 40, 0); ['#00e5ff', '#7a5cff', '#ff4fd8', '#ffb020'].forEach((c, i) => gr.addColorStop(i / 3, c));
       g.shadowColor = '#ff4fd8'; g.shadowBlur = 26; g.lineWidth = 12; g.strokeStyle = gr; g.strokeText('ACCESSORIES', w / 2, h / 2); g.shadowColor = '#00e5ff'; g.shadowBlur = 12; g.lineWidth = 5; g.strokeText('ACCESSORIES', w / 2, h / 2); g.shadowBlur = 0; g.lineWidth = 2; g.strokeStyle = '#ffffff'; g.strokeText('ACCESSORIES', w / 2, h / 2); });
@@ -806,11 +818,11 @@ export function setupShop({ scene, tp, play, monkey, camera, st } = {}) {
   document.head.appendChild(wdCss);
   const wardBtn = document.createElement('button'); wardBtn.id = 'wardBtn'; wardBtn.textContent = '👕 ACCESSORIES'; document.body.appendChild(wardBtn);
   const wardApi = { near: false, opens: 0, x: WDX, z: WDZ, w: WDW, d: WDD };
-  const wardOpen = () => { const w = window.__wardrobe; if (!w || typeof w.open !== 'function' || w.isOpen) return false; clearKeys(); wardBtn.classList.remove('on'); if (api.open) closeShop(); wardApi.opens++; return w.open(); };
+  const wardOpen = () => { const w = window.__wardrobe; if (!w || typeof w.open !== 'function' || w.isOpen) return false; clearKeys(); wardBtn.classList.remove('on'); if (api.open) closeShop(); wardApi.opens++; return w.open({ shop: true }); };
   wardBtn.addEventListener('pointerdown', stop); wardBtn.addEventListener('touchstart', stop, { passive: true });
   wardBtn.addEventListener('pointerup', e => { e.stopPropagation(); wardOpen(); }); wardBtn.addEventListener('click', e => { e.stopPropagation(); wardOpen(); });
   addEventListener('keydown', e => { if (wardApi.near && (e.code === 'KeyE' || e.code === 'Enter') && wardBtn.classList.contains('on')) { wardOpen(); e.preventDefault(); e.stopImmediatePropagation(); } }, true);
-  Object.assign(wardApi, { open: wardOpen, btn: wardBtn, looks: wdLooks }); api.wardrobe = wardApi; api.wardrobeLooks = wdLooks;
+  Object.assign(wardApi, { open: wardOpen, btn: wardBtn, looks: wdLooks, mirror: wd.userData.mirrorStats }); api.wardrobe = wardApi; api.wardrobeLooks = wdLooks;
   // prizes row in the existing INVENTORY panel (inventory.js), injected only while it is open
   const inv = document.getElementById('inv');
   if (inv) new MutationObserver(() => { if (!inv.classList.contains('on')) return; const P = document.getElementById('invP'); if (!P) return; let r = document.getElementById('invPz');
@@ -908,7 +920,7 @@ export function setupShop({ scene, tp, play, monkey, camera, st } = {}) {
       poolBtns.forEach((b, i) => b.classList.toggle('on', poolApi.near && i === w)); }
     { const lx = m.position.x - WXp, lz = m.position.z, wo = window.__wardrobe && window.__wardrobe.isOpen;   // wardrobe corner: within 1.4 m of its front
       const dx = Math.max(0, (WDX - WDD) - lx, lx - (WDX + 0.08)), dz = Math.max(0, Math.abs(lz - WDZ) - WDW); wardApi.dist = Math.hypot(dx, dz);   // any side of the island (was front only: lx > WDX gave 9)
-      wardApi.near = !busy && !wo && !poolApi.open && !api.open && !poolApi.near && wardApi.dist < 1.4; wardBtn.classList.toggle('on', wardApi.near); }
+      wardApi.near = !busy && !wo && !poolApi.open && !api.open && !poolApi.near && wardApi.dist < 1.55; wardBtn.classList.toggle('on', wardApi.near); }
     // Grok idle: gentle bob + sway, head turns toward the player, blinks, mouth moves while talking
     grok.position.y = Math.sin(t * 1.6) * 0.015; grok.rotation.z = Math.sin(t * 0.9) * 0.02;
     grok.getWorldPosition(tmp); const want = Math.atan2(m.position.x - tmp.x, m.position.z - tmp.z) - grok.rotation.y - 0 ;

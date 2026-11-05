@@ -18,16 +18,24 @@
     glasses: [['monocle', '🧐'], ['heart', '💗'], ['star', '⭐'], ['3d', '<b style="font:900 13px Arial"><span style="color:#ff3030">3</span><span style="color:#30c8ff">D</span></b>'], ['mustache', '🥸'], ['mask', '🥷']],
     back: [['jetpack', '🚀'], ['cape', '🦸'], ['wings', '🪽'], ['batwings', '🦇']],
     hoodie: [['galaxy', 0x2a1470, 0x160a40], ['lime', 0x86e02a, 0x4a8a10], ['maroon', 0x6e1430, 0x3c0818], ['sky', 0x6cc8ff, 0x2a7ab8]] };
-  var PRICE = { hat: 15, glasses: 10, back: 30, hoodie: 10 }, OKEY = 'galacticarcade.wardrobeOwned';
+  var PRICE = { hat: 5, glasses: 5, back: 5, hoodie: 5 }, OKEY = 'galacticarcade.wardrobeOwned', MIGKEY = 'galacticarcade.wardrobeMig';
   var BASE = { hat: HATS, glasses: GLAS, hoodie: HOOD, fur: FUR, shoes: SHOE }, OPTS = {};
   var START = { hat: [HATS[0], HATS[1]], hoodie: [HOOD[0], HOOD[1], HOOD[3]] };   // + Dave: red (pink 'cap') or blue cap   // t: Dave "start screen only 3 hoodie colours, no other items" (navy default, red, green)
+  var START_IDS = {}; for (var sk in START) { START_IDS[sk] = {}; START[sk].forEach(function (a) { START_IDS[sk][a[0]] = 1; }); }
   for (var bk in BASE) OPTS[bk] = BASE[bk].concat(NEW[bk] || []); OPTS.back = BACK.concat(NEW.back);
   var HATS_ALL = OPTS.hat, GLAS_ALL = OPTS.glasses, HOOD_ALL = OPTS.hoodie;
   function isNew(k, v) { return !!(NEW[k] && NEW[k].some(function (a) { return a[0] === v; })); }
+  function isStart(k, v) { return !!(START_IDS[k] && START_IDS[k][v]); }
+  function isFree(k, v) { return v === 'none' || isStart(k, v); }
+  function priceOf(k, v) { if (isFree(k, v)) return 0; if (isNew(k, v)) return PRICE[k]; return 1; }   /* Dave: start opts free; NEW items 5 each; other base items 1 ticket */
   function owned() { try { var a = JSON.parse(localStorage.getItem(OKEY) || '[]'); return Array.isArray(a) ? a : []; } catch (e) { return []; } }
-  function has(k, v) { return !isNew(k, v) || owned().indexOf(k + ':' + v) >= 0; }
+  function has(k, v) { return isFree(k, v) || owned().indexOf(k + ':' + v) >= 0; }
+  function migrateOwned(d) { try { var o = owned(), ch = 0, add = function (k, v) { if (!v || isFree(k, v)) return; var id = k + ':' + v; if (o.indexOf(id) < 0) { o.push(id); ch = 1; } };
+    if (localStorage.getItem(MIGKEY) !== '1') { ['hat', 'hoodie', 'fur', 'shoes', 'glasses', 'back'].forEach(function (k) { add(k, d[k]); }); localStorage.setItem(MIGKEY, '1'); ch = 1; }
+    add('fur', 'brown'); add('shoes', 'red');   /* base monkey always owned */
+    if (ch) localStorage.setItem(OKEY, JSON.stringify(o)); } catch (e) {} }
   function load() { var d = { name: '', hat: 'cap', hoodie: 'navy', fur: 'brown', shoes: 'red', glasses: 'none', back: 'none' }; try { var o = JSON.parse(localStorage.getItem(KEY) || '{}'); for (var k in d) if (typeof o[k] === 'string') d[k] = o[k]; } catch (e) {}
-    for (var k2 in OPTS) if (!OPTS[k2].some(function (a) { return a[0] === d[k2]; }) || !has(k2, d[k2])) d[k2] = OPTS[k2][0][0]; d.name = clean(d.name); return d; }
+    migrateOwned(d); for (var k2 in OPTS) if (!OPTS[k2].some(function (a) { return a[0] === d[k2]; }) || !has(k2, d[k2])) d[k2] = OPTS[k2][0][0]; d.name = clean(d.name); return d; }
   function clean(s) { return String(s || '').replace(/[\u0000-\u001f<>]/g, '').slice(0, MAXN); }
   var P = load();
   // first paint: hide Arcade's start art/buttons before the body is even parsed, and give #start our starry backdrop
@@ -298,13 +306,18 @@
     + '#gaWBuyB{font:900 16px "Arial Black",Arial;padding:9px 16px;border-radius:10px;border:2px solid #ffd98a;background:#3a1a00;color:#ffe9a8;cursor:pointer}#gaWBuyB:disabled{opacity:.55;border-color:#888;color:#bbb;background:#222;cursor:default}'
     + '@media (max-height:640px){#gaT{font-size:clamp(24px,7vw,40px);margin-top:18px}.gaRow{padding:3px 4px}.gaO{height:32px}#gaNm{padding:5px 10px}}';
   var ov = null, stHat = false;   // start screen: cap picked this visit?
-  function row(k, label, shop) { var h = '<div class="gaRow" data-k="' + k + '"><button class="gaA" data-step="-1" aria-label="previous">‹</button><span>' + label + '</span><div class="gaCh">';
-    (shop ? OPTS : START)[k].forEach(function (o) { var ic = typeof o[1] === 'string', face = ic ? o[1] : ''; var bg = ic ? '' : 'background:#' + ('00000' + o[1].toString(16)).slice(-6) + ';';
-      if (shop && isNew(k, o[0])) face += '<i class="gaLk">🔒' + PRICE[k] + '</i>';
+  function row(k, label, shop, list) { var h = '<div class="gaRow" data-k="' + k + '"><button class="gaA" data-step="-1" aria-label="previous">‹</button><span>' + label + '</span><div class="gaCh">';
+    (list || (shop ? OPTS : START)[k]).forEach(function (o) { var ic = typeof o[1] === 'string', face = ic ? o[1] : ''; var bg = ic ? '' : 'background:#' + ('00000' + o[1].toString(16)).slice(-6) + ';';
+      var need = shop && priceOf(k, o[0]) > 0; if (need) face += '<i class="gaLk">🔒' + priceOf(k, o[0]) + '</i>';
       if (k === 'shoes') bg = 'background:linear-gradient(135deg,#' + ('00000' + o[1].toString(16)).slice(-6) + ' 55%,#' + ('00000' + o[2].toString(16)).slice(-6) + ' 55%);';
-      h += '<button class="gaO' + (shop && isNew(k, o[0]) ? ' gaNew' : '') + '" data-v="' + o[0] + '" title="' + o[0] + '" style="' + bg + '">' + face + '</button>'; });
+      h += '<button class="gaO' + (need ? ' gaNew' : '') + '" data-v="' + o[0] + '" title="' + o[0] + '" style="' + bg + '">' + face + '</button>'; });
     return h + '</div><button class="gaA" data-step="1" aria-label="next">›</button></div>'; }
   function rows(shop) { if (!shop) return row('hat', 'HAT') + row('hoodie', 'HOODIE COLOUR'); return row('hat', 'HAT', shop) + row('glasses', shop ? 'GLASSES & FACE' : 'GLASSES', shop) + (shop ? row('back', 'BACK', shop) : '') + row('hoodie', 'HOODIE COLOUR', shop) + row('fur', 'FUR COLOUR', shop) + row('shoes', 'SHOES', shop); }
+  function rowsLimited() { /* room 1 WARDROBE HUD: start opts + owned only, no locked/for-sale */ var h = '', add = function (k, label) {
+      var L; if (k === 'hat' || k === 'hoodie') L = OPTS[k].filter(function (o) { return isStart(k, o[0]) || (o[0] !== 'none' && has(k, o[0])); });
+      else { L = OPTS[k].filter(function (o) { return has(k, o[0]); }); if (!L.some(function (o) { return o[0] !== 'none'; })) return; }
+      h += row(k, label, false, L); };
+    add('hat', 'HAT'); add('hoodie', 'HOODIE COLOUR'); add('glasses', 'GLASSES & FACE'); add('back', 'BACK'); add('fur', 'FUR COLOUR'); add('shoes', 'SHOES'); return h; }
   function addCss() { if (document.getElementById('gaCss')) return; var sty = document.createElement('style'); sty.id = 'gaCss'; sty.textContent = css; document.head.appendChild(sty); }
   function build() { var st = document.getElementById('start'); if (!st || ov) return; addCss();
     ov = document.createElement('div'); ov.id = 'gaP';
@@ -335,7 +348,7 @@
     try { window.dispatchEvent(new CustomEvent('galacticarcade:look', { detail: look() })); } catch (e) {} }
 
   // ---------- in-game wardrobe (window.__wardrobe.open/close): same rows, live turntable, applies + saves at once ----------
-  var W = { el: null, open: false, opens: 0, try: null, buys: 0 };
+  var W = { el: null, open: false, opens: 0, try: null, buys: 0, shop: false };
   // ---------- tickets (Arcade's 'neonarcade.tickets'; same spend as shop.js: play.tickets.total + storage + the #tixN HUD chip) ----------
   function tk() { var A = window.__arcade; return (A && A.play && A.play.tickets) || null; }
   function balance() { var t = tk(); if (t) return t.total; return parseInt(localStorage.getItem('neonarcade.tickets'), 10) || 0; }
@@ -343,22 +356,27 @@
     var el = document.getElementById('tixN'); if (el) el.textContent = String(b - n); try { var A = window.__arcade; if (A.play.refresh) A.play.refresh(); } catch (e) {} return true; }
   function nameOf(v) { return ({ tophat: 'TOP HAT', wizard: 'WIZARD HAT', viking: 'VIKING HELMET', chef: 'CHEF HAT', bunny: 'BUNNY EARS', propeller: 'PROPELLER CAP', monocle: 'MONOCLE', heart: 'HEART GLASSES', star: 'STAR GLASSES', '3d': '3D GLASSES', mustache: 'MUSTACHE', mask: 'NINJA MASK', jetpack: 'JETPACK', cape: 'HERO CAPE', wings: 'ANGEL WINGS', batwings: 'BAT WINGS' })[v] || (v.toUpperCase() + ' HOODIE'); }
   function tryOn(k, v) { W.try = { k: k, v: v }; prev.hat = null; buyUI(); sync(); }
-  function buyUI() { if (!W.el) return; var bx = W.el.querySelector('#gaWBuy'); if (!W.try) { bx.hidden = true; apply(); return; } var p = PRICE[W.try.k], b = balance(), btn = W.el.querySelector('#gaWBuyB');
+  function buyUI() { if (!W.el) return; var bx = W.el.querySelector('#gaWBuy'); if (!W.try) { bx.hidden = true; apply(); return; } var p = priceOf(W.try.k, W.try.v), b = balance(), btn = W.el.querySelector('#gaWBuyB');
     bx.hidden = false; W.el.querySelector('#gaWBuyT').textContent = nameOf(W.try.v) + ' · 🎟 ' + b; btn.disabled = b < p; btn.textContent = b < p ? 'Need ' + p + ' tickets' : 'BUY ' + p + ' 🎟'; }
-  function buy() { var t = W.try; if (!t) return false; var p = PRICE[t.k]; if (!spend(p)) { buyUI(); return false; } var o = owned(); if (o.indexOf(t.k + ':' + t.v) < 0) o.push(t.k + ':' + t.v);
+  function buy() { var t = W.try; if (!t) return false; var p = priceOf(t.k, t.v); if (!spend(p)) { buyUI(); return false; } var o = owned(); if (o.indexOf(t.k + ':' + t.v) < 0) o.push(t.k + ':' + t.v);
     try { localStorage.setItem(OKEY, JSON.stringify(o)); } catch (e) {} W.buys++; W.try = null; buyUI(); pick(t.k, t.v); return true; }
   function wBuild() { if (W.el) return; addCss(); var d = W.el = document.createElement('div'); d.id = 'gaW'; d.hidden = true; d.setAttribute('role', 'dialog'); d.setAttribute('aria-label', 'Wardrobe');
     d.innerHTML = '<div id="gaWT">WARDROBE</div><button id="gaWX" aria-label="close">✕</button>'
       + '<div id="gaWStage"><canvas id="gaWCv"></canvas><button class="gaAr" id="gaWL" aria-label="rotate left">‹</button><button class="gaAr" id="gaWR" aria-label="rotate right">›</button></div>'
-      + '<div class="gaBox">' + rows(1) + '</div><div id="gaWBuy" hidden><span id="gaWBuyT"></span><button id="gaWBuyB"></button></div><button id="gaWDone">DONE</button>';
+      + '<div class="gaBox" id="gaWBox"></div><div id="gaWBuy" hidden><span id="gaWBuyT"></span><button id="gaWBuyB"></button></div><button id="gaWDone">DONE</button>';
     (document.body || document.documentElement).appendChild(d); }
-  function wOpen() { var A = window.__arcade; wBuild(); if (!W.el.isConnected) document.body.appendChild(W.el); W.el.hidden = false; W.el.classList.toggle('gaSt', onStart()); W.open = true; W.at = performance.now(); W.opens++; prev.auto = true; TP.gone = false; if (TP.st === 'out') { TP.st = 'idle'; TP.cb = null; } W.try = null; buyUI();
+  function wFill() { if (!W.el) return; W.el.querySelector('#gaWBox').innerHTML = W.shop ? rows(1) : rowsLimited(); W.el.querySelector('#gaWT').textContent = W.shop ? 'ACCESSORIES' : 'WARDROBE'; }
+  function wOpen(opts) { var A = window.__arcade; W.shop = !!(opts && opts.shop); wBuild(); wFill(); if (!W.el.isConnected) document.body.appendChild(W.el); W.el.hidden = false; W.el.classList.toggle('gaSt', onStart()); W.open = true; W.at = performance.now(); W.opens++; prev.auto = true; TP.gone = false; if (TP.st === 'out') { TP.st = 'idle'; TP.cb = null; } W.try = null; buyUI();
     if (A && A.monkey && A.THREE) { apply(); buildScene(); } sync(true); if (!prev.raf) frame(); return true; }
   function wClose() { if (!W.el || !W.open) return false; W.open = false; W.el.hidden = true; prev.drag = null; if (W.try) { W.try = null; apply(); prev.hat = null; }
     if (prev.r && prev.r.domElement.id === 'gaWCv') freeR();   // free the 2nd WebGL context for the game
     return true; }
   window.__wardrobe = { open: wOpen, close: wClose, applyRemote: function (root, lk) { dress(root, lk); }, get isOpen() { return W.open; }, get el() { return W.el; } };
-  function step(k, d, shop) { var L = (shop && !onStart() ? OPTS : shop ? BASE : START)[k].filter(function (a) { return has(k, a[0]); }), i = 0; for (var j = 0; j < L.length; j++) if (L[j][0] === P[k]) i = j; pick(k, L[(i + d + L.length) % L.length][0]); }
+  function step(k, d, shop) { var L; if (W.open && !W.shop) L = OPTS[k].filter(function (a) { return isStart(k, a[0]) || has(k, a[0]); });
+    else if (shop && !onStart()) L = OPTS[k].filter(function (a) { return has(k, a[0]); });
+    else if (shop) L = BASE[k].filter(function (a) { return has(k, a[0]); });
+    else L = START[k].filter(function (a) { return has(k, a[0]); });
+    var i = 0; for (var j = 0; j < L.length; j++) if (L[j][0] === P[k]) i = j; pick(k, L[(i + d + L.length) % L.length][0]); }
   function play(fast) { if (!named() || !goOK() || TP.st === 'out' || nmFree !== clean(P.name).trim().toLowerCase()) return; if (window.__gaNames) window.__gaNames.claim(P.name); musicStop(); P.name = clean(P.name).trim(); save(); apply(); var inp = document.getElementById('gaIn'); if (inp) inp.blur();
     var cv = ov && ov.querySelector('#gaCv'); if (prev.r && cv && prev.r.domElement === cv && cv.clientWidth && !fast && !window.__gaNoTp) { var done = 0, fin = function () { if (done++) return; TP.gone = true; go2(); }; tpStart('out', fin); setTimeout(function () { if (!done) { TP.st = 'idle'; TP.cb = null; fin(); } }, 2600); return; } go2(); }
   function go2() { var b = document.getElementById('stStart'); if (!b) return; if (!stHat && P.hat !== 'none') { P.hat = 'none'; save(); apply(); } /* Dave: no cap picked = start hatless */ var ev; try { ev = new PointerEvent('pointerup', { bubbles: true, cancelable: true, pointerType: 'touch' }); } catch (e) { ev = new Event('pointerup', { bubbles: true, cancelable: true }); }
@@ -428,8 +446,9 @@
     else if (t.closest('#gaWDone') || t.closest('#gaWX')) wClose();
     else if (t.closest('#gaWL')) { prev.auto = false; prev.want -= Math.PI / 4; }
     else if (t.closest('#gaWR')) { prev.auto = false; prev.want += Math.PI / 4; }
-    else if ((b = t.closest('.gaO'))) { var k = b.closest('.gaRow').dataset.k; if (has(k, b.dataset.v)) pick(k, b.dataset.v); else tryOn(k, b.dataset.v); }
-    else if ((b = t.closest('.gaA'))) step(b.closest('.gaRow').dataset.k, +b.dataset.step, 1); }
+    else if ((b = t.closest('.gaO'))) { var k = b.closest('.gaRow').dataset.k; if (!W.shop && k === 'hat' && isStart('hat', b.dataset.v)) { var off = P.hat === b.dataset.v; prev.hat = null; pick('hat', off ? 'none' : b.dataset.v); }
+      else if (has(k, b.dataset.v)) pick(k, b.dataset.v); else tryOn(k, b.dataset.v); }
+    else if ((b = t.closest('.gaA'))) step(b.closest('.gaRow').dataset.k, +b.dataset.step, W.shop); }
   EV.forEach(function (ty) { window.addEventListener(ty, grab, { capture: true, passive: false }); });
   window.addEventListener('pointermove', function (e) { if (prev.drag) { prev.want = prev.drag.r + (e.clientX - prev.drag.x) * 0.012; } });
   window.addEventListener('pointercancel', function () { prev.drag = null; });
@@ -439,5 +458,5 @@
     var wrap = setInterval(function () { var U = window.__startUI; if (!U || !U.show || U.show.ga) return; clearInterval(wrap); var o = U.show; U.show = function () { untouch(); stHat = false; TP.seen = false; TP.st = 'idle'; TP.cb = null; var r = o.apply(this, arguments); tickets(); sync(); return r; }; U.show.ga = 1; }, 200); }
   var booted = false; function boot1() { if (booted) return; booted = true; boot(); }
   if (document.readyState === 'loading') { var mo = new MutationObserver(function () { if (document.getElementById('start')) { mo.disconnect(); boot1(); } }); mo.observe(document.documentElement, { childList: true, subtree: true }); document.addEventListener('DOMContentLoaded', boot1); } else boot1();   // build ours the moment #start is parsed
-  window.__gaPlayer = { KEY: KEY, get p() { return P; }, pick: pick, play: play, apply: apply, opts: BASE, allOpts: OPTS, get tag() { return tag; }, get prev() { return prev; }, music: MU, dress: dress, look: look, glasses: GLAS, wardrobe: W, tp: TP, NEW: NEW, PRICE: PRICE, owned: owned, has: has, buy: buy, tryOn: tryOn, balance: balance };
+  window.__gaPlayer = { KEY: KEY, get p() { return P; }, pick: pick, play: play, apply: apply, opts: BASE, allOpts: OPTS, priceOf: priceOf, isStart: isStart, isFree: isFree, get tag() { return tag; }, get prev() { return prev; }, music: MU, dress: dress, look: look, glasses: GLAS, wardrobe: W, tp: TP, NEW: NEW, PRICE: PRICE, owned: owned, has: has, buy: buy, tryOn: tryOn, balance: balance };
 })();
