@@ -15,6 +15,10 @@
     '.invR canvas{width:56px;height:28px;flex:none}.invR .l{flex:1;letter-spacing:.1em;color:#ffe9b0;font-size:13px}.invR .n{font:900 24px "Courier New",monospace;color:#ffe08a;text-shadow:0 0 8px #ffb000}' +
     '#invV{border-color:#b8c4d488;background:#12161ccc}#invV .n{color:#e8eef8;text-shadow:0 0 8px #9fb4d0}#invV .l{color:#dfe6f0}' +
     '#invC{border-color:#3cff7a88;background:#04180ccc}#invC .n{color:#9dffb5;text-shadow:0 0 8px #3cff7a}#invC .l{color:#c8ffd6}#invC small{display:block;font-size:11px;color:#7fdc98;letter-spacing:.06em;margin-top:3px}' +
+    '#invP{max-height:calc(100dvh - 20px);overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;touch-action:pan-y;box-sizing:border-box}#invP.noShop #invPz{display:none}' +
+    '#invMy{display:block;border-color:#ff3cf088;background:#1a0420cc}#invMy .pzH{display:flex;justify-content:space-between;align-items:baseline;letter-spacing:.12em;color:#ffd0fa;font-size:13px}#invMy .pzH small{font-size:10px;color:#d79ad0;letter-spacing:.04em}' +
+    '#invMyL{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}.myC{display:flex;align-items:center;gap:6px;padding:5px 8px 5px 5px;border-radius:10px;border:2px solid var(--c,#ff3cf0aa);background:#0d0212;font:700 11px "Courier New",monospace;color:#fff;max-width:100%}' +
+    '.myC i{font-style:normal;font-size:20px;width:28px;height:28px;line-height:28px;text-align:center;border-radius:8px;background:var(--c,#ff3cf0)33;flex:none}.myC b{color:#ffe08a}.myE{color:#d7b8e0;font-size:12px;margin-top:6px;letter-spacing:.06em}' +
     '.invCoin{width:28px!important;height:28px!important;border-radius:50%;background:radial-gradient(#9dffb5,#1d8f45);color:#04180c;font:900 17px/28px sans-serif;text-align:center;flex:none}';
   document.head.appendChild(st);
   // original icon: black backpack, grey cartoon monkey face on the front pocket (big white eyes), (side ear removed)
@@ -38,7 +42,7 @@
   inv.innerHTML = '<div id="invP"><div id="invHd"><b><canvas id="invIco"></canvas>INVENTORY</b><button id="invX" title="Close">\u2715</button></div>' +
     '<div class="invR" id="invG"><canvas></canvas><div class="l">GOLD TICKETS</div><div class="n" id="invGn">0</div></div>' +
     '<div class="invR" id="invV"><canvas></canvas><div class="l">VIKING TICKETS</div><div class="n" id="invVn">0</div></div>' +
-    '<div class="invR" id="invC"><div class="invCoin">$</div><div class="l">CASH<small id="invCr"></small></div><div class="n" id="invCn">$0</div></div></div>';
+    '<div class="invR" id="invC"><div class="invCoin">$</div><div class="l">CASH<small id="invCr"></small></div><div class="n" id="invCn">$0</div></div><div class="invR" id="invMy"></div></div>';
   document.body.appendChild(b); document.body.appendChild(inv);
   drawPack(document.getElementById('invIco'), 34);
   try { TicketArt.toCanvas(document.querySelector('#invG canvas'), 56, false); } catch (e) {}
@@ -51,7 +55,28 @@
     if (k && v.cash < 5) { var left = Math.max(0, k.C.at + 36e5 - now); v.refill = '+$' + (5 - v.cash) + ' in ' + Math.max(0, Math.floor((left - 1) / 6e4)) + 'm'; }
     return v; }
   function fill() { var v = vals(); I.vals = v; document.getElementById('invGn').textContent = v.gold; document.getElementById('invVn').textContent = v.viking; document.getElementById('invV').style.display = v.viking > 0 ? '' : 'none';   // Viking row only once one is won
-    document.getElementById('invCn').textContent = '$' + v.cash; document.getElementById('invCr').textContent = v.refill; vikArt(); }
+    document.getElementById('invCn').textContent = '$' + v.cash; document.getElementById('invCr').textContent = v.refill; vikArt(); try { fillMy(); } catch (e) {} }
+  // t284u PRIZES: GROK SHOP prizes are drawn by shop.js itself (#invPz, tap to hold); this adds the rest, read from their own sources of truth:
+  // wardrobe items bought (player.js owned(), 'galacticarcade.wardrobeOwned'; free start items + the base brown fur / red shoes excluded) and
+  // plushes WON in the claw machine ('arcade_clawMachine.collection'). Display-only. 'No prizes yet' when there is nothing at all.
+  var WN = { tophat: 'TOP HAT', wizard: 'WIZARD HAT', viking: 'VIKING HELMET', chef: 'CHEF HAT', bunny: 'BUNNY EARS', propeller: 'PROPELLER CAP', monocle: 'MONOCLE', heart: 'HEART GLASSES', star: 'STAR GLASSES', '3d': '3D GLASSES', mustache: 'MUSTACHE', mask: 'NINJA MASK', jetpack: 'JETPACK', cape: 'HERO CAPE', wings: 'ANGEL WINGS', batwings: 'BAT WINGS' };
+  var WE = { hat: '\uD83C\uDFA9', glasses: '\uD83D\uDD76\uFE0F', back: '\uD83C\uDF92', hoodie: '\uD83E\uDDE5', fur: '\uD83D\uDC12', shoes: '\uD83D\uDC5F' }, WC = { hat: '#ffb020', glasses: '#3dd6ff', back: '#3dff9a', hoodie: '#ff3cf0', fur: '#c08a5a', shoes: '#ff5a5a' };
+  var CLAW = { bear: ['TEDDY BEAR', '\uD83E\uDDF8', '#b8c4d6'], bunny: ['BUNNY', '\uD83D\uDC30', '#b8c4d6'], duck: ['DUCKY', '\uD83E\uDD86', '#b8c4d6'], frog: ['FROG', '\uD83D\uDC38', '#b8c4d6'], cat: ['KITTY', '\uD83D\uDC31', '#3dff9a'], octopus: ['OCTOPUS', '\uD83D\uDC19', '#3dff9a'],
+    penguin: ['PENGUIN', '\uD83D\uDC27', '#3dd6ff'], alien: ['ALIEN', '\uD83D\uDC7D', '#3dd6ff'], monkey: ['MONKEY', '\uD83D\uDC35', '#ffb020'], grok: ['GROK', '\uD83E\uDD16', '#ffb020'] };
+  function J(k, d) { try { return JSON.parse(localStorage.getItem(k)) || d; } catch (e) { return d; } }
+  function myPrizes() { var out = [], gp = window.__gaPlayer, o = gp && gp.owned ? gp.owned() : J('galacticarcade.wardrobeOwned', []);
+    (Array.isArray(o) ? o : []).forEach(function (id) { var i = String(id).indexOf(':'), k = id.slice(0, i), v = id.slice(i + 1); if (!v || v === 'none' || id === 'fur:brown' || id === 'shoes:red') return;
+      if (gp && gp.isFree && gp.isFree(k, v)) return; out.push({ src: 'wardrobe', id: id, name: WN[v] || (v.toUpperCase() + (k === 'hoodie' ? ' HOODIE' : k === 'fur' ? ' FUR' : k === 'shoes' ? ' SHOES' : '')), ic: WE[k] || '\u2728', c: WC[k], n: 1 }); });
+    var cl = J('arcade_clawMachine.collection', {}); Object.keys(CLAW).forEach(function (k) { var n = cl[k] | 0; if (n > 0) out.push({ src: 'claw', id: 'claw:' + k, name: CLAW[k][0] + ' PLUSH', ic: CLAW[k][1], c: CLAW[k][2], n: n }); });
+    return out; }
+  function shopCount() { var p = J('neonarcade.prizes', {}), n = 0; for (var k in p) if ((p[k] | 0) > 0) n++; return n; }
+  function fillMy() { var P = document.getElementById('invP'), el = document.getElementById('invMy'); if (!P || !el) return; if (P.lastElementChild !== el) P.appendChild(el);   // after shop.js's #invPz
+    var L = myPrizes(), sc = shopCount(); P.classList.toggle('noShop', !sc); I.prizes = { shop: sc, mine: L.map(function (x) { return x.id + (x.n > 1 ? 'x' + x.n : ''); }) };
+    var key = sc + '|' + I.prizes.mine.join(); if (el.dataset.k === key) return; el.dataset.k = key; var esc = function (t) { return String(t).replace(/[&<>"]/g, function (c) { return '&#' + c.charCodeAt(0) + ';'; }); };
+    if (!L.length) { el.style.display = sc ? 'none' : ''; el.innerHTML = '<div class="pzH"><span>PRIZES</span></div><div class="myE">No prizes yet</div>'; return; }
+    el.style.display = ''; el.innerHTML = '<div class="pzH"><span>' + (sc ? 'MORE PRIZES' : 'PRIZES') + '</span><small>wardrobe buys \u00B7 claw wins</small></div><div id="invMyL">' +
+      L.map(function (x) { return '<span class="myC" data-my="' + esc(x.id) + '" style="--c:' + (x.c || '#ff3cf0') + '"><i>' + x.ic + '</i>' + esc(x.name) + (x.n > 1 ? ' <b>\u00D7' + x.n + '</b>' : '') + '</span>'; }).join('') + '</div>'; }
+  I.fillMy = fillMy;
   function canShow() { var a = A(), p = a.play, s = window.__start; if (!p) return 'loading'; if (s && s.shown && !s.dismissed) return 'start'; if (p.mode !== 'walk') return 'game';
     var tv = document.getElementById('tview'); if (tv && tv.classList.contains('on')) return 'ticketview'; var hq = document.getElementById('homeQ'); if (hq && hq.classList.contains('on')) return 'home'; var op = document.getElementById('opt'); if ((op && op.classList.contains('on')) || window.__optsOpen) return 'options';
     if (window.__kiosk && window.__kiosk.mode && window.__kiosk.mode !== 'walk') return 'kiosk'; return ''; }
