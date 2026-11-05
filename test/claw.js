@@ -5,7 +5,7 @@ const { open } = require('./lib'); const { helpers } = require('./cabflow');
 const PHONE = process.argv[2] === 'phone', sfx = PHONE ? '_phone' : '';
 (async () => {
   const supa = r => r.fulfill({ status: 200, contentType: 'application/json', body: '[]' });
-  const { page, errors, close } = await open(PHONE ? { phone: true, w: 412, h: 860, supa } : { supa }); page.setDefaultTimeout(60000);
+  const { page, errors, close } = await open(PHONE ? { phone: true, w: 390, h: 700, supa } : { supa }); page.setDefaultTimeout(60000);
   let ok = true; const chk = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); if (!c) ok = false; };
   const H = helpers(page, PHONE), W = 'document.getElementById("game").contentWindow';
   await page.evaluate(() => window.__grid.set(true));
@@ -16,7 +16,7 @@ const PHONE = process.argv[2] === 'phone', sfx = PHONE ? '_phone' : '';
     const pr = c.getObjectByName('priceTag'), cv = pr && pr.material.map.image;
     const bl = A.blockers.find(k => k.name === 'claw');
     return { min: [b.min.x, b.min.z], max: [b.max.x, b.max.z], cell: G.cell, origin: G.origin, cells, bad, glow: !!c.getObjectByName('edgeGlow') && (c.getObjectByName('edgeGlow').userData.baked || c.getObjectByName('edgeGlow').children.length),
-      parts: ['screen', 'glassBack', 'claw', 'gantry', 'plush', 'marquee', 'priceTag', 'chute'].every(k => c.getObjectByName(k)), plush: c.getObjectByName('plush').userData.baked || c.getObjectByName('plush').children.length,   // baked into one mesh per material (draw-call fix) bl: !!bl,
+      parts: ['screen', 'glassBack', 'claw', 'gantry', 'plush', 'marquee', 'priceTag', 'chute'].every(k => c.getObjectByName(k)), plush: c.getObjectByName('plush').userData.baked || c.getObjectByName('plush').children.length, bl: !!bl,   // baked into one mesh per material (draw-call fix)
       badge: A.scene.children.filter(o => /^machineBadge_/.test(o.name)).map(o => [o.name.slice(13), o.userData.key]).find(x => x[1] === 'r1:claw') }; });
   const near = (a, b) => Math.abs(a - b) < 1e-4, fw = s.max[0] - s.min[0], fd = s.max[1] - s.min[1];
   chk(near(fw, 2 * s.cell[0]) && near(fd, 2 * s.cell[1]) && near(fw, 1.4) && near(fd, 1.0), 'footprint = 2 x 2 grid cells: ' + fw.toFixed(3) + ' x ' + fd.toFixed(3) + ' m');
@@ -43,11 +43,28 @@ const PHONE = process.argv[2] === 'phone', sfx = PHONE ? '_phone' : '';
   const g = await page.evaluate(W => { const w = eval(W), p = window.__arcade.play; return { sub: p.sub, run: w.__clawA.run, cr: w.__claw.credits, demo: w.__demo.on }; }, W);
   chk(g.sub === 'play' && g.run && g.cr === 1 && !g.demo, 'tap to play: the copy has exactly 1 drop ' + JSON.stringify(g));
   await page.screenshot({ path: 'shots/claw_play' + sfx + '.png' });
+  // t288u: 8 prizes, swipe on the glass orbits, FRONT snaps back (Videos 74f34d5)
+  const n8 = await page.evaluate(W => eval(W).__claw.alive().length, W); chk(n8 === 8, '8 prizes in the machine (' + n8 + ')');
+  await page.screenshot({ path: '/workspace/ga-claw/shots/claw_front' + sfx + '.png' });
+  const fr = await page.evaluate(() => { const r = document.getElementById('game').getBoundingClientRect(); return { x: r.x + r.width / 2, y: r.y + r.height * 0.35 }; });
+  const y0 = await page.evaluate(W => eval(W).__claw.yaw, W);
+  await page.mouse.move(fr.x + 60, fr.y); await page.mouse.down(); for (let i = 1; i <= 10; i++) await page.mouse.move(fr.x + 60 - i * 14, fr.y); await page.mouse.up(); await page.waitForTimeout(600);
+  const y1 = await page.evaluate(W => eval(W).__claw.yaw, W); chk(Math.abs(y1 - y0) > 0.5 && (await page.evaluate(() => window.__arcade.play.sub)) === 'play', 'swipe on the glass orbits the camera (yaw ' + y0.toFixed(2) + ' -> ' + y1.toFixed(2) + '), still playing');
+  await page.screenshot({ path: '/workspace/ga-claw/shots/claw_side' + sfx + '.png' });
+  const rs = await page.evaluate(W => { const w = eval(W), L = { reset: w.__clawA.resetBtn }, r = document.getElementById('game').getBoundingClientRect(), k = r.width / w.innerWidth; return { x: r.x + L.reset.x * k, y: r.y + L.reset.y * k }; }, W);
+  await page.mouse.click(rs.x, rs.y); await page.waitForTimeout(400);
+  chk(Math.abs(await page.evaluate(W => eval(W).__claw.yaw, W)) < 1e-6, 'gold FRONT button snaps back to the front');
   await page.evaluate(W => eval(W).__claw.drop(), W); await page.waitForTimeout(300);
   chk(await page.evaluate(W => eval(W).__claw.credits === 0 && eval(W).__claw.C.st !== 'idle', W), 'DROP uses the credit');
   await page.waitForFunction(() => window.__arcade.play.sub === 'demo', null, { timeout: 40000 }).catch(() => {});
   const b = await page.evaluate(W => { const w = eval(W), p = window.__arcade.play; return { sub: p.sub, back: p.demoReturns, cr: w.__claw.credits, st: w.__claw.C.st, tix: p.tickets.total }; }, W);
   chk(b.sub === 'demo' && b.cr === 0 && b.tix === 0, 'after the drop the machine goes back to its demo ' + JSON.stringify(b));
+  // refill: 4 gone -> 4 more at once (win path of the copy: prize falls down the chute)
+  const rf = await page.evaluate(async W => { const w = eval(W), c = w.__claw, al = c.alive(); for (const t of al.slice(1, 4)) { t.fall = true; t.done = 1; t.y = -1; }
+    const before = c.alive().length, n0 = Object.values(JSON.parse(localStorage.getItem('arcade_clawMachine.collection') || '{}')).reduce((a, b) => a + b, 0);
+    const t = c.toy; t.fall = true; t.y = -0.45; t.vy = -2; await new Promise(r => setTimeout(r, 2500));
+    const n1 = Object.values(JSON.parse(localStorage.getItem('arcade_clawMachine.collection') || '{}')).reduce((a, b) => a + b, 0); return { before, after: c.alive().length, won: n1 - n0 }; }, W);
+  chk(rf.before === 5 && rf.after === 8 && rf.won === 1, 'win with 4 left -> refills to 8 at once; plush saved to arcade_clawMachine.collection ' + JSON.stringify(rf));
   const n0 = (await H.state()).need; await H.insert(); const r = await H.state(); const c2 = await page.evaluate(() => window.__arcade.play.machines.claw.credits);
   const bt = await page.evaluate(() => document.getElementById('bTicket').textContent);
   chk(r.tickets === 0 && c2 === 0 && r.need > n0 && /NEED A TICKET/.test(bt), 'refuses at 0 tickets: ' + bt);
