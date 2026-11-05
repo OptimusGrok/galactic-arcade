@@ -35,18 +35,18 @@ const byId = Object.fromEntries(ITEMS.map(i => [i.id, i]));
 export function buildGrokClerk() {
   const canvasTex = (w, h, draw) => { const c = document.createElement('canvas'); c.width = w; c.height = h; const g = c.getContext('2d'); draw(g, w, h); const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4; return { t, c, g }; };
   const grok = new THREE.Group(); grok.name = 'grokClerk';
-  // t639u (Dave): light grey shell (~0xc9ccd1), darker trim; face/screen stay bright
-  const mSil = new THREE.MeshStandardMaterial({ color: 0xc9ccd1, roughness: 0.34, metalness: 0.18, emissive: 0x3a3d42, emissiveIntensity: 0.08 });
-  const mChr = new THREE.MeshStandardMaterial({ color: 0x8a8e96, roughness: 0.5, metalness: 0.16, emissive: 0x1a1c20, emissiveIntensity: 0.06 });
-  const mScr = new THREE.MeshStandardMaterial({ color: 0x050506, roughness: 0.04, metalness: 0.6 });
-  const sq = (e, ws = 28, hs = 20) => { const g = new THREE.SphereGeometry(1, ws, hs), p = g.attributes.position;
+  // t639u look, cheaper path: Lambert (not Standard) + low-poly + merged per limb/material; castShadow off
+  const mSil = new THREE.MeshLambertMaterial({ color: 0xc9ccd1, emissive: 0x3a3d42, emissiveIntensity: 0.08 });
+  const mChr = new THREE.MeshLambertMaterial({ color: 0x8a8e96, emissive: 0x1a1c20, emissiveIntensity: 0.06 });
+  const mScr = new THREE.MeshLambertMaterial({ color: 0x050506, emissive: 0x050506, emissiveIntensity: 0.2 });
+  const sq = (e, ws = 12, hs = 10) => { const g = new THREE.SphereGeometry(1, ws, hs), p = g.attributes.position;
     for (let i = 0; i < p.count; i++) { const f = v => Math.sign(v) * Math.pow(Math.abs(v), e); p.setXYZ(i, f(p.getX(i)), f(p.getY(i)), f(p.getZ(i))); } g.computeVertexNormals(); return g; };
-  const gSq = sq(0.55), gSq2 = sq(0.4, 16, 12), gSph = new THREE.SphereGeometry(1, 16, 12), gCyl = new THREE.CylinderGeometry(1, 1, 1, 20);
+  const gSq = sq(0.55), gSq2 = sq(0.4, 10, 8), gSph = new THREE.SphereGeometry(1, 10, 8), gCyl = new THREE.CylinderGeometry(1, 1, 1, 12);
   const T4 = new THREE.Matrix4(), Q4 = new THREE.Quaternion(), E4 = new THREE.Euler();
   const bake = (geo, x, y, z, sx = 1, sy = 1, sz = 1, rx = 0, ry = 0, rz = 0) => { const g = geo.clone(); for (const k of Object.keys(g.attributes)) if (k !== 'position' && k !== 'normal') g.deleteAttribute(k);
     return g.applyMatrix4(T4.compose(new THREE.Vector3(x, y, z), Q4.setFromEuler(E4.set(rx, ry, rz)), new THREE.Vector3(sx, sy, sz))); };
   const build = (par, parts, name) => { const by = new Map(); for (const [m, g] of parts) { if (!by.has(m)) by.set(m, []); by.get(m).push(g); }
-    for (const [m, gs] of by) { const o = new THREE.Mesh(mergeGeometries(gs), m); o.name = name; par.add(o); } };
+    for (const [m, gs] of by) { const o = new THREE.Mesh(mergeGeometries(gs), m); o.name = name; o.castShadow = false; o.receiveShadow = false; o.frustumCulled = true; par.add(o); } };
   // torso / neck / pelvis (no legs — legs are separate groups for walk cycle)
   { const L = [];
     L.push([mChr, bake(gSq2, 0, 0.82, 0, 0.32, 0.12, 0.22)]);
@@ -78,8 +78,8 @@ export function buildGrokClerk() {
     for (const sd of [-1, 1]) { H.push([mChr, bake(gCyl, sd * 0.7, 0, -0.02, 0.24, 0.06, 0.24, 0, 0, Math.PI / 2)], [mSil, bake(gCyl, sd * 0.73, 0, -0.02, 0.17, 0.04, 0.17, 0, 0, Math.PI / 2)], [mChr, bake(gCyl, sd * 0.75, 0, -0.02, 0.08, 0.03, 0.08, 0, 0, Math.PI / 2)]); }
     H.push([mChr, bake(gSq2, 0, 0.12, -0.63, 0.2, 0.03, 0.03)]);
     build(head, H, 'grokHead');
-    const vg = sq(0.55, 32, 22);
-    const vis = new THREE.Mesh(vg, mScr); vis.scale.set(0.62, 0.52, 0.6); vis.position.set(0, -0.03, 0.1); vis.name = 'grokScreen'; head.add(vis);
+    const vg = sq(0.55, 16, 12);
+    const vis = new THREE.Mesh(vg, mScr); vis.scale.set(0.62, 0.52, 0.6); vis.position.set(0, -0.03, 0.1); vis.name = 'grokScreen'; vis.castShadow = false; head.add(vis);
   }
   const faceTex = canvasTex(256, 192, () => {});
   const rr = (g, x, y, w, h, r) => { g.beginPath(); g.roundRect(x, y, w, h, r); g.fill(); };
@@ -1040,7 +1040,7 @@ export function setupShop({ scene, tp, play, monkey, camera, st } = {}) {
   // INVENTORY: PRIZES chips (tap = hold in R / hug, tap the held one = put away)
   const css2 = document.createElement('style'); css2.textContent = '#invPz{flex-direction:column;align-items:stretch!important}#invPz .pzT{display:flex;justify-content:space-between;color:#dffbff;font-weight:800}#invPz .pzT small{color:#9ff8ff;font-weight:600}#pzChips{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}' +
     '.pzC{min-height:48px;padding:6px 14px;border-radius:24px;border:2px solid #00e5ff88;background:#00222ccc;color:#dffbff;font:800 14px Arial,sans-serif;cursor:pointer;touch-action:manipulation}.pzC.on{border-color:#ffe08a;background:#ffb00044;color:#fff;box-shadow:0 0 12px #ffb000aa}.pzC b{color:#ffe08a;margin-left:6px}#inv.on{touch-action:pan-y}#invP{max-height:calc(100vh - 24px);max-height:calc(100dvh - 24px);box-sizing:border-box;overflow-y:auto;-webkit-overflow-scrolling:touch;touch-action:pan-y;overscroll-behavior:contain;padding-top:0!important}#invHd{position:sticky;top:0;z-index:3;margin:0 -18px 14px!important;padding:12px 18px 10px;background:#12051ff7;border-bottom:1px solid #00e5ff44}#pzChips{display:grid!important;grid-template-columns:repeat(3,1fr);gap:8px}#invPz .pzC{position:relative;display:flex;flex-direction:column;align-items:center;gap:4px;min-height:0;padding:6px 4px 8px;border-radius:14px;font:800 11px/1.15 Arial,sans-serif;text-align:center}#invPz .pzC .pzN{min-height:2.3em;display:flex;align-items:center;justify-content:center}#invPz .pzC img{width:100%;aspect-ratio:1;border-radius:10px;background:radial-gradient(#1d3a52,#071019);pointer-events:none}#invPz .pzC b{position:absolute;right:6px;bottom:10px;margin:0;padding:1px 6px;border-radius:9px;background:#000a;font-size:12px}#invPz .pzC.on{box-shadow:0 0 14px #ffb000cc;border-width:3px}' +
-    '.pzSlot{position:absolute;left:6px;top:6px;z-index:2;min-width:22px;height:22px;padding:0 6px;border-radius:11px;background:#ffb000;color:#1a0a00;font:900 12px/22px Arial,sans-serif;letter-spacing:.04em;box-shadow:0 0 8px #ffb000aa}' +
+    '.pzPic{position:relative;width:100%;display:block}.pzSlot{position:absolute;left:6px;top:6px;z-index:2;min-width:22px;height:22px;padding:0 6px;border-radius:11px;background:#ffb000;color:#1a0a00;font:900 12px/22px Arial,sans-serif;letter-spacing:.04em;box-shadow:0 0 8px #ffb000aa;pointer-events:none}' +
     '.pzAway{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}.pzAway .pzU{flex:1 1 120px;margin:0;min-height:44px;font-size:13px;letter-spacing:.04em}' +
     '.pzU{display:block;width:100%;min-height:52px;margin-top:10px;padding:0 14px;border-radius:26px;border:2px solid #ff6b8b;background:#3a0614cc;color:#ffe1e8;font:900 16px Arial,sans-serif;letter-spacing:.06em;cursor:pointer;touch-action:manipulation}';
   document.head.appendChild(css2);
@@ -1064,7 +1064,7 @@ export function setupShop({ scene, tp, play, monkey, camera, st } = {}) {
     else if (h.R || h.L) { const s = h.R ? 'R' : 'L', id = h.R || h.L; away = '<div class="pzAway"><button class="pzU" data-pz="__unequip">✋ put ' + s + ' away · ' + nameOfHeld(id) + '</button></div>'; }
     const hint = ids.length ? 'tap empty → R then L · tap held to put that hand away' : 'none yet - visit Grok!';
     r.innerHTML = '<div class="pzT"><span>PRIZES</span><small>' + hint + '</small></div>' + away + '<div id="pzChips">' +
-      ids.map(id => { const sl = slotOf(id); return `<button class="pzC${sl ? ' on' : ''}" data-pz="${id}">${sl ? '<span class="pzSlot">' + sl + '</span>' : ''}<span class="pzN">${byId[id].name}</span><img data-ic="${id}" alt="" src="${iconFor(id) || 'data:image/gif;base64,R0lGODlhAQABAAAAACw='}">${p[id] > 1 ? '<b>×' + p[id] + '</b>' : ''}</button>`; }).join('') + '</div>'; }
+      ids.map(id => { const sl = slotOf(id); return `<button class="pzC${sl ? ' on' : ''}" data-pz="${id}"><span class="pzN">${byId[id].name}</span><span class="pzPic"><img data-ic="${id}" alt="" src="${iconFor(id) || 'data:image/gif;base64,R0lGODlhAQABAAAAACw='}">${sl ? '<span class="pzSlot">' + sl + '</span>' : ''}</span>${p[id] > 1 ? '<b>×' + p[id] + '</b>' : ''}</button>`; }).join('') + '</div>'; }
   document.addEventListener('click', e => { const b = e.target.closest && e.target.closest('[data-pz]'); if (!b) return; e.stopPropagation(); const id = b.dataset.pz;
     if (id === '__unequip') unhold();
     else if (id === '__unequipR') unhold('R');

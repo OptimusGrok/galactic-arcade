@@ -115,6 +115,8 @@ const fs = require('fs');
     if (joy) at2.lerp(joy, 0.15); at2.y = 0.8;
     A.monkey.visible = false;
     window.__camOverride = { pos: [cam.x, cam.y, cam.z], at: [at2.x, at2.y, at2.z], showMonkey: false, bloom: 0.2 };
+    A.camera.position.set(cam.x, cam.y, cam.z); A.camera.lookAt(at2.x, at2.y, at2.z); A.camera.updateMatrixWorld(true);
+    if (V.placeTixHud) V.placeTixHud();
 
     const tipDist = (arm, palm) => {
       if (!arm || !palm || !palm.visible) return 99;
@@ -140,6 +142,94 @@ const fs = require('fs');
   await page.screenshot({ path: S + 'grok5_hands.png' });
   console.log('shot hands', fs.statSync(S + 'grok5_hands.png').size);
 
+  // --- grok6 close controls: ~1.2 m from panel, side+above, hands fill frame ---
+  const ctrlMeta = await page.evaluate(() => {
+    const V = window.__grokVisit, A = window.__arcade, THREE = A.THREE;
+    // prefer Strike (clear stick+buttons) for the close controls proof
+    window.__shop.update = window.__savedShopUpdate;
+    const strike = A.strikeCab || (A.featured || []).find(c => c && /strike/i.test(c.name));
+    if (strike) V.cab = strike;
+    V.skipTo('play');
+    for (let i = 0; i < 36; i++) window.__shop.update(1 / 30);
+    // park stick upright + palms on joy/btn0, then a few IK frames
+    const joyO = V.cab && V.cab.getObjectByName('joystick');
+    const pL0 = V.palms && V.palms.L, pR0 = V.palms && V.palms.R;
+    if (joyO && pL0) { if (pL0.parent) pL0.parent.remove(pL0); joyO.add(pL0); pL0.position.set(0, 0.14, 0); pL0.rotation.set(0.5, 0, 0); pL0.visible = true; }
+    let b0 = null; V.cab.traverse(o => { if (!b0 && o.isMesh && /^btn0$/i.test(o.name)) b0 = o; });
+    if (b0 && pR0) { if (pR0.parent) pR0.parent.remove(pR0); b0.add(pR0); pR0.position.set(0, 0.05, 0); pR0.rotation.set(0.2, 0, 0); pR0.visible = true; }
+    for (let i = 0; i < 12; i++) {
+      if (joyO) joyO.rotation.set(0, 0, 0);
+      if (joyO && pL0) { if (pL0.parent !== joyO) { if (pL0.parent) pL0.parent.remove(pL0); joyO.add(pL0); } pL0.position.set(0, 0.14, 0); pL0.visible = true; }
+      if (b0 && pR0) { if (pR0.parent !== b0) { if (pR0.parent) pR0.parent.remove(pR0); b0.add(pR0); } pR0.position.set(0, 0.05, 0); pR0.visible = true; }
+      window.__shop.update(1 / 30);
+      if (joyO) joyO.rotation.set(0, 0, 0);
+    }
+    // final park after last animatePlay
+    if (joyO) joyO.rotation.set(0, 0, 0);
+    if (joyO && pL0) { if (pL0.parent) pL0.parent.remove(pL0); joyO.add(pL0); pL0.position.set(0, 0.14, 0); pL0.rotation.set(0.5, 0, 0); pL0.visible = true; }
+    if (b0 && pR0) { if (pR0.parent) pR0.parent.remove(pR0); b0.add(pR0); pR0.position.set(0, 0.05, 0); pR0.rotation.set(0.2, 0, 0); pR0.visible = true; }
+    // one more IK without button cycling: monkey-patch btns empty via a tiny update won't work; arms already near from loop
+    window.__savedShopUpdate = window.__shop.update;
+    window.__shop.update = function () {};
+
+    const g = V.grok, cab = V.cab;
+    const face = cab.userData.facing.clone();
+    let side = new THREE.Vector3(face.z, 0, -face.x).normalize();
+    let joy = null, btn0 = null;
+    cab.traverse(o => {
+      if (o.name === 'joystick') { const v = new THREE.Vector3(); o.getWorldPosition(v); joy = v; }
+      if (o.isMesh && (/^btn0$/i.test(o.name) || /^btn/i.test(o.name)) && !btn0) {
+        const v = new THREE.Vector3(); o.getWorldPosition(v); btn0 = v;
+      }
+    });
+    if (joy) { const toJoy = joy.clone().sub(g.position); toJoy.y = 0; if (toJoy.dot(side) < 0) side.negate(); }
+    const panel = (joy && btn0) ? joy.clone().lerp(btn0, 0.5) : (joy || g.position.clone());
+    panel.y = joy ? joy.y + 0.02 : 1.06;
+    // ~1.25 m pure side + slightly above + a hair toward the room: panel fills frame, Grok hands enter from face side
+    const cam = panel.clone()
+      .add(side.clone().multiplyScalar(1.25))
+      .add(face.clone().multiplyScalar(0.2));
+    cam.y = panel.y + 0.42;
+    // keep near plane from eating arms
+    try { A.camera.near = 0.05; A.camera.updateProjectionMatrix(); } catch (e) {}
+    A.monkey.visible = false;
+    window.__camOverride = { pos: [cam.x, cam.y, cam.z], at: [panel.x, panel.y, panel.z], showMonkey: false, bloom: 0.15 };
+
+    let pL = (V.palms && V.palms.L) || null, pR = (V.palms && V.palms.R) || null;
+    if (!pL || !pR) {
+      const found = [];
+      cab.traverse(o => { if (o.name === 'gvPalm') found.push(o); });
+      if (!found.length) A.scene.traverse(o => { if (o.name === 'gvPalm') found.push(o); });
+      if (!pL) pL = found[0] || null;
+      if (!pR) pR = found[1] || found[0] || null;
+    }
+    // ensure visible for the shot / tip check
+    if (pL) pL.visible = true;
+    if (pR) pR.visible = true;
+    g.updateMatrixWorld(true);
+    const tipDist = (arm, palm) => {
+      if (!arm || !palm) return 99;
+      arm.el.updateMatrixWorld(true); palm.updateMatrixWorld(true);
+      const tip = new THREE.Vector3(0, -0.40, 0.02); arm.el.localToWorld(tip);
+      const pw = new THREE.Vector3(); palm.getWorldPosition(pw);
+      return +tip.distanceTo(pw).toFixed(3);
+    };
+    return {
+      cab: cab.name,
+      dL: tipDist(V.arms[0], pL), dR: tipDist(V.arms[1], pR),
+      pLvis: !!(pL && pL.visible), pRvis: !!(pR && pR.visible),
+      hasPalmsApi: !!(V.palms && V.palms.L && V.palms.R),
+      joy: joy && [+joy.x.toFixed(2), +joy.y.toFixed(2), +joy.z.toFixed(2)],
+      btn0: btn0 && [+btn0.x.toFixed(2), +btn0.y.toFixed(2), +btn0.z.toFixed(2)],
+      cam: [+cam.x.toFixed(2), +cam.y.toFixed(2), +cam.z.toFixed(2)],
+    };
+  });
+  console.log('ctrlMeta', JSON.stringify(ctrlMeta));
+  chk(ctrlMeta.dL < 0.25 && ctrlMeta.dR < 0.25, 'controls hands near dL=' + ctrlMeta.dL + ' dR=' + ctrlMeta.dR);
+  await page.waitForTimeout(400);
+  await page.screenshot({ path: S + 'grok6_controls.png' });
+  console.log('shot controls', fs.statSync(S + 'grok6_controls.png').size);
+
   // --- tickets: resume, pump to ~7, shot ---
   const tixSnap = await page.evaluate(() => {
     window.__shop.update = window.__savedShopUpdate;
@@ -152,14 +242,14 @@ const fs = require('fs');
     cam.y = 1.85;
     window.__camOverride = { pos: [cam.x, cam.y, cam.z], at: [g.position.x, 1.7, g.position.z], showMonkey: false };
     A.monkey.visible = false;
+    A.camera.position.set(cam.x, cam.y, cam.z); A.camera.lookAt(g.position.x, 1.7, g.position.z); A.camera.updateMatrixWorld(true);
+    if (V.placeTixHud) V.placeTixHud();
     // pump until 7 tickets
     let guard = 0;
     while (V.tickets < 7 && V.state === 'play' && guard++ < 500) Sh.update(1 / 20);
-    const el = document.getElementById('gvTix');
-    // force HUD place once
-    if (el) { el.style.display = 'block'; el.textContent = '🎟 ' + V.tickets + '/20'; }
+    const spr = V.grok.getObjectByName('gvTixSprite');
     return {
-      tickets: V.tickets, hud: el && el.textContent, hudOn: el && el.style.display !== 'none',
+      tickets: V.tickets, hud: spr && spr.userData && spr.userData.label, hudOn: !!(spr && spr.visible),
       state: V.state, player: A.play.tickets.total,
     };
   });

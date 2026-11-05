@@ -77,23 +77,25 @@ export function setupGrokVisit({ scene, tp, play, monkey, camera, st } = {}) {
   // blocky dark-grey robot hands — parented to joystick / buttons so they sit ON the controls
   const mkPalm = (side) => {
     const g = new THREE.Group(); g.name = 'gvPalm'; g.visible = false;
-    const mat = new THREE.MeshStandardMaterial({ color: 0xc9ccd1, roughness: 0.32, metalness: 0.2, emissive: 0x3a3d42, emissiveIntensity: 0.12 });
-    const matD = new THREE.MeshStandardMaterial({ color: 0x8a8e96, roughness: 0.42, metalness: 0.18, emissive: 0x1a1c20, emissiveIntensity: 0.08 });
-    const palm = new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.035, 0.11), mat); palm.position.set(0, 0, 0); g.add(palm);
+    const mat = new THREE.MeshLambertMaterial({ color: 0xc9ccd1, emissive: 0x3a3d42, emissiveIntensity: 0.1 });
+    const matD = new THREE.MeshLambertMaterial({ color: 0x8a8e96, emissive: 0x1a1c20, emissiveIntensity: 0.06 });
+    const palm = new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.035, 0.11), mat); palm.castShadow = false; palm.position.set(0, 0, 0); g.add(palm);
     for (let i = 0; i < 3; i++) {
       const f = new THREE.Mesh(new THREE.BoxGeometry(0.022, 0.022, 0.055), matD);
-      f.position.set((i - 1) * 0.028, 0.01, -0.07); g.add(f);
+      f.castShadow = false; f.position.set((i - 1) * 0.028, 0.01, -0.07); g.add(f);
     }
     const thumb = new THREE.Mesh(new THREE.BoxGeometry(0.02, 0.02, 0.04), matD);
-    thumb.position.set(side * 0.055, 0.008, -0.02); thumb.rotation.y = side * 0.6; g.add(thumb);
-    g.scale.setScalar(1.15); return g;
+    thumb.castShadow = false; thumb.position.set(side * 0.055, 0.008, -0.02); thumb.rotation.y = side * 0.6; g.add(thumb);
+    g.scale.setScalar(1.35); return g;
   };
   const palmL = mkPalm(-1), palmR = mkPalm(1);
   scene.add(palmL); scene.add(palmR);
+  // exposed for tests / cam shots
 
   const fx = makeBeam(THREE, scene);
-  const tmp = new THREE.Vector3(), tmp2 = new THREE.Vector3(), ndc = new THREE.Vector3();
-  const _q = new THREE.Quaternion(), _e = new THREE.Euler();
+  const tmp = new THREE.Vector3(), tmp2 = new THREE.Vector3(), ndc = new THREE.Vector3(), _loc = new THREE.Vector3(), _side = new THREE.Vector3();
+  const _q = new THREE.Quaternion(), _q2 = new THREE.Quaternion(), _e = new THREE.Euler();
+  const _faceFallback = new THREE.Vector3(0, 0, 1);
 
   // ---- voice (male 1 = GuyNeural clips via shared AudioContext; TTS fallback) ----
   const bufs = {};
@@ -191,7 +193,7 @@ export function setupGrokVisit({ scene, tp, play, monkey, camera, st } = {}) {
   api.fast = false;
   api.drawWatchNow = (idx) => { if (api.watchOpen) { sizeWatch(); drawWatchFrame(); drawWatchHands(idx == null ? 1 : idx); } };
   api.skipTo = (stName) => {
-    if (stName === 'play' && cab) { const s = standAtCab(); grok.position.set(s.x, 0, s.z); grok.rotation.y = s.yaw; grok.scale.setScalar(SCALE); grok.visible = true; startPlayAtCab(); showNear(true); return true; }
+    if (stName === 'play') { if (api.cab) cab = api.cab; if (!cab) return false; const s = standAtCab(); grok.position.set(s.x, 0, s.z); grok.rotation.y = s.yaw; grok.scale.setScalar(SCALE); grok.visible = true; startPlayAtCab(); showNear(true); return true; }
     if (stName === 'leave') { resetControls(); hideUI(); grok.position.set(pad.x, 0, pad.z); grok.visible = true; api.state = 'leave'; phaseT = 0; fx.start(pad.x, pad.z, 'out'); powerPad(1); return true; }
     if (stName === 'done') { resetControls(); hideUI(); grok.visible = false; powerPad(0); fx.stop(); api.state = 'done'; api.finished++; return true; }
     if (stName === 'look') { api.state = 'look'; phaseT = 0; grok.visible = true; grok.scale.setScalar(SCALE); return true; }
@@ -272,8 +274,8 @@ export function setupGrokVisit({ scene, tp, play, monkey, camera, st } = {}) {
   function spitTicket() {
     if (!cab || !cab.userData || !cab.userData.front) return;
     const slot = tixPool.find(o => !o.m.visible) || tixPool[(Math.random() * tixPool.length) | 0];
-    const f = cab.userData.front, face = cab.userData.facing || new THREE.Vector3(0, 0, 1);
-    const side = new THREE.Vector3(face.z, 0, -face.x);
+    const f = cab.userData.front, face = cab.userData.facing || _faceFallback;
+    const side = _side.set(face.z, 0, -face.x);
     slot.m.position.set(f.x - face.x * 0.15 + side.x * 0.25, 0.55, f.z - face.z * 0.15 + side.z * 0.25);
     slot.m.rotation.set(0.2, Math.atan2(face.x, face.z) + Math.PI, 0);
     slot.m.visible = true; slot.age = 0; slot.life = 1.1;
@@ -282,6 +284,8 @@ export function setupGrokVisit({ scene, tp, play, monkey, camera, st } = {}) {
     slot.vy = 0.55 + Math.random() * 0.35;
   }
   function tickTixFx(dt) {
+    let any = false; for (const o of tixPool) if (o.m.visible) { any = true; break; }
+    if (!any) return;
     for (const o of tixPool) {
       if (!o.m.visible) continue;
       o.age += dt; o.vy -= 2.8 * dt;
@@ -292,18 +296,45 @@ export function setupGrokVisit({ scene, tp, play, monkey, camera, st } = {}) {
     }
   }
 
-  // floating 🎟 N/20 over Grok's head (DOM, projected; throttled)
-  const tixEl = document.createElement('div');
-  tixEl.id = 'gvTix';
-  tixEl.style.cssText = 'position:fixed;left:0;top:0;transform:translate(-50%,-120%);z-index:26;display:none;pointer-events:none;padding:4px 10px;border-radius:12px;border:1.5px solid #f5c542;background:#1a1208ee;color:#ffe9a0;font:800 13px/1 "Courier New",monospace;letter-spacing:.06em;text-shadow:0 0 6px #f5c542;box-shadow:0 0 10px #f5c54288;white-space:nowrap';
-  document.body.appendChild(tixEl);
-  function showTixHud(on) { tixEl.style.display = on ? 'block' : 'none'; if (!on) return; tixEl.textContent = '🎟 ' + api.tickets + '/' + TIX_GOAL; }
+  // floating 🎟 N/20 as a 3D sprite above Grok's head (stays on-screen with him; text only rewritten on change)
+  const tixCv = document.createElement('canvas'); tixCv.width = 256; tixCv.height = 64;
+  const tixCtx = tixCv.getContext('2d');
+  const tixTex = new THREE.CanvasTexture(tixCv); tixTex.colorSpace = THREE.SRGBColorSpace; tixTex.minFilter = THREE.LinearFilter;
+  const tixMat = new THREE.SpriteMaterial({ map: tixTex, transparent: true, depthTest: false, depthWrite: false, toneMapped: false });
+  const tixSpr = new THREE.Sprite(tixMat); tixSpr.name = 'gvTixSprite'; tixSpr.scale.set(0.85, 0.21, 1); tixSpr.position.set(0, 2.55, 0); tixSpr.visible = false;
+  grok.add(tixSpr);
+  let tixShown = -1;
+  function paintTixHud() {
+    const label = '🎟 ' + api.tickets + '/' + TIX_GOAL;
+    if (tixShown === api.tickets && tixSpr.userData.label === label) return;
+    tixShown = api.tickets; tixSpr.userData.label = label;
+    const g = tixCtx; g.clearRect(0, 0, 256, 64);
+    g.fillStyle = '#1a1208ee'; g.strokeStyle = '#f5c542'; g.lineWidth = 4;
+    g.beginPath(); g.roundRect(8, 8, 240, 48, 16); g.fill(); g.stroke();
+    g.fillStyle = '#ffe9a0'; g.font = '800 28px "Courier New",monospace'; g.textAlign = 'center'; g.textBaseline = 'middle';
+    g.shadowColor = '#f5c542'; g.shadowBlur = 8; g.fillText(label, 128, 34); g.shadowBlur = 0;
+    tixTex.needsUpdate = true;
+  }
+  function showTixHud(on) {
+    tixSpr.visible = !!on;
+    if (on) paintTixHud();
+  }
   function placeTixHud() {
-    if (tixEl.style.display === 'none' || !grok.visible || !camera) return;
-    ndc.set(grok.position.x, 2.35 * SCALE, grok.position.z).project(camera);
-    if (ndc.z > 1 || ndc.z < -1) { tixEl.style.opacity = '0'; return; }
-    const x = (ndc.x * 0.5 + 0.5) * innerWidth, y = (-ndc.y * 0.5 + 0.5) * innerHeight;
-    tixEl.style.left = x + 'px'; tixEl.style.top = y + 'px'; tixEl.style.opacity = '1';
+    // keep the 🎟 N/20 sprite above his head, but clamp into the viewport so side cams can't clip it
+    if (!tixSpr.visible || !camera) { tixSpr.position.set(0, 2.55, 0); return; }
+    tmp.set(0, 2.55, 0); grok.localToWorld(tmp);
+    ndc.copy(tmp).project(camera);
+    const cx = Math.max(-0.82, Math.min(0.82, ndc.x));
+    const cy = Math.max(-0.55, Math.min(0.88, ndc.y));
+    if (Math.abs(cx - ndc.x) < 1e-4 && Math.abs(cy - ndc.y) < 1e-4) { tixSpr.position.set(0, 2.55, 0); return; }
+    ndc.x = cx; ndc.y = cy; ndc.z = Math.min(0.98, Math.max(-0.98, ndc.z));
+    ndc.unproject(camera);
+    grok.worldToLocal(ndc);
+    // stay near the head — don't wander more than ~0.9 m in local XZ
+    ndc.x = Math.max(-0.9, Math.min(0.9, ndc.x));
+    ndc.z = Math.max(-0.9, Math.min(0.9, ndc.z));
+    ndc.y = Math.max(2.1, Math.min(3.0, ndc.y));
+    tixSpr.position.copy(ndc);
   }
 
   function begin(reason) {
@@ -338,7 +369,7 @@ export function setupGrokVisit({ scene, tp, play, monkey, camera, st } = {}) {
     if (api.tickets >= TIX_GOAL) return;
     api.tickets++;
     // NEVER touch player tickets / play.tickets / localStorage neonarcade.tickets
-    tixEl.textContent = '🎟 ' + api.tickets + '/' + TIX_GOAL;
+    paintTixHud();
     spitTicket();
     if (api.tickets >= TIX_GOAL) {
       resetControls();
@@ -369,7 +400,7 @@ export function setupGrokVisit({ scene, tp, play, monkey, camera, st } = {}) {
   }
 
   function standAtCab() {
-    const f = cab.userData.front, face = cab.userData.facing || new THREE.Vector3(0, 0, 1);
+    const f = cab.userData.front, face = cab.userData.facing || _faceFallback;
     // stand on the play spot, leaned into the panel so arms reach stick+buttons
     const x = f.x + face.x * 0.62, z = f.z + face.z * 0.62;
     const yaw = Math.atan2(face.x, face.z);
@@ -378,19 +409,23 @@ export function setupGrokVisit({ scene, tp, play, monkey, camera, st } = {}) {
 
   function bindControls() {
     joy = cab.getObjectByName('joystick');
-    btns = []; cab.traverse(o => { if (/^btn/i.test(o.name) && o.isMesh) btns.push(o); });
-    // prefer first 3 face buttons
+    btns = []; cab.traverse(o => { if (o.isMesh && (/^btn/i.test(o.name) || /^button/i.test(o.name))) btns.push(o); });
+    if (!btns.length) cab.traverse(o => { if (o.isMesh && /press|pad/i.test(o.name) && !/marquee|side|screen/i.test(o.name)) btns.push(o); });
     if (btns.length > 3) btns = btns.slice(0, 3);
     joyBase = joy ? { x: joy.rotation.x, y: joy.rotation.y, z: joy.rotation.z } : null;
     btnBase = btns.map(b => b.position.y);
-    // park palms on the controls
     if (joy) {
-      palmL.position.set(0, 0.14, 0); palmL.rotation.set(0.4, 0, 0);
+      // sit on top of the stick ball
+      palmL.position.set(0, 0.20, 0); palmL.rotation.set(0.55, 0, 0);
       joy.add(palmL); palmL.visible = true;
     }
     if (btns[0]) {
-      palmR.position.set(0, 0.035, 0); palmR.rotation.set(0.2, 0, 0);
+      palmR.position.set(0, 0.055, 0); palmR.rotation.set(0.25, 0, 0);
       btns[0].add(palmR); palmR.visible = true;
+    } else if (joy) {
+      // no face buttons — park right hand on stick base / panel beside stick
+      palmR.position.set(0.12, 0.02, 0.08); palmR.rotation.set(0.3, 0, 0);
+      joy.add(palmR); palmR.visible = true;
     }
   }
   function resetControls() {
@@ -406,32 +441,28 @@ export function setupGrokVisit({ scene, tp, play, monkey, camera, st } = {}) {
     grok.updateMatrixWorld(true);
     arm.sh.updateMatrixWorld(true);
     arm.sh.getWorldPosition(tmp);
-    const to = tmp2.copy(targetW).sub(tmp);
-    const dist = Math.max(0.05, to.length());
-    const qInv = grok.getWorldQuaternion(_q).invert();
-    const loc = to.clone().applyQuaternion(qInv);
+    tmp2.copy(targetW).sub(tmp);
+    const dist = Math.max(0.05, tmp2.length());
+    grok.getWorldQuaternion(_q).invert();
+    _loc.copy(tmp2).applyQuaternion(_q);
     const sd = arm.sd;
-    // point the hanging (-Y) chain at the target
-    const pitch = Math.atan2(-loc.z, Math.max(0.04, -loc.y));
-    const roll = Math.atan2(loc.x, Math.max(0.04, Math.hypot(loc.y, loc.z)));
-    const tipLen = handLen || 0.45;                          // tip offset from elbow
+    const pitch = Math.atan2(-_loc.z, Math.max(0.04, -_loc.y));
+    const roll = Math.atan2(_loc.x, Math.max(0.04, Math.hypot(_loc.y, _loc.z)));
+    const tipLen = handLen || 0.45;
     const need = dist / SCALE;
-    // put elbow so tipLen along the chain reaches the palm
     arm.el.position.set(0, -Math.min(0.9, Math.max(0.22, need - tipLen)), 0);
     arm.sh.rotation.x = THREE.MathUtils.clamp(pitch - 0.05, -2.6, 0.5);
     arm.sh.rotation.z = THREE.MathUtils.clamp(roll + sd * 0.04, -1.5, 1.5);
     arm.sh.rotation.y = 0;
-    // slight elbow bend for a natural pose (chain still aims via shoulder)
     arm.el.rotation.set(-0.35, 0, 0);
-    // snap: correct residual tip error in shoulder space so hands actually touch
     arm.sh.updateMatrixWorld(true); arm.el.updateMatrixWorld(true);
-    const tip = tmp.set(0, -tipLen, 0.02); arm.el.localToWorld(tip);
-    const err = tmp2.copy(targetW).sub(tip);
-    const shQ = arm.sh.getWorldQuaternion(_q);
-    err.applyQuaternion(shQ.invert());
-    arm.el.position.x += err.x;
-    arm.el.position.y += err.y;
-    arm.el.position.z += err.z;
+    tmp.set(0, -tipLen, 0.02); arm.el.localToWorld(tmp);
+    tmp2.copy(targetW).sub(tmp);
+    arm.sh.getWorldQuaternion(_q2).invert();
+    tmp2.applyQuaternion(_q2);
+    arm.el.position.x += tmp2.x;
+    arm.el.position.y += tmp2.y;
+    arm.el.position.z += tmp2.z;
   }
 
   // Paint over INSERT CREDIT / INSERT COIN flash bands on attract canvases (no Arcade file edits)
@@ -940,6 +971,8 @@ export function setupGrokVisit({ scene, tp, play, monkey, camera, st } = {}) {
     requestAnimationFrame(loop);
   }
 
+  api.palms = { L: palmL, R: palmR };
+  api.placeTixHud = placeTixHud;
   api._t0 = performance.now() / 1000;
   return api;
 }
@@ -977,9 +1010,17 @@ function makeBeam(THREE, scene) {
   }
   return {
     start(x, z, m) { g.position.set(x, 0, z); g.visible = true; on = true; mode = m; t = 0; sw.material.opacity = 0; },
-    stop() { on = false; g.visible = false; sw.material.opacity = 0; rings.forEach(r => { r.material.opacity = 0; }); },
+    stop() {
+      on = false; g.visible = false; sw.material.opacity = 0;
+      rings.forEach(r => { r.material.opacity = 0; });
+      pts.visible = false;
+      for (let i = 0; i < P.length; i++) { P[i].t = P[i].l; P[i].y = -9; }
+    },
     tick(dt) {
-      if (!on) return; t += dt; tx.offset.x = (tx.offset.x + dt * 0.9) % 1; sw.rotation.y += dt * 2.2;
+      if (!on) return; t += dt;
+      // auto-remove once the beam flourish is done (~1.6s) so it never keeps ticking mid-walk/play
+      if (t > 1.7) { this.stop(); return; }
+      tx.offset.x = (tx.offset.x + dt * 0.9) % 1; sw.rotation.y += dt * 2.2;
       const op = Math.min(1, t * 3, Math.max(0, (1.6 - t) * 2)) * 0.8;
       sw.material.opacity = op;
       rings.forEach((m, j) => { const o = Math.min(1, Math.max(0, (t - j * 0.08) / 0.1)) * (mode === 'out' || t < 1.2 ? 1 : Math.max(0, 1.5 - t)); m.material.opacity = o * (0.7 + 0.3 * Math.sin(t * 28 + j)); });
