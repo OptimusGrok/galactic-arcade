@@ -17,8 +17,8 @@
     '#invC{border-color:#3cff7a88;background:#04180ccc}#invC .n{color:#9dffb5;text-shadow:0 0 8px #3cff7a}#invC .l{color:#c8ffd6}#invC small{display:block;font-size:11px;color:#7fdc98;letter-spacing:.06em;margin-top:3px}' +
     '#invP{max-height:calc(100dvh - 20px);overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;touch-action:pan-y;box-sizing:border-box}#invP.noShop #invPz{display:none}' +
     '#invMy{display:block;border-color:#ff3cf088;background:#1a0420cc}#invMy .pzH{display:flex;justify-content:space-between;align-items:baseline;letter-spacing:.12em;color:#ffd0fa;font-size:13px}#invMy .pzH small{font-size:10px;color:#d79ad0;letter-spacing:.04em}' +
-    '#invMyL{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}.myC{display:flex;align-items:center;gap:6px;padding:5px 8px 5px 5px;border-radius:10px;border:2px solid var(--c,#ff3cf0aa);background:#0d0212;font:700 11px "Courier New",monospace;color:#fff;max-width:100%}' +
-    '.myC i{font-style:normal;font-size:20px;width:28px;height:28px;line-height:28px;text-align:center;border-radius:8px;background:var(--c,#ff3cf0)33;flex:none}.myC b{color:#ffe08a}.myE{color:#d7b8e0;font-size:12px;margin-top:6px;letter-spacing:.06em}' +
+    '#invMyL{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}.myC{position:relative;cursor:pointer;touch-action:manipulation;display:flex;align-items:center;gap:6px;padding:5px 8px 5px 5px;border-radius:10px;border:2px solid var(--c,#ff3cf0aa);background:#0d0212;font:700 11px "Courier New",monospace;color:#fff;max-width:100%}' +
+    '.myC i{font-style:normal;font-size:20px;width:28px;height:28px;line-height:28px;text-align:center;border-radius:8px;background:var(--c,#ff3cf0)33;flex:none}.myC b{color:#ffe08a}.myC.on{border-color:#ffe08a;background:#ffb00044;color:#fff;box-shadow:0 0 12px #ffb000aa}.myC .pzSlot{position:absolute;left:-6px;top:-8px}.myE{color:#d7b8e0;font-size:12px;margin-top:6px;letter-spacing:.06em}' +
     '.invCoin{width:28px!important;height:28px!important;border-radius:50%;background:radial-gradient(#9dffb5,#1d8f45);color:#04180c;font:900 17px/28px sans-serif;text-align:center;flex:none}';
   document.head.appendChild(st);
   // original icon: black backpack, grey cartoon monkey face on the front pocket (big white eyes), (side ear removed)
@@ -69,10 +69,41 @@
   function shopCount() { var p = J('neonarcade.prizes', {}), n = 0; for (var k in p) if ((p[k] | 0) > 0) n++; return n; }
   function fillMy() { var P = document.getElementById('invP'), el = document.getElementById('invMy'); if (!P || !el) return; if (P.lastElementChild !== el) P.appendChild(el);   // after shop.js's #invPz
     var L = myPrizes(), sc = shopCount(); P.classList.toggle('noShop', !sc); I.prizes = { shop: sc, mine: L.map(function (x) { return x.id + (x.n > 1 ? 'x' + x.n : ''); }) };
-    var key = sc + '|' + I.prizes.mine.join(); if (el.dataset.k === key) return; el.dataset.k = key; var esc = function (t) { return String(t).replace(/[&<>"]/g, function (c) { return '&#' + c.charCodeAt(0) + ';'; }); };
+    var hh = held(), key = sc + '|' + I.prizes.mine.join() + '|' + hh.R + '|' + hh.L + '|' + !!window.__shop; if (el.dataset.k === key) return; el.dataset.k = key; var esc = function (t) { return String(t).replace(/[&<>"]/g, function (c) { return '&#' + c.charCodeAt(0) + ';'; }); };
     if (!L.length) { el.style.display = sc ? 'none' : ''; el.innerHTML = '<div class="pzH"><span>PRIZES</span></div><div class="myE">No prizes yet</div>'; return; }
-    el.style.display = ''; el.innerHTML = '<div class="pzH"><span>' + (sc ? 'CLAW PRIZES' : 'PRIZES') + '</span><small>won in the claw machine</small></div><div id="invMyL">' +
-      L.map(function (x) { return '<span class="myC" data-my="' + esc(x.id) + '" style="--c:' + (x.c || '#ff3cf0') + '"><i>' + x.ic + '</i>' + esc(x.name) + (x.n > 1 ? ' <b>\u00D7' + x.n + '</b>' : '') + '</span>'; }).join('') + '</div>'; }
+    var H = held(), away = '';
+    if (!sc && H.R && H.L) away = '<div class="pzAway"><button class="pzU" data-pz="__unequipR">\uD83E\uDD1A put R away</button><button class="pzU" data-pz="__unequipL">\uD83E\uDD1A put L away</button><button class="pzU" data-pz="__unequip">\u270B put both away</button></div>';
+    else if (!sc && (H.R || H.L)) away = '<div class="pzAway"><button class="pzU" data-pz="__unequip">\u270B put ' + (H.R ? 'R' : 'L') + ' away</button></div>';   // with shop prizes, shop.js's own put-away row covers claw items too
+    el.style.display = ''; el.innerHTML = '<div class="pzH"><span>' + (sc ? 'CLAW PRIZES' : 'PRIZES') + '</span><small>' + (window.__shop ? 'tap to hold \u00B7 tap held to put away' : 'won in the claw machine') + '</small></div>' + away + '<div id="invMyL">' +
+      L.map(function (x) { var sl = H.R === x.id ? 'R' : H.L === x.id ? 'L' : ''; return '<button class="myC pzHold' + (sl ? ' on' : '') + '" data-my="' + esc(x.id) + '"' + (window.__shop ? ' data-pz="' + esc(x.id) + '"' : '') + ' style="--c:' + (x.c || '#ff3cf0') + '">' + (sl ? '<span class="pzSlot">' + sl + '</span>' : '') + '<i>' + x.ic + '</i>' + esc(x.name) + (x.n > 1 ? ' <b>\u00D7' + x.n + '</b>' : '') + '</button>'; }).join('') + '</div>'; }
+  // t300u (Dave: 'items in backpack equipped and held, small items in each hand'): claw plushes go through shop.js's two-hand API
+  // (window.__shop.registerHoldable / hold / unhold, shared 'neonarcade.held'). The shop's capture click handler on [data-pz] does tap-to-hold.
+  function held() { try { var h = window.__shop && window.__shop.held; if (h && typeof h === 'object') return { R: h.R || null, L: h.L || null }; var v = JSON.parse(localStorage.getItem('neonarcade.held') || 'null'); return v && typeof v === 'object' ? { R: v.R || null, L: v.L || null } : { R: null, L: null }; } catch (e) { return { R: null, L: null }; } }
+  var PLUSH = { bear: [0x9a6a3e, 0xd8b48a, 'ears'], bunny: [0xf2eef5, 0xff9cc8, 'long'], duck: [0xffd23a, 0xff8a1e, 'beak'], frog: [0x48c85a, 0xffffff, 'eyes'], cat: [0xff9b3d, 0xfff1dc, 'cat'],
+    octopus: [0xb35cff, 0xe0b0ff, 'legs'], penguin: [0x22262e, 0xffffff, 'beak'], alien: [0x8cff3a, 0x111111, 'eyes'], monkey: [0x8a5a32, 0xf0c99a, 'ears'], grok: [0x6d737c, 0x19e0ff, 'ears'] };
+  var GEO = null, MAT = {};
+  function buildPlush(type, THREE) {   // ~0.2 m chibi plush, 3 shared geometries + 2 cached materials per type (cheap)
+    if (!GEO) GEO = { s: new THREE.SphereGeometry(1, 12, 9), c: new THREE.ConeGeometry(1, 1, 8) };
+    var c = PLUSH[type] || PLUSH.bear, k = type; if (!MAT[k]) MAT[k] = [new THREE.MeshStandardMaterial({ color: c[0], roughness: 0.85, emissive: c[0], emissiveIntensity: 0.12 }), new THREE.MeshStandardMaterial({ color: c[1], roughness: 0.8, emissive: c[1], emissiveIntensity: 0.15 })];
+    var A = MAT[k][0], B = MAT[k][1], g = new THREE.Group();
+    var m = function (geo, mat, x, y, z, sx, sy, sz) { var o = new THREE.Mesh(geo, mat); o.position.set(x, y, z); o.scale.set(sx, sy, sz); g.add(o); return o; };
+    m(GEO.s, A, 0, 0.07, 0, 0.065, 0.07, 0.055); m(GEO.s, A, 0, 0.17, 0, 0.06, 0.055, 0.055); m(GEO.s, B, 0, 0.065, 0.04, 0.04, 0.045, 0.02);
+    if (c[2] === 'ears') { m(GEO.s, A, -0.045, 0.22, 0, 0.02, 0.02, 0.012); m(GEO.s, A, 0.045, 0.22, 0, 0.02, 0.02, 0.012); m(GEO.s, B, 0, 0.16, 0.05, 0.025, 0.018, 0.012); }
+    else if (c[2] === 'long') { m(GEO.s, A, -0.025, 0.25, 0, 0.012, 0.045, 0.01); m(GEO.s, A, 0.025, 0.25, 0, 0.012, 0.045, 0.01); }
+    else if (c[2] === 'cat') { m(GEO.c, A, -0.035, 0.225, 0, 0.02, 0.035, 0.015); m(GEO.c, A, 0.035, 0.225, 0, 0.02, 0.035, 0.015); }
+    else if (c[2] === 'beak') { var bk = m(GEO.c, B, 0, 0.165, 0.065, 0.015, 0.03, 0.015); bk.rotation.x = Math.PI / 2; }
+    else if (c[2] === 'eyes') { m(GEO.s, B, -0.025, 0.21, 0.035, 0.018, 0.018, 0.018); m(GEO.s, B, 0.025, 0.21, 0.035, 0.018, 0.018, 0.018); }
+    else if (c[2] === 'legs') { for (var i = 0; i < 4; i++) m(GEO.s, A, -0.045 + i * 0.03, 0.01, 0.02, 0.012, 0.03, 0.012); }
+    g.userData.gripY = 0.05; g.userData.size = 0.25; return g;
+  }
+  var reg = {};
+  function registerClaw() { var S = window.__shop; if (!S || !S.registerHoldable) return false;
+    var cl = J('arcade_clawMachine.collection', {}); Object.keys(CLAW).forEach(function (k) { var id = 'claw:' + k; if (reg[id] || !((cl[k] | 0) > 0)) return;
+      reg[id] = S.registerHoldable(id, { name: CLAW[k][0] + ' PLUSH', kind: 'hand', build: function (THREE) { return buildPlush(k, THREE); } }); });   // every claw plush is a small hand item (two at once)
+    return true; }
+  I.registerClaw = registerClaw; I.buildPlush = buildPlush;
+  (function waitShop() { if (!registerClaw()) setTimeout(waitShop, 100); else setInterval(registerClaw, 2000); })();   // new wins register within 2 s; held claw prizes restore once registered (shop.js syncs every frame)
+  document.addEventListener('click', function (e) { if (e.target.closest && e.target.closest('[data-pz]')) setTimeout(function () { var el = document.getElementById('invMy'); if (el) el.dataset.k = ''; try { fillMy(); } catch (x) {} }, 0); }, true);
   I.fillMy = fillMy;
   function canShow() { var a = A(), p = a.play, s = window.__start; if (!p) return 'loading'; if (s && s.shown && !s.dismissed) return 'start'; if (p.mode !== 'walk') return 'game';
     var tv = document.getElementById('tview'); if (tv && tv.classList.contains('on')) return 'ticketview'; var hq = document.getElementById('homeQ'); if (hq && hq.classList.contains('on')) return 'home'; var op = document.getElementById('opt'); if ((op && op.classList.contains('on')) || window.__optsOpen) return 'options';

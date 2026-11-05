@@ -1,0 +1,31 @@
+// t300u: claw prizes hold through shop.js's two-hand API: claw R + shop L together, unhold each, hug clears both, restore after reload.
+const { open } = require('./lib');
+(async () => {
+  let { page, errors, close } = await open({ phone: true, w: 390, h: 700 }); let ok = true; const chk = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); if (!c) ok = false; };
+  await page.evaluate(() => { localStorage.setItem('arcade_clawMachine.collection', JSON.stringify({ bear: 2, frog: 1 })); localStorage.setItem('neonarcade.prizes', JSON.stringify({ jaw: 1, monkeyBrown: 1 })); localStorage.removeItem('neonarcade.held'); });
+  await page.reload(); await page.waitForFunction(() => window.__arcade && window.__arcade.stats.frames > 3 && window.__shop, null, { timeout: 60000 });
+  await page.waitForTimeout(800);
+  const st = () => page.evaluate(() => { const S = window.__shop, o = S.heldObjs; return { R: S.held.R, L: S.held.L, objR: !!o.R && o.R.userData.id, objL: !!o.L && o.L.userData.id, hug: !!o.hug && o.hug.userData.id }; });
+  await page.evaluate(() => window.__inv.setOpen(true)); await page.waitForTimeout(500);
+  const chips = await page.evaluate(() => [...document.querySelectorAll('#invMy [data-pz]')].map(b => b.dataset.pz));
+  chk(chips.includes('claw:bear') && chips.includes('claw:frog'), 'claw prize chips are tappable ' + chips);
+  await page.evaluate(() => document.querySelector('#invMy [data-pz="claw:bear"]').click()); await page.waitForTimeout(200);
+  await page.evaluate(() => document.querySelector('#invPz [data-pz="jaw"]').click()); await page.waitForTimeout(300);
+  let s = await st(); chk(s.R === 'claw:bear' && s.L === 'jaw' && s.objR === 'claw:bear' && s.objL === 'jaw', 'claw plush in R + shop jawbreaker in L at once ' + JSON.stringify(s));
+  const badge = await page.evaluate(() => { const b = document.querySelector('#invMy [data-pz="claw:bear"]'); return b.classList.contains('on') && (b.querySelector('.pzSlot') || {}).textContent; });
+  chk(badge === 'R', 'claw chip shows the R badge');
+  await page.evaluate(() => window.__inv.setOpen(false)); await page.reload(); await page.waitForFunction(() => window.__arcade && window.__arcade.stats.frames > 3 && window.__shop, null, { timeout: 60000 }); await page.waitForTimeout(1500);
+  s = await st(); chk(s.R === 'claw:bear' && s.L === 'jaw' && s.objR === 'claw:bear' && s.objL === 'jaw', 'both restore after reload ' + JSON.stringify(s));
+  await page.evaluate(() => window.__inv.setOpen(true)); await page.waitForTimeout(500);
+  await page.evaluate(() => document.querySelector('#invMy [data-pz="claw:bear"]').click()); await page.waitForTimeout(200);
+  s = await st(); chk(!s.R && s.L === 'jaw' && !s.objR, 'tap held claw chip puts R away, L kept ' + JSON.stringify(s));
+  await page.evaluate(() => document.querySelector('#invMy [data-pz="claw:frog"]').click()); await page.waitForTimeout(200);
+  s = await st(); chk(s.R === 'claw:frog' && s.L === 'jaw', 'auto slot fills the empty R ' + JSON.stringify(s));
+  await page.evaluate(() => window.__shop.unhold('L')); s = await st(); chk(s.R === 'claw:frog' && !s.L, 'unhold L keeps the claw prize');
+  await page.evaluate(() => window.__shop.hold('jaw', 'L')); await page.evaluate(() => window.__shop.hold('monkeyBrown')); await page.waitForTimeout(200);
+  s = await st(); chk(s.R === 'monkeyBrown' && !s.L && s.hug === 'monkeyBrown' && !s.objR && !s.objL, 'hug clears both hands ' + JSON.stringify(s));
+  await page.evaluate(() => document.querySelector('#invMy [data-pz="claw:frog"]').click()); await page.waitForTimeout(200);
+  s = await st(); chk((s.R === 'claw:frog' || s.L === 'claw:frog') && !s.hug && s.R !== 'monkeyBrown', 'a claw hand item clears the hug (shop auto-slot puts it in L) ' + JSON.stringify(s));
+  chk(errors.length === 0, 'no page errors ' + errors.slice(0, 3).join(' | '));
+  await close(); process.exit(ok ? 0 : 1);
+})();
