@@ -4,7 +4,7 @@
 const { open } = require('./lib'); const { helpers } = require('./cabflow');
 const PHONE = process.argv[2] === 'phone';
 (async () => {
-  const { page, errors, requests, close } = await open(PHONE ? { phone: true, w: 412, h: 860 } : {});
+  const { page, errors, requests, close } = await open(PHONE ? { phone: true, w: 390, h: 700 } : {});
   let ok = true; const chk = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); if (!c) ok = false; };
   const sfx = PHONE ? '_phone' : '', H = helpers(page, PHONE), W = 'document.getElementById("game").contentWindow';
   const gw = fn => page.evaluate(new Function('return (' + fn + ')(' + W + ')'));

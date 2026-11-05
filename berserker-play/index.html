@@ -1061,7 +1061,7 @@ function loop(now){rainSnd();let dt=Math.min(.05,(now-last)/1000);last=now;
 function togglePause(){if(G.state=='play'){G.state='pause';showUI(false);ov('pause');if(VM)VM.pause()}else if(G.state=='pause'){G.state='play';ov(null);showUI(true);if(VM&&musOn)VM.play().catch(()=>{})}}
 let fRev=0,fTmr=0;function revealFight(){const b=$('play');if(!b.classList.contains('hid')||fTmr)return;fTmr=setTimeout(()=>{fRev=performance.now();b.classList.remove('hid')},3000)}
 ['pointerup','keyup'].forEach(t=>window.addEventListener(t,()=>{if($('title').classList.contains('on'))revealFight()},{capture:true,passive:true}));
-$('play').onclick=()=>{if($('play').classList.contains('hid')||performance.now()-fRev<350)return;tmStop();initAudio();if(AC&&AC.state!='running'){try{AC.resume()}catch(_){}}stopTV();ov(null);introDone=1;newRun()};$('again').onclick=()=>{ov(null);newRun()};
+$('play').onclick=()=>{if($('play').classList.contains('hid')||performance.now()-fRev<350)return;tmStop();initAudio();if(AC&&AC.state!='running'){try{AC.resume()}catch(_){}}stopTV();ov(null);newRun()};$('again').onclick=()=>{ov(null);newRun()};
 
 /* FIGHT electricity */
 (function(){const b=$('play'),c=$('fzc'),x=c.getContext('2d');let run=0,arcs=[],nf=0,ns=0,surge=0,lt=0;const M=14;
