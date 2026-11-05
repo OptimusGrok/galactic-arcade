@@ -35,9 +35,9 @@ const byId = Object.fromEntries(ITEMS.map(i => [i.id, i]));
 export function buildGrokClerk() {
   const canvasTex = (w, h, draw) => { const c = document.createElement('canvas'); c.width = w; c.height = h; const g = c.getContext('2d'); draw(g, w, h); const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4; return { t, c, g }; };
   const grok = new THREE.Group(); grok.name = 'grokClerk';
-  // t638u (Dave): dark grey shell (~0x3a3d42), slightly glossy; face/screen stay bright
-  const mSil = new THREE.MeshStandardMaterial({ color: 0x3a3d42, roughness: 0.32, metalness: 0.22, emissive: 0x121416 });
-  const mChr = new THREE.MeshStandardMaterial({ color: 0x23262a, roughness: 0.55, metalness: 0.18, emissive: 0x0a0b0c });
+  // t639u (Dave): light grey shell (~0xc9ccd1), darker trim; face/screen stay bright
+  const mSil = new THREE.MeshStandardMaterial({ color: 0xc9ccd1, roughness: 0.34, metalness: 0.18, emissive: 0x3a3d42, emissiveIntensity: 0.08 });
+  const mChr = new THREE.MeshStandardMaterial({ color: 0x8a8e96, roughness: 0.5, metalness: 0.16, emissive: 0x1a1c20, emissiveIntensity: 0.06 });
   const mScr = new THREE.MeshStandardMaterial({ color: 0x050506, roughness: 0.04, metalness: 0.6 });
   const sq = (e, ws = 28, hs = 20) => { const g = new THREE.SphereGeometry(1, ws, hs), p = g.attributes.position;
     for (let i = 0; i < p.count; i++) { const f = v => Math.sign(v) * Math.pow(Math.abs(v), e); p.setXYZ(i, f(p.getX(i)), f(p.getY(i)), f(p.getZ(i))); } g.computeVertexNormals(); return g; };
@@ -47,18 +47,23 @@ export function buildGrokClerk() {
     return g.applyMatrix4(T4.compose(new THREE.Vector3(x, y, z), Q4.setFromEuler(E4.set(rx, ry, rz)), new THREE.Vector3(sx, sy, sz))); };
   const build = (par, parts, name) => { const by = new Map(); for (const [m, g] of parts) { if (!by.has(m)) by.set(m, []); by.get(m).push(g); }
     for (const [m, gs] of by) { const o = new THREE.Mesh(mergeGeometries(gs), m); o.name = name; par.add(o); } };
+  // torso / neck / pelvis (no legs — legs are separate groups for walk cycle)
   { const L = [];
-    for (const sd of [-1, 1]) { const x = sd * 0.25;
-      L.push([mSil, bake(gSq2, x, 0.07, 0.06, 0.2, 0.08, 0.3)]);
-      L.push([mSil, bake(gSq2, x, 0.32, 0.01, 0.15, 0.22, 0.17)]);
-      L.push([mChr, bake(gSph, x, 0.56, 0, 0.12, 0.1, 0.12)]);
-      L.push([mChr, bake(gCyl, x, 0.68, 0, 0.1, 0.18, 0.1)]); }
     L.push([mChr, bake(gSq2, 0, 0.82, 0, 0.32, 0.12, 0.22)]);
     const tor = new THREE.CylinderGeometry(1, 0.72, 1, 4, 1).rotateY(Math.PI / 4);
     L.push([mSil, bake(tor, 0, 1.2, 0, 0.5, 0.56, 0.36)]); L.push([mSil, bake(gSq, 0, 1.2, 0, 0.4, 0.3, 0.26)]);
     L.push([mChr, bake(gCyl, 0, 0.95, 0, 0.28, 0.06, 0.2)]);
     for (let k = 0; k < 4; k++) L.push([k % 2 ? mChr : mSil, bake(gCyl, 0, 1.52 + k * 0.045, 0, k % 2 ? 0.1 : 0.125, 0.045, k % 2 ? 0.1 : 0.125)]);
     build(grok, L, 'grokBody'); }
+  const legs = [];
+  for (const sd of [-1, 1]) {
+    const hip = new THREE.Group(); hip.position.set(sd * 0.25, 0.72, 0); grok.add(hip);
+    const thigh = new THREE.Group(); hip.add(thigh);
+    const shin = new THREE.Group(); shin.position.set(0, -0.36, 0); thigh.add(shin);
+    build(thigh, [[mChr, bake(gSph, 0, 0, 0, 0.12, 0.1, 0.12)], [mChr, bake(gCyl, 0, -0.16, 0, 0.1, 0.18, 0.1)], [mSil, bake(gSq2, 0, -0.28, 0.01, 0.15, 0.22, 0.17)]], 'grokThigh');
+    build(shin, [[mSil, bake(gSq2, 0, -0.29, 0.06, 0.2, 0.08, 0.3)]], 'grokFoot');
+    legs.push({ hip, thigh, shin, sd });
+  }
   const chestTex = canvasTex(256, 96, (g) => { g.clearRect(0, 0, 256, 96); g.fillStyle = '#ffffff'; g.shadowColor = '#ffffff'; g.shadowBlur = 12; g.font = '700 62px Arial,Helvetica,sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('Grok', 128, 50); });
   { const ch = new THREE.Mesh(new THREE.PlaneGeometry(0.44, 0.165), new THREE.MeshBasicMaterial({ map: chestTex.t, transparent: true, toneMapped: false })); ch.position.set(0, 1.3, 0.336); ch.name = 'grokChest'; grok.add(ch); }
   const arms = [];
@@ -86,7 +91,7 @@ export function buildGrokClerk() {
     g.shadowBlur = 0; };
   drawFace(faceTex.g, 0, 0, 0); faceTex.t.needsUpdate = true;
   { const f = new THREE.Mesh(new THREE.PlaneGeometry(0.74, 0.555), new THREE.MeshBasicMaterial({ map: faceTex.t, transparent: true, toneMapped: false, depthWrite: false })); f.position.set(0, -0.03, 0.705); f.name = 'grokFace'; head.add(f); }
-  return { root: grok, arms, head, faceTex, drawFace };
+  return { root: grok, arms, legs, head, faceTex, drawFace };
 }
 
 export function setupShop({ scene, tp, play, monkey, camera, st } = {}) {
