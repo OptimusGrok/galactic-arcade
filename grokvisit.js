@@ -1,14 +1,57 @@
-// t632u (Dave): Grok teleports into the arcade on the 2nd look at the teleporter-pad corner (or randomly
-// after 2-4 min), says hi, plays a random cabinet on "expert" (sped attract + working joystick/buttons),
-// then beams out. Once per session. Reuses buildGrokClerk() from shop.js; does NOT edit teleport.js / main.js.
+// t635u (Dave): Grok visit round 2 — look-around, calm walk, hands ON stick+buttons,
+// SHOP+CHAT near him, male voice 1 clips, WATCH overlay. Lazy from shop.js; no Arcade edits.
 import { buildGrokClerk } from './shop.js';
 
 const HI = "Hi! I'm Grok! Watch this!";
 const CHEER = 'Nice!';
-const PLAY_S = 50;          // seconds at the cabinet
-const LOOK_NEED = 0.5;      // seconds pad must stay near screen centre to count as one look
-const LOOK_RAD = 0.42;      // NDC radius from centre that counts as "looking at the pad"
+const PLAY_S = 50;
+const LOOK_NEED = 0.5;
+const LOOK_RAD = 0.42;
 const SCALE = 0.6;
+const NEAR_R = 1.85;
+const WALK_SPD = 1.05;          // m/s calm walk
+const LOOK_AROUND_S = 3.4;
+
+const REMARKS = [
+  'Ooh, close one!', "This one's my favourite!", 'Watch the combo!', 'Easy peasy!',
+  "Ha! Got them!", "Don't blink!", 'Expert mode engaged!', 'Tickets incoming!',
+  'Smooth moves!', 'I could do this all day!',
+];
+const IDLE_LINES = [
+  'Come say hi!', 'Wanna chat?', "The prize shop's open anytime!", 'Pull up a cabinet and watch!',
+];
+const CHAT = [
+  { id: 'c_what', q: 'What is Galactic Arcade?',
+    a: 'Galactic Arcade is a neon arcade you walk around in. Grab tickets from the cabinets, then teleport to my prize shop!' },
+  { id: 'c_tickets', q: 'How do tickets work?',
+    a: 'Most games cost 5 tickets for one credit. The claw machine is just 1 ticket a drop. Win games to earn more tickets!' },
+  { id: 'c_shop', q: "What's in the prize shop?",
+    a: 'My prize shop has big plushies, toys, boxed sets and lollies. Spend tickets at the hologram counter. Accessories cost 1 or 5 tickets on the wall!' },
+  { id: 'c_games', q: 'Tell me about the games',
+    a: "We've got Strike, Ghost 256, Berserker, Monkey Crossing, Orc Attack, Cybercity, Blaster, Super Pip Quest, Burrow Buster, Nova Tether, Mars Roadster, the claw machine, and Dead Signal next door!" },
+  { id: 'c_fav', q: "What's your favourite?",
+    a: 'Hard to pick! I love Strike for the action, and Monkey Crossing when I want to hop. Ghost 256 is a classic too!' },
+  { id: 'c_acc', q: 'How do accessories work?',
+    a: 'On the Accessories wall you buy hats, hoodies, fur colours, shoes, glasses and backs. Free starter picks are on the start screen; the rest need tickets!' },
+  { id: 'c_pool', q: "What's 8-Ball Pool?",
+    a: 'There are two 8-Ball Pool tables in my shop. Walk up and tap Play Pool. Have a break from the cabinets!' },
+  { id: 'c_tips', q: 'Any tips?',
+    a: 'Face a cabinet until PLAY shows, spend tickets for credit, then dive in. Look at the teleporter pad twice and I might pop in to play!' },
+];
+
+const CLIP = {
+  hi: 'hi', cheer: 'cheer',
+  r01: 'r01', r02: 'r02', r03: 'r03', r04: 'r04', r05: 'r05',
+  r06: 'r06', r07: 'r07', r08: 'r08', r09: 'r09', r10: 'r10',
+  idle01: 'idle01', idle02: 'idle02', idle03: 'idle03', idle04: 'idle04',
+};
+const REMARK_CLIPS = ['r01','r02','r03','r04','r05','r06','r07','r08','r09','r10'];
+const IDLE_CLIPS = ['idle01','idle02','idle03','idle04'];
+
+function clipUrl(id) {
+  try { return new URL('./sfx/grok/' + id + '.mp3', import.meta.url).href; }
+  catch (e) { return 'sfx/grok/' + id + '.mp3'; }
+}
 
 export function setupGrokVisit({ scene, tp, play, monkey, camera, st } = {}) {
   if (window.__grokVisit && window.__grokVisit.ready) return window.__grokVisit;
@@ -25,74 +68,99 @@ export function setupGrokVisit({ scene, tp, play, monkey, camera, st } = {}) {
   grok.position.set(pad.x, 0, pad.z);
   scene.add(grok);
 
-  // Lightweight beam FX (same look as teleport.js / start-screen beam; local only, no teleport.js edit)
-  const fx = makeBeam(THREE, scene);
-  const tmp = new THREE.Vector3(), ndc = new THREE.Vector3();
+  // palm proxies (silver spheres) — parented to joystick / buttons so they sit ON the controls
+  const mkPalm = (c) => {
+    const m = new THREE.Mesh(new THREE.SphereGeometry(0.045, 10, 8),
+      new THREE.MeshStandardMaterial({ color: c, roughness: 0.28, metalness: 0.25, emissive: 0x6ff6ff, emissiveIntensity: 0.45 }));
+    m.name = 'gvPalm'; m.visible = false; m.scale.setScalar(1.35); return m;
+  };
+  const palmL = mkPalm(0x3a3d42), palmR = mkPalm(0x3a3d42);
+  scene.add(palmL); scene.add(palmR);
 
-  // Voice: same upbeat male TTS path as the shopkeeper (spoken, no bubble). Prefer shared AudioContext.
+  const fx = makeBeam(THREE, scene);
+  const tmp = new THREE.Vector3(), tmp2 = new THREE.Vector3(), ndc = new THREE.Vector3();
+  const _q = new THREE.Quaternion(), _e = new THREE.Euler();
+
+  // ---- voice (male 1 = GuyNeural clips via shared AudioContext; TTS fallback) ----
+  const bufs = {};
+  let playingSrc = null, talkT = 0, happyT = 0, blinkT = 2, faceState = '', t = 0;
   let voice = null;
-  const pickVoice = () => { try { const vs = speechSynthesis.getVoices().filter(v => /^en/i.test(v.lang)); voice = vs.find(v => /\bmale\b/i.test(v.name) && !/female/i.test(v.name)) || vs.find(v => /david|daniel|alex|guy|james|george|ryan|mark|tom/i.test(v.name)) || vs[0] || null; } catch (e) {} };
+  const pickVoice = () => { try { const vs = speechSynthesis.getVoices().filter(v => /^en/i.test(v.lang)); voice = vs.find(v => /guy/i.test(v.name)) || vs.find(v => /\bmale\b/i.test(v.name) && !/female/i.test(v.name)) || vs[0] || null; } catch (e) {} };
   try { pickVoice(); speechSynthesis.onvoiceschanged = pickVoice; } catch (e) {}
-  let talkT = 0, happyT = 0, blinkT = 2, faceState = '', t = 0;
   const muted = () => !!(window.__muted || (window.__mute && window.__mute.on));
-  function say(text) {
-    talkT = Math.max(1.4, text.length * 0.065); happyT = talkT + 1.2; api.said.push(text);
+  const actx = () => { try { const AC = window.AudioContext || window.webkitAudioContext; return window.__unlockAC = window.__unlockAC || new AC(); } catch (e) { return null; } };
+  function loadClip(id) {
+    if (bufs[id] || bufs[id] === false) return;
+    bufs[id] = null;
+    const ac = actx(); if (!ac) return;
+    fetch(clipUrl(id)).then(r => r.arrayBuffer()).then(b => new Promise((ok, no) => ac.decodeAudioData(b, ok, no)))
+      .then(buf => { bufs[id] = buf; }).catch(() => { bufs[id] = false; });
+  }
+  function warmClips() { ['hi','cheer', ...REMARK_CLIPS, ...IDLE_CLIPS, ...CHAT.map(c => c.id)].forEach(loadClip); }
+  warmClips();
+  function stopVoice() {
+    try { if (playingSrc) { playingSrc.stop(); } } catch (e) {}
+    playingSrc = null;
+    try { speechSynthesis.cancel(); } catch (e) {}
+  }
+  function say(text, clipId) {
+    talkT = Math.max(1.2, text.length * 0.055); happyT = talkT + 1.0; api.said.push(text);
     if (muted()) return;
-    try { speechSynthesis.cancel(); const u = new SpeechSynthesisUtterance(text); if (voice) u.voice = voice; u.lang = (voice && voice.lang) || 'en-US'; u.pitch = 0.95; u.rate = 1.05; speechSynthesis.speak(u); } catch (e) {}
+    stopVoice();
+    const ac = actx();
+    try { if (ac && ac.state !== 'running') ac.resume(); } catch (e) {}
+    const buf = clipId && bufs[clipId];
+    if (buf && ac && ac.state === 'running') {
+      try {
+        const src = ac.createBufferSource(); src.buffer = buf; src.connect(ac.destination); src.start();
+        playingSrc = src; talkT = Math.max(talkT, buf.duration); happyT = talkT + 1.0;
+        src.onended = () => { if (playingSrc === src) playingSrc = null; };
+        api.voice = 'webaudio'; return;
+      } catch (e) {}
+    }
+    // element fallback then TTS
+    if (clipId) {
+      try {
+        const a = new Audio(clipUrl(clipId)); a.preload = 'auto';
+        const pr = a.play();
+        Promise.resolve(pr).then(() => { api.voice = 'clip'; talkT = Math.max(talkT, a.duration || talkT); }).catch(() => tts(text));
+        return;
+      } catch (e) {}
+    }
+    tts(text);
   }
-  function zap() {
-    try {
-      if (muted()) return;
-      const AC = window.AudioContext || window.webkitAudioContext; const ac = window.__unlockAC = window.__unlockAC || new AC();
-      if (ac.state !== 'running') return;
-      const t0 = ac.currentTime, o = ac.createOscillator(), g = ac.createGain();
-      o.type = 'square'; o.frequency.setValueAtTime(2200, t0); o.frequency.exponentialRampToValueAtTime(110, t0 + 0.28);
-      g.gain.setValueAtTime(0.0001, t0); g.gain.exponentialRampToValueAtTime(0.07, t0 + 0.01); g.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.32);
-      o.connect(g); g.connect(ac.destination); o.start(t0); o.stop(t0 + 0.34);
-    } catch (e) {}
-  }
-  function vwoom(D) {
-    try {
-      if (muted()) return;
-      const AC = window.AudioContext || window.webkitAudioContext; const ac = window.__unlockAC = window.__unlockAC || new AC();
-      if (ac.state !== 'running') return;
-      const t0 = ac.currentTime, o = ac.createOscillator(), o2 = ac.createOscillator(), f = ac.createBiquadFilter(), g = ac.createGain();
-      o.type = 'sawtooth'; o2.type = 'sine'; o.frequency.setValueAtTime(70, t0); o.frequency.exponentialRampToValueAtTime(420, t0 + D);
-      o2.frequency.setValueAtTime(140, t0); o2.frequency.exponentialRampToValueAtTime(1100, t0 + D);
-      f.type = 'lowpass'; f.Q.value = 8; f.frequency.setValueAtTime(200, t0); f.frequency.exponentialRampToValueAtTime(3200, t0 + D);
-      g.gain.setValueAtTime(0.0001, t0); g.gain.exponentialRampToValueAtTime(0.08, t0 + 0.3); g.gain.setValueAtTime(0.08, t0 + D - 0.15); g.gain.exponentialRampToValueAtTime(0.0001, t0 + D + 0.1);
-      o.connect(f); o2.connect(f); f.connect(g); g.connect(ac.destination); [o, o2].forEach(x => { x.start(t0); x.stop(t0 + D + 0.15); });
-    } catch (e) {}
+  function tts(text) {
+    try { speechSynthesis.cancel(); const u = new SpeechSynthesisUtterance(text); if (voice) u.voice = voice; u.lang = (voice && voice.lang) || 'en-US'; u.pitch = 1.0; u.rate = 1.05; speechSynthesis.speak(u); api.voice = 'tts'; } catch (e) {}
   }
 
   const api = {
     ready: true, state: 'idle', lookCount: 0, looks: 0, started: 0, finished: 0, said: [],
     cab: null, reason: null, fallAt: 120 + Math.random() * 120, sessT: 0, force: false,
+    near: false, chatOpen: false, watchOpen: false, remarks: 0,
     start(reason = 'debug') { if (api.state !== 'idle' && api.state !== 'done') return false; api.force = true; api.reason = reason; begin(reason); return true; },
     get grok() { return grok; }, get pad() { return pad; },
   };
   window.__grokVisit = api;
-  // Test helpers: shorten timings + jump phases (does not affect live play unless start('test') / fast=true)
   api.fast = false;
   api.skipTo = (stName) => {
-    if (stName === 'play' && cab) { const s = standAtCab(); grok.position.set(s.x, 0, s.z); grok.rotation.y = s.yaw; grok.scale.setScalar(SCALE); grok.visible = true; bindControls(); api.state = 'play'; phaseT = 0; playDur = api.fast ? 3 : playDur; return true; }
-    if (stName === 'leave') { resetControls(); grok.position.set(pad.x, 0, pad.z); grok.visible = true; api.state = 'leave'; phaseT = 0; fx.start(pad.x, pad.z, 'out'); powerPad(1); return true; }
-    if (stName === 'done') { resetControls(); grok.visible = false; powerPad(0); fx.stop(); api.state = 'done'; api.finished++; return true; }
+    if (stName === 'play' && cab) { const s = standAtCab(); grok.position.set(s.x, 0, s.z); grok.rotation.y = s.yaw; grok.scale.setScalar(SCALE); grok.visible = true; bindControls(); api.state = 'play'; phaseT = 0; playDur = api.fast ? 3 : playDur; showNear(true); return true; }
+    if (stName === 'leave') { resetControls(); hideUI(); grok.position.set(pad.x, 0, pad.z); grok.visible = true; api.state = 'leave'; phaseT = 0; fx.start(pad.x, pad.z, 'out'); powerPad(1); return true; }
+    if (stName === 'done') { resetControls(); hideUI(); grok.visible = false; powerPad(0); fx.stop(); api.state = 'done'; api.finished++; return true; }
+    if (stName === 'look') { api.state = 'look'; phaseT = 0; grok.visible = true; grok.scale.setScalar(SCALE); return true; }
     return false;
   };
 
-  // ---- look tracking (wall-clock: phone + slow headless both count real stare time) ----
+  // ---- look tracking ----
   let lookStart = 0, leftSince = true, wasLooking = false;
   function padLooking() {
     if (!camera) return false;
     ndc.set(pad.x, 0.55, pad.z).project(camera);
-    if (ndc.z > 1 || ndc.z < -1) return false;                       // behind near/far
+    if (ndc.z > 1 || ndc.z < -1) return false;
     const r = Math.hypot(ndc.x, ndc.y);
     const dx = pad.x - camera.position.x, dz = pad.z - camera.position.z;
     const dist = Math.hypot(dx, dz); if (dist < 0.5 || dist > 22) return false;
     return r < LOOK_RAD;
   }
-
   function busy() {
     try {
       if (document.getElementById('start')) return true;
@@ -100,6 +168,7 @@ export function setupGrokVisit({ scene, tp, play, monkey, camera, st } = {}) {
       if (tp && tp.where !== 1) return true;
       if (tp && tp.locked) return true;
       if (window.__shop && window.__shop.open) return true;
+      if (api.chatOpen || api.watchOpen) return true;
       if (window.__wardrobe && window.__wardrobe.isOpen) return true;
       if (document.querySelector('#inv.on')) return true;
       if (document.querySelector('#holo.on')) return true;
@@ -109,8 +178,7 @@ export function setupGrokVisit({ scene, tp, play, monkey, camera, st } = {}) {
     } catch (e) {}
     return false;
   }
-
-  api.simulateLooks = (n) => { api.lookCount = Math.max(0, n | 0); leftSince = true; lookStart = 0; };
+  api.simulateLooks = (n) => { api.lookCount = Math.max(0, n | 0); leftSince = true; lookStart = 0; if (api.lookCount >= 2 && api.state === 'idle' && !busy()) begin('look'); };
   api.isLooking = padLooking;
   api.isBusy = busy;
 
@@ -120,7 +188,6 @@ export function setupGrokVisit({ scene, tp, play, monkey, camera, st } = {}) {
       if (!c.getObjectByName('joystick')) return false;
       const n = (c.userData && c.userData.name) || c.name || '';
       if (/roadster|claw|deadsignal|dsCab/i.test(n)) return false;
-      // stay in room 1 (featured roadster/claw filtered; room2 ds has no joystick usually)
       const f = c.userData && c.userData.front; if (!f) return false;
       if (Math.abs(f.x) > 14 || Math.abs(f.z) > 14) return false;
       return true;
@@ -129,10 +196,10 @@ export function setupGrokVisit({ scene, tp, play, monkey, camera, st } = {}) {
     return list[(Math.random() * list.length) | 0];
   }
 
-  // ---- state machine ----
   let phaseT = 0, from = new THREE.Vector3(), to = new THREE.Vector3(), fromYaw = 0, toYaw = 0;
   let cab = null, joy = null, btns = [], joyBase = null, btnBase = [];
-  let playDur = PLAY_S;
+  let playDur = PLAY_S, remarkAt = 0, idleLineAt = 0;
+  let lookYawT = 0;
 
   function begin(reason) {
     cab = pickCab();
@@ -140,7 +207,7 @@ export function setupGrokVisit({ scene, tp, play, monkey, camera, st } = {}) {
     api.cab = cab; api.reason = reason; api.started++; api.state = 'arrive'; phaseT = 0;
     if (api.fast || reason === 'test') playDur = 3;
     grok.position.set(pad.x, 0, pad.z);
-    grok.rotation.set(0, Math.atan2(0 - pad.x, 0 - pad.z), 0);   // face into the room
+    grok.rotation.set(0, Math.atan2(0 - pad.x, 0 - pad.z), 0);
     grok.scale.setScalar(0.01); grok.visible = true;
     fx.start(pad.x, pad.z, 'in');
     try { if (tp.fxAt) tp.fxAt(pad.x, pad.z, false); } catch (e) {}
@@ -154,17 +221,17 @@ export function setupGrokVisit({ scene, tp, play, monkey, camera, st } = {}) {
     } catch (e) {}
   }
 
-  function walkTo(x, z, yaw, next, dur) {
+  function walkTo(x, z, yaw, next) {
     from.copy(grok.position); to.set(x, 0, z); fromYaw = grok.rotation.y; toYaw = yaw;
-    // shortest yaw lerp
     let d = toYaw - fromYaw; while (d > Math.PI) d -= Math.PI * 2; while (d < -Math.PI) d += Math.PI * 2; toYaw = fromYaw + d;
-    api.state = next; phaseT = 0; api._walkDur = dur || 2.4;
+    const dist = Math.hypot(to.x - from.x, to.z - from.z);
+    api.state = next; phaseT = 0;
+    api._walkDur = api.fast || api.reason === 'test' ? Math.max(0.6, dist / 4) : Math.max(2.8, dist / WALK_SPD);
   }
 
   function standAtCab() {
     const f = cab.userData.front, face = cab.userData.facing || new THREE.Vector3(0, 0, 1);
-    // stand a touch behind the play spot so the player can walk up beside/behind him
-    const x = f.x - face.x * 0.05, z = f.z - face.z * 0.05;
+    const x = f.x + face.x * 0.08, z = f.z + face.z * 0.08;
     const yaw = Math.atan2(face.x, face.z);
     return { x, z, yaw };
   }
@@ -172,43 +239,79 @@ export function setupGrokVisit({ scene, tp, play, monkey, camera, st } = {}) {
   function bindControls() {
     joy = cab.getObjectByName('joystick');
     btns = []; cab.traverse(o => { if (/^btn/i.test(o.name) && o.isMesh) btns.push(o); });
+    // prefer first 3 face buttons
+    if (btns.length > 3) btns = btns.slice(0, 3);
     joyBase = joy ? { x: joy.rotation.x, y: joy.rotation.y, z: joy.rotation.z } : null;
     btnBase = btns.map(b => b.position.y);
+    // park palms on the controls
+    if (joy) {
+      const ball = joy.children.find(c => c.isMesh) || joy;
+      palmL.position.set(0, 0.12, 0);
+      joy.add(palmL); palmL.visible = true;
+    }
+    if (btns[0]) {
+      palmR.position.set(0, 0.03, 0);
+      btns[0].add(palmR); palmR.visible = true;
+    }
   }
   function resetControls() {
     if (joy && joyBase) joy.rotation.set(joyBase.x, joyBase.y, joyBase.z);
     btns.forEach((b, i) => { if (btnBase[i] != null) b.position.y = btnBase[i]; });
+    if (palmL.parent) palmL.parent.remove(palmL); scene.add(palmL); palmL.visible = false;
+    if (palmR.parent) palmR.parent.remove(palmR); scene.add(palmR); palmR.visible = false;
     joy = null; btns = []; joyBase = null; btnBase = [];
   }
 
+  // Aim an arm so the hand tip reaches a world-space target (simple 2-bone IK in Grok local space)
+  function aimArm(arm, targetW, handLen) {
+    grok.updateMatrixWorld(true);
+    arm.sh.getWorldPosition(tmp);
+    const inv = grok.matrixWorld.clone().invert();
+    const localT = targetW.clone().applyMatrix4(inv);
+    const localS = tmp.clone().applyMatrix4(inv);
+    const dx = localT.x - localS.x, dy = localT.y - localS.y, dz = localT.z - localS.z;
+    const reach = Math.hypot(dx, dy, dz);
+    const upper = 0.30, lower = handLen || 0.38;
+    // shoulder pitch / yaw toward target
+    const yaw = Math.atan2(dx, -dy + 0.001);   // around Z-ish for lateral
+    const pitch = Math.atan2(-dz, Math.hypot(dx, dy) + 0.001) - 0.4;
+    const cosE = Math.max(-1, Math.min(1, (upper * upper + lower * lower - reach * reach) / (2 * upper * lower)));
+    const elbow = Math.PI - Math.acos(cosE);
+    const sd = arm.sd;
+    arm.sh.rotation.x += (pitch - arm.sh.rotation.x) * 0.35;
+    arm.sh.rotation.z += ((sd > 0 ? 0.15 : -0.15) + yaw * 0.35 - arm.sh.rotation.z) * 0.35;
+    arm.el.rotation.x += ((-elbow * 0.85) - arm.el.rotation.x) * 0.4;
+  }
+
   function animatePlay(dt) {
-    // Grok leans in, arms work the panel
-    const L = arms[0], R = arms[1];
-    L.sh.rotation.x += (-0.85 - L.sh.rotation.x) * Math.min(1, dt * 5);
-    L.sh.rotation.z += ((-0.05) - L.sh.rotation.z) * Math.min(1, dt * 5);
-    L.el.rotation.x += (-0.55 + Math.sin(t * 9) * 0.25 - L.el.rotation.x) * Math.min(1, dt * 8);
-    R.sh.rotation.x += (-0.55 - R.sh.rotation.x) * Math.min(1, dt * 5);
-    R.sh.rotation.z += (0.35 - R.sh.rotation.z) * Math.min(1, dt * 5);
-    R.el.rotation.x += (-0.9 - R.el.rotation.x) * Math.min(1, dt * 5);
-    R.el.rotation.z = Math.sin(t * 14) * 0.35;   // mash buttons
-    // cabinet joystick + buttons (visible "expert" play)
+    // wiggle stick + mash buttons first so palms (children) move with them
     if (joy) {
-      joy.rotation.x = Math.sin(t * 7.5) * 0.55;
-      joy.rotation.z = Math.cos(t * 5.5) * 0.45;
+      joy.rotation.x = Math.sin(t * 6.2) * 0.5;
+      joy.rotation.z = Math.cos(t * 4.8) * 0.42;
     }
+    const pressIdx = ((t * 2.4) | 0) % Math.max(1, btns.length || 1);
     btns.forEach((b, i) => {
-      const press = ((Math.sin(t * 11 + i * 1.7) > 0.55) ? 1 : 0);
+      const press = (i === pressIdx && Math.sin(t * 14) > 0) ? 1 : (Math.sin(t * 11 + i * 1.7) > 0.7 ? 1 : 0);
       const base = btnBase[i] != null ? btnBase[i] : b.position.y;
-      b.position.y += ((base - press * 0.012) - b.position.y) * Math.min(1, dt * 18);
+      b.position.y += ((base - press * 0.014) - b.position.y) * Math.min(1, dt * 18);
     });
-    // speed up attract-mode "expert" playback on cabinets that expose tick()
+    // move right palm onto the currently pressed button
+    if (btns.length) {
+      const b = btns[pressIdx] || btns[0];
+      if (palmR.parent !== b) { if (palmR.parent) palmR.parent.remove(palmR); b.add(palmR); palmR.position.set(0, 0.028, 0); palmR.visible = true; }
+    }
+    // aim arms at palm world positions so hands look glued on
+    if (palmL.visible) { palmL.getWorldPosition(tmp2); aimArm(arms[0], tmp2, 0.40); }
+    if (palmR.visible) { palmR.getWorldPosition(tmp2); aimArm(arms[1], tmp2, 0.40); }
+    // lean torso slightly
+    arms[0].sh.rotation.x = Math.min(arms[0].sh.rotation.x, -0.35);
+    arms[1].sh.rotation.x = Math.min(arms[1].sh.rotation.x, -0.25);
     try {
-      if (cab.userData && typeof cab.userData.tick === 'function') {
-        cab.userData.tick(t * 2.6);   // ~2.6x attract speed while Grok plays
-      }
+      if (cab.userData && typeof cab.userData.tick === 'function') cab.userData.tick(t * 2.6);
     } catch (e) {}
-    // Strike / Ghost demos keep running via main.js; bump their glow a bit so the screen looks "on"
     try { if (cab.userData.glow) cab.userData.glow.intensity = 1.35 + Math.sin(t * 10) * 0.1; } catch (e) {}
+    // watch overlay sync
+    if (api.watchOpen) drawWatchHands(pressIdx);
   }
 
   function idleArms(dt) {
@@ -220,9 +323,207 @@ export function setupGrokVisit({ scene, tp, play, monkey, camera, st } = {}) {
     });
   }
 
+  // ---- UI: SHOP + CHAT near Grok, WATCH beside PLAY ----
+  const css = document.createElement('style');
+  css.textContent =
+    '#gvBtns{position:fixed;left:50%;bottom:calc(88px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);z-index:28;display:none;gap:12px;align-items:center;pointer-events:none}' +
+    '#gvBtns.on{display:flex}' +
+    '#gvShop,#gvChat{pointer-events:auto;min-width:128px;height:56px;padding:0 24px;border-radius:28px;border:3px solid #00e5ff;background:#021a22f2;color:#dffbff;font:900 20px/1 "Courier New",monospace;letter-spacing:.14em;box-shadow:0 0 18px #00e5ffcc,inset 0 0 12px #00e5ff55;text-shadow:0 0 8px #00e5ff;cursor:pointer;touch-action:manipulation}' +
+    '#gvChat{border-color:#c9a0ff;background:#1a0833f2;box-shadow:0 0 18px #b07cffcc,inset 0 0 12px #b07cff55;text-shadow:0 0 8px #c9a0ff;color:#f0e6ff}' +
+    '#gvShop:active,#gvChat:active{transform:scale(.95)}' +
+    '#gvChatOv{position:fixed;inset:0;z-index:42;display:none;align-items:flex-end;justify-content:center;padding-bottom:max(18px,env(safe-area-inset-bottom));background:#10081ecc;touch-action:pan-y}' +
+    '#gvChatOv.on{display:flex}' +
+    '#gvChatP{width:min(94vw,440px);max-height:min(72vh,580px);display:flex;flex-direction:column;border-radius:16px;border:2px solid #c9a0ff;background:linear-gradient(#b07cff33,#3d1a7a44);box-shadow:0 0 28px #b07cffaa,inset 0 0 22px #b07cff44;color:#f5eaff;font:700 14px "Courier New",monospace;overflow:hidden;backdrop-filter:blur(3px)}' +
+    '#gvChatP:before{content:"";position:absolute;inset:0;pointer-events:none;background:repeating-linear-gradient(0deg,#e0c8ff18 0 1px,transparent 1px 4px)}' +
+    '#gvChatHd{display:flex;align-items:center;justify-content:space-between;padding:12px 14px;border-bottom:1px solid #c9a0ff77;position:relative}' +
+    '#gvChatHd b{font:900 18px "Courier New",monospace;letter-spacing:.14em;color:#f0e6ff;text-shadow:0 0 8px #c9a0ff}' +
+    '#gvChatX{width:40px;height:40px;border-radius:50%;border:2px solid #c9a0ff;background:#1a083399;color:#f0e6ff;font:700 18px sans-serif;cursor:pointer}' +
+    '#gvChatLog{flex:1;overflow-y:auto;padding:12px 14px;display:flex;flex-direction:column;gap:10px;-webkit-overflow-scrolling:touch}' +
+    '.gvMsg{align-self:flex-start;max-width:92%;padding:10px 12px;border-radius:12px;border:1px solid #c9a0ff66;background:#2a1055aa;line-height:1.35;text-shadow:0 0 6px #b07cff}' +
+    '.gvMsg.me{align-self:flex-end;background:#00e5ff22;border-color:#6ff6ff66;color:#dffcff}' +
+    '#gvChips{display:flex;flex-wrap:wrap;gap:8px;padding:10px 12px 14px;border-top:1px solid #c9a0ff55}' +
+    '.gvChip{padding:8px 12px;border-radius:16px;border:1.5px solid #c9a0ff;background:#2a1055cc;color:#f0e6ff;font:800 12px/1.2 Arial,sans-serif;cursor:pointer;touch-action:manipulation}' +
+    '.gvChip:active{transform:scale(.96)}' +
+    '#gvWatch{position:fixed;left:calc(50% + 118px);top:50%;transform:translateY(-50%) scale(.85);z-index:7;display:none;min-width:130px;height:auto;padding:16px 28px 14px;border-radius:14px;border:3px solid #00e5ff;background:linear-gradient(#062a36ee,#021018ee);color:#dffbff;font:900 clamp(22px,5vw,36px)/1 "Courier New",monospace;letter-spacing:.1em;box-shadow:0 0 16px #00e5ffaa;cursor:pointer;touch-action:manipulation;opacity:0;pointer-events:none;transition:opacity .35s ease,transform .35s ease}' +
+    '#gvWatch.on{display:block;opacity:1;pointer-events:auto;transform:translateY(-50%) scale(1)}' +
+    '#gvWatchOv{position:fixed;inset:0;z-index:55;display:none;background:#000;flex-direction:column;align-items:stretch}' +
+    '#gvWatchOv.on{display:flex}' +
+    '#gvWatchCv{flex:1;width:100%;background:#000;object-fit:contain}' +
+    '#gvWatchHands{position:absolute;left:0;right:0;bottom:0;height:28%;pointer-events:none}' +
+    '#gvWatchX{position:absolute;right:calc(10px + env(safe-area-inset-right));top:calc(10px + env(safe-area-inset-top));z-index:2;width:46px;height:46px;border-radius:23px;border:2px solid #fff8;background:#000a;color:#fff;font:900 22px/1 Arial,sans-serif;cursor:pointer}';
+  document.head.appendChild(css);
+
+  const btnsRow = document.createElement('div'); btnsRow.id = 'gvBtns';
+  btnsRow.innerHTML = '<button id="gvShop" type="button">SHOP</button><button id="gvChat" type="button">CHAT</button>';
+  document.body.appendChild(btnsRow);
+  const shopB = btnsRow.querySelector('#gvShop'), chatB = btnsRow.querySelector('#gvChat');
+
+  const chatOv = document.createElement('div'); chatOv.id = 'gvChatOv';
+  chatOv.innerHTML = '<div id="gvChatP" style="position:relative"><div id="gvChatHd"><div><b>GROK CHAT</b><div style="font-size:11px;opacity:.7;letter-spacing:.08em">HOLOGRAM LINK</div></div><button id="gvChatX" aria-label="Close">✕</button></div><div id="gvChatLog"></div><div id="gvChips"></div></div>';
+  document.body.appendChild(chatOv);
+  const chatLog = chatOv.querySelector('#gvChatLog'), chatChips = chatOv.querySelector('#gvChips');
+  chatChips.innerHTML = CHAT.map(c => `<button class="gvChip" data-cid="${c.id}" type="button">${c.q}</button>`).join('');
+
+  const watchB = document.createElement('button'); watchB.id = 'gvWatch'; watchB.type = 'button'; watchB.textContent = 'WATCH';
+  document.body.appendChild(watchB);
+  const watchOv = document.createElement('div'); watchOv.id = 'gvWatchOv';
+  watchOv.innerHTML = '<button id="gvWatchX" aria-label="Close">✕</button><canvas id="gvWatchCv"></canvas><canvas id="gvWatchHands"></canvas>';
+  document.body.appendChild(watchOv);
+  const watchCv = watchOv.querySelector('#gvWatchCv'), watchHands = watchOv.querySelector('#gvWatchHands');
+  const wctx = watchCv.getContext('2d'), hctx = watchHands.getContext('2d');
+
+  function showNear(on) {
+    api.near = !!on;
+    btnsRow.classList.toggle('on', !!on && !api.chatOpen && !(window.__shop && window.__shop.open));
+  }
+  function hideUI() {
+    showNear(false); closeChat(); closeWatch(); watchB.classList.remove('on');
+  }
+
+  function openChat() {
+    if (api.chatOpen) return;
+    api.chatOpen = true; chatOv.classList.add('on'); btnsRow.classList.remove('on');
+    if (chatLog.childElementCount === 0) {
+      const m = document.createElement('div'); m.className = 'gvMsg';
+      m.textContent = "Hey! Ask me anything about Galactic Arcade."; chatLog.appendChild(m);
+      say("Hey! Ask me anything about Galactic Arcade.", null);
+    }
+    const k = A().keys; if (k) for (const c in k) k[c] = false;
+  }
+  function closeChat() {
+    if (!api.chatOpen) return;
+    api.chatOpen = false; chatOv.classList.remove('on'); stopVoice();
+  }
+  function askChat(id) {
+    const c = CHAT.find(x => x.id === id); if (!c) return;
+    const me = document.createElement('div'); me.className = 'gvMsg me'; me.textContent = c.q; chatLog.appendChild(me);
+    const ans = document.createElement('div'); ans.className = 'gvMsg'; ans.textContent = c.a; chatLog.appendChild(ans);
+    chatLog.scrollTop = chatLog.scrollHeight;
+    say(c.a, c.id);
+  }
+
+  function openWatch() {
+    if (api.watchOpen || !cab) return;
+    api.watchOpen = true; watchOv.classList.add('on');
+    sizeWatch(); drawWatchFrame();
+    const k = A().keys; if (k) for (const c in k) k[c] = false;
+  }
+  function closeWatch() {
+    if (!api.watchOpen) return;
+    api.watchOpen = false; watchOv.classList.remove('on');
+  }
+  function sizeWatch() {
+    const dpr = Math.min(2, devicePixelRatio || 1);
+    watchCv.width = Math.round(innerWidth * dpr); watchCv.height = Math.round(innerHeight * 0.72 * dpr);
+    watchCv.style.width = '100%'; watchCv.style.height = '72%';
+    watchHands.width = Math.round(innerWidth * dpr); watchHands.height = Math.round(innerHeight * 0.28 * dpr);
+    watchHands.style.width = '100%'; watchHands.style.height = '28%';
+  }
+  function drawWatchFrame() {
+    if (!api.watchOpen || !cab) return;
+    const scr = cab.getObjectByName && cab.getObjectByName('screen');
+    const mat = scr && scr.material;
+    const map = mat && (mat.map || (mat.emissiveMap) || (mat.uniforms && mat.uniforms.map && mat.uniforms.map.value));
+    const img = map && (map.image || map.source && map.source.data);
+    wctx.fillStyle = '#05060a'; wctx.fillRect(0, 0, watchCv.width, watchCv.height);
+    if (img && img.width) {
+      const cw = watchCv.width, ch = watchCv.height, iw = img.width, ih = img.height;
+      const s = Math.min(cw / iw, ch / ih);
+      const dw = iw * s, dh = ih * s;
+      try { wctx.drawImage(img, (cw - dw) / 2, (ch - dh) / 2, dw, dh); } catch (e) {}
+    } else {
+      wctx.fillStyle = '#9ff8ff'; wctx.font = 'bold 32px monospace'; wctx.textAlign = 'center';
+      wctx.fillText((cab.name || 'ARCADE').toUpperCase(), watchCv.width / 2, watchCv.height / 2);
+      wctx.font = '16px monospace'; wctx.fillText('GROK PLAYING · EXPERT', watchCv.width / 2, watchCv.height / 2 + 36);
+    }
+  }
+  function drawWatchHands(pressIdx) {
+    const w = watchHands.width, h = watchHands.height;
+    hctx.clearRect(0, 0, w, h);
+    // panel
+    hctx.fillStyle = '#1a1e28'; hctx.fillRect(0, h * 0.35, w, h * 0.65);
+    hctx.fillStyle = '#2a3140'; hctx.fillRect(0, h * 0.35, w, h * 0.08);
+    // joystick base + stick (left)
+    const jx = w * 0.28, jy = h * 0.72;
+    const jdx = Math.sin(t * 6.2) * w * 0.04, jdz = Math.cos(t * 4.8) * h * 0.05;
+    hctx.fillStyle = '#3a4050'; hctx.beginPath(); hctx.ellipse(jx, jy, w * 0.07, h * 0.06, 0, 0, 7); hctx.fill();
+    hctx.strokeStyle = '#c9ccd1'; hctx.lineWidth = Math.max(4, w * 0.01);
+    hctx.beginPath(); hctx.moveTo(jx, jy); hctx.lineTo(jx + jdx, jy - h * 0.22 + jdz); hctx.stroke();
+    hctx.fillStyle = '#e01818'; hctx.beginPath(); hctx.arc(jx + jdx, jy - h * 0.22 + jdz, w * 0.035, 0, 7); hctx.fill();
+    // left hand gripping stick
+    drawHand(hctx, jx + jdx, jy - h * 0.18 + jdz, w * 0.11, true, '#4a4e54');
+    // three buttons (right)
+    const bx0 = w * 0.62, by = h * 0.62, gap = w * 0.08;
+    for (let i = 0; i < 3; i++) {
+      const bx = bx0 + i * gap;
+      const pressed = i === (pressIdx % 3);
+      hctx.fillStyle = pressed ? '#ff6060' : ['#e01818', '#22d040', '#2a6aff'][i];
+      hctx.beginPath(); hctx.arc(bx, by + (pressed ? 6 : 0), w * 0.028, 0, 7); hctx.fill();
+      hctx.strokeStyle = '#fff4'; hctx.lineWidth = 2; hctx.stroke();
+    }
+    const pi = pressIdx % 3;
+    drawHand(hctx, bx0 + pi * gap, by + 10, w * 0.1, false, '#4a4e54');
+  }
+  function drawHand(ctx, x, y, s, left, col) {
+    ctx.save(); ctx.translate(x, y); if (!left) ctx.scale(-1, 1);
+    ctx.fillStyle = col;
+    ctx.beginPath(); ctx.ellipse(0, 0, s * 0.55, s * 0.4, 0, 0, 7); ctx.fill(); // palm
+    for (let i = 0; i < 4; i++) {
+      const a = -0.7 + i * 0.35;
+      ctx.beginPath(); ctx.ellipse(Math.sin(a) * s * 0.45, -s * 0.55 - Math.cos(a) * s * 0.05, s * 0.12, s * 0.28, a, 0, 7); ctx.fill();
+    }
+    ctx.beginPath(); ctx.ellipse(-s * 0.5, -s * 0.05, s * 0.14, s * 0.22, -0.8, 0, 7); ctx.fill(); // thumb
+    ctx.restore();
+  }
+
+  shopB.addEventListener('pointerup', e => { e.stopPropagation(); try { window.__shop && window.__shop.openShop && window.__shop.openShop(); } catch (err) {} });
+  chatB.addEventListener('pointerup', e => { e.stopPropagation(); openChat(); });
+  chatOv.querySelector('#gvChatX').addEventListener('pointerup', e => { e.stopPropagation(); closeChat(); });
+  chatOv.addEventListener('pointerup', e => { if (e.target === chatOv) closeChat(); });
+  chatChips.addEventListener('pointerup', e => { const b = e.target.closest && e.target.closest('[data-cid]'); if (!b) return; e.stopPropagation(); askChat(b.dataset.cid); });
+  watchB.addEventListener('pointerup', e => { e.stopPropagation(); openWatch(); });
+  watchOv.querySelector('#gvWatchX').addEventListener('pointerup', e => { e.stopPropagation(); closeWatch(); });
+  addEventListener('keydown', e => {
+    if (api.chatOpen && (e.code === 'Escape' || e.code === 'Backspace')) { closeChat(); e.stopImmediatePropagation(); }
+    if (api.watchOpen && (e.code === 'Escape' || e.code === 'Backspace')) { closeWatch(); e.stopImmediatePropagation(); }
+  }, true);
+  addEventListener('resize', () => { if (api.watchOpen) sizeWatch(); });
+
+  function playerNearGrok() {
+    const m = monkey || A().monkey; if (!m || !grok.visible) return false;
+    return Math.hypot(m.position.x - grok.position.x, m.position.z - grok.position.z) < NEAR_R;
+  }
+  function playerNearCab() {
+    const m = monkey || A().monkey; if (!m || !cab || !cab.userData.front) return false;
+    const f = cab.userData.front;
+    return Math.hypot(m.position.x - f.x, m.position.z - f.z) < 1.15;
+  }
+
+  function zap() {
+    try {
+      if (muted()) return;
+      const ac = actx(); if (!ac || ac.state !== 'running') return;
+      const t0 = ac.currentTime, o = ac.createOscillator(), g = ac.createGain();
+      o.type = 'square'; o.frequency.setValueAtTime(2200, t0); o.frequency.exponentialRampToValueAtTime(110, t0 + 0.28);
+      g.gain.setValueAtTime(0.0001, t0); g.gain.exponentialRampToValueAtTime(0.07, t0 + 0.01); g.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.32);
+      o.connect(g); g.connect(ac.destination); o.start(t0); o.stop(t0 + 0.34);
+    } catch (e) {}
+  }
+  function vwoom(D) {
+    try {
+      if (muted()) return;
+      const ac = actx(); if (!ac || ac.state !== 'running') return;
+      const t0 = ac.currentTime, o = ac.createOscillator(), o2 = ac.createOscillator(), f = ac.createBiquadFilter(), g = ac.createGain();
+      o.type = 'sawtooth'; o2.type = 'sine'; o.frequency.setValueAtTime(70, t0); o.frequency.exponentialRampToValueAtTime(420, t0 + D);
+      o2.frequency.setValueAtTime(140, t0); o2.frequency.exponentialRampToValueAtTime(1100, t0 + D);
+      f.type = 'lowpass'; f.Q.value = 8; f.frequency.setValueAtTime(200, t0); f.frequency.exponentialRampToValueAtTime(3200, t0 + D);
+      g.gain.setValueAtTime(0.0001, t0); g.gain.exponentialRampToValueAtTime(0.08, t0 + 0.3); g.gain.setValueAtTime(0.08, t0 + D - 0.15); g.gain.exponentialRampToValueAtTime(0.0001, t0 + D + 0.1);
+      o.connect(f); o2.connect(f); f.connect(g); g.connect(ac.destination); [o, o2].forEach(x => { x.start(t0); x.stop(t0 + D + 0.15); });
+    } catch (e) {}
+  }
+
   function tick(dt) {
     t += dt; api.sessT += dt; phaseT += dt;
-    // face / blink always when visible
     if (grok.visible) {
       blinkT -= dt; if (blinkT < -0.12) blinkT = 2 + Math.random() * 3;
       talkT = Math.max(0, talkT - dt); happyT = Math.max(0, happyT - dt);
@@ -230,12 +531,38 @@ export function setupGrokVisit({ scene, tp, play, monkey, camera, st } = {}) {
       const tk = talking ? [0.15, 0.7, 1, 0.4][(t * 11 | 0) % 4] : 0;
       const fs = (happy ? 'h' : blinkT < 0 ? 'b' : 'o') + tk;
       if (fs !== faceState) { faceState = fs; drawFace(faceTex.g, blinkT < 0, tk, happy); faceTex.t.needsUpdate = true; }
-      grok.position.y = (api.state === 'play' || api.state === 'cheer' ? 0 : Math.sin(t * 1.6) * 0.015);
-      if (api.state === 'walk' || api.state === 'return') grok.position.y = Math.abs(Math.sin(phaseT * 8)) * 0.04;
+      if (api.state === 'walk' || api.state === 'return') grok.position.y = Math.abs(Math.sin(phaseT * 6.5)) * 0.035;
+      else if (api.state === 'play' || api.state === 'cheer') grok.position.y = 0;
+      else grok.position.y = Math.sin(t * 1.6) * 0.015;
     }
     fx.tick(dt);
 
+    // near UI while visiting
+    if (grok.visible && api.state !== 'idle' && api.state !== 'done' && api.state !== 'leave' && api.state !== 'arrive') {
+      const near = playerNearGrok() && !busy() && !api.watchOpen;
+      showNear(near);
+      if (near && api.state !== 'play' && phaseT > 1 && t > idleLineAt && !talkT && !api.chatOpen) {
+        idleLineAt = t + 12 + Math.random() * 8;
+        const i = (Math.random() * IDLE_LINES.length) | 0;
+        say(IDLE_LINES[i], IDLE_CLIPS[i]);
+      }
+    } else if (api.state === 'idle' || api.state === 'done') {
+      showNear(false);
+    }
+
+    // WATCH button: when Grok is playing AND player is at that cabinet (PLAY would show)
+    if (api.state === 'play' && cab) {
+      const playOn = document.getElementById('playUI') && document.getElementById('playUI').classList.contains('on');
+      const nearCab = playerNearCab() || playOn;
+      watchB.classList.toggle('on', nearCab && !api.watchOpen && !api.chatOpen && !(window.__shop && window.__shop.open));
+      if (api.watchOpen) drawWatchFrame();
+    } else {
+      watchB.classList.remove('on');
+      if (api.watchOpen) closeWatch();
+    }
+
     if (api.state === 'idle') {
+      if (!api._t0) api._t0 = performance.now() / 1000;
       if (busy()) { lookStart = 0; wasLooking = false; leftSince = true; return; }
       const looking = padLooking();
       const now = performance.now() / 1000;
@@ -247,7 +574,6 @@ export function setupGrokVisit({ scene, tp, play, monkey, camera, st } = {}) {
       } else { leftSince = true; lookStart = 0; }
       wasLooking = looking;
       if (api.lookCount >= 2) { begin('look'); return; }
-      // fallback: wall-clock session age (api.fallAt is seconds)
       if ((now - api._t0) >= api.fallAt) { begin('random'); return; }
       return;
     }
@@ -258,8 +584,7 @@ export function setupGrokVisit({ scene, tp, play, monkey, camera, st } = {}) {
       powerPad(1 - k * 0.7);
       if (k >= 1) {
         grok.scale.setScalar(SCALE); powerPad(0); fx.stop();
-        say(HI); api.state = 'greet'; phaseT = 0;
-        // wave with right arm
+        say(HI, 'hi'); api.state = 'greet'; phaseT = 0;
       }
       return;
     }
@@ -270,33 +595,50 @@ export function setupGrokVisit({ scene, tp, play, monkey, camera, st } = {}) {
       wv.el.rotation.z = Math.sin(t * 9) * 0.45;
       wv.el.rotation.x += (-0.3 - wv.el.rotation.x) * Math.min(1, dt * 6);
       arms[0].sh.rotation.z += ((-0.14) - arms[0].sh.rotation.z) * Math.min(1, dt * 4);
-      if (phaseT > (api.fast || api.reason === 'test' ? 0.6 : 2.2)) {
+      if (phaseT > (api.fast || api.reason === 'test' ? 0.5 : 2.0)) {
         idleArms(dt);
+        api.state = 'look'; phaseT = 0; lookYawT = 0;
+      }
+      return;
+    }
+
+    // look around the arcade before walking
+    if (api.state === 'look') {
+      idleArms(dt);
+      const dur = api.fast || api.reason === 'test' ? 0.5 : LOOK_AROUND_S;
+      lookYawT += dt;
+      const sweep = Math.sin(lookYawT * 1.3) * 0.85;
+      head.rotation.y += (sweep - head.rotation.y) * Math.min(1, dt * 3);
+      head.rotation.x = Math.sin(lookYawT * 0.9) * 0.12;
+      grok.rotation.y += Math.sin(lookYawT * 0.7) * dt * 0.35;
+      if (phaseT >= dur) {
+        head.rotation.y = 0; head.rotation.x = 0;
         const s = standAtCab();
-        walkTo(s.x, s.z, s.yaw, 'walk', api.fast || api.reason === 'test' ? 0.9 : 2.6);
+        walkTo(s.x, s.z, s.yaw, 'walk');
       }
       return;
     }
 
     if (api.state === 'walk' || api.state === 'return') {
-      const D = api._walkDur || 2.4, k = Math.min(1, phaseT / D), e = ease(k);
+      const D = api._walkDur || 3.5, k = Math.min(1, phaseT / D), e = ease(k);
       grok.position.x = from.x + (to.x - from.x) * e;
       grok.position.z = from.z + (to.z - from.z) * e;
       grok.rotation.y = fromYaw + (toYaw - fromYaw) * e;
-      // walk arm swing
-      arms[0].sh.rotation.x = Math.sin(phaseT * 7) * 0.35;
-      arms[1].sh.rotation.x = Math.sin(phaseT * 7 + Math.PI) * 0.35;
+      arms[0].sh.rotation.x = Math.sin(phaseT * 5.5) * 0.4;
+      arms[1].sh.rotation.x = Math.sin(phaseT * 5.5 + Math.PI) * 0.4;
       arms[0].el.rotation.x = -0.7; arms[1].el.rotation.x = -0.7;
+      head.rotation.y = Math.sin(phaseT * 2) * 0.15;
       if (k >= 1) {
         if (api.state === 'walk') {
-          grok.position.set(to.x, 0, to.z); grok.rotation.y = toYaw;
-          bindControls(); playDur = 45 + Math.random() * 15; api.state = 'play'; phaseT = 0;
+          grok.position.set(to.x, 0, to.z); grok.rotation.y = toYaw; head.rotation.y = 0;
+          bindControls(); playDur = api.fast || api.reason === 'test' ? 3 : (45 + Math.random() * 15);
+          api.state = 'play'; phaseT = 0; remarkAt = t + 8 + Math.random() * 5;
         } else {
           grok.position.set(pad.x, 0, pad.z);
           api.state = 'leave'; phaseT = 0;
           fx.start(pad.x, pad.z, 'out'); vwoom(1.1);
           try { if (tp.fxAt) tp.fxAt(pad.x, pad.z, true); } catch (e) {}
-          powerPad(1);
+          powerPad(1); hideUI();
         }
       }
       return;
@@ -305,7 +647,12 @@ export function setupGrokVisit({ scene, tp, play, monkey, camera, st } = {}) {
     if (api.state === 'play') {
       animatePlay(dt);
       head.rotation.x = -0.12 + Math.sin(t * 2) * 0.03;
-      if (phaseT >= playDur) { resetControls(); say(CHEER); api.state = 'cheer'; phaseT = 0; }
+      if (t >= remarkAt && !talkT) {
+        remarkAt = t + 10 + Math.random() * 5;
+        const i = (Math.random() * REMARKS.length) | 0;
+        say(REMARKS[i], REMARK_CLIPS[i]); api.remarks++;
+      }
+      if (phaseT >= playDur) { resetControls(); say(CHEER, 'cheer'); api.state = 'cheer'; phaseT = 0; watchB.classList.remove('on'); if (api.watchOpen) closeWatch(); }
       return;
     }
 
@@ -317,7 +664,7 @@ export function setupGrokVisit({ scene, tp, play, monkey, camera, st } = {}) {
       });
       if (phaseT > (api.fast || api.reason === 'test' ? 0.4 : 1.6)) {
         idleArms(dt);
-        walkTo(pad.x, pad.z, Math.atan2(0 - pad.x, 0 - pad.z), 'return', api.fast || api.reason === 'test' ? 0.9 : 2.6);
+        walkTo(pad.x, pad.z, Math.atan2(0 - pad.x, 0 - pad.z), 'return');
       }
       return;
     }
@@ -328,24 +675,23 @@ export function setupGrokVisit({ scene, tp, play, monkey, camera, st } = {}) {
       powerPad(Math.max(0.2, 1 - k));
       if (k >= 1) {
         grok.visible = false; grok.scale.setScalar(SCALE); powerPad(0); fx.stop();
-        resetControls(); api.state = 'done'; api.finished++; api.force = false;
+        resetControls(); hideUI(); api.state = 'done'; api.finished++; api.force = false; stopVoice();
       }
       return;
     }
   }
 
-  // Hook into shop.update so we ride main.js's rAF with no Arcade edit
   const S = window.__shop;
   if (S && typeof S.update === 'function') {
     const prev = S.update;
     S.update = (dt) => { try { prev(dt); } catch (e) {} try { tick(dt); } catch (e) { if (!api._err) { api._err = 1; console.warn('grokvisit', e); } } };
   } else {
-    // fallback: own rAF (shop not ready yet - shouldn't happen since we load from setupShop)
     let last = performance.now();
     const loop = (now) => { requestAnimationFrame(loop); const dt = Math.min(0.05, (now - last) / 1000); last = now; try { tick(dt); } catch (e) {} };
     requestAnimationFrame(loop);
   }
 
+  api._t0 = performance.now() / 1000;
   return api;
 }
 

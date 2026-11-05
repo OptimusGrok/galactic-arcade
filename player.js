@@ -195,6 +195,8 @@
   // last frame, so hat picks never appear. On loss, swap in a fresh canvas + renderer and keep drawing the same scene.
   function mkR(cv) { var A = window.__arcade, T = A.THREE; try { prev.r = new T.WebGLRenderer({ canvas: cv, alpha: true, antialias: false, powerPreference: 'low-power' }); } catch (e) { prev.r = null; return false; }
     prev.r.setPixelRatio(Math.min(1.5, devicePixelRatio || 1)); prev.r.outputColorSpace = T.SRGBColorSpace; prev.r.toneMapping = A.renderer.toneMapping; prev.r.toneMappingExposure = A.renderer.toneMappingExposure;
+    try { if (prev.r.debug) prev.r.debug.checkShaderErrors = false; } catch (e) {}   // t635u perf (Arcade): skip sync shader-error checks on the preview
+    try { if (prev.r.compileAsync && prev.scene && prev.cam) prev.r.compileAsync(prev.scene, prev.cam); } catch (e) {}
     cv.addEventListener('webglcontextlost', function (e) { e.preventDefault(); prev.lost = (prev.lost || 0) + 1; setTimeout(function () { if (prev.r && prev.r.domElement === cv) remake(); }, 300); }, { once: true });
     return true; }
   function remake() { var old = prev.r && prev.r.domElement, n = document.createElement('canvas'); n.id = (old && old.id) || 'gaCv'; try { prev.r.dispose(); } catch (e) {} prev.r = null;

@@ -35,8 +35,9 @@ const byId = Object.fromEntries(ITEMS.map(i => [i.id, i]));
 export function buildGrokClerk() {
   const canvasTex = (w, h, draw) => { const c = document.createElement('canvas'); c.width = w; c.height = h; const g = c.getContext('2d'); draw(g, w, h); const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4; return { t, c, g }; };
   const grok = new THREE.Group(); grok.name = 'grokClerk';
-  const mSil = new THREE.MeshStandardMaterial({ color: 0xc9ccd1, roughness: 0.38, metalness: 0.08, emissive: 0x2a2c30 });
-  const mChr = new THREE.MeshStandardMaterial({ color: 0x3a3c40, roughness: 0.85, metalness: 0.05, emissive: 0x0e0e10 });
+  // t638u (Dave): dark grey shell (~0x3a3d42), slightly glossy; face/screen stay bright
+  const mSil = new THREE.MeshStandardMaterial({ color: 0x3a3d42, roughness: 0.32, metalness: 0.22, emissive: 0x121416 });
+  const mChr = new THREE.MeshStandardMaterial({ color: 0x23262a, roughness: 0.55, metalness: 0.18, emissive: 0x0a0b0c });
   const mScr = new THREE.MeshStandardMaterial({ color: 0x050506, roughness: 0.04, metalness: 0.6 });
   const sq = (e, ws = 28, hs = 20) => { const g = new THREE.SphereGeometry(1, ws, hs), p = g.attributes.position;
     for (let i = 0; i < p.count; i++) { const f = v => Math.sign(v) * Math.pow(Math.abs(v), e); p.setXYZ(i, f(p.getX(i)), f(p.getY(i)), f(p.getZ(i))); } g.computeVertexNormals(); return g; };
@@ -370,6 +371,8 @@ export function setupShop({ scene, tp, play, monkey, camera, st } = {}) {
   KIND.forEach((k, ki) => { if (BOXC[k]) for (let v = 0; v < AC; v++) drawBox(atl.g, k, v, v * CS, ki * CS); }); atl.t.needsUpdate = true;
   const SPAN = { viking: .26, orc: .28, teddy: .24, roadster: .36, dino: .32, robot: .2, rocket: .15, alien: .19, ball: .2, duck: .22 };
   const sprBox = [], mfr = []; let nToys = 0;
+  // t635u perf (Arcade): queue toy3/part shelf builds and drain across frames (~1.3s was one long task)
+  const toyJobs = [];
   KIND.forEach((id, gi) => { const s = 3 - (gi / 4 | 0), b = gi % 4, it = byId[id], x0 = UX[b] + 0.1, x1 = UX[b + 1] - 0.1, isBox = id.startsWith('box');
     for (let r = 0; r < 2; r++) { const y = SY[s] + 0.02 + (r ? 0.08 : 0), z = Z0 + (r ? -0.15 : 0.08);
       const mars = id.startsWith('boxMars'); if (mars && r) continue;
@@ -377,17 +380,27 @@ export function setupShop({ scene, tp, play, monkey, camera, st } = {}) {
           const bk = new THREE.BoxGeometry(ww, h, 0.34); const uv = bk.attributes.uv; for (let q = 0; q < uv.count; q++) uv.setXY(q, uA + (0.05 + uv.getX(q) * 0.9) / AC, vA + (0.02 + uv.getY(q) * 0.96) / AC);
           bk.translate(x + ww / 2, y + h / 2, Z0 - 0.06); sprBox.push(bk); part(mfr, BOX, 0x1a1a22, x + ww / 2, y + 0.03, Z0 + 0.14, ww, 0.06, 0.06);
           for (const sd of [0, 1]) part(mfr, BOX, 0xb8321e, x + (sd ? ww - 0.015 : 0.015), y + h * 0.42, Z0 + 0.14, 0.03, h * 0.84, 0.06);
-          toy3(toys, 'roadster', x + ww / 2, y + 0.06, Z0 + 0.06, 1.55, 1, -0.35); nToys++; } continue; }
+          toyJobs.push(['roadster', x + ww / 2, y + 0.06, Z0 + 0.06, 1.55, 1, -0.35]); } continue; }
       if (isBox) { let x = x0 + (r ? 0.12 : 0); const vRow = gi; while (x < x1 - 0.12) { const h = 0.46 + rnd() * 0.12 + r * 0.04, w = h * 0.8, v = (rnd() * AC) | 0; if (x + w > x1) break;
           const uA = v / AC, vA = 1 - (vRow + 1) / AC; const bg = new THREE.BoxGeometry(w, h, 0.14); const uv = bg.attributes.uv; for (let q = 0; q < uv.count; q++) uv.setXY(q, uA + (0.05 + uv.getX(q) * 0.9) / AC, vA + (0.02 + uv.getY(q) * 0.96) / AC);
           bg.rotateY((rnd() - 0.5) * 0.25).translate(x + w / 2, y + h / 2, z + (rnd() - 0.5) * 0.03); sprBox.push(bg); x += w + 0.03 + rnd() * 0.03; } continue; }
       const K3 = 1.32, sp = SPAN[id] * K3; let x = x0 + sp / 2 + (r ? sp * 0.5 : 0), v = r * 3 + b;
-      while (x < x1 - sp / 2 + 0.01) { toy3(toys, id, x, y, z, K3 * (0.92 + rnd() * 0.12), v++, (rnd() - 0.5) * 0.6 + (id === 'roadster' || id === 'dino' ? -0.5 : 0)); nToys++; x += sp + rnd() * 0.02; } }
+      while (x < x1 - sp / 2 + 0.01) { toyJobs.push([id, x, y, z, K3 * (0.92 + rnd() * 0.12), v++, (rnd() - 0.5) * 0.6 + (id === 'roadster' || id === 'dino' ? -0.5 : 0)]); x += sp + rnd() * 0.02; } }
     label(it || { id: id, name: 'Mars Roadster Car', price: byId.roadster.price }, (UX[b] + UX[b + 1]) / 2, SY[s] - 0.1, LZ, 0, LBW); });
   add(sprBox, new THREE.MeshStandardMaterial({ map: atl.t, roughness: 0.45, emissive: 0xffffff, emissiveMap: atl.t, emissiveIntensity: 0.22 }), 'shelfBoxes');
   mesh(mfr, new THREE.MeshBasicMaterial({ vertexColors: true }), 'marsBoxFrames');
   const toyMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.62, metalness: 0.05, emissive: 0x2e2e32 });
-  mesh(toys, toyMat, 'shelfToys');
+  let toysMeshed = false;
+  function drainToyJobs(budgetMs) {
+    if (toysMeshed) return;
+    const t0 = performance.now();
+    while (toyJobs.length && performance.now() - t0 < budgetMs) {
+      const j = toyJobs.shift(); toy3(toys, j[0], j[1], j[2], j[3], j[4], j[5], j[6]); nToys++;
+    }
+    if (!toyJobs.length) { mesh(toys, toyMat, 'shelfToys'); toysMeshed = true; try { if (typeof stats !== 'undefined') { stats.toys = nToys; stats.items = nToys + sprBox.length + 8 + 16 + 12; } } catch (e) {} }
+  }
+  // kick a few toys immediately so shelves aren't empty on first glance; rest across frames
+  drainToyJobs(8);
   mesh(plushes, new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 1, emissive: 0x4a3426 }), 'monkeyPlushes');
   mesh(gp, new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.45, metalness: 0.2, emissive: 0x3a3c42 }), 'grokPlush');
   const spr = [];
@@ -924,6 +937,7 @@ export function setupShop({ scene, tp, play, monkey, camera, st } = {}) {
   api.update = (dt) => { try { updateShop(dt); } catch (e) { if (!api._err) { api._err = 1; console.warn('shop.update', e); } } };
   let tpWhere = tp ? tp.where : 1;
   const updateShop = (dt) => {
+    try { drainToyJobs(6); } catch (e) {}
     if (tp && st && tp.where !== tpWhere) { tpWhere = tp.where; if (tp.where === 2) { const yaw = -Math.PI / 4; st.yaw = yaw; st.face = yaw + Math.PI; st.camInit = false; } }   // t563: arrive in the corner facing into the room
     t += dt; if (api_sky) api_sky.uniforms.uT.value = t; const m = getMonkey(); if (!m) return;
     syncHeld(); if (heldObj) { const pm = play && play.mode, A = window.__arcade, sStat = A && A.st;
