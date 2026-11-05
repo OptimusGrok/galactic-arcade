@@ -1,8 +1,8 @@
 # Builds bb-play/index.html: the playable BURROW BUSTER for machine #13 (room 1 south wall slot 2:4, the old blank G next to SUPER PIP QUEST),
 # from Tower Defence's single file /workspace/burrow-buster/index.html (live https://optimusgrok.github.io/burrow-buster/). That folder is
 # READ ONLY: this builder only reads it; the original never gets tickets. Arcade copy only: own storage keys (arcade_bb_*), silent attract
-# DEMO, 1 gold monkey ticket per round cleared (+3 on every 5th round, max 40 a game), one credit (5 tickets) = one game of 3 lives,
-# no free restart on GAME OVER, no service worker, no fullscreen/install buttons. Game controls are unchanged. Rerun on every update.
+# DEMO, 2 gold monkey tickets per round cleared (t263, max 40 a game), one credit (5 tickets) = one game of 3 lives,
+# no free restart on GAME OVER, no service worker, no fullscreen/install buttons. Game controls are the original's (swipe anywhere since bde49e1). Rerun on every update.
 import re, sys, os, hashlib
 sys.path.insert(0, 'tools'); from hooks import inject, require, verify, fail
 N = 'bb'; SRC = '/workspace/burrow-buster/index.html'

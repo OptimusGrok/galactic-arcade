@@ -78,7 +78,7 @@ const ORIG = '/workspace/burrow-buster/index.html', md5 = () => crypto.createHas
   const a0 = await page.evaluate(() => window.__arcade.play.tickets.total);
   const run = await page.evaluate(W => { const w = eval(W), B = w.__bb, out = []; for (let r = 0; r < 5; r++) { B.G.enemies = []; B.G.mode = 'play'; for (let i = 0; i < 200 && B.G.mode !== 'ready'; i++) w.update(); out.push(B.TK.run); } return out; }, W);
   await page.waitForTimeout(500); const a1 = await page.evaluate(() => ({ t: window.__arcade.play.tickets.total, ls: +localStorage.getItem('neonarcade.tickets') }));
-  chk(run.join() === '1,2,3,4,8' && a1.t - a0 === 8 && a1.ls === a1.t, 'tickets: 1 per round cleared, round 5 +3 -> 8 for five rounds, banked at once ' + JSON.stringify([run, a1]));
+  chk(run.join() === '2,4,6,8,10' && a1.t - a0 === 10 && a1.ls === a1.t, 'tickets: 2 per round cleared (t263) -> 10 for five rounds, banked at once ' + JSON.stringify([run, a1]));
   const cap = await page.evaluate(W => { const B = eval(W).__bb; for (let i = 0; i < 20; i++) B.give(7, 'x'); return B.TK.run; }, W);
   chk(cap === 40, 'not farmable: a game pays at most 40 (' + cap + ')');
   await page.evaluate(W => { const w = eval(W), G = w.__bb.G; G.lives = 1; G.mode = 'play'; G.god = false; w.killPlayer('enemy'); for (let i = 0; i < 200; i++) w.update(); }, W);

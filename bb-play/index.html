@@ -24,9 +24,6 @@ html,body{margin:0;height:100%;background:#07070f;overflow:hidden;touch-action:n
 canvas#game{position:fixed;left:0;top:0;image-rendering:pixelated;image-rendering:crisp-edges;display:block}
 #touch{position:fixed;inset:0;display:none;pointer-events:none}
 #touch.on{display:block}
-#stickBase{position:absolute;width:84px;height:84px;margin:-42px 0 0 -42px;border-radius:50%;border:3px solid rgba(255,255,255,.35);background:rgba(255,255,255,.07);box-sizing:border-box;opacity:.55}
-#stickKnob{position:absolute;width:40px;height:40px;margin:-20px 0 0 -20px;border-radius:50%;background:rgba(255,200,80,.55);border:2px solid rgba(255,255,255,.7);box-sizing:border-box;opacity:.55}
-#stickBase.act,#stickKnob.act{opacity:.9}
 #pump{position:absolute;pointer-events:auto;border-radius:50%;background:rgba(232,56,40,.35);border:3px solid rgba(255,255,255,.45);font-size:15px!important;box-sizing:border-box;display:flex;align-items:center;justify-content:center;font:bold 20px "Courier New",monospace;color:#fff;text-shadow:0 0 4px #000}
 #pump.down{background:rgba(232,56,40,.85);transform:scale(.94)}
 #mini{position:fixed;display:flex;gap:6px;z-index:3}
@@ -36,7 +33,7 @@ canvas#game{position:fixed;left:0;top:0;image-rendering:pixelated;image-renderin
 </head>
 <body>
 <canvas id="game" width="480" height="600"></canvas>
-<div id="touch"><div id="stickBase"></div><div id="stickKnob"></div><div id="pump">PUMP</div></div>
+<div id="touch"><div id="pump">PUMP</div></div>
 <div id="mini"><div id="bPause">II</div><div id="bMute">♪</div><div id="bFs">[ ]</div></div>
 <button id="bInstall" type="button">Install</button>
 <script>// Gold monkey ticket: vector drawing (crisp at any size), shared by the arcade HUD / enlarged view and the game copies.
@@ -172,16 +169,15 @@ addEventListener('blur',()=>{In.keys=[];In.pump=false;In.tdir=null;});/* arcade 
 function wantDir(){return In.tdir||(In.keys.length?In.keys[In.keys.length-1]:null);}
 const touchEl=document.getElementById('touch'),pumpEl=document.getElementById('pump');
 function enableTouch(){if(!document.body.classList.contains('touch')){document.body.classList.add('touch');touchEl.classList.add('on');resize();}}
-const Stick={id:null,ox:0,oy:0,R:34,DZ:8,base:document.getElementById('stickBase'),knob:document.getElementById('stickKnob'),rx:0,ry:0};
-function stickShow(x,y,kx,ky,act){Stick.base.style.left=x+'px';Stick.base.style.top=y+'px';Stick.knob.style.left=kx+'px';Stick.knob.style.top=ky+'px';Stick.base.classList.toggle('act',act);Stick.knob.classList.toggle('act',act);}
-function stickDir(dx,dy){const m=Math.hypot(dx,dy);if(m<Stick.DZ)return null;const ax=Math.abs(dx),ay=Math.abs(dy),cur=In.tdir,H=1.3;
+/* Swipe/drag anywhere to steer: direction = dominant axis once past threshold; origin re-anchors so mid-drag turns work. */
+const Swipe={id:null,ox:0,oy:0,TH:14};
+function swipeDir(dx,dy){const ax=Math.abs(dx),ay=Math.abs(dy),cur=In.tdir,H=1.3;
  let horiz=ax>ay;if(cur==='l'||cur==='r'){if(ay<ax*H)horiz=true;}else if(cur==='u'||cur==='d'){if(ax<ay*H)horiz=false;}
  return horiz?(dx>0?'r':'l'):(dy>0?'d':'u');}
-function stickMove(t){let dx=t.clientX-Stick.ox,dy=t.clientY-Stick.oy;In.tdir=stickDir(dx,dy);const m=Math.hypot(dx,dy);if(m>Stick.R){dx*=Stick.R/m;dy*=Stick.R/m;}stickShow(Stick.ox,Stick.oy,Stick.ox+dx,Stick.oy+dy,true);}
-function stickRest(){stickShow(Stick.rx,Stick.ry,Stick.rx,Stick.ry,false);}
-document.addEventListener('touchstart',e=>{for(const t of e.changedTouches){if(Stick.id===null&&t.clientX<innerWidth*0.5&&(G.mode==='play'||G.mode==='ready'||G.mode==='pause')){Stick.id=t.identifier;Stick.ox=t.clientX;Stick.oy=t.clientY;stickMove(t);}}},{passive:true});
-document.addEventListener('touchmove',e=>{for(const t of e.changedTouches)if(t.identifier===Stick.id)stickMove(t);},{passive:true});
-const sEnd=e=>{for(const t of e.changedTouches)if(t.identifier===Stick.id){Stick.id=null;In.tdir=null;stickRest();}};
+function swipeMove(t){const dx=t.clientX-Swipe.ox,dy=t.clientY-Swipe.oy;if(Math.hypot(dx,dy)<Swipe.TH)return;In.tdir=swipeDir(dx,dy);Swipe.ox=t.clientX;Swipe.oy=t.clientY;}
+document.addEventListener('touchstart',e=>{for(const t of e.changedTouches){if(Swipe.id===null&&(G.mode==='play'||G.mode==='ready'||G.mode==='pause')){Swipe.id=t.identifier;Swipe.ox=t.clientX;Swipe.oy=t.clientY;}}},{passive:true});
+document.addEventListener('touchmove',e=>{for(const t of e.changedTouches)if(t.identifier===Swipe.id)swipeMove(t);},{passive:true});
+const sEnd=e=>{for(const t of e.changedTouches)if(t.identifier===Swipe.id){Swipe.id=null;In.tdir=null;}};
 document.addEventListener('touchend',sEnd);document.addEventListener('touchcancel',sEnd);
 pumpEl.addEventListener('touchstart',e=>{e.preventDefault();e.stopPropagation();pumpEl.classList.add('down');In.pump=true;In.pumpP=true;In.startP=true;},{passive:false});
 const pEnd=e=>{e.preventDefault();pumpEl.classList.remove('down');In.pump=false;};
@@ -219,10 +215,9 @@ function resize(){
  const dpr=Math.min(devicePixelRatio||1,2),bw=Math.min(Math.round(vw*dpr),2400);K=bw/VW;
  cv.width=bw;cv.height=Math.round(VH*K);cv.style.width=vw+'px';cv.style.height=vh+'px';
  const fx=FX*s,fw=FW*s,mini=document.getElementById('mini'),P=64,rm=vw-fx-fw;
- if(!port&&HUDSIDE){Stick.rx=Math.max(54,fx/2);Stick.ry=vh-60;place(pumpEl,fx+fw+rm/2-P/2,vh-MG-P-8,P,P);place(mini,Math.min(vw-146,fx+fw+rm/2-73),vh-MG-P-8-54);}
- else{Stick.rx=60;Stick.ry=vh-62;place(pumpEl,vw-MG-P-6,vh-MG-P-6,P,P);place(mini,vw/2-73,vh-MG-44);}
+ if(!port&&HUDSIDE){place(pumpEl,fx+fw+rm/2-P/2,vh-MG-P-8,P,P);place(mini,Math.min(vw-146,fx+fw+rm/2-73),vh-MG-P-8-54);}
+ else{place(pumpEl,vw-MG-P-6,vh-MG-P-6,P,P);place(mini,vw/2-73,vh-MG-44);}
  if(!touch)place(mini,HUDSIDE?Math.min(vw-146,fx+fw+rm/2-73):vw-150,HUDSIDE?vh-52:Math.max(4,HY*s-50));
- if(Stick.id===null)stickRest();
 }
 addEventListener('resize',resize);addEventListener('orientationchange',()=>setTimeout(resize,200));if(window.visualViewport)visualViewport.addEventListener('resize',resize);
 
@@ -446,7 +441,7 @@ function render(){ctx.setTransform(1,0,0,1,0,0);ctx.fillStyle='#07070f';ctx.fill
   drawSpr(SPR.dig1,cx-80,cy-30,null,1.6);drawSpr(SPR.pk1,cx-16,cy-30,'l',1.6);drawSpr(SPR.fy1,cx+48,cy-30,'l',1.6);
   if((G.frame>>5)&1)txt(touch?'TAP TO START':'PRESS SPACE TO START',cx,cy+50,18,'#fff');
   txt('DIG  •  PUMP  •  DROP ROCKS',cx,cy+84,14,'#9cf');
-  txt(touch?'D-PAD MOVES   PUMP BUTTON PUMPS':'ARROWS/WASD MOVE  SPACE/Z PUMP',cx,cy+110,12,'#ccc');
+  txt(touch?'SWIPE TO MOVE   PUMP BUTTON PUMPS':'ARROWS/WASD MOVE  SPACE/Z PUMP',cx,cy+110,12,'#ccc');
   if(!touch)txt('P PAUSE  M MUTE  F FULLSCREEN',cx,cy+128,12,'#ccc');
   txt('EXTRA DIGGER AT 10000',cx,cy+160,12,'#ffe040');}
  if(G.mode==='ready'){txt('ROUND '+G.round,cx,cy-20,26,'#ffe040');txt('READY!',cx,cy+14,22,'#fff');}
@@ -460,21 +455,22 @@ const BB={manual:false,G,In,step(n){for(let i=0;i<(n||1);i++)update();},render,s
  layout(){return{COLS,ROWS,S,FX,FY,FW,FH,VW,VH,K,GH:ROWS*T,HX,HY,HW,HH,HUDSIDE};},Audio,Music,Sfx};
 window.BB=BB;
 // BURROW BUSTER (arcade copy only, injected after the game's own code). One credit (5 tickets) = one game of 3 lives.
-// Gold monkey tickets: 1 per round cleared, +3 on every 5th round, max 40 a game (not farmable). GAME OVER ends the credit
+// Gold monkey tickets: 2 per round cleared (t263), max 40 a game (not farmable). GAME OVER ends the credit
 // (no free restart: the title/tap start is locked, the arcade returns to its demo). Silent attract DEMO: an autopilot digger with
 // infinite lives, nothing saved, no sound. Own storage keys (arcade_bb_*). Tickets bank at once (TicketArt.collect -> neonarcade.tickets).
 (function () {
 var TK = { got: 0, run: 0, log: [], RUN_CAP: 40 }, D = { on: false, runs: 0, t: 0 }, RUN = false, OVER = false, HOLD = false, lastRound = 0;
-TK.per = function (r) { return 1 + (r % 5 === 0 ? 3 : 0); };
+TK.per = function (r) { return 2; };   // t263: every level cleared = 2 tickets
 function tgt() { try { var pt = parent.document.getElementById('tix'), fe = frameElement; if (pt && fe) { var a = pt.getBoundingClientRect(), b = fe.getBoundingClientRect(), k = b.width / innerWidth || 1;
   if (a.width) return { left: (a.left - b.left) / k, top: (a.top - b.top) / k }; } } catch (e) {} return { left: 8, top: 8 }; }
 function fly(k) { var sx = innerWidth / 2, sy = innerHeight * 0.45, t = tgt(); var c = document.createElement('canvas'); c.className = 'tkFly'; try { TicketArt.toCanvas(c, 30, false); } catch (e) {}
   c.style.left = (sx - 15 + (k % 3 - 1) * 16) + 'px'; c.style.top = (sy - 10 - Math.floor(k / 3) * 12) + 'px'; document.body.appendChild(c);
   setTimeout(function () { c.style.transform = 'translate(' + (t.left + 4 - sx + 15) + 'px,' + (t.top + 2 - sy + 10) + 'px) scale(.8)'; c.style.opacity = '.4'; }, 120 + k * 70);
   setTimeout(function () { c.remove(); }, 950 + k * 70); }
-var css = document.createElement('style'); css.textContent = '.tkFly{position:fixed;z-index:70;pointer-events:none;width:30px;height:20px;transition:transform .75s cubic-bezier(.5,-0.4,.7,1),opacity .75s;filter:drop-shadow(0 0 6px #ffd23a)}body.demo #touch,#bFs,#bInstall{visibility:hidden!important}'; document.head.appendChild(css);
+var css = document.createElement('style'); css.textContent = '.tkFly{position:fixed;z-index:70;pointer-events:none;width:30px;height:20px;transition:transform .75s cubic-bezier(.5,-0.4,.7,1),opacity .75s;filter:drop-shadow(0 0 6px #ffd23a)}body.demo #touch,.x{}.tkPlus{position:fixed;left:50%;top:38%;transform:translate(-50%,0);z-index:71;pointer-events:none;font:900 30px monospace;color:#ffd23a;text-shadow:0 0 8px #000,0 0 12px #ffb000;transition:transform 1.2s ease-out,opacity 1.2s}.tkPlus.go{transform:translate(-50%,-60px);opacity:0}body.demo #touch,#bFs,#bInstall{visibility:hidden!important}'; document.head.appendChild(css);
 function give(n, why) { if (D.on || window.__DEMO || !RUN) return 0; n = Math.min(n, TK.RUN_CAP - TK.run); if (n <= 0) return 0;
-  for (var i = 0; i < n; i++) { TicketArt.collect('bb'); TK.got++; TK.run++; fly(i); } TK.log.push(why + ':' + n); return n; }
+  for (var i = 0; i < n; i++) { TicketArt.collect('bb'); TK.got++; TK.run++; fly(i); } TK.log.push(why + ':' + n); plus(n); return n; }
+function plus(n) { var e = document.createElement('div'); e.className = 'tkPlus'; e.textContent = '+' + n + ' \uD83C\uDF9F'; document.body.appendChild(e); setTimeout(function () { e.classList.add('go'); }, 30); setTimeout(function () { e.remove(); }, 1500); }
 TK.give = give;
 // sound: silent in the demo and while held
 var _ok = Audio.ok, quiet = function () { return D.on || HOLD; }; Audio.ok = function () { return !quiet() && _ok.call(Audio); };
