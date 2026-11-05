@@ -146,22 +146,20 @@ body.touch #cross{opacity:.8}
  #stickBase{width:32vw;height:32vw;margin:-16vw 0 0 -16vw;left:24vw;top:80vh}#stickKnob{width:13vw;height:13vw}
  body.touch #ammoBox{top:auto;bottom:calc(31vh + var(--sb));right:calc(8px + var(--sr))}body.touch #keys{top:auto;bottom:calc(41vh + var(--sb));right:calc(12px + var(--sr))}body.touch #obj{max-width:72vw}
  #sTitle .menu{margin-bottom:6vh}}
-@media (max-height:430px){#sTitle{padding-top:calc(3vh + var(--st))}h1.logo{font-size:clamp(30px,8vw,64px)}.tag{margin:4px 0 2px}#sigLine{margin-bottom:6px}.menu{gap:5px}.menu button{padding:7px 14px;font-size:13px}#sTitle .hint{display:none}.screen{justify-content:flex-start}
- #sTitle .menu{width:min(560px,86vw);display:grid;grid-template-columns:1fr 1fr}}
-/* phone landscape fit (QA RC1): 44px targets, intro without page scroll, options fully on screen */
-@media (max-height:430px){
- .menu button{min-height:44px;padding:8px 14px}
- .screen h2{margin:0 0 6px;font-size:20px}
- #sIntro{flex-direction:row;justify-content:center;align-items:center;gap:4vw}
- #sIntro .story{max-height:calc(100vh - 32px - var(--st) - var(--sb));overflow:auto;margin:0;font-size:12px;line-height:1.5;flex:1 1 auto;max-width:62vw;text-align:left}
- #sIntro .menu{width:auto;flex:0 0 auto;margin:0}
- #sOptions{justify-content:flex-start}
- #sOptions .opt{width:min(360px,44vw);margin:2px 0;padding:3px 8px;grid-template-columns:96px 1fr 44px;font-size:11px}
- #sOptions{flex-flow:row wrap;align-content:center;justify-content:center;column-gap:10px}
- #sOptions h2{flex-basis:100%;text-align:center}
- #sOptions .menu{flex-basis:100%;align-items:center;margin-top:6px!important}
- #sOptions .menu button{width:min(320px,60vw)}
-}
+/* scrollable text panels keep action buttons on-screen (no page scroll needed) */
+.story,.credits,#rText{max-height:calc(100vh - 150px - var(--st) - var(--sb));overflow:auto;touch-action:pan-y;-webkit-overflow-scrolling:touch;overscroll-behavior:contain}
+#rText{max-height:calc(100vh - 190px - var(--st) - var(--sb))}
+.screen:not(#sTitle){justify-content:flex-start}.screen:not(#sTitle)>:first-child{margin-top:auto}.screen:not(#sTitle)>:last-child{margin-bottom:auto}
+body.touch .menu button{min-height:46px;display:flex;flex-direction:column;align-items:center;justify-content:center}
+body.touch .opt{min-height:44px}body.touch .opt input[type=checkbox]{width:26px;height:26px;justify-self:start}
+@media (max-height:430px){#sTitle{padding-top:calc(3vh + var(--st))}h1.logo{font-size:clamp(28px,7.5vw,60px)}.tag{margin:4px 0 2px}#sigLine{margin-bottom:4px}
+ .menu{display:grid;grid-template-columns:1fr 1fr;gap:8px 10px;width:min(620px,88vw)}.menu button{padding:6px 14px;font-size:13px}#sTitle .hint{display:none}
+ h2{font-size:22px;margin-bottom:8px;letter-spacing:8px}.screen{padding:calc(10px + var(--st)) calc(12px + var(--sr)) calc(10px + var(--sb)) calc(12px + var(--sl))}
+ #sOptions.show{display:grid;grid-template-columns:1fr 1fr;gap:6px 10px;align-content:center;justify-items:stretch;width:100%}#sOptions h2,#sOptions .menu{grid-column:1/-1;justify-self:center}#sOptions .menu{display:flex;width:min(300px,60vw);margin-top:4px!important}
+ #sOptions>:first-child,#sOptions>:last-child{margin:0}.opt{width:auto;margin:0;grid-template-columns:96px 1fr 58px;font-size:10px;padding:4px 8px}
+ #pInfo{margin:-2px 0 8px}#pInfo .po{margin:3px 0}.story{margin-bottom:10px;padding:10px 14px}.stats{margin:4px 0 10px;gap:2px}.stats div{padding:3px 0}.hint{margin-top:6px}
+ .story,.credits{max-height:calc(100vh - 110px - var(--st) - var(--sb))}#sEnding .story{max-height:calc(100vh - 170px)}
+ #sReader .paper{padding:10px 14px}#rText{max-height:calc(100vh - 140px)}}
 #obj{left:calc(96px + var(--sl))!important;max-width:calc(100vw - 236px)!important}   /* clear of the arcade home + ticket chips */
 #bRetry,#bDeathQuit,#bRestart,#bQuit,#bEndCredits{display:none!important}
 html.dsDemo .menu,html.dsDemo .btn,html.dsDemo button,html.dsDemo #rotate{visibility:hidden!important}
@@ -759,7 +757,7 @@ function atmosInit(c){try{const A=ATM,m=AU.master,nb=AU.noise,bn=AU.brown;const 
   A.bcIn=G_(1);const sh=c.createWaveShaper();const cu=new Float32Array(512);for(let i=0;i<512;i++){const x=i/255.5-1;cu[i]=Math.tanh(x*4)*0.8;}sh.curve=cu;A.bcIn.connect(sh);
   const bp=c.createBiquadFilter();bp.type='bandpass';bp.frequency.value=1400;bp.Q.value=0.9;A.form=[];for(const [F,Q] of [[700,7],[1200,9]]){const b=c.createBiquadFilter();b.type='bandpass';b.frequency.value=F;b.Q.value=Q;sh.connect(b);b.connect(bp);A.form.push(b);}
   A.bcG=G_(0);bp.connect(A.bcG);A.bcG.connect(A.radPan);A.toneG=G_(0);A.toneG.connect(A.radPan);
-  A.c=c;A.on=true;AU.atmos=A;}catch(e){ATM.on=false;}}
+  A.c=c;A.on=true;AU.atmos=A;A.duckK=-1;try{if(typeof OPT!=='undefined'&&OPT&&OPT.sound===false)A.muted=true;}catch(e){}A.st.master=-1;atmMaster();}catch(e){ATM.on=false;}}
 function atmLevelScan(){const A=ATM;A.lvl=G.L;A.terms=[];A.outs=null;try{const W=M.w,H=M.h;for(let ci=0;ci<W*H;ci++){const ch=M.ch[ci];if(ch&&ch[0]==='C')A.terms.push([ci%W+0.5,(ci/W|0)+0.5]);}
   if(G.L&&G.L.sky){const o=[];for(let ci=0;ci<W*H;ci++)if(!(M.flag[ci]&F_ROOF)&&!M.wall[ci])o.push(ci);A.outs=o;}}catch(e){}}
 function atmExposure(){const A=ATM;A.winK=0;A.extSrc='fallback';
@@ -791,7 +789,7 @@ function atmTick(dt){const A=ATM;if(!A.on||!AU.ctx)return;try{const c=A.c,now=c.
   // wind exposure (recomputed 4x/s), random-walk gusts (no nodes)
   A.expT-=dt;if(A.expT<=0){A.expT=0.25;A.exp=ov.exposure!==undefined?ov.exposure:atmExposure();}A.st.exposure=A.exp;
   A.gustT-=dt;if(A.gustT<=0){A.gustT=rr(0.4,1.6);A.gustTarget=R()<0.25?rr(0.8,1.4):rr(0.15,0.6);}A.gust=lerp(A.gust,A.gustTarget||0.4,Math.min(1,dt*1.8));
-  const sky=ov.sky!==undefined?ov.sky:!!(G.L&&G.L.sky);const e=play?A.exp*(sky?1:0.35):0,gu=A.gust;
+  const sky=ov.sky!==undefined?ov.sky:!!(G.L&&G.L.sky);const e=play?A.exp*(sky?1:0.35):0,gu=Math.max(0,0.4+(A.gust-0.4)*(0.45+0.55*A.exp));A.st.gustDepth=0.45+0.55*A.exp;
   A.windG.gain.setTargetAtTime(e*(0.22+0.3*gu),now,0.15);A.windF.frequency.setTargetAtTime(300+gu*500+e*200,now,0.3);A.snowG.gain.setTargetAtTime(sky?e*e*(0.05+0.09*gu):0,now,0.2);
   A.rumG.gain.setTargetAtTime(e*(0.25+0.4*gu),now,0.25);const wk=play?(A.winK||0):0;A.st.winK=wk;A.howlG.gain.setTargetAtTime(e*gu*gu*0.07+wk*(0.03+0.05*gu),now,0.3);A.howlF.frequency.setTargetAtTime(700+gu*600+wk*1100,now,0.4);A.st.howl=e*gu*gu*0.07+wk*(0.03+0.05*gu);A.st.howlF=700+gu*600+wk*1100;A.st.extSrc=A.extSrc;A.st.windLevel=e*(0.22+0.3*gu);
   // metal: sparse, reverbed
@@ -799,7 +797,7 @@ function atmTick(dt){const A=ATM;if(!A.on||!AU.ctx)return;try{const c=A.c,now=c.
   // radio: nearest terminal + story state
   let td=99,tp=0;if(ov.termD!==undefined)td=ov.termD;else if(P)for(const q of A.terms){const d=Math.hypot(q[0]-P.x,q[1]-P.y);if(d<td){td=d;try{tp=spat(q[0],q[1]).pan;}catch(er){}}}
   const L=G.L||{};const story=ov.story!==undefined?ov.story:G.bossDead?0:(L.boss||L.id==='array')?1:G.exitReady?0.4:0.7;
-  const near=clamp(1-td/10,0,1),rad=play?story*(0.05+0.95*near*near):0;A.st.radio=rad;A.st.termD=td;
+  atmDuck();const near=clamp(1-td/10,0,1),rad=play?story*(0.05+0.95*near*near)*(A.duckR||1):0;A.st.radio=rad;A.st.termD=td;
   A.radG.gain.setTargetAtTime(rad*0.12,now,0.3);A.bcG.gain.setTargetAtTime(rad*0.7,now,0.3);A.toneG.gain.setTargetAtTime(rad*0.35,now,0.3);if(A.radPan.pan)A.radPan.pan.setTargetAtTime(tp*0.8,now,0.2);
   if(play&&rad>0.02){A.bcT-=dt;if(A.bcT<=0){A.bcT=atmBroadcast()+rr(2,6);}}
   // heartbeat + critical muffle
@@ -814,12 +812,67 @@ function atmTick(dt){const A=ATM;if(!A.on||!AU.ctx)return;try{const c=A.c,now=c.
     if(r.acc>stride){r.acc=0;if(A.stepBudget>=1){A.stepBudget--;A.st.esteps++;sfx('estep',en.x,en.y,en.type);}}}}
 }catch(e){}}
 // master gate: pause / non-play screens, mute
-function atmMaster(){try{if(!AU.ctx||!AU.mv)return;const s=G.state;const k=ATM.muted?0:(s==='pause'||s==='paused'||s==='dead'||s==='death'||s==='done')?0:s==='reader'?0.5:1;ATM.st.master=k;AU.mv.gain.setTargetAtTime(k,AU.ctx.currentTime,0.08);}catch(e){}}
-AU.setMuted=v=>{ATM.muted=!!v;atmMaster();};
+function atmMaster(){try{atmDuck();if(!AU.ctx||!AU.mv)return;const s=G.state;const k=ATM.muted?0:(s==='pause'||s==='paused'||s==='dead'||s==='death'||s==='done')?0:s==='reader'?0.5:1;
+  if(k!==ATM.st.master){ATM.st.master=k;AU.mv.gain.cancelScheduledValues(AU.ctx.currentTime);AU.mv.gain.setTargetAtTime(k,AU.ctx.currentTime,ATM.muted?0.015:0.08);}}catch(e){}}
+// ducking for audio logs (02x_log sets ATM.log); applied to wind/metal buses + level drone, radio scaled in atmTick
+function atmDuck(){const A=ATM;try{if(!AU.ctx||!A.on)return;const now=AU.ctx.currentTime,L=A.log,on=!!(L&&now<L.end);A.st.logActive=on;const k=on?1:0;if(k===A.duckK&&(!on||A.duckOut===AU.ambOut))return;A.duckK=k;A.duckOut=AU.ambOut;
+  A.duckR=on?0.15:1;const am=on?0.5:1;A.st.duckAmb=am;for(const b of [A.bus.wind,A.bus.metal])b.gain.setTargetAtTime(am,now,0.15);if(AU.ambOut){AU.ambOut.gain.cancelScheduledValues(now);AU.ambOut.gain.setTargetAtTime(am,now,0.2);}}catch(e){}}
+// mute: gates everything (sfx, atmosphere, drone, heartbeat, logs all pass AU.master -> AU.mv); keeps OPT.sound in sync
+AU.setMuted=v=>{ATM.muted=!!v;try{if(typeof OPT!=='undefined'&&OPT&&OPT.sound!==!v){OPT.sound=!v;if(typeof saveOpts==='function')saveOpts();}}catch(e){}ATM.st.master=-1;atmMaster();};
+AU.isMuted=()=>!!ATM.muted;
 // wrap per-frame ambient tick (called from the play loop)
 try{const _at=ambientTick;ambientTick=function(dt){try{_at(dt);}catch(e){}if(!ATM.manual)atmTick(dt);};}catch(e){}
 try{setInterval(atmMaster,100);document.addEventListener('visibilitychange',()=>{try{if(!AU.ctx||ATM.manual)return;if(document.hidden)AU.ctx.suspend().catch(()=>{});else if(AU.gest)AU.ctx.resume().catch(()=>{});}catch(e){}});}catch(e){}
 try{window.__DSA={AU,ATM,tick:dt=>atmTick(dt),master:atmMaster,init:c=>{AU.ctx=null;ATM.on=false;auInit(c);},sfx:(n,x,y,v)=>sfx(n,x,y,v),broadcast:()=>atmBroadcast(),metal:()=>atmMetal()};}catch(e){}
+
+// ===== 02x_log.js =====
+// ---------- Audio logs (audio owner): radio-style playback for AU.logStart(dur,text) / 'ds:logstart'.
+// Static burst + squelch open, band-passed formant babble shaped like speech (syllables/words/pauses, all
+// scheduled automation; nodes are created once per log, never per frame), squelch tail at the end.
+// Broadcast/radio and ambience are ducked by 02x_atmos (atmDuck) while ATM.log is active. A new log replaces the old one.
+const ALOG={n:0,syl:0,replaced:0,dupes:0,last:null,lastAt:-1e9};
+function alogStop(L,fade){try{if(!L||!AU.ctx)return;const c=AU.ctx,t=c.currentTime;L.out.gain.cancelScheduledValues(t);L.out.gain.setValueAtTime(L.out.gain.value,t);L.out.gain.linearRampToValueAtTime(0,t+(fade||0.08));
+  for(const s of L.srcs){try{s.stop(t+(fade||0.08)+0.05);}catch(e){}}setTimeout(()=>{try{L.out.disconnect();}catch(e){}},((fade||0.08)+0.3)*1000);}catch(e){}}
+// one-shots routed through this log's own output so a replacing log can cut them
+function alogShots(L,f){const mm=AU.master;AU.master=L.out;try{f();}finally{AU.master=mm;}}
+function alogStart(dur,text){try{if(!AU.ctx||typeof ATM==='undefined'||!ATM.on)return false;const c=AU.ctx,nb=AU.noise;dur=clamp(+dur||5,1,90);
+  const nowMs=(typeof performance!=='undefined'?performance.now():Date.now());ALOG.last={text:String(text||''),dur};ALOG.lastAt=nowMs;
+  const old=ATM.log;if(old&&c.currentTime<old.end+0.6){ALOG.replaced++;alogStop(old,0.06);}
+  const t0=c.currentTime+0.02,v0=t0+0.32,end=t0+dur;ALOG.n++;
+  const G_=v=>{const g=c.createGain();g.gain.value=v;return g;},BQ=(type,f,q)=>{const b=c.createBiquadFilter();b.type=type;b.frequency.value=f;b.Q.value=q;return b;};
+  const out=G_(1);out.connect(AU.master);const wet=G_(0.18);out.connect(wet);wet.connect(AU.verb);const L={out,srcs:[],t0,end,dur,text,id:ALOG.n};
+  // voice: glottal saw + breath noise -> two formants -> radio band (350..3000) -> grit -> syllable gate
+  const osc=c.createOscillator();osc.type='sawtooth';osc.frequency.value=118;const br=c.createBufferSource();br.buffer=nb;br.loop=true;const brg=G_(0.18);
+  const src=G_(0.6);osc.connect(src);br.connect(brg);brg.connect(src);const F1=BQ('bandpass',600,6),F2=BQ('bandpass',1500,8),f2g=G_(0.7);src.connect(F1);src.connect(F2);F2.connect(f2g);
+  const hp=BQ('highpass',380,0.7),lp=BQ('lowpass',2800,0.9);F1.connect(hp);f2g.connect(hp);hp.connect(lp);
+  const sh=c.createWaveShaper(),cu=new Float32Array(256);for(let i=0;i<256;i++){const x=i/127.5-1;cu[i]=Math.tanh(x*6)*0.7;}sh.curve=cu;lp.connect(sh);
+  const vg=G_(0);sh.connect(vg);vg.connect(out);
+  // static bed under the voice (crackly), rises a little in the gaps
+  const st=c.createBufferSource();st.buffer=nb;st.loop=true;const sb=BQ('bandpass',2400,0.6),sg=G_(0);st.connect(sb);sb.connect(sg);sg.connect(out);
+  const crk=c.createOscillator();crk.type='square';crk.frequency.value=17;const crg=G_(0.012);crk.connect(crg);crg.connect(sg.gain);
+  sg.gain.setValueAtTime(0,t0);sg.gain.linearRampToValueAtTime(0.03,t0+0.25);sg.gain.setValueAtTime(0.03,end-0.05);sg.gain.linearRampToValueAtTime(0,end+0.05);
+  // speech-shaped schedule: syllables (90-230ms) in words of 1-4, word gaps, sentence pauses
+  const V=[[730,1090],[530,1840],[270,2290],[660,1720],[570,840],[440,1020],[300,870],[490,1350],[390,1990]];
+  let t=v0,f0=rr(105,135),ns=0,wl=ri(1,4),wi=0;const vEnd=end-0.25;
+  while(t<vEnd-0.1){const len=Math.min(rr(0.09,0.23),vEnd-t),pk=rr(0.35,0.6),v=V[ri(0,V.length-1)];
+    vg.gain.setTargetAtTime(pk,t,0.012);vg.gain.setTargetAtTime(pk*rr(0.5,0.8),t+len*0.5,0.03);vg.gain.setTargetAtTime(0,t+len,0.018);
+    F1.frequency.setTargetAtTime(v[0]*rr(0.92,1.08),t,0.025);F2.frequency.setTargetAtTime(v[1]*rr(0.92,1.08),t,0.025);
+    f0=clamp(f0*rr(0.93,1.07),90,160);osc.frequency.setTargetAtTime(f0,t,0.04);ns++;t+=len;
+    if(++wi>=wl){wi=0;wl=ri(1,4);t+=R()<0.18?rr(0.45,0.8):rr(0.09,0.22);f0=rr(105,135);}else t+=rr(0.02,0.06);}
+  ALOG.syl+=ns;L.syl=ns;
+  for(const s of [osc,br,st,crk]){s.start(t0);s.stop(end+0.1);L.srcs.push(s);}
+  // static burst + squelch open; squelch tail (noise sweep + tone drop) at the end
+  alogShots(L,()=>{sN({ft:'bandpass',f:3000,dur:0.22,g:0.32,q:0.5,verb:0.05});sN({ft:'highpass',f:5000,f2:1500,dur:0.06,g:0.28,t:0.2,verb:0});sT({type:'square',f:1650,f2:1200,dur:0.05,g:0.05,t:0.22,ff:3000,verb:0});
+    sN({ft:'bandpass',f:2600,f2:900,dur:0.32,g:0.3,q:0.6,t:dur-0.02,verb:0.1});sT({type:'square',f:1200,f2:500,dur:0.12,g:0.05,t:dur,ff:2500,verb:0});sN({ft:'highpass',f:4500,dur:0.03,g:0.25,t:dur+0.32,verb:0});});
+  ATM.log=L;ATM.st.logs=ALOG.n;ATM.st.logDur=+(end-t0).toFixed(3);ATM.st.logSyl=ns;ATM.st.logReplaced=ALOG.replaced;try{atmDuck();}catch(e){}
+  return true;}catch(e){return false;}}
+AU.logStart=(dur,text)=>alogStart(dur,text);
+AU.logStop=()=>{try{if(typeof ATM!=='undefined'&&ATM.log){alogStop(ATM.log,0.1);ATM.log.end=0;atmDuck();}}catch(e){}};
+// event path: playLog calls AU.logStart and then fires 'ds:logstart' in the same tick -> ignore the echo
+try{addEventListener('ds:logstart',ev=>{try{const d=ev&&ev.detail||{},now=(typeof performance!=='undefined'?performance.now():Date.now());
+  if(ALOG.last&&now-ALOG.lastAt<400&&(d.text===undefined||String(d.text)===ALOG.last.text)){ALOG.dupes++;if(typeof ATM!=='undefined')ATM.st.logDupes=ALOG.dupes;return;}
+  alogStart(d.dur,d.text);}catch(e){}});}catch(e){}
+try{if(window.__DSA)window.__DSA.ALOG=ALOG;}catch(e){}
 
 // ===== 03_levels.js =====
 // ---------- Levels (handcrafted ASCII maps) ----------
@@ -1433,11 +1486,11 @@ const RF={fogR:0,fogG:0,fogB:0,KL:0,KB:0,fl:0};
 function setupRender(){cv=$('view');cx=cv.getContext('2d',{alpha:false});
   const put=cx.putImageData;cx.putImageData=function(img){put.apply(this,arguments);if(img===RD.img)rfxComposite(this);};
   RD.vm=mkC(16,16);RD.vmx=RD.vm.getContext('2d');resize();addEventListener('resize',()=>setTimeout(resize,60));}
-function resize(){const dw=Math.max(1,innerWidth),dh=Math.max(1,innerHeight);const qi=clamp(OPT.quality|0,0,2);RFX.lastQ=OPT.quality;const target=[56000,92000,140000][qi]*RFX.scales[RFX.tier];
+function resize(){const dw=Math.max(1,innerWidth),dh=Math.max(1,innerHeight);const qi=clamp(OPT.quality|0,0,2);RFX.lastQ=OPT.quality;const target=[56000,92000,140000][qi]*RFX.scales[RFX.tier];// tier scales pixel count (internal resolution)
   let s=Math.sqrt(target/(dw*dh));if(s>1)s=1;const W=Math.max(160,Math.round(dw*s)),H=Math.max(100,Math.round(dh*s));
   cv.width=W;cv.height=H;RD.W=W;RD.H=H;RD.img=cx.createImageData(W,H);RD.buf=new Uint32Array(RD.img.data.buffer);RD.zb=new Float32Array(W);RD.rowD=new Float32Array(H);RD.rowF=new Float32Array(H);RD.rowL=new Float32Array(H);RD.rowB=new Float32Array(H);
-  RD.cY0=new Int16Array(W);RD.cY1=new Int16Array(W);RD.cTop=new Float32Array(W);RD.cTex=new Int16Array(W);RD.cU=new Float32Array(W);RD.cSide=new Uint8Array(W);RD.cDoor=new Uint8Array(W);RD.cSky=new Int16Array(W);
-  const asp=W/H;const fov=(asp>=1?68:56)*OPT.fov;RD.pl=Math.tan(fov*Math.PI/360);RD.focal=(W/2)/RD.pl;
+  RD.cY0=new Int16Array(W);RD.cY1=new Int16Array(W);RD.cTop=new Float32Array(W);RD.cTex=new Int16Array(W);RD.cU=new Float32Array(W);RD.cSide=new Uint8Array(W);RD.cDoor=new Uint8Array(W);RD.cSky=new Int16Array(W);RD.cAt=new Float32Array(W);
+  const asp=W/H;const fov=(asp>=1?68:56)*OPT.fov;RD.pl=Math.tan(fov*Math.PI/360);RD.focal=(W/2)/RD.pl;for(let x=0;x<W;x++)RD.cAt[x]=Math.atan((2*x/W-1)*RD.pl);RFX.skip=Math.max(RFX.skip,2);
   // flashlight cone, symmetric: compute one quadrant and mirror
   RD.cone=new Float32Array(W*H);const f=RD.focal,cone=RD.cone;for(let y=0;y<(H+1)>>1;y++)for(let x=0;x<(W+1)>>1;x++){const r=Math.hypot(x-W/2+0.5,y-H/2+0.5);const a=Math.atan(r/f);const v=smooth(0.42,0.13,a)+smooth(0.75,0.3,a)*0.18;
     cone[y*W+x]=v;cone[y*W+W-1-x]=v;cone[(H-1-y)*W+x]=v;cone[(H-1-y)*W+W-1-x]=v;}
@@ -1453,7 +1506,7 @@ function renderWorld(){const t0=rfxTick();if(RFX.lastQ!==OPT.quality)resize();
   const FOGT=RFX.FOGT,BEAMT=RFX.BEAMT,NB=RFX.NB,FR=RFX.FR,FN=RFX_FN,FS=RFX_FS,AOT=RFX_AOT,AOV=RFX_AOV,FV=RFX_FV;
   // lamp light scattered by the haze, and the flashlight beam itself visible in the haze
   const KL=RF.KL=24,KB=RF.KB=(sky?95:70)*fl;RF.fogR=fogR;RF.fogG=fogG;RF.fogB=fogB;RF.fl=fl;
-  const bil=RFX.tier>=2;const lw=LW,lh=LH,LW2=LW-2,LH2=LH-2,Lr=LR,Lg=LG,Lb=LB;
+  const Q=RFX.Q[RFX.tier],bil=Q.bil,ffar=Q.ffar,fdet=Q.fdet,cAt=RD.cAt;const lw=LW,lh=LH,LW2=LW-2,LH2=LH-2,Lr=LR,Lg=LG,Lb=LB;
   const rowD=RD.rowD,rowF=RD.rowF,rowL=RD.rowL,rowB=RD.rowB,cY0=RD.cY0,cY1=RD.cY1,cTop=RD.cTop,cTex=RD.cTex,cU=RD.cU,cSide=RD.cSide,cDoor=RD.cDoor,cSky=RD.cSky;
   for(let y=0;y<H;y++){const dy=y-hor+0.5;let d=dy>0?camZ*focal/dy:dy<0?(1-camZ)*focal/(-dy):1e5;if(d>60)d=60;rowD[y]=d;const fi=(d*16)|0;rowF[y]=FOGT[fi];rowL[y]=fl/(1+d*d*0.07);rowB[y]=BEAMT[fi]*KB;}
   const px=P.x,py=P.y;
@@ -1464,24 +1517,30 @@ function renderWorld(){const t0=rfxTick();if(RFX.lastQ!==OPT.quality)resize();
     if(h.ci>=0)flag[h.ci]|=F_SEEN;
     const lineH=focal/pd;const top=hor-(1-camZ)*lineH,bot=hor+camZ*lineH;
     cY0[x]=Math.max(0,Math.ceil(top-0.5));cY1[x]=Math.min(H,Math.ceil(bot-0.5));cTop[x]=top;cTex[x]=h.tex;cU[x]=h.u;cSide[x]=h.side;cDoor[x]=h.door?1:0;
-    if(sky)cSky[x]=((((ang+Math.atan(camX*pl))/TAU*512)%512+512)|0)&511;}
+    if(sky)cSky[x]=((((ang+cAt[x])/TAU*512)%512+512)|0)&511;}
   // ---- floor + ceiling, row-major (incremental world stepping, bilinear lightmap on tier>=2) ----
   const lxR=dirX-plX,lyR=dirY-plY,sxR=2*plX/W,syR=2*plY/W;const ceilT=TEX[TEXI[L.ceil]].d;
   for(let y=0;y<H;y++){const isF=y-hor+0.5>0;const d=rowD[y];let wx=px+lxR*d,wy=py+lyR*d;const sx=sxR*d,sy=syR*d;
     const fg=rowF[y],ifg=1-fg,lf=rowL[y]*(isF?1:0.8),bm0=rowB[y],lm=isF?1:0.9;const v=clamp(127-(((hor-y)/H)*150|0),0,127)*512;
-    let lc=-1,td=null,nb=0,frc=0;let o=y*W;
+    let lc=-1,td=null,nb=0,frc=0;let o=y*W;const det=d<fdet;
+    if(fg<ffar){// beyond the fog: no texture/AO/frost, only haze + lamp scatter + beam (texture would contribute < ffar)
+      for(let x=0;x<W;x++,o++,wx+=sx,wy+=sy){if(y>=cY0[x]&&y<cY1[x])continue;let i0=(wx*4)|0,j0=(wy*4)|0;if(i0<0)i0=0;else if(i0>=lw)i0=lw-1;if(j0<0)j0=0;else if(j0>=lh)j0=lh-1;
+        if(!isF&&sky){let cxi=wx|0,cyi=wy|0;if(cxi<0)cxi=0;else if(cxi>=MW)cxi=MW-1;if(cyi<0)cyi=0;else if(cyi>=MH)cyi=MH-1;if(!(flag[cyi*MW+cxi]&F_ROOF)){buf[o]=SKY[v+cSky[x]];continue;}}
+        const q=j0*lw+i0,bm=bm0*cone[o];let r=(fogR+Lr[q]*KL)*ifg+bm,g=(fogG+Lg[q]*KL)*ifg+bm*0.95,b=(fogB+Lb[q]*KL)*ifg+bm*0.86;
+        buf[o]=0xff000000|((b>255?255:b)<<16)|((g>255?255:g)<<8)|(r>255?255:r);}
+      continue;}
     for(let x=0;x<W;x++,o++,wx+=sx,wy+=sy){if(y>=cY0[x]&&y<cY1[x])continue;
       let cxi=wx|0,cyi=wy|0;if(cxi<0)cxi=0;else if(cxi>=MW)cxi=MW-1;if(cyi<0)cyi=0;else if(cyi>=MH)cyi=MH-1;const ci=cyi*MW+cxi;
       if(!isF&&sky&&!(flag[ci]&F_ROOF)){buf[o]=SKY[v+cSky[x]];continue;}
-      if(ci!==lc){lc=ci;td=isF?TEX[flo[ci]].d:ceilT;nb=NB[ci];frc=FR[ci];}
+      if(ci!==lc){lc=ci;td=isF?TEX[flo[ci]].d:ceilT;if(det){nb=NB[ci];frc=FR[ci];}}
       const ti=((((wy*64)|0)&63)<<6)|(((wx*64)|0)&63);const c=td[ti];let r=c&255,g=(c>>8)&255,b=(c>>16)&255;
-      if(isF){const bv=blood[(((wy*8)|0)*BW)+((wx*8)|0)];if(bv){const k=bv/255*0.85;r=r*(1-k)+70*k;g=g*(1-k*1.1);b=b*(1-k*1.1);if(g<0)g=0;if(b<0)b=0;}}
+      if(isF&&det){const bv=blood[(((wy*8)|0)*BW)+((wx*8)|0)];if(bv){const k=bv/255*0.85;r=r*(1-k)+70*k;g=g*(1-k*1.1);b=b*(1-k*1.1);if(g<0)g=0;if(b<0)b=0;}}
       let ao=1;if(nb){const fx=wx-cxi,fy=wy-cyi;
         if(nb&1)ao*=AOT[((fx*32)|0)&63];if(nb&2)ao*=AOT[(((1-fx)*32)|0)&63];if(nb&4)ao*=AOT[((fy*32)|0)&63];if(nb&8)ao*=AOT[(((1-fy)*32)|0)&63];
         if(nb>15){if(nb&16)ao*=AOT[((Math.max(fx,fy)*32)|0)&63];if(nb&32)ao*=AOT[((Math.max(1-fx,fy)*32)|0)&63];if(nb&64)ao*=AOT[((Math.max(fx,1-fy)*32)|0)&63];if(nb&128)ao*=AOT[((Math.max(1-fx,1-fy)*32)|0)&63];}}
       if(frc>0.04){let cov=((1-ao)*2.0+FN[ti]*0.0028-1.25+frc*0.6)*2;if(cov>0){if(cov>0.6)cov=0.6;r+=(156-r)*cov;g+=(174-g)*cov;b+=(196-b)*cov;}}
       let lr,lg,lb;
-      if(bil){const gx=wx*4-0.5,gy=wy*4-0.5;let i0=gx|0,j0=gy|0;if(i0<0)i0=0;else if(i0>LW2)i0=LW2;if(j0<0)j0=0;else if(j0>LH2)j0=LH2;let tx=gx-i0,ty=gy-j0;if(tx<0)tx=0;else if(tx>1)tx=1;if(ty<0)ty=0;else if(ty>1)ty=1;
+      if(bil&&d<7){const gx=wx*4-0.5,gy=wy*4-0.5;let i0=gx|0,j0=gy|0;if(i0<0)i0=0;else if(i0>LW2)i0=LW2;if(j0<0)j0=0;else if(j0>LH2)j0=LH2;let tx=gx-i0,ty=gy-j0;if(tx<0)tx=0;else if(tx>1)tx=1;if(ty<0)ty=0;else if(ty>1)ty=1;
         const q=j0*lw+i0,a11=tx*ty,a10=tx-a11,a01=ty-a11,a00=1-tx-ty+a11;
         lr=Lr[q]*a00+Lr[q+1]*a10+Lr[q+lw]*a01+Lr[q+lw+1]*a11;lg=Lg[q]*a00+Lg[q+1]*a10+Lg[q+lw]*a01+Lg[q+lw+1]*a11;lb=Lb[q]*a00+Lb[q+1]*a10+Lb[q+lw]*a01+Lb[q+lw+1]*a11;}
       else{let i0=(wx*4)|0,j0=(wy*4)|0;if(i0<0)i0=0;else if(i0>=lw)i0=lw-1;if(j0<0)j0=0;else if(j0>=lh)j0=lh-1;const q=j0*lw+i0;lr=Lr[q];lg=Lg[q];lb=Lb[q];}
@@ -1506,15 +1565,18 @@ function renderWorld(){const t0=rfxTick();if(RFX.lastQ!==OPT.quality)resize();
     const sR=(fogR+lr*KL)*ifog,sG=(fogG+lg*KL)*ifog,sB=(fogB+lb*KL)*ifog,bw=BEAMT[fi]*KB;
     const step=64/(focal/pd);let tp=(y0-cTop[x]+0.5)*step;let o=y0*W+x;
     const thr=1.25-frc*0.75,fr=frc>0.04&&!cDoor[x],spk=pd>1.2;
+    // icicles hanging from the top of frosted walls (tapered, per-face hash so they stay put)
+    let icl=0,ics=0;if(frc>0.3&&!cDoor[x]){const wu=(side===0?hy:hx)*9,k=Math.floor(wu),fu=wu-k,hh=rfxHash(k*7+oc*13);if(hh>0.45){const sh=1-Math.abs(fu-0.5)*2;ics=sh;icl=sh>0?(0.25+(hh-0.45)*1.5)*30*frc*Math.pow(sh,2.2):0;}}
     for(let y=y0;y<y1;y++,o+=W){const vv=(tp|0)&63,ti=vv<<6|tx;const c=td[ti];tp+=step;let r=c&255,g=(c>>8)&255,b=(c>>16)&255;const cn=cone[o];
       if((c>>>24)!==254){let cov=0;if(fr){cov=(FN[ti]*0.0028+FV[vv]*0.55+cU2*0.6-thr)*2;if(cov>0){if(cov>0.62)cov=0.62;r+=(150-r)*cov;g+=(168-g)*cov;b+=(190-b)*cov;}}
+        if(icl>0&&tp-step<icl){const tipF=(tp-step)/icl,k2=0.55+0.35*ics,hl=ics>0.8?40:0;r+=(150+70*ics+hl-r)*k2-tipF*10;g+=(172+62*ics+hl-g)*k2-tipF*6;b+=(205+45*ics+hl-b)*k2;}
         const a=AOV[vv],f=cn*fall;r*=lrs*a+f;g*=lgs*a+f*0.95;b*=lbs*a+f*0.82;
         if(cov>0.3&&spk&&FS[ti]){const s=f*110+lr*40;r+=s;g+=s;b+=s;}}
       const bm=bw*cn;r=r*fog+sR+bm;g=g*fog+sG+bm*0.95;b=b*fog+sB+bm*0.86;
       buf[o]=0xff000000|((b>255?255:b)<<16)|((g>255?255:g)<<8)|(r>255?255:r);}
   }
   // ---- sprites ----
-  const list=[];const add=(x,y,spr,scale,z,fx)=>{const dx=x-px,dy=y-py;const tY=dx*dirX+dy*dirY;if(tY<0.15||tY>40)return;const tX=(dy*dirX-dx*dirY)/pl;list.push({tX,tY,x,y,spr,scale,z,fx});};
+  const pool=RD.sp||(RD.sp=[]),list=RD.sl||(RD.sl=[]);list.length=0;const add=(x,y,spr,scale,z,fx)=>{const dx=x-px,dy=y-py;const tY=dx*dirX+dy*dirY;if(tY<0.15||tY>40)return;const tX=(dy*dirX-dx*dirY)/pl;let s=pool[list.length];if(!s)s=pool[list.length]={};s.tX=tX;s.tY=tY;s.x=x;s.y=y;s.spr=spr;s.scale=scale;s.z=z;s.fx=fx;list.push(s);};
   for(const d of G.decor){if(d.dead)continue;add(d.x,d.y,d.spr,d.barrel?0.9:1,0,0);}
   for(const it of G.items)if(!it.taken)add(it.x,it.y,it.spr,0.8,0,1);
   for(const e of G.ents){if(e.dormant)continue;add(e.x,e.y,enemyFrame(e),e.d.scale,e.dead&&e.d.boss?0:(e.hover||0),e);}
@@ -1542,7 +1604,7 @@ function drawSprite(s,hor,camZ,fogR,fogG,fogB,fogD,fl){const W=RD.W,H=RD.H,buf=R
       const bm=bw*cn;r=r*fog+sR+bm;g=g*fog+sG+bm*0.95;b=b*fog+sB+bm*0.86;buf[o]=0xff000000|((b>255?255:b)<<16)|((g>255?255:g)<<8)|(r>255?255:r);}}
 }
 function drawParticles(dirX,dirY,pl,hor,camZ){const W=RD.W,H=RD.H,buf=RD.buf,zb=RD.zb,focal=RD.focal,P=G.P,cone=RD.cone;
-  for(const p of G.parts){const dx=p.x-P.x,dy=p.y-P.y;const tY=dx*dirX+dy*dirY;if(tY<0.12)continue;const tX=(dy*dirX-dx*dirY)/pl;const sxp=(W/2)*(1+tX/tY);const sc=focal/tY;
+  for(const p of G.parts){if(p.type==='snow'&&AT5.cv&&!RFX.off.atm)continue;const dx=p.x-P.x,dy=p.y-P.y;const tY=dx*dirX+dy*dirY;if(tY<0.12)continue;const tX=(dy*dirX-dx*dirY)/pl;const sxp=(W/2)*(1+tX/tY);const sc=focal/tY;
     const sy=hor+(camZ-p.z)*sc;let sz=Math.max(1,p.size*sc)|0;sz=Math.min(sz,p.type==='snow'?2:p.type==='dust'||p.type==='fire'?12:p.type==='blood'?4:6);const x0=(sxp-sz/2)|0,y0=(sy-sz/2)|0;if(x0>=W||y0>=H||x0+sz<0||y0+sz<0)continue;
     let r=p.c[0],g=p.c[1],b=p.c[2];if(!p.emis){const l=lightAt(p.x,p.y);let f=P.flashI*0.6/(1+tY*tY*0.07);
       // snow / dust caught in the flashlight beam glints
@@ -1604,7 +1666,11 @@ const VM={
 // lamp glare + bloom, cold colour grade, film grain, signal glitch, surface frost, lens frost, breath haze ----------
 // Public (read-only for other owners): RFX.tier (0..3 current adaptive tier), RFX.cold (0..1 coldness at the player),
 // RFX.outdoors (bool), RFX.onStutter (array of fn(lamp) called when a fluorescent tube starts to stutter; push to it, never assign).
-const RFX={tier:3,lock:-1,scales:[0.42,0.6,0.8,1],emaF:16.7,emaC:2,cool:1.5,stable:0,bad:[0,0,0,0],lastT:0,dt:0.016,lastQ:-1,
+const RFX={tier:IS_TOUCH?2:3,lock:-1,scales:[0.45,0.64,0.8,1],emaF:16.7,emaC:2,emaB:4,cool:0.5,stable:0,slow:0,fastT:3,skip:3,bo:[0,0,0,0],boN:[0,0,0,0],pend:null,floorT:0,floorU:0,ct:null,lastT:0,dt:0.016,lastQ:-1,
+  // per-tier cost knobs: bil=bilinear lightmap on floors, bloom, grain=CPU film grain (else GPU tile), fdet=distance (cells) with floor AO/frost/blood detail,
+  // ffar=fog transmittance below which floor/ceiling pixels skip texturing entirely (only haze + lamp scatter + beam)
+  Q:[{bil:0,bloom:0,grain:0,fdet:3.5,ffar:0.12},{bil:0,bloom:0,grain:0,fdet:6,ffar:0.08},{bil:0,bloom:1,grain:0,fdet:9,ffar:0.05},{bil:1,bloom:1,grain:1,fdet:60,ffar:0.025}],
+  vigC:null,grC:null,
   L:null,wallRef:null,nbT:0,NB:null,FR:null,FOGT:new Float32Array(1024),BEAMT:new Float32Array(1024),
   lv:null,cold:0.5,outdoors:false,LUT:null,VIG:null,ROWM:null,GRN:null,
   bl:{cv:null,cx:null,img:null,w:0,h:0,r:null,g:null,b:null,t:null,on:false,a:0.85},
@@ -1628,25 +1694,51 @@ const RFX_FN=new Uint8Array(4096),RFX_FS=new Uint8Array(4096);
     RFX_FV[i]=Math.max(Math.exp(-(1-v)/0.2),0.6*Math.exp(-v/0.1));}
   const n=rfxNoise(64,64,4,11,4),rg=rfxNoise(64,64,8,23,2);
   for(let i=0;i<4096;i++){const ridge=1-Math.abs(rg[i]*2-1);RFX_FN[i]=clamp((n[i]-0.25)*1.3+ridge*ridge*0.45,0,1)*255|0;RFX_FS[i]=rfxHash(i*7+3)>0.975?1:0;}})();
-// ----- adaptive quality -----
+// ----- adaptive quality: driven by OUR render CPU cost as a share of the real frame time -----
+// emaF = smoothed frame interval (rAF delta), emaC = smoothed renderWorld CPU ms, emaB = main-thread busy ms from frame start.
+// Drop only when frames are slow AND our render work is a real share of the frame (C/F>0.35) or over budget (C>9 ms);
+// never when C is small (slow presentation / vsync caps / GPU / an overloaded box are not fixed by fewer pixels).
+// Every drop is verified: if frame time hasn't improved >=10% after 1.5 s, the old tier is restored and drops below it are
+// barred for 30 s (slowness treated as external). Climb when the next tier's estimated render cost (learned per-tier cost
+// ratio) fits the budget min(9, 0.3*max(F,16.7)) ms for 3 s; a tier that was just dropped from waits 8..60 s (backoff).
+const RFX_CR=[0.42,0.55,0.66,1];// default render-cost ratio per tier (refined from measurements in RFX.ct)
 function rfxTick(){const now=performance.now(),dtF=now-RFX.lastT;RFX.lastT=now;RFX.dt=Math.min(0.1,Math.max(0.001,dtF/1000));
-  if(dtF>0&&dtF<250)RFX.emaF+=(dtF-RFX.emaF)*0.08;
-  RFX.cool-=RFX.dt;
-  if(RFX.lock<0&&RFX.cool<=0){
-    if((RFX.emaF>34&&RFX.emaC>RFX.emaF*0.3)||RFX.emaC>16){if(RFX.tier>0){RFX.bad[RFX.tier]=now;RFX.tier--;RFX.cool=1.5;RFX.stable=0;RFX.emaC*=0.6;resize();}}
-    else if(RFX.emaF<21&&RFX.emaC<6&&RFX.tier<3&&now-RFX.bad[RFX.tier+1]>25000){RFX.stable+=RFX.dt;if(RFX.stable>4){RFX.tier++;RFX.cool=2.5;RFX.stable=0;resize();}}
-    else RFX.stable=0;}
+  RFX.cool-=RFX.dt;RFX.fastT-=RFX.dt;
+  if(RFX.skip>0){RFX.skip--;return now;}
+  if(!(dtF>0&&dtF<400))return now;
+  const fast=RFX.fastT>0;RFX.emaF+=(dtF-RFX.emaF)*(fast?0.25:0.08);
+  if(RFX.lock>=0)return now;
+  const F=RFX.emaF,C=RFX.emaC,t=RFX.tier,ct=RFX.ct||(RFX.ct=[0,0,0,0]);if(RFX.cool<=0)ct[t]=ct[t]?ct[t]+(C-ct[t])*0.05:C;
+  const pd=RFX.pend;// verify the last drop
+  if(pd&&now>=pd.at){RFX.pend=null;if(F>pd.F*0.9){RFX.floorT=pd.from;RFX.floorU=now+30000;return rfxSetTier(pd.from,now,false,true);}}
+  if(RFX.cool>0)return now;
+  const floor=now<RFX.floorU?RFX.floorT:0,share=C/F,cpu=C>2.5&&(share>0.35||C>9);
+  if(t>floor&&cpu&&F>50)return rfxSetTier(Math.max(floor,t-(t>=2?2:1)),now,true);
+  if(t>floor&&cpu&&F>(fast?24:21.5)){RFX.slow+=RFX.dt;RFX.stable=0;if(RFX.slow>(fast?0.35:0.9))return rfxSetTier(t-1,now,true);return now;}
+  RFX.slow=0;
+  if(t<3&&now>=RFX.bo[t+1]){const est=C*rfxRatio(t+1,t),bud=Math.min(9,0.3*Math.max(F,16.7));
+    if(est<bud){RFX.stable+=RFX.dt;if(RFX.stable>3)rfxSetTier(t+1,now,false);}else RFX.stable=0;}else RFX.stable=0;
   return now;}
-function rfxCost(t0){const c=performance.now()-t0;RFX.emaC+=(c-RFX.emaC)*0.08;}
+function rfxSetTier(n,now,down,revert){const t=RFX.tier;n=clamp(n,0,3);if(n===t)return now;
+  if(down){for(let k=n+1;k<=t;k++){RFX.boN[k]=Math.min(4,RFX.boN[k]+1);RFX.bo[k]=now+Math.min(60000,8000*(1<<(RFX.boN[k]-1)));}RFX.pend={from:t,F:RFX.emaF,C:RFX.emaC,at:now+1500};}
+  else if(!revert&&RFX.boN[n]>0&&now-RFX.bo[n]>60000)RFX.boN[n]--;
+  RFX.emaC*=rfxRatio(n,t);
+  RFX.tier=n;RFX.cool=down?0.8:revert?1.5:2.5;RFX.stable=0;RFX.slow=0;resize();return now;}
+function rfxRatio(a,b){const ct=RFX.ct;return ct&&ct[a]>0.05&&ct[b]>0.05?ct[a]/ct[b]:RFX_CR[a]/RFX_CR[b];}
+function rfxCost(t0){const now=performance.now(),c=now-t0,k=RFX.fastT>0?0.25:0.08;RFX.emaC+=(c-RFX.emaC)*k;
+  const ft=document.timeline&&document.timeline.currentTime;let b=ft!=null?now-ft:c;if(!(b>=c&&b<300))b=c;RFX.emaB+=(b-RFX.emaB)*k;}
 // ----- per-resolution tables -----
-function rfxResize(W,H){const n=W*H;RFX.VIG=new Uint16Array(n);RFX.ROWM=new Uint16Array(H).fill(256);
-  for(let y=0;y<H;y++)for(let x=0;x<W;x++){const dx=(x+0.5-W/2)/(W/2),dy=(y+0.5-H/2)/(H/2);const r=Math.sqrt(dx*dx*0.8+dy*dy);RFX.VIG[y*W+x]=(256*(1-0.34*smooth(0.4,1.3,r)))|0;}
+function rfxResize(W,H){const n=W*H;// vignette is drawn on the GPU in rfxComposite (exact same darkening curve, baked once into a small canvas)
+  if(!RFX.vigC){const vw=128,vh=72,c=mkC(vw,vh),x=c.getContext('2d'),id=x.createImageData(vw,vh),d=id.data;
+    for(let y=0;y<vh;y++)for(let X=0;X<vw;X++){const dx=(X+0.5-vw/2)/(vw/2),dy=(y+0.5-vh/2)/(vh/2);const r=Math.sqrt(dx*dx*0.8+dy*dy);d[(y*vw+X)*4+3]=255*0.34*smooth(0.4,1.3,r);}
+    x.putImageData(id,0,0);RFX.vigC=c;
+    const gw=128,g=mkC(gw,gw),gx=g.getContext('2d'),gi=gx.createImageData(gw,gw),gd=gi.data;for(let i=0;i<gw*gw;i++){const v=rfxHash(i*5+9)<0.5?0:255;gd[i*4]=gd[i*4+1]=gd[i*4+2]=v;gd[i*4+3]=255;}gx.putImageData(gi,0,0);RFX.grC=g;}
   if(!RFX.GRN){RFX.GRN=new Int8Array(65536);for(let i=0;i<65536;i++){const a=rfxHash(i*3+1),b=rfxHash(i*3+2);RFX.GRN[i]=((a+b-1)*6)|0;}}
-  const bl=RFX.bl;bl.w=Math.ceil(W/4);bl.h=Math.ceil(H/4);const m=bl.w*bl.h;bl.r=new Float32Array(m);bl.g=new Float32Array(m);bl.b=new Float32Array(m);bl.t=new Float32Array(m);
+  const bl=RFX.bl;bl.had=0;bl.w=Math.ceil(W/4);bl.h=Math.ceil(H/4);const m=bl.w*bl.h;bl.r=new Float32Array(m);bl.g=new Float32Array(m);bl.b=new Float32Array(m);bl.t=new Float32Array(m);
   if(!bl.cv){bl.cv=mkC(bl.w,bl.h);bl.cx=bl.cv.getContext('2d');}bl.cv.width=bl.w;bl.cv.height=bl.h;bl.img=bl.cx.createImageData(bl.w,bl.h);}
 // ----- per-level tables -----
 function rfxLevel(){const L=G.L,MW=M.w,MH=M.h,N=MW*MH;
-  if(RFX.L!==L||RFX.wallRef!==M.wall){RFX.L=L;RFX.wallRef=M.wall;RFX.cool=Math.max(RFX.cool,1.5);RFX.emaC=Math.min(RFX.emaC,4);RFX.NB=new Uint8Array(N);RFX.FR=new Float32Array(N);RFX.nbT=0;RFX.lamps=null;
+  if(RFX.L!==L||RFX.wallRef!==M.wall){RFX.L=L;RFX.wallRef=M.wall;RFX.cool=Math.max(RFX.cool,0.3);RFX.skip=Math.max(RFX.skip,4);RFX.fastT=3;RFX.emaC=Math.min(RFX.emaC,4);RFX.NB=new Uint8Array(N);RFX.FR=new Float32Array(N);RFX.nbT=0;RFX.lamps=null;
     const lv=RFX.lv=RFX_LV[L.id]||{cold:0.5,frost:0.4,tint:0.8};
     const fd=L.fogD;let acc=0;for(let i=0;i<1024;i++){const d=i/16;RFX.FOGT[i]=Math.exp(-d*fd);acc+=fd*Math.exp(-fd*d)/(1+d*d*0.07)/16;RFX.BEAMT[i]=acc;}
     RFX.LUT=rfxBuildLUT(lv.tint);
@@ -1704,30 +1796,37 @@ function rfxGlowKey(r,g,b){const k=((Math.min(1,r)*7)|0)*64+((Math.min(1,g)*7)|0
     x.fillStyle=gr;x.fillRect(0,0,64,64);RFX.glow.set(k,c);}return c;}
 // ----- post: bloom bright-pass (CPU, quarter res), grade + vignette + grain + signal glitch -----
 function rfxPost(){const W=RD.W,H=RD.H,buf=RD.buf,bl=RFX.bl,P=G.P;
-  bl.on=RFX.tier>=1&&!RFX.off.bloom;
-  if(bl.on){const bw=bl.w,bh=bl.h,br=bl.r,bg=bl.g,bb=bl.b,T=172;let any=0;
+  bl.on=RFX.Q[RFX.tier].bloom&&!RFX.off.bloom;RFX.bfr=(RFX.bfr|0)+1;
+  // tier 2 refreshes the (quarter-res, blurred) bloom layer every other frame and reuses the last one in between
+  if(bl.on&&RFX.tier<3&&(RFX.bfr&1)&&bl.had){bl.on=true;}
+  else if(bl.on){const bw=bl.w,bh=bl.h,br=bl.r,bg=bl.g,bb=bl.b,T=172;let any=0;
     for(let by=0;by<bh;by++){const y0=Math.min(H-1,by*4+1),y1=Math.min(H-1,by*4+3);for(let bx=0;bx<bw;bx++){const x0=Math.min(W-1,bx*4+1),x1=Math.min(W-1,bx*4+3);
       const a=buf[y0*W+x0],b=buf[y0*W+x1],c=buf[y1*W+x0],d=buf[y1*W+x1];
       const r=(a&255)+(b&255)+(c&255)+(d&255),g=((a>>8)&255)+((b>>8)&255)+((c>>8)&255)+((d>>8)&255),bl2=((a>>16)&255)+((b>>16)&255)+((c>>16)&255)+((d>>16)&255);
       const m=Math.max(r,g,bl2)*0.25,k=by*bw+bx;if(m>T){const s=(m-T)/m*0.25*1.6;br[k]=r*s;bg[k]=g*s;bb[k]=bl2*s;any=1;}else{br[k]=0;bg[k]=0;bb[k]=0;}}}
-    if(any){rfxBlur(br,bw,bh,bl.t);rfxBlur(bg,bw,bh,bl.t);rfxBlur(bb,bw,bh,bl.t);const d=bl.img.data;for(let k=0,o=0;k<bw*bh;k++,o+=4){d[o]=br[k];d[o+1]=bg[k];d[o+2]=bb[k];d[o+3]=255;}bl.cx.putImageData(bl.img,0,0);}
-    else bl.on=false;}
-  // grade
-  const LUT=RFX.LUT,VIG=RFX.VIG,GRN=RFX.GRN,ROWM=RFX.ROWM,off=(R()*65536)|0;
+    if(any){rfxBlur(br,bw,bh,bl.t);rfxBlur(bg,bw,bh,bl.t);rfxBlur(bb,bw,bh,bl.t);const d=bl.img.data;for(let k=0,o=0;k<bw*bh;k++,o+=4){d[o]=br[k];d[o+1]=bg[k];d[o+2]=bb[k];d[o+3]=255;}bl.cx.putImageData(bl.img,0,0);bl.had=1;}
+    else{bl.on=false;bl.had=0;}}
+  // grade: tone LUT + saturation on the CPU; grain on the CPU only at the top tier (GPU tile below); vignette + roll band on the GPU
+  const LUT=RFX.LUT,GRN=RFX.GRN,off=(R()*65536)|0,n=W*H,cg=RFX.Q[RFX.tier].grain&&!RFX.off.grain;
   let sat=0.84-RFX.cold*0.1;if(G.state==='play'&&P&&!P.dead&&P.hp<35)sat*=0.45+0.55*P.hp/35;const si=(sat*256)|0;
-  // rolling interference band (very faint) + rare horizontal tearing ("dead signal")
-  ROWM.fill(256);RFX.rollY+=RFX.dt*H*0.05;if(RFX.rollY>H*1.6)RFX.rollY=-H*0.3;const ry=RFX.rollY|0,bh2=(H*0.08)|0;for(let y=Math.max(0,ry);y<Math.min(H,ry+bh2);y++)ROWM[y]=262+((Math.sin((y-ry)/bh2*Math.PI))*8|0);
-  for(let y=0,o=0;y<H;y++){const rm=ROWM[y];for(let x=0;x<W;x++,o++){const c=buf[o];let r=LUT[c&255],g=LUT[256+((c>>8)&255)],b=LUT[512+((c>>16)&255)];
-    const l=(r*77+g*151+b*28)>>8;r=l+(((r-l)*si)>>8);g=l+(((g-l)*si)>>8);b=l+(((b-l)*si)>>8);
-    const v=VIG[o]*rm,gn=GRN[(o+off)&65535];r=((r*v)>>16)+gn;g=((g*v)>>16)+gn;b=((b*v)>>16)+gn;
+  RFX.rollY+=RFX.dt*H*0.05;if(RFX.rollY>H*1.6)RFX.rollY=-H*0.3;
+  if(cg){for(let o=0;o<n;o++){const c=buf[o];let r=LUT[c&255],g=LUT[256+((c>>8)&255)],b=LUT[512+((c>>16)&255)];
+    const l=(r*77+g*151+b*28)>>8,gn=GRN[(o+off)&65535];r=l+(((r-l)*si)>>8)+gn;g=l+(((g-l)*si)>>8)+gn;b=l+(((b-l)*si)>>8)+gn;
     buf[o]=0xff000000|((b<0?0:b>255?255:b)<<16)|((g<0?0:g>255?255:g)<<8)|(r<0?0:r>255?255:r);}}
+  else{for(let o=0;o<n;o++){const c=buf[o];const r=LUT[c&255],g=LUT[256+((c>>8)&255)],b=LUT[512+((c>>16)&255)];
+    const l=(r*77+g*151+b*28)>>8;buf[o]=0xff000000|((l+(((b-l)*si)>>8))<<16)|((l+(((g-l)*si)>>8))<<8)|(l+(((r-l)*si)>>8));}}
   RFX.glitchNext-=RFX.dt;if(RFX.glitchT>0){RFX.glitchT-=RFX.dt;const y0=RFX.glY,h=Math.min(RFX.glH,H-y0),s=RFX.glS;for(let y=y0;y<y0+h;y++){const o=y*W;if(s>0)buf.copyWithin(o+s,o,o+W-s);else buf.copyWithin(o,o-s,o+W);}}
   else if(RFX.glitchNext<=0&&G.state==='play'){RFX.glitchNext=7+R()*16*(P&&P.hp<35?0.4:1);RFX.glitchT=0.06+R()*0.12;RFX.glY=(R()*H*0.85)|0;RFX.glH=2+(R()*H*0.07|0);RFX.glS=((R()<0.5?-1:1)*(2+R()*W*0.025))|0;}}
-function rfxBlur(a,w,h,t){for(let pass=0;pass<2;pass++){
-  for(let y=0;y<h;y++){const o=y*w;let s=0;for(let x=-2;x<=2;x++)s+=a[o+clamp(x,0,w-1)];for(let x=0;x<w;x++){t[o+x]=s*0.2;s+=a[o+Math.min(w-1,x+3)]-a[o+Math.max(0,x-2)];}}
-  for(let x=0;x<w;x++){let s=0;for(let y=-2;y<=2;y++)s+=t[clamp(y,0,h-1)*w+x];for(let y=0;y<h;y++){a[y*w+x]=s*0.2;s+=t[Math.min(h-1,y+3)*w+x]-t[Math.max(0,y-2)*w+x];}}}}
+// separable 5-tap box blur, run twice (~gaussian); edges clamped without per-sample function calls
+function rfxBlur(a,w,h,t){const w1=w-1,h1=h-1;for(let pass=0;pass<2;pass++){
+  for(let y=0;y<h;y++){const o=y*w;let s=a[o]*3+a[o+(w1<1?w1:1)]+a[o+(w1<2?w1:2)];for(let x=0;x<w;x++){t[o+x]=s*0.2;const xa=x+3,xr=x-2;s+=a[o+(xa>w1?w1:xa)]-a[o+(xr<0?0:xr)];}}
+  for(let x=0;x<w;x++){let s=t[x]*3+t[(h1<1?h1:1)*w+x]+t[(h1<2?h1:2)*w+x];for(let y=0;y<h;y++){a[y*w+x]=s*0.2;const ya=y+3,yr=y-2;s+=t[(ya>h1?h1:ya)*w+x]-t[(yr<0?0:yr)*w+x];}}}}
 // ----- GPU composite, runs right after the main putImageData (both gameplay and title backdrop) -----
-function rfxComposite(c){try{const W=RD.W,H=RD.H,bl=RFX.bl;c.save();c.globalCompositeOperation='lighter';c.imageSmoothingEnabled=true;
+function rfxComposite(c){try{const W=RD.W,H=RD.H,bl=RFX.bl;c.save();c.imageSmoothingEnabled=true;
+  if(RFX.vigC){c.globalAlpha=1;c.drawImage(RFX.vigC,0,0,W,H);
+    const ry=RFX.rollY,bh=H*0.08;if(ry>-bh&&ry<H){c.globalCompositeOperation='lighter';c.globalAlpha=0.025;c.fillStyle='#fff';c.fillRect(0,ry,W,bh);}
+    if(!RFX.Q[RFX.tier].grain&&!RFX.off.grain){c.globalCompositeOperation='overlay';c.globalAlpha=0.05;const ox=(R()*128)|0,oy=(R()*128)|0;c.fillStyle=RFX.grP||(RFX.grP=c.createPattern(RFX.grC,'repeat'));c.translate(-ox,-oy);c.fillRect(ox,oy,W,H);c.setTransform(1,0,0,1,0,0);}}
+  c.globalCompositeOperation='lighter';
   if(bl.on){c.globalAlpha=bl.a;c.drawImage(bl.cv,0,0,bl.w,bl.h,0,0,bl.w*4,bl.h*4);}
   if(!RFX.off.glare)for(let i=0;i<RFX.glN;i++){const g=RFX.gl[i];c.globalAlpha=g.a;c.drawImage(g.c,g.x-g.r,g.y-g.r,g.r*2,g.r*2);if(g.s){c.globalAlpha=g.a*0.35;c.drawImage(g.c,g.x-g.r*3.2,g.y-g.r*0.12,g.r*6.4,g.r*0.24);}}
   c.restore();rfxOverlay();}catch(e){if(RFX.err++<3)console.error(e);}}
@@ -1755,7 +1854,47 @@ function rfxCloud(seed){const w=128,h=64,cv2=mkC(w,h),x=cv2.getContext('2d'),id=
   for(let y=0;y<h;y++)for(let X=0;X<w;X++){const i=y*w+X,dx=(X/w*2-1),dy=(y/h*2-1)*1.15,r=Math.sqrt(dx*dx+dy*dy);const a=Math.pow(clamp((1-r)*1.7,0,1),1.3)*clamp((n[i]-0.22)*2.4,0,1);d[i*4]=222;d[i*4+1]=232;d[i*4+2]=242;d[i*4+3]=a*255;}
   x.putImageData(id,0,0);return cv2;}
 // hidden debug hook for tests/benchmarks (not exposed in UI)
-window.__DSR={RFX,setTier:(t,lock)=>{RFX.tier=clamp(t|0,0,3);RFX.lock=lock?1:-1;resize();}};
+window.__DSR={RFX,setTier:(t,lock)=>{RFX.tier=clamp(t|0,0,3);RFX.lock=lock?1:-1;resize();},unlock:()=>{RFX.lock=-1;}};
+
+// ===== 05y_atmos.js =====
+// ---------- 05y: display-resolution atmosphere layer ----------
+// Soft snowflakes (replaces the square snow pixels), drifting ice motes that glint in the flashlight and lamps,
+// sparks when fluorescent tubes stutter, a faint beam shaft, and fine film grain. Drawn on a full-res canvas above the view.
+const AT5={cv:null,cx:null,w:0,h:0,motes:[],sparks:[],flake:null,glint:null,spark:null,grain:null,grP:null,t:0,on:false};
+function atmSprite(r,g,b,hard){const c=mkC(32,32),x=c.getContext('2d'),gr=x.createRadialGradient(16,16,0,16,16,16);
+  gr.addColorStop(0,`rgba(${r},${g},${b},1)`);gr.addColorStop(hard,`rgba(${r},${g},${b},0.55)`);gr.addColorStop(1,`rgba(${r},${g},${b},0)`);x.fillStyle=gr;x.fillRect(0,0,32,32);return c;}
+function atmInit(){const v=$('view');if(!v||!v.parentNode)return false;const c=AT5.cv=document.createElement('canvas');c.id='atmOv';
+  c.style.cssText='position:fixed;inset:0;width:100%;height:100%;pointer-events:none';const ov=$('rfxOv');v.parentNode.insertBefore(c,ov?ov.nextSibling:v.nextSibling);
+  AT5.cx=c.getContext('2d');AT5.flake=atmSprite(236,242,250,0.35);AT5.glint=atmSprite(255,250,235,0.15);AT5.spark=atmSprite(255,190,90,0.25);
+  const g=mkC(96,96),gx=g.getContext('2d'),id=gx.createImageData(96,96),d=id.data;for(let i=0;i<96*96;i++){const v2=(rfxHash(i*7+3)*255)|0;d[i*4]=d[i*4+1]=d[i*4+2]=v2;d[i*4+3]=255;}gx.putImageData(id,0,0);AT5.grain=g;
+  RFX.onStutter.push(l=>{if(G.state!=='play')return;const inf=RFX.info[G.lamps.indexOf(l)];const z=inf?inf.z:0.8;const n=6+(R()*8|0);
+    for(let i=0;i<n;i++)AT5.sparks.push({x:l.x+(R()-.5)*0.15,y:l.y+(R()-.5)*0.15,z:z,vx:(R()-.5)*1.2,vy:(R()-.5)*1.2,vz:R()*1.2,life:0.5+R()*0.7});});
+  return true;}
+function atmResize(){const dpr=1,w=Math.round(innerWidth*dpr),h=Math.round(innerHeight*dpr);if(AT5.w!==w||AT5.h!==h){AT5.w=AT5.cv.width=w;AT5.h=AT5.cv.height=h;}}
+function atmDraw(){if(!AT5.cv&&!atmInit())return;const play=G.state==='play'||G.state==='title'||G.state==='intro'||G.state==='diff'||G.state==='options'||G.state==='credits';
+  const c=AT5.cx;atmResize();const DW=AT5.w,DH=AT5.h;if(AT5.dirty){c.clearRect(0,0,DW,DH);AT5.dirty=false;}if(!play||!G.P||!G.L||RFX.off.atm){return;}
+  const dt=Math.min(0.05,RFX.dt||0.016);AT5.t+=dt;const P=G.P,W=RD.W,H=RD.H,zb=RD.zb,focal=RD.focal,pl=RD.pl,hor=RD.hor,camZ=RD.camZ,sx=DW/W,sy=DH/H;
+  const dirX=Math.cos(P.a),dirY=Math.sin(P.a),fd=G.L.fogD,cone=RD.cone,live=G.state==='play'&&!G.freeze;
+  const proj=(x,y,z)=>{const dx=x-P.x,dy=y-P.y,tY=dx*dirX+dy*dirY;if(tY<0.12)return null;const tX=(dy*dirX-dx*dirY)/pl,px=(W/2)*(1+tX/tY);if(px<-4||px>=W+4)return null;
+    const xi=px|0;if(xi>=0&&xi<W&&zb[xi]<tY)return null;const sc=focal/tY;return [px,hor+(camZ-z)*sc,tY,sc];};
+  const beam=(px,py)=>{const xi=clamp(px|0,0,W-1),yi=clamp(py|0,0,H-1);return cone[yi*W+xi];};
+  c.globalCompositeOperation='lighter';
+  // snowflakes from the world snow particles: soft round flakes, short streaks when close
+  const fl=P.flashI;for(const p of G.parts){if(p.type!=='snow')continue;const q=proj(p.x,p.y,p.z);if(!q)continue;const [px,py,tY,sc]=q;if(py<-4||py>H+4)continue;
+    const fog=Math.exp(-tY*fd*0.9),bm=beam(px,py);const a=clamp((0.35+bm*fl*1.4)*fog,0,0.95);if(a<0.03)continue;const r=Math.max(1.1,Math.min(9,sc*0.022*sx));
+    AT5.dirty=true;c.globalAlpha=a;c.drawImage(AT5.flake,px*sx-r,py*sy-r,r*2,r*2*(tY<2?1.6:1));}
+  // ice motes: hover in the air around the player, visible where light hits them
+  const MS=AT5.motes,N=RFX.outdoors?0:(RFX.tier>=2?70:44);while(MS.length<N)MS.push({x:P.x+(R()-.5)*8,y:P.y+(R()-.5)*8,z:R(),ph:R()*TAU,s:0.5+R()});if(MS.length>N)MS.length=N;
+  for(const m of MS){if(live){m.ph+=dt*0.6;m.x+=Math.cos(m.ph)*dt*0.05;m.y+=Math.sin(m.ph*0.7)*dt*0.05;m.z-=dt*0.02*m.s;}
+    if(m.z<0||Math.abs(m.x-P.x)>4.5||Math.abs(m.y-P.y)>4.5||wallAt(m.x,m.y)){m.x=P.x+(R()-.5)*8;m.y=P.y+(R()-.5)*8;m.z=0.2+R()*0.8;continue;}
+    const q=proj(m.x,m.y,m.z);if(!q)continue;const [px,py,tY,sc]=q;if(py<0||py>=H)continue;const l=lightAt(m.x,m.y);const lit=beam(px,py)*fl*1.8/(1+tY*tY*0.12)+(l[0]+l[1]+l[2])*0.25;
+    const tw=0.6+0.4*Math.sin(AT5.t*3+m.ph*5);const a=clamp(lit*tw,0,0.8);if(a<0.04)continue;const r=Math.max(0.9,Math.min(4,sc*0.008*m.s*sx));AT5.dirty=true;c.globalAlpha=a;c.drawImage(AT5.glint,px*sx-r,py*sy-r,r*2,r*2);}
+  // sparks from stuttering tubes
+  const SP=AT5.sparks;for(let i=SP.length-1;i>=0;i--){const s=SP[i];if(live){s.life-=dt;s.vz-=dt*3.2;s.x+=s.vx*dt;s.y+=s.vy*dt;s.z+=s.vz*dt;if(s.z<0.02){s.z=0.02;s.vz*=-0.3;s.vx*=0.6;s.vy*=0.6;}}
+    if(s.life<=0||SP.length>80){SP.splice(i,1);continue;}const q=proj(s.x,s.y,s.z);if(!q)continue;const [px,py,tY,sc]=q;const r=Math.max(1.2,Math.min(6,sc*0.012*sx));
+    AT5.dirty=true;c.globalAlpha=Math.min(1,s.life*1.6);c.drawImage(AT5.spark,px*sx-r*2,py*sy-r*2,r*4,r*4);c.globalAlpha=Math.min(1,s.life*2);c.strokeStyle='#ffd9a0';c.lineWidth=Math.max(1,r*0.5);c.beginPath();c.moveTo(px*sx,py*sy);c.lineTo((px-s.vx*2)*sx,(py+s.vz*3)*sy);c.stroke();}
+  c.globalCompositeOperation='source-over';c.globalAlpha=1;}
+{const _ov=rfxOverlay;rfxOverlay=function(){_ov();try{atmDraw();}catch(e){if(RFX.err++<3)console.error(e);}};}
 
 // ===== 06_entities.js =====
 // ---------- Entities: enemies, items, projectiles, particles ----------
@@ -1766,9 +1905,18 @@ const EDEF={
  brute:{hp:220,spd:1.05,r:0.42,dmg:28,range:1.25,cd:1.6,scale:1.05,pain:0.12,sight:12,snd:'brute',atkT:0.65,charge:1,drop:1},
  boss:{hp:2000,spd:0.55,r:0.95,dmg:30,range:2.1,cd:1.4,scale:2.4,pain:0.04,sight:40,snd:'boss',boss:1,atkT:0.6}
 };
-function spawnEnemy(type,x,y,dormant){const d=EDEF[type];const e={type,d,x,y,hp:d.hp*DIFF[G.diff].hp,max:d.hp*DIFF[G.diff].hp,state:'idle',t:0,atkCd:rr(0.5,1.5),alert:false,walkT:R(),dieT:0,dead:false,hitT:0,burn:0,dormant:!!dormant,losT:R()*0.2,los:false,wt:0,wa:R()*TAU,wmove:false,gt:rr(2,6),chargeT:0,chargeCd:rr(2,4),flashAtk:0,phase:0,patT:3,ringT:7};
+// ----- enemy event hooks for other modules (audio etc.) -----
+// G.onEnemyAlert / G.onEnemyDeath: a function OR an array of functions, called as fn({e,type,x,y,dist}) inside try/catch.
+//   alert: once per enemy, the first time it notices the player (sight, noise, damage, dormant wake-up, boss awaken).
+//   death: once per enemy, when it is killed (any cause, including the boss-death sweep).
+// e.moving (boolean, every tick): true while the enemy walked under its own power this tick (false when idle, attacking,
+//   in pain, blocked, dead, dormant or frozen). Read it any time; it is never undefined on spawned enemies.
+G.onEnemyAlert=G.onEnemyAlert||[];G.onEnemyDeath=G.onEnemyDeath||[];let ENT_UID=0;
+function emitEnemyEvt(h,e){if(!h||(Array.isArray(h)&&!h.length))return;const P=G.P;const o={e,type:e.type,x:e.x,y:e.y,dist:P?Math.hypot(P.x-e.x,P.y-e.y):0};
+  if(typeof h==='function'){try{h(o);}catch(err){console.warn('enemy hook failed',err);}return;}for(const f of h){if(typeof f!=='function')continue;try{f(o);}catch(err){console.warn('enemy hook failed',err);}}}
+function spawnEnemy(type,x,y,dormant){const d=EDEF[type];const e={uid:++ENT_UID,moving:false,jamT:0,type,d,x,y,hp:d.hp*DIFF[G.diff].hp,max:d.hp*DIFF[G.diff].hp,state:'idle',t:0,atkCd:rr(0.5,1.5),alert:false,walkT:R(),dieT:0,dead:false,hitT:0,burn:0,dormant:!!dormant,losT:R()*0.2,los:false,wt:0,wa:R()*TAU,wmove:false,gt:rr(2,6),chargeT:0,chargeCd:rr(2,4),flashAtk:0,phase:0,patT:3,ringT:7};
   G.ents.push(e);if(!dormant)G.stats.total++;return e;}
-function alertEnemy(e){if(e.alert||e.dead)return;e.alert=true;if(e.state==='idle')e.state='chase';if(R()<0.8||e.d.boss)sfx(e.d.snd,e.x,e.y);e.gt=rr(3,6);}
+function alertEnemy(e){if(e.alert||e.dead)return;e.alert=true;if(e.state==='idle')e.state='chase';if(R()<0.8||e.d.boss)sfx(e.d.snd,e.x,e.y);e.gt=rr(3,6);if(!e.alertFired){e.alertFired=true;emitEnemyEvt(G.onEnemyAlert,e);}}
 function wakeDormant(x,y,rad){let n=0;for(const e of G.ents){if(e.dormant&&Math.hypot(e.x-x,e.y-y)<rad){e.dormant=false;G.stats.total++;alertEnemy(e);n++;}}return n;}
 function moveEnemy(e,dx,dy){const ox=e.x,oy=e.y;moveCircle(e,dx,dy,e.d.r);
   // open doors in the way
@@ -1778,14 +1926,16 @@ function flowDir(e){const W=M.w,cx=e.x|0,cy=e.y|0,F=M.flow;const here=F[cy*W+cx]
   for(let dy=-1;dy<=1;dy++)for(let dx=-1;dx<=1;dx++){if(!dx&&!dy)continue;const nx=cx+dx,ny=cy+dy;if(nx<0||ny<0||nx>=W||ny>=M.h)continue;const v=F[ny*W+nx];if(v<0)continue;
     if(dx&&dy&&(F[cy*W+nx]<0||F[ny*W+cx]<0))continue;if(v<best){best=v;bx=dx;by=dy;}}
   if(!bx&&!by)return null;return Math.atan2(cy+by+0.5-e.y,cx+bx+0.5-e.x);}
-function updateEnemies(dt){const P=G.P;if(G.freeze){for(const e of G.ents){if(e.dead)e.dieT+=dt;else e.walkT+=dt*0.3;}return;}const dsp=DIFF[G.diff].spd;
-  for(const e of G.ents){if(e.dormant)continue;if(e.dead){e.dieT+=dt;continue;}
+function updateEnemies(dt){const P=G.P;if(G.freeze){for(const e of G.ents){e.moving=false;if(e.dead)e.dieT+=dt;else e.walkT+=dt*0.3;}return;}const dsp=DIFF[G.diff].spd;
+  for(const e of G.ents){if(e.dormant||e.dead){e.moving=false;if(e.dead)e.dieT+=dt;continue;}const wt0=e.walkT,mx0=e.x,my0=e.y;updateEnemy(e,dt,P,dsp);
+    if(!e.dead)e.moving=(e.d.boss||e.walkT!==wt0)&&Math.abs(e.x-mx0)+Math.abs(e.y-my0)>0.02*dt;}}
+function updateEnemy(e,dt,P,dsp){{
     if(e.hitT>0)e.hitT-=dt;if(e.flashAtk>0)e.flashAtk-=dt;
-    if(e.burn>0){e.burn-=dt;if(R()<dt*14)addPart('fire',e.x+rr(-.2,.2),e.y+rr(-.2,.2),rr(0.1,e.d.scale*0.8));addDL(e.x,e.y,0.9,0.45,0.1,2.5);damageEnemy(e,11*dt,'burn');if(e.dead)continue;}
+    if(e.burn>0){e.burn-=dt;if(R()<dt*14)addPart('fire',e.x+rr(-.2,.2),e.y+rr(-.2,.2),rr(0.1,e.d.scale*0.8));addDL(e.x,e.y,0.9,0.45,0.1,2.5);damageEnemy(e,11*dt,'burn');if(e.dead)return;}
     e.atkCd-=dt;const dx=P.x-e.x,dy=P.y-e.y,dist=Math.hypot(dx,dy);
     e.losT-=dt;if(e.losT<=0){e.losT=0.15+R()*0.1;e.los=!P.dead&&dist<26&&hasLOS(e.x,e.y,P.x,P.y);
       if(!e.alert&&e.los){const lit=P.flashOn&&P.battery>0;if(dist<(lit?e.d.sight:e.d.sight*0.45)||dist<2.2)alertEnemy(e);}}
-    if(e.d.boss){updateBoss(e,dt,dist,dx,dy);continue;}
+    if(e.d.boss){updateBoss(e,dt,dist,dx,dy);return;}
     const spd=e.d.spd*dsp*(e.burn>0?1.25:1);
     if(e.alert){e.gt-=dt;if(e.gt<=0){e.gt=rr(3,7);sfx(e.d.snd,e.x,e.y);}}
     switch(e.state){
@@ -1799,11 +1949,15 @@ function updateEnemies(dt){const P=G.P;if(G.freeze){for(const e of G.ents){if(e.
       if(e.los){a=Math.atan2(dy,dx);if(e.d.ranged&&dist<4){a+=Math.PI*0.6*(e.wa>3?1:-1);}if(e.d.ranged&&dist<6&&dist>=4)a+=Math.PI/2*(e.wa>3?1:-1);}
       else a=flowDir(e);
       if(e.d.charge){e.chargeCd-=dt;if(e.chargeT>0){e.chargeT-=dt;sp*=3.1;if(R()<dt*10)G.shake=Math.max(G.shake,0.25);}else if(e.los&&dist>2.5&&dist<9&&e.chargeCd<=0){e.chargeT=1.1;e.chargeCd=rr(4,7);sfx('brute',e.x,e.y);}}
-      if(a!=null){if(e.d.ranged&&!e.los)sp*=1;moveEnemy(e,Math.cos(a)*sp*dt,Math.sin(a)*sp*dt);e.walkT+=dt*sp*0.5;}
+      if(a!=null){if(e.d.ranged&&!e.los)sp*=1;moveEnemy(e,Math.cos(a)*sp*dt,Math.sin(a)*sp*dt);e.walkT+=dt*sp*0.5;
+        // jam detector: net progress over 0.5 s windows < 25% of walk speed (bodies wedged in a 1-cell doorway jitter in place)
+        e.jw=(e.jw||0)+dt;if(e.jw>=0.5){const nd=Math.hypot(e.x-e.jx,e.y-e.jy);e.jamT=nd<sp*e.jw*0.25?Math.min(3,e.jamT+e.jw):0;e.jw=0;e.jx=e.x;e.jy=e.y;}}else{e.jamT=0;e.jw=0;e.jx=e.x;e.jy=e.y;}
       break;}
     }
-    // separation
-    for(const o of G.ents){if(o===e||o.dead||o.dormant)continue;const ex=e.x-o.x,ey=e.y-o.y,dd=Math.hypot(ex,ey),m=e.d.r+o.d.r;if(dd<m&&dd>0.001){const push=(m-dd)*0.5;moveCircle(e,ex/dd*push,ey/dd*push,e.d.r);}}
+    // separation. Door-jam tie-break: if either body has been wedged for >0.35s, the older enemy (lower uid) holds its line
+    // and the other takes the whole push, so the leader can slide to the doorway centre instead of both pinning on the jambs.
+    for(const o of G.ents){if(o===e||o.dead||o.dormant)continue;const ex=e.x-o.x,ey=e.y-o.y,dd=Math.hypot(ex,ey),m=e.d.r+o.d.r;if(dd<m&&dd>0.001){let push=(m-dd)*0.5;
+      if(e.jamT>0.35||o.jamT>0.35)push=e.uid<o.uid?0:(m-dd);if(push>0)moveCircle(e,ex/dd*push,ey/dd*push,e.d.r);}}
     // player push
     const pm=e.d.r+P.r;if(dist<pm&&dist>0.001){moveCircle(P,dx/dist*(pm-dist)*0.6,dy/dist*(pm-dist)*0.6,P.r);}
     if(e.d.charge&&e.chargeT>0&&dist<e.d.r+P.r+0.25){e.chargeT=0;damagePlayer(e.d.dmg*0.8,e);P.vx+=dx/dist*5;P.vy+=dy/dist*5;sfx('thud',e.x,e.y);}
@@ -1828,7 +1982,7 @@ function damageEnemy(e,dmg,src,hx,hy){if(e.dead||e.dormant)return;e.hp-=dmg;if(s
     if(R()<e.d.pain*(dmg/15)&&e.state!=='atk'&&!e.d.boss){e.state='pain';e.t=0.22;if(R()<0.5)sfx('pain',e.x,e.y);}
     const bx=hx!=null?hx:e.x,by=hy!=null?hy:e.y;for(let i=0;i<Math.min(10,2+dmg/4);i++)addPart('blood',bx,by,rr(0.25,0.75)*e.d.scale);if(typeof gxOnHit==='function')gxOnHit(e,dmg,src,hx,hy);}
   if(e.hp<=0)killEnemy(e,dmg,src);}
-function killEnemy(e,dmg,src){e.fxChar=src==='burn'||src==='fire'||src==='flare'||e.burn>0;e.dead=true;e.dieT=0;e.burn=0;G.stats.kills++;G.run.kills++;
+function killEnemy(e,dmg,src){e.moving=false;if(!e.deathFired){e.deathFired=true;emitEnemyEvt(G.onEnemyDeath,e);}e.fxChar=src==='burn'||src==='fire'||src==='flare'||e.burn>0;e.dead=true;e.dieT=0;e.burn=0;G.stats.kills++;G.run.kills++;
   const gib=!e.d.boss&&(src==='explode'||(dmg>=40&&e.hp<-12)||(e.type==='crawler'&&dmg>=30));
   if(gib){e.gib=true;sfx('gib',e.x,e.y);for(let i=0;i<14;i++)addPart('gib',e.x,e.y,rr(0.2,0.8));for(let i=0;i<20;i++)addPart('blood',e.x,e.y,rr(0.2,0.9));bloodSplat(e.x,e.y,0.9,255);}
   else{sfx('die',e.x,e.y);bloodSplat(e.x,e.y,0.55,220);}
@@ -1914,7 +2068,7 @@ function bloodSplat(x,y,r,amt,scorch){const BW=M.BW,BH=M.h*8;const cx=x*8,cy=y*8
 
 // ===== 06x_1_gxlib.js =====
 // ---------- Fixer GFX lib (owner: entities/fixer-gfx). Shared helpers for the hi-detail sprite pre-render. ----------
-// Everything here runs ONCE at boot (inside the buildSprites wrapper in 06x_9_hooks.js); nothing is called per frame.
+// Everything here runs at build time (lazily, from the build queue in 06x_9_hooks.js); nothing is called per frame.
 const GXS={built:false,E:{},I:{},ms:0,noise:{},lastFlash:0,pools:[],free:[]};
 function gxC(w,h){const c=mkC(w,h||w);return [c,c.getContext('2d',{willReadFrequently:true})];}
 function gxRGB(c,k,a){k=k==null?1:k;return 'rgba('+clamp(c[0]*k|0,0,255)+','+clamp(c[1]*k|0,0,255)+','+clamp(c[2]*k|0,0,255)+','+(a==null?1:a)+')';}
@@ -1979,9 +2133,12 @@ function gxFinish(c,o){o=o||{};const w=c.width,h=c.height,x=c.getContext('2d',{w
   x.putImageData(id,0,0);return c;}
 // ---- SPR registration + derived variants ----
 function gxAdd(c,e){SPR.push(grab(c,e,true));return SPR.length-1;}
-// hit flash: hot white/red, emissive so it reads even in the dark
-function gxFlash(idx,col){const s=SPR[idx],d=new Uint32Array(s.d.length),src=s.d;const fr=col?col[0]:255,fg=col?col[1]:226,fb=col?col[2]:214;
-  for(let i=0;i<src.length;i++){const c=src[i];if(!c){d[i]=0;continue;}const r=(c&255)*0.3+fr*0.7,g=((c>>8)&255)*0.3+fg*0.7,b=((c>>16)&255)*0.3+fb*0.7;d[i]=(0xfe000000|(b<<16)|(g<<8)|r)>>>0;}
+// hit flash (v2): PARTIAL warm tint that keeps the sprite's own shading. Each texel is pulled toward a hot white-red by
+// 18..48% depending on its brightness (crevices stay dark, highlights go hot) and kept emissive so it still reads in the dark.
+// (v1 was a 70% flat white blend: enemies read as white cutouts under automatic fire.)
+function gxFlash(idx,col){const s=SPR[idx],d=new Uint32Array(s.d.length),src=s.d;const fr=col?col[0]:255,fg=col?col[1]:196,fb=col?col[2]:178;
+  for(let i=0;i<src.length;i++){const c=src[i];if(!c){d[i]=0;continue;}const r0=c&255,g0=(c>>8)&255,b0=(c>>16)&255;const l=(r0*0.3+g0*0.55+b0*0.15)/150;const k=0.18+0.3*(l>1?1:l);
+    const r=r0*1.12+(fr-r0)*k,g=g0*1.05+(fg-g0)*k,b=b0+(fb-b0)*k;d[i]=(0xfe000000|((b>255?255:b|0)<<16)|((g>255?255:g|0)<<8)|(r>255?255:r|0))>>>0;}
   SPR.push({w:s.w,h:s.h,d});return SPR.length-1;}
 // charred: carbonised albedo with glowing ember cracks (emissive)
 function gxChar(idx,seed){const s=SPR[idx],src=s.d,d=new Uint32Array(src.length);const nz=gxNoise(s.w,14,seed||9),nz2=gxNoise(s.w,5,(seed||9)+3);
@@ -2342,7 +2499,9 @@ const GXI={
 };
 const GXI_MAP={health:['health',10],medkit:['medkit',20],armor:['armor',22],battery:['battery',10],ammo9:['ammo9',18],shells:['shells',20],rmag:['rmag',16],fuel:['fuel',18],flares:['flares',18],
   keyRed:[GXI.card([255,40,30]),14,'spin'],keyBlue:[GXI.card([50,130,255]),14,'spin'],keyYellow:[GXI.card([255,210,30]),14,'spin'],note:['note',14,'sway'],tape:['tape',14],wShotgun:['wShotgun',30],wRifle:['wRifle',30],wFlare:['wFlare',20],wFlamer:['wFlamer',28]};
-function gxBuildItems(){for(const name in GXI_MAP){const [fn0,sw,mode]=GXI_MAP[name];const fn=typeof fn0==='function'?fn0:GXI[fn0];if(!fn)continue;const arr=[];
+function gxBuildItems(){for(const name in GXI_MAP)gxBuildItem(name);}
+// one pickup type (8 frames); called lazily by the build queue in 06x_9_hooks.js
+function gxBuildItem(name){const [fn0,sw,mode]=GXI_MAP[name];const fn=typeof fn0==='function'?fn0:GXI[fn0];if(!fn)return;const arr=[];
   for(let f=0;f<GXI_F;f++){const t=f/GXI_F,k=0.5+0.5*Math.sin(t*TAU),bob=2+Math.sin(t*TAU)*3;const [c,x]=gxC(GXI_N),[e,ex]=gxC(GXI_N);gxShadow(x,sw*(1-bob*0.03));
     x.save();ex.save();x.translate(0,-bob-3);ex.translate(0,-bob-3);
     if(mode==='spin'){const sx=Math.cos(t*TAU);for(const q of[x,ex]){q.translate(48,74);q.scale(Math.abs(sx)<0.18?0.18*Math.sign(sx||1):sx,1);}fn(x,ex,k);if(sx<0){x.fillStyle='rgba(20,22,26,.55)';x.fillRect(-14,-10,28,20);}}
@@ -2351,43 +2510,63 @@ function gxBuildItems(){for(const name in GXI_MAP){const [fn0,sw,mode]=GXI_MAP[n
     // sparkle glints (emissive) so pickups twinkle in the dark
     srand(name.length*13+f*7);if(f%2===0){ex.fillStyle='rgba(255,255,240,1)';const sx=30+rnd()*36,sy=50+rnd()*30;ex.fillRect(sx,sy,1,1);ex.fillRect(sx-1.5,sy,1,1);ex.fillRect(sx+1.5,sy,1,1);ex.fillRect(sx,sy-1.5,1,1);ex.fillRect(sx,sy+1.5,1,1);}
     gxFinish(c,{cells:8,seed:name.length,mot:0.2,con:1.05,sat:1,rim:[40,44,50]});arr.push(gxAdd(c,e));}
-  GXS.I[name]=arr;if(SS[name]!=null)SS[name]=arr[0];}}
+  GXS.I[name]=arr;if(SS[name]!=null)SS[name]=arr[0];}
 
 // ===== 06x_4_fx.js =====
 // ---------- Fixer GFX: hit feedback, gore, embers, acid, muzzle light, pickup animation (owner: entities/fixer-gfx) ----------
 // All per-frame work is O(live particles + visible items); spawn counts scale down with distance and on LOW quality.
-const GXF={cap:900,lowCap:520,pools:[],lastFlash:0,L:null,maxItemLights:10,
+const GXF={cap:900,lowCap:420,pools:[],lastFlash:0,L:null,maxItemLights:6,stats:{hits:0,kills:0,parts:0},
   gibCol:{shambler:[[150,64,34],[124,26,26],[214,204,180],[90,20,20]],crawler:[[176,146,136],[124,26,26],[220,210,190],[90,20,20]],spitter:[[160,162,150],[110,200,50],[124,134,100],[90,20,20]],brute:[[118,36,32],[96,102,108],[214,204,180],[70,14,14]],boss:[[136,108,104],[140,36,40],[218,206,186],[90,20,60]]}};
 function gxPartCap(){return (typeof OPT!=='undefined'&&OPT.quality===0)?GXF.lowCap:GXF.cap;}
 function gxLOD(x,y){const P=G.P;let m=1;if(P){const d=Math.hypot(x-P.x,y-P.y);m=d>16?0.25:d>10?0.5:1;}if(typeof OPT!=='undefined'&&OPT.quality===0)m*=0.6;return m;}
 function gxN(n,x,y){return Math.max(1,Math.round(n*gxLOD(x,y)));}
 function gxDir(e){const P=G.P;const dx=e.x-P.x,dy=e.y-P.y,d=Math.hypot(dx,dy)||1;return [dx/d,dy/d];}
-function gxP(type,x,y,z,o){const p=addPart(type,x,y,z);if(!p)return null;if(o)for(const k in o)p[k]=o[k];return p;}
+function gxP(type,x,y,z,o){const p=addPart(type,x,y,z);if(!p)return null;GXF.stats.parts++;if(o)for(const k in o)p[k]=o[k];return p;}
 // ---- hit: directional spurts, mist, floor spray, type extras ----
-function gxOnHit(e,dmg,src,bx,by){if(!G.P)return;const [ux,uy]=gxDir(e);const sc=e.d.scale,zh=sc*(e.type==='crawler'?0.35:0.62);const hx=bx!=null?bx:e.x,hy=by!=null?by:e.y;
+function gxOnHit(e,dmg,src,bx,by){if(!G.P)return;GXF.stats.hits++;const [ux,uy]=gxDir(e);const sc=e.d.scale,zh=sc*(e.type==='crawler'?0.35:0.62);const hx=bx!=null?bx:e.x,hy=by!=null?by:e.y;
   const n=gxN(clamp(dmg/5,2,8),hx,hy);for(let i=0;i<n;i++){const s=rr(1.4,4.2);gxP('blood',hx,hy,zh*rr(0.8,1.15),{vx:ux*s+rr(-0.9,0.9),vy:uy*s+rr(-0.9,0.9),vz:rr(0.2,2.2),size:rr(0.02,0.045),life:rr(0.5,1.1),max:1.1});}
-  if(src==='shot'||dmg>=18){for(let i=0;i<gxN(3,hx,hy);i++)gxP('dust',hx,hy,zh,{c:[96,8,10],vx:ux*rr(0.3,1.2)+rr(-.3,.3),vy:uy*rr(0.3,1.2)+rr(-.3,.3),vz:rr(-0.1,0.3),life:rr(0.35,0.6),max:0.6,size:rr(0.06,0.11),grav:-0.05});}
+  if(src==='shot'||dmg>=18){for(let i=0;i<gxN(3,hx,hy);i++)gxPuff(hx,hy,zh,110,10,12,0.6,rr(0.07,0.12),rr(0.4,0.65),{vx:ux*rr(0.3,1.2)+rr(-.3,.3),vy:uy*rr(0.3,1.2)+rr(-.3,.3),vz:rr(-0.1,0.3),grav:-0.05,grow:1.2});}
   if(R()<0.7){const k=rr(0.35,1.2);bloodSplat(e.x+ux*k,e.y+uy*k,rr(0.07,0.16)*(e.d.boss?2:1),120);}
   if(e.type==='spitter')for(let i=0;i<gxN(3,hx,hy);i++)gxP('acid',hx,hy,zh,{vx:ux*rr(0.5,2)+rr(-1,1),vy:uy*rr(0.5,2)+rr(-1,1),vz:rr(0.5,2)});
   if(src==='fire'||src==='flare')gxEmbers(hx,hy,zh,gxN(6,hx,hy),1.6);}
 function gxEmbers(x,y,z,n,spd){for(let i=0;i<n;i++){const a=R()*TAU,s=rr(0.2,1)*(spd||1);gxP('spark',x+rr(-.15,.15),y+rr(-.15,.15),z,{vx:Math.cos(a)*s,vy:Math.sin(a)*s,vz:rr(0.4,1.6),grav:-0.7,life:rr(0.6,1.5),max:1.5,size:rr(0.012,0.024),c:[255,rr(90,170),30]});}}
-function gxSmoke(x,y,z,n){for(let i=0;i<n;i++)gxP('dust',x+rr(-.2,.2),y+rr(-.2,.2),z,{c:[28,26,26],vx:rr(-.15,.15),vy:rr(-.15,.15),vz:rr(0.25,0.6),grav:-0.2,life:rr(1,1.8),max:1.8,size:rr(0.08,0.15)});}
+function gxSmoke(x,y,z,n){for(let i=0;i<n;i++){const v=rr(26,40)|0;gxPuff(x+rr(-.2,.2),y+rr(-.2,.2),z,v,v-3,v-5,rr(0.55,0.75),rr(0.12,0.2),rr(1.2,2),{vx:rr(-.15,.15),vy:rr(-.15,.15),vz:rr(0.12,0.35),grav:-0.06,grow:1.7});}}
+// ---- soft puffs (v2): smoke / blood mist / acid vapour. Own pool, drawn after the base particles by the drawParticles hook
+// (06x_9) as round alpha-faded blobs from cached radial-gradient masks. v1 drew them as base 'dust' particles = hard squares.
+const GXP={list:[],pool:[],cap:140,lowCap:60,hook:false,masks:[],maxPx:28};
+function gxPuffMask(sz){let m=GXP.masks[sz];if(m)return m;m=new Float32Array(sz*sz);const c=(sz-1)/2,R=sz/2;
+  for(let y=0;y<sz;y++)for(let x=0;x<sz;x++){const d=Math.hypot(x-c,y-c)/R;if(d>=1)continue;const f=1-d;m[y*sz+x]=f*f*(3-2*f);}return GXP.masks[sz]=m;}
+function gxPuff(x,y,z,r,g,b,a,size,life,o){if(!GXP.hook){gxP('dust',x,y,z,Object.assign({c:[r,g,b],life,max:life,size},o||{}));return null;}
+  const cap=(typeof OPT!=='undefined'&&OPT.quality===0)?GXP.lowCap:GXP.cap;if(GXP.list.length>=cap)return null;const P=G.P;if(P&&Math.abs(x-P.x)+Math.abs(y-P.y)>18)return null;
+  const p=GXP.pool.pop()||{};p.x=x;p.y=y;p.z=z;p.r=r;p.g=g;p.b=b;p.a=a;p.size=size;p.life=life;p.max=life;p.vx=0;p.vy=0;p.vz=0.3;p.grav=-0.2;p.grow=1;p.add=false;p.emis=false;
+  if(o)for(const k in o)p[k]=o[k];GXP.list.push(p);return p;}
+function gxPuffTick(dt){const L=GXP.list;for(let i=L.length-1;i>=0;i--){const p=L[i];p.life-=dt;p.vz-=p.grav*dt;p.x+=p.vx*dt;p.y+=p.vy*dt;p.z+=p.vz*dt;if(p.z>1.05)p.z=1.05;if(p.z<0)p.z=0;
+  if(p.life<=0){const l=L.pop();if(l!==p)L[i]=l;if(GXP.pool.length<300)GXP.pool.push(p);}}}
+function gxDrawPuffs(dirX,dirY,pl,hor,camZ){const L=GXP.list;GXP.drawn=0;GXP.calls=(GXP.calls||0)+1;if(!L.length)return;const W=RD.W,H=RD.H,buf=RD.buf,zb=RD.zb,focal=RD.focal,P=G.P;const FT=typeof RFX!=='undefined'&&RFX.FOGT;
+  for(const p of L){const dx=p.x-P.x,dy=p.y-P.y;const tY=dx*dirX+dy*dirY;if(tY<0.2)continue;const tX=(dy*dirX-dx*dirY)/pl;const sc=focal/tY;const age=1-p.life/p.max;
+    let sz=(p.size*(1+p.grow*age)*sc)|0;if(sz<2)sz=2;if(sz>GXP.maxPx)sz=GXP.maxPx;const sxp=(W/2)*(1+tX/tY),syp=hor+(camZ-p.z)*sc;const x0=(sxp-sz/2)|0,y0=(syp-sz/2)|0;
+    if(x0>=W||y0>=H||x0+sz<=0||y0+sz<=0)continue;
+    let al=p.a*(age<0.12?age/0.12:1)*Math.sqrt(1-age);if(FT)al*=FT[Math.min(1023,(tY*16)|0)];if(al<0.02)continue;
+    let r=p.r,g=p.g,b=p.b;if(!p.emis){const l=lightAt(p.x,p.y);const f=0.6+P.flashI*0.6/(1+tY*tY*0.07);r*=l[0]+f;g*=l[1]+f;b*=l[2]+f;}
+    GXP.drawn++;const m=gxPuffMask(sz),xa=Math.max(0,x0),xb=Math.min(W,x0+sz),ya=Math.max(0,y0),yb=Math.min(H,y0+sz);
+    for(let x=xa;x<xb;x++){if(zb[x]<tY)continue;const mx=x-x0;for(let y=ya;y<yb;y++){const k=m[(y-y0)*sz+mx]*al;if(k<0.01)continue;const o=y*W+x,c=buf[o];let cr=c&255,cg=(c>>8)&255,cb=(c>>16)&255;
+      if(p.add){cr+=r*k;cg+=g*k;cb+=b*k;}else{cr+=(r-cr)*k;cg+=(g-cg)*k;cb+=(b-cb)*k;}buf[o]=0xff000000|((cb>255?255:cb|0)<<16)|((cg>255?255:cg|0)<<8)|(cr>255?255:cr|0);}}}}
 // ---- kill: gibs, pools, char, acid burst ----
-function gxOnKill(e,dmg,src){if(!G.P)return;const x=e.x,y=e.y,sc=e.d.scale;
+function gxOnKill(e,dmg,src){if(!G.P)return;GXF.stats.kills++;const x=e.x,y=e.y,sc=e.d.scale;
   if(e.gib){const pal=GXF.gibCol[e.type]||GXF.gibCol.shambler;const n=gxN(18,x,y);
     for(let i=0;i<n;i++){const a=R()*TAU,s=rr(1.2,4);gxP('gib',x,y,sc*rr(0.3,0.8),{vx:Math.cos(a)*s,vy:Math.sin(a)*s,vz:rr(1,3.4),c:pal[i%pal.length].slice(),size:rr(0.05,0.12)});}
     for(let i=0;i<gxN(10,x,y);i++){const a=R()*TAU;gxP('blood',x,y,sc*0.6,{vx:Math.cos(a)*rr(0.5,2),vy:Math.sin(a)*rr(0.5,2),vz:rr(2,4.5),size:rr(0.03,0.05),life:1.4,max:1.4});}
-    for(let i=0;i<gxN(6,x,y);i++)gxP('dust',x,y,sc*0.5,{c:[90,8,10],vx:rr(-.8,.8),vy:rr(-.8,.8),vz:rr(0,0.5),life:rr(0.5,0.9),max:0.9,size:rr(0.09,0.15),grav:-0.05});
+    for(let i=0;i<gxN(6,x,y);i++)gxPuff(x,y,sc*0.5,100,9,11,0.65,rr(0.1,0.16),rr(0.55,0.95),{vx:rr(-.8,.8),vy:rr(-.8,.8),vz:rr(0,0.5),grav:-0.05,grow:1.4});
     for(let i=0;i<7;i++){const a=R()*TAU,r=rr(0.3,1.5);bloodSplat(x+Math.cos(a)*r,y+Math.sin(a)*r,rr(0.12,0.32),200);}}
   else if(!e.d.boss)GXF.pools.push({x,y,t:0,r:e.type==='crawler'?0.45:e.type==='brute'?0.9:0.7});
   if(e.fxChar){e.fxSmolder=6;gxSmoke(x,y,sc*0.5,gxN(6,x,y));gxEmbers(x,y,sc*0.5,gxN(14,x,y),2);}
   if(e.type==='spitter'){for(let i=0;i<gxN(14,x,y);i++){const a=R()*TAU,s=rr(0.6,2.6);gxP('acid',x,y,sc*0.5,{vx:Math.cos(a)*s,vy:Math.sin(a)*s,vz:rr(0.6,2.4)});}addDL(x,y,0.2,0.7,0.1,2.6,0.25);}}
 function gxAcidSplash(x,y,z){for(let i=0;i<gxN(8,x,y);i++){const a=R()*TAU,s=rr(0.4,1.8);gxP('acid',x,y,z,{vx:Math.cos(a)*s,vy:Math.sin(a)*s,vz:rr(0.3,1.8),size:rr(0.025,0.05)});}
-  for(let i=0;i<gxN(3,x,y);i++)gxP('dust',x,y,z,{c:[110,220,50],emis:true,add:true,fade:true,vx:rr(-.3,.3),vy:rr(-.3,.3),vz:rr(0.1,0.4),life:rr(0.4,0.8),max:0.8,size:rr(0.06,0.12),grav:-0.2});addDL(x,y,0.2,0.6,0.1,2,0.12);}
+  for(let i=0;i<gxN(3,x,y);i++)gxPuff(x,y,z,110,220,50,0.55,rr(0.07,0.12),rr(0.4,0.8),{emis:true,add:true,vx:rr(-.3,.3),vy:rr(-.3,.3),vz:rr(0.1,0.4),grav:-0.2,grow:1});addDL(x,y,0.2,0.6,0.1,2,0.12);}
 function gxSpitFx(e){const P=G.P;const a=Math.atan2(P.y-e.y,P.x-e.x);for(let i=0;i<gxN(6,e.x,e.y);i++){const s=rr(1,3),b=a+rr(-0.35,0.35);gxP('acid',e.x+Math.cos(a)*0.25,e.y+Math.sin(a)*0.25,0.62,{vx:Math.cos(b)*s,vy:Math.sin(b)*s,vz:rr(-0.2,0.8)});}addDL(e.x,e.y,0.2,0.65,0.1,2.2,0.12);}
 // ---- per-frame tick (called from updateParts) ----
 const GX_ILIGHT={R:[0.55,0.08,0.05],B:[0.08,0.2,0.6],Y:[0.55,0.42,0.06],h:[0.4,0.08,0.08],H:[0.45,0.08,0.08],b:[0.1,0.42,0.14],a:[0.18,0.24,0.3],q:[0.32,0.28,0.2],w:[0.32,0.28,0.2],e:[0.45,0.2,0.06],z:[0.15,0.25,0.55],note:[0.26,0.28,0.2],log:[0.35,0.06,0.05],f:[0.3,0.12,0.04]};
-function gxTick(dt){if(!G.L||!G.P)return;if(GXF.L!==G.L){GXF.L=G.L;GXF.pools.length=0;GXF.lastFlash=0;}const P=G.P,play=G.state==='play';
+function gxTick(dt){if(!G.L||!G.P)return;if(GXF.L!==G.L){GXF.L=G.L;GXF.pools.length=0;GXF.lastFlash=0;for(const p of GXP.list)GXP.pool.push(p);GXP.list.length=0;}const P=G.P,play=G.state==='play';gxPuffTick(dt);
   // muzzle-lit enemies: on each new shot push warm one-frame lights down the barrel line (stops at the first wall)
   const w=P.w;if(play&&w&&!P.dead){if(w.flashT>GXF.lastFlash+0.001&&w.flashT>0.035){const ca=Math.cos(P.a),sa=Math.sin(P.a);const h=castRay(P.x,P.y,ca,sa,8);const D=h.dist;const k=w.cur==='shotgun'?1.35:w.cur==='rifle'?0.9:1;
       for(const [d,f] of [[1.6,1],[3.3,0.85],[5.2,0.6]]){if(d>D-0.3)break;addDL(P.x+ca*d,P.y+sa*d,1.2*k*f,0.82*k*f,0.42*k*f,2.9,0.06);}}GXF.lastFlash=w.flashT;
@@ -2399,24 +2578,45 @@ function gxTick(dt){if(!G.L||!G.P)return;if(GXF.L!==G.L){GXF.L=G.L;GXF.pools.len
   // spreading blood pools under fresh corpses
   for(let i=GXF.pools.length-1;i>=0;i--){const b=GXF.pools[i];const t0=b.t;b.t+=dt;if(((t0/0.18)|0)!==((b.t/0.18)|0))bloodSplat(b.x,b.y,b.r*Math.min(1,0.3+b.t/1.8),45);if(b.t>1.8)GXF.pools.splice(i,1);}
   // pickups: animated frames + soft glow lights so they read in the dark
+  // v2: item glow lights only for items in front of the player (or very close), max 6 (3 on LOW quality)
+  const ca=Math.cos(P.a),sa=Math.sin(P.a),maxL=(typeof OPT!=='undefined'&&OPT.quality===0)?3:GXF.maxItemLights;
   let nl=0;for(const it of G.items){if(it.taken)continue;const nm=ITEMS[it.c],arr=GXS.I[nm];if(arr)it.spr=arr[(((G.time*7+it.x*1.7+it.y*2.3)|0)%arr.length+arr.length)%arr.length];
-    const lc=GX_ILIGHT[it.c];if(lc&&nl<GXF.maxItemLights){const d=Math.abs(it.x-P.x)+Math.abs(it.y-P.y);if(d<10&&d>1.4){const k=0.75+0.25*Math.sin(G.time*3+it.x);addDL(it.x,it.y,lc[0]*k,lc[1]*k,lc[2]*k,1.35,0);nl++;}}}}
+    const lc=GX_ILIGHT[it.c];if(lc&&nl<maxL){const ix=it.x-P.x,iy=it.y-P.y,d=Math.abs(ix)+Math.abs(iy);if(d<9&&d>1.4&&(ix*ca+iy*sa>-0.5||d<3)){const k=0.75+0.25*Math.sin(G.time*3+it.x);addDL(it.x,it.y,lc[0]*k,lc[1]*k,lc[2]*k,1.35,0);nl++;}}}}
 
 // ===== 06x_9_hooks.js =====
 // ---------- Fixer GFX: build + hook installation (owner: entities/fixer-gfx) ----------
 // Hooks are installed by re-binding function declarations from other modules (same pattern as 02x_atmos.js),
 // always wrapping and falling back to the original so a failure here can never break the base game.
-function gxBuildType(type){const T=GXT[type];if(!T)return null;const n=T.size;const P=T.poses();const S={walkRate:T.walkRate,dieFT:T.dieFT,idleRate:T.idleRate||2.2};
+// LAZY BUILD (v2): nothing hi-detail is rendered at boot. Every enemy type / the pickup set is a resumable job
+// (a generator that yields after each frame). Jobs run in idle time (requestIdleCallback, or small setTimeout slices
+// outside of 'play'), the title level's types first. startLevel() finishes the jobs the new level needs synchronously,
+// behind the level transition, so nothing pops in during play. Until a type is ready enemyFrame() falls back to the
+// original sprite set.
+const GX_SETK=['walk','idle','atk','pain','die','gib','charge'],GX_FLK=['walk','idle','atk','pain','charge'];
+function* gxGenType(type){const T=GXT[type];if(!T)return;const n=T.size;const P=T.poses();const S={walkRate:T.walkRate,dieFT:T.dieFT,idleRate:T.idleRate||2.2};
   const mk=p=>{const [c,x]=gxC(n),[e,ex]=gxC(n);T.draw(x,ex,p);gxFinish(c,T.fin);return gxAdd(c,e);};
-  for(const k of ['walk','idle','atk','pain','die','gib','charge'])if(P[k])S[k]=P[k].map(mk);
-  for(const k of ['walk','idle','atk','pain','charge'])if(S[k])S[k+'F']=S[k].map(i=>gxFlash(i));
-  if(S.die&&!T.noChar)S.char=S.die.map((i,j)=>gxChar(i,j+type.length));
-  return S;}
-function gxBuildAll(){const t0=performance.now();
-  for(const type of Object.keys(GXT)){try{const S=gxBuildType(type);if(S)GXS.E[type]=S;}catch(err){console.warn('gx build '+type+' failed',err);}}
-  try{if(typeof gxBuildItems==='function')gxBuildItems();}catch(err){console.warn('gx items failed',err);}
-  try{if(typeof gxBuildFxSprites==='function')gxBuildFxSprites();}catch(err){console.warn('gx fx sprites failed',err);}
-  GXS.built=true;GXS.ms=Math.round(performance.now()-t0);}
+  for(const k of GX_SETK)if(P[k]){S[k]=[];for(const p of P[k]){S[k].push(mk(p));yield;}}
+  for(const k of GX_FLK)if(S[k]){S[k+'F']=S[k].map(i=>gxFlash(i));yield;}
+  if(S.die&&!T.noChar){S.char=S.die.map((i,j)=>gxChar(i,j+type.length));yield;}
+  GXS.E[type]=S;}
+function* gxGenItems(){if(typeof GXI_MAP==='undefined'||typeof gxBuildItem!=='function')return;for(const name in GXI_MAP){gxBuildItem(name);yield;}}
+const GXQ={jobs:[],by:{},sched:false,bootT:0};
+function gxJob(key){let j=GXQ.by[key];if(j)return j;const gen=key==='items'?gxGenItems():gxGenType(key);j={key,gen,done:false,ms:0};GXQ.by[key]=j;GXQ.jobs.push(j);return j;}
+function gxRun(j){if(j.done)return false;const t0=performance.now();let r;try{r=j.gen.next();}catch(err){console.warn('gx build '+j.key+' failed',err);r={done:true};}
+  const dt=performance.now()-t0;j.ms+=dt;GXS.ms+=dt;if(r.done){j.done=true;GXS.built=GXQ.jobs.every(o=>o.done);if(GXS.built)GXS.ms=Math.round(GXS.ms);}return true;}
+function gxStep(){for(const j of GXQ.jobs)if(!j.done)return gxRun(j);return false;}
+function gxFinishJob(key){const j=gxJob(key);while(!j.done)gxRun(j);}
+function gxPrio(keys){const set=new Set(keys);for(const k of keys)gxJob(k);GXQ.jobs.sort((a,b)=>(set.has(b.key)?1:0)-(set.has(a.key)?1:0));}
+function gxLevelKeys(){const s=new Set();for(const e of (G.ents||[]))if(GXT[e.type])s.add(e.type);if(s.has('boss'))for(const t of ['crawler','shambler','spitter','brute'])s.add(t);return ['items',...s];}
+// idle pump: rIC when available (any state); otherwise short timer slices only while NOT in play (menus, intro, level-done, pause)
+function gxSchedule(){if(GXQ.sched||GXS.built)return;GXQ.sched=true;const ric=typeof requestIdleCallback==='function';
+  const go=dl=>{GXQ.sched=false;const play=G.state==='play';
+    if(ric){const t=dl&&dl.timeRemaining?dl.timeRemaining():4;if(!play||t>3){const end=performance.now()+Math.max(2,Math.min(play?t-1:12,12));do{if(!gxStep())break;}while(performance.now()<end);}}
+    else if(!play){const end=performance.now()+8;do{if(!gxStep())break;}while(performance.now()<end);}
+    gxSchedule();};
+  if(ric)requestIdleCallback(go,{timeout:G.state==='play'?1500:250});else setTimeout(go,G.state==='play'?250:30);}
+function gxQueueAll(){for(const t of Object.keys(GXT))gxJob(t);gxJob('items');}
+function gxBuildAll(){const t0=performance.now();gxQueueAll();for(const j of GXQ.jobs)while(!j.done)gxRun(j);return Math.round(performance.now()-t0);}
 // frame selection for the new sets (null => fall back to the original enemyFrame)
 function gxEnemyFrame(e){const S=GXS.E[e.type];if(!S||!S.walk)return null;
   if(e.dead){if(e.gib&&S.gib)return S.gib[Math.min(S.gib.length-1,(e.dieT/0.1)|0)];const set=(e.fxChar&&S.char)?S.char:S.die;const ft=S.dieFT||0.11;return set[Math.min(set.length-1,(e.dieT/ft)|0)];}
@@ -2425,8 +2625,7 @@ function gxEnemyFrame(e){const S=GXS.E[e.type];if(!S||!S.walk)return null;
   if(e.state==='atk'&&S.atk){const a=fl?S.atkF:S.atk;const p=1-e.t/(e.d.atkT||0.5);return a[p<0.27?0:p<0.55?1:p<0.8?2:3];}
   if(e.d.boss&&e.flashAtk>0&&S.atk){const a=fl?S.atkF:S.atk;return a[e.flashAtk>0.3?2:e.flashAtk>0.12?3:1];}
   if(e.d.charge&&e.chargeT>0&&S.charge){const a=fl?S.chargeF:S.charge;return a[((G.time*9)|0)%a.length];}
-  if(e.walkT!==e._gxW){e._gxW=e.walkT;e._gxMT=G.time;}
-  const moving=e.d.boss||(G.time-(e._gxMT||-9))<0.18;
+  const moving=e.d.boss||e.moving;
   if(!moving&&S.idle){const a=fl?S.idleF:S.idle;return a[((G.time*S.idleRate+(e.x*3.7+e.y*1.3))|0)%a.length];}
   const a=fl?S.walkF:S.walk;return a[(((e.walkT*S.walkRate)|0)%a.length+a.length)%a.length];}
 // debug/test hook (not exposed in UI): dump a sprite sheet for screenshots
@@ -2435,11 +2634,21 @@ function gxSheet(list,scale,cols){scale=scale||2;cols=cols||8;const ids=list.fil
   ids.forEach((id,k)=>{const s=SPR[id];const [t,tx]=gxC(s.w,s.h);const im=tx.createImageData(s.w,s.h);const u=new Uint32Array(im.data.buffer);for(let i=0;i<s.d.length;i++){const v=s.d[i];u[i]=v?((v&0xffffff)|0xff000000)>>>0:0;}tx.putImageData(im,0,0);
     const X=(k%cols)*w0*scale,Y=((k/cols)|0)*h0*scale;x.fillStyle=(k%2)?'#2a2d33':'#24272c';x.fillRect(X,Y,w0*scale,h0*scale);x.drawImage(t,X+(w0-s.w)*scale/2,Y+(h0-s.h)*scale,s.w*scale,s.h*scale);});
   return c.toDataURL('image/png');}
-window.__DSFX={GXS,sheet:(type,keys,scale,cols)=>{const S=GXS.E[type]||GXS.I;const ids=[];for(const k of keys||Object.keys(S)){const v=S[k];if(Array.isArray(v))ids.push(...v);else if(typeof v==='number'&&k!=='walkRate'&&k!=='dieFT'&&k!=='idleRate')ids.push(v);}return gxSheet(ids,scale,cols);},
-  items:(scale,cols)=>{const ids=[];for(const k in GXS.I){const v=GXS.I[k];if(Array.isArray(v))ids.push(...v);}return gxSheet(ids,scale,cols);}};
+// test hook: shading kept by the hit flash = luminance std-dev of flash frame / base frame (v1 flat white ~0.3)
+function gxFlashStats(type){const S=GXS.E[type];if(!S||!S.walk||!S.walkF)return null;const lum=id=>{const d=SPR[id].d;let n=0,m=0,q=0;for(let i=0;i<d.length;i++){const c=d[i];if(!c)continue;const l=(c&255)*0.3+((c>>8)&255)*0.55+((c>>16)&255)*0.15;n++;m+=l;q+=l*l;}m/=n;return [m,Math.sqrt(q/n-m*m)];};
+  const [mb,sb]=lum(S.walk[0]),[mf,sf]=lum(S.walkF[0]);return {meanBase:+mb.toFixed(1),meanFlash:+mf.toFixed(1),meanShift:+(mf-mb).toFixed(1),sdRatio:+(sf/sb).toFixed(2)};}
+window.__DSFX={GXS,GXQ,GXF:typeof GXF!=='undefined'?GXF:null,GXP:typeof GXP!=='undefined'?GXP:null,flashStats:t=>gxFlashStats(t),buildAll:()=>gxBuildAll(),ensure:k=>{gxFinishJob(k);},
+  status:()=>({built:GXS.built,ms:Math.round(GXS.ms),jobs:GXQ.jobs.map(j=>j.key+(j.done?'✓':'…')+Math.round(j.ms))}),
+  sheet:(type,keys,scale,cols)=>{if(type==='items')gxFinishJob('items');else if(GXT[type])gxFinishJob(type);const S=GXS.E[type]||GXS.I;const ids=[];for(const k of keys||Object.keys(S)){const v=S[k];if(Array.isArray(v))ids.push(...v);else if(typeof v==='number'&&k!=='walkRate'&&k!=='dieFT'&&k!=='idleRate')ids.push(v);}return gxSheet(ids,scale,cols);},
+  items:(scale,cols)=>{gxFinishJob('items');const ids=[];for(const k in GXS.I){const v=GXS.I[k];if(Array.isArray(v))ids.push(...v);}return gxSheet(ids,scale,cols);}};
 // ---- install ----
-try{const _bs=buildSprites;buildSprites=function(){_bs();try{gxBuildAll();}catch(err){console.warn('gx build failed',err);}};}catch(err){}
-try{const _ef=enemyFrame;enemyFrame=function(e){if(GXS.built){try{const f=gxEnemyFrame(e);if(f!=null)return f;}catch(err){}}return _ef(e);};}catch(err){}
+// boot: queue only (title level 0 types first), then build in idle time
+try{const _bs=buildSprites;buildSprites=function(){_bs();try{const t0=performance.now();gxQueueAll();gxPrio(['shambler','crawler','items']);GXQ.bootT=performance.now()-t0;gxSchedule();}catch(err){console.warn('gx queue failed',err);}};}catch(err){}
+// level start: finish everything this level can show before the first play frame (hidden behind the level transition)
+try{const _sl=startLevel;startLevel=function(i,lo){_sl(i,lo);try{const t0=performance.now();const keys=gxLevelKeys();gxPrio(keys);for(const k of keys)gxFinishJob(k);GXQ.lastPrewarm=Math.round(performance.now()-t0);gxSchedule();}catch(err){console.warn('gx prewarm failed',err);}};}catch(err){}
+try{const _ef=enemyFrame;enemyFrame=function(e){if(GXS.E[e.type]){try{const f=gxEnemyFrame(e);if(f!=null)return f;}catch(err){}}return _ef(e);};}catch(err){}
+// soft puffs (smoke / mist) are drawn right after the base particles, with the same camera and depth buffer
+try{const _dp=drawParticles;drawParticles=function(dirX,dirY,pl,hor,camZ){_dp(dirX,dirY,pl,hor,camZ);try{gxDrawPuffs(dirX,dirY,pl,hor,camZ);}catch(err){}};GXP.hook=true;}catch(err){}
 
 // ===== 07_player.js =====
 // ---------- Player & weapons ----------
@@ -2851,7 +3060,8 @@ function showScreen(n){const map={title:'sTitle',diff:'sDiff',options:'sOptions'
   try{if(typeof uitShow==='function')uitShow(n);if(typeof uimOnScreen==='function')uimOnScreen(n);}catch(e){console.warn(e);}}
 function fmtTime(t){t=t|0;return (t/60|0)+':'+String(t%60).padStart(2,'0');}
 let msgTimer=0;function showMsg(t,d){const m=$('msg');m.textContent=t;m.classList.add('show');msgTimer=d||2;}
-let subTimer=0;function playLog(t){const s=$('sub');s.textContent=t;s.classList.add('show');subTimer=Math.max(5,t.length*0.065);sfx('static');showMsg('Audio log playing...',1.5);}
+let subTimer=0;function playLog(t){const s=$('sub');s.textContent=t;s.classList.add('show');subTimer=Math.max(5,t.length*0.065);
+  try{if(typeof AU!=='undefined'&&typeof AU.logStart==='function')AU.logStart(subTimer,t);dispatchEvent(new CustomEvent('ds:logstart',{detail:{dur:subTimer,text:t}}));}catch(e){}sfx('static');showMsg('Audio log playing...',1.5);}
 function openReader(title,text){$('rTitle').textContent=title;$('rText').textContent=text;showScreen('reader');sfx('static');}
 function closeReader(){showScreen('play');}
 function flash(k){const f=$('flash');f.style.transition='none';f.style.opacity=k;requestAnimationFrame(()=>{f.style.transition='opacity 1.2s';f.style.opacity=0;});}
@@ -2899,6 +3109,7 @@ const UI_ICONS={bFire:'<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="7" fi
  bMap:'<svg viewBox="0 0 24 24"><path d="M3 6l6-2 6 2 6-2v14l-6 2-6-2-6 2z" fill="none" stroke="currentColor" stroke-width="2"/></svg>'};
 function uiTouchIcons(){for(const id in UI_ICONS){const b=$(id);if(!b||b.dataset.ico)continue;const lab=b.textContent.trim();b.dataset.ico='1';b.innerHTML=UI_ICONS[id]+(id==='bPause'?'':'<span>'+lab+'</span>');b.setAttribute('aria-label',lab||'pause');}}
 function buildMenus(){
+  for(const id of['introText','endText','rText'])$(id)&&$(id).classList.add('scroll');{const c=document.querySelector('.credits');if(c)c.classList.add('scroll');}
   try{uiTouchIcons();if(typeof UIH!=='undefined')UIH.init();if(typeof uimInit==='function')uimInit();}catch(e){console.warn('ui init',e);}
   const on=(id,f)=>$(id).addEventListener('click',e=>{auInit();sfx('click');f(e);});
   on('bNew',()=>showScreen('diff'));on('bContinue',()=>continueGame());on('bOptions',()=>{optReturn='title';openOptions();});on('bCredits',()=>showScreen('credits'));
@@ -2913,6 +3124,9 @@ function buildMenus(){
   $('amap').addEventListener('pointerdown',()=>toggleMap());
   const sl=(id,k,fmt,cb)=>{const el=$(id);el.value=OPT[k];const lab=$(id+'V');const upd=()=>{OPT[k]=el.type==='checkbox'?el.checked:+el.value;if(lab)lab.textContent=fmt(OPT[k]);cb&&cb();};if(el.type==='checkbox')el.checked=OPT[k];el.addEventListener('input',upd);el.addEventListener('change',upd);upd();};
   sl('oSens','sens',v=>v.toFixed(2)+'×');sl('oVol','vol',v=>Math.round(v*100)+'%',()=>auVol(OPT.vol));sl('oInv','invY',v=>v?'ON':'OFF');sl('oDiff','diff',v=>DIFF[v].name,()=>{if(G.state==='options'&&optReturn==='pause')G.diff=OPT.diff;});
+  // Sound on/off (audio owner's AU.setMuted gate; KeyM stays the map key)
+  if(!$('oSound')){const lab=document.createElement('label');lab.className='opt';lab.innerHTML='SOUND<input type="checkbox" id="oSound"><span id="oSoundV"></span>';const vol=$('oVol').closest('.opt');vol.after(lab);}
+  if(OPT.sound===undefined)OPT.sound=true;sl('oSound','sound',v=>v?'ON':'OFF',()=>{saveOpts();try{if(typeof AU!=='undefined'&&typeof AU.setMuted==='function')AU.setMuted(!OPT.sound);}catch(e){}});
   sl('oQual','quality',v=>['LOW','MEDIUM','HIGH'][v],()=>resize());sl('oFov','fov',v=>Math.round(v*100)+'%',()=>resize());}
 function openOptions(){$('oDiff').value=optReturn==='pause'?G.diff:OPT.diff;$('oDiffV').textContent=DIFF[+$('oDiff').value].name;showScreen('options');}
 
