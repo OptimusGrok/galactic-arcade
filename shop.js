@@ -588,15 +588,15 @@ export function setupShop({ scene, tp, play, monkey, camera, st } = {}) {
     const HOODC = [0x1d2452, 0xd42a2a, 0x2b62e8, 0x2fae3a, 0xf2c418, 0x7a2bd6, 0xff5fb4, 0xff7a1a, 0x13b8a8, 0x202026, 0xe8eaf0];   // player.js HOOD order
     const SHOEC = [[0x8a1e2c, 0xf1e8d6], [0x1f4fbf, 0xeaf0ff], [0x1a1a1e, 0x4a4a52], [0xf2f2f4, 0xd03040], [0x1f9a3a, 0xe8ffe8], [0xff5fb4, 0xffffff], [0xd9a51c, 0x2a1a08], [0x6a24c4, 0x00e5ff]];
     // back panel + plinth
-    const HW = 3.1; dark.push(new THREE.BoxGeometry(2 * HW, 2.7, 0.08).translate(0, 1.35, 0.03), new THREE.BoxGeometry(2 * HW, 0.12, 0.85).translate(0, 0.06, 0.425));   // GROK SHOP counter finish
+    const HW = 3.1; dark.push(new THREE.BoxGeometry(2 * HW, 2.7, 0.08).translate(0, 1.35, 0.03), new THREE.BoxGeometry(2 * HW + 0.62, 0.12, 0.85).translate(0.31, 0.06, 0.425));   // GROK SHOP counter finish; t627 plinth runs under the whole mirror wing
     const HWR = HW + 0.62;   // t626: the back panel's right edge now includes the mirror wing, so its neon outline runs round the whole piece (no seam post at HW)
     for (const zf of [0.075, -0.015]) { neon.push(new THREE.BoxGeometry(HW + HWR + 0.03, 0.03, 0.03).translate((HWR - HW) / 2, 2.7, zf), new THREE.BoxGeometry(0.03, 2.7, 0.03).translate(-HW, 1.35, zf), new THREE.BoxGeometry(0.03, 2.7, 0.03).translate(HWR, 1.35, zf));
       neonP.push(new THREE.BoxGeometry(HW + HWR - 0.16, 0.02, 0.02).translate((HWR - HW) / 2, 2.62, zf), new THREE.BoxGeometry(0.02, 2.5, 0.02).translate(-HW + 0.08, 1.37, zf), new THREE.BoxGeometry(0.02, 2.5, 0.02).translate(HWR - 0.08, 1.37, zf)); }
-    neon.push(new THREE.BoxGeometry(2 * HW, 0.025, 0.025).translate(0, 0.125, 0.84)); neonP.push(new THREE.BoxGeometry(2 * HW, 0.02, 0.02).translate(0, 0.02, 0.86));
-    for (const sd of [-1, 1]) { neon.push(new THREE.BoxGeometry(0.025, 0.025, 0.85).translate(sd * HW, 0.125, 0.425)); neonP.push(new THREE.BoxGeometry(0.02, 0.02, 0.85).translate(sd * HW, 0.02, 0.425)); }
+    neon.push(new THREE.BoxGeometry(2 * HW + 0.62 + 0.025, 0.025, 0.025).translate(0.31, 0.125, 0.84)); neonP.push(new THREE.BoxGeometry(2 * HW + 0.62 + 0.02, 0.02, 0.02).translate(0.31, 0.02, 0.86));
+    for (const ex of [-HW, HW + 0.62]) { neon.push(new THREE.BoxGeometry(0.025, 0.025, 0.85).translate(ex, 0.125, 0.425)); neonP.push(new THREE.BoxGeometry(0.02, 0.02, 0.85).translate(ex, 0.02, 0.425)); }
     // mirror (left as you face it = local +x after the flip is world -x; build at local x = 2.55)
     // Dave t625: mirror twice as wide, extended to the right as you face it (local +x); left edge (2.29) stays put, so it overhangs the island end on a wing panel
-    const MXm = 2.6 + 0.31, MW = 1.24, MH = MW / 2; dark.push(new THREE.BoxGeometry(0.62, 2.7, 0.08).translate(HW + 0.31, 1.35, 0.03), new THREE.BoxGeometry(0.62, 0.12, 0.85).translate(HW + 0.31, 0.06, 0.425));   // wing panel + plinth continue the island
+    const MXm = 2.6 + 0.31, MW = 1.24, MH = MW / 2; dark.push(new THREE.BoxGeometry(0.62, 2.7, 0.08).translate(HW + 0.31, 1.35, 0.03));   // wing panel (plinth is one box with the island's)
     // t626 polished frame: one rounded-rect bezel (bevelled extrude, glossy dark) + continuous cyan inner neon line just proud of the glass + purple outer line. 3 merged pieces, no seams.
     const rr = (w, h, r) => { const sh = new THREE.Shape(), x = -w / 2, y = -h / 2; sh.moveTo(x + r, y); sh.lineTo(x + w - r, y); sh.quadraticCurveTo(x + w, y, x + w, y + r); sh.lineTo(x + w, y + h - r); sh.quadraticCurveTo(x + w, y + h, x + w - r, y + h); sh.lineTo(x + r, y + h); sh.quadraticCurveTo(x, y + h, x, y + h - r); sh.lineTo(x, y + r); sh.quadraticCurveTo(x, y, x + r, y); return sh; };
     const ring = (ow, oh, or_, iw, ih, ir, d, bv) => { const sh = rr(ow, oh, or_); sh.holes.push(rr(iw, ih, ir)); return new THREE.ExtrudeGeometry(sh, { depth: d, bevelEnabled: bv > 0, bevelThickness: bv, bevelSize: bv, bevelSegments: 3, curveSegments: 6 }); };
@@ -694,7 +694,7 @@ export function setupShop({ scene, tp, play, monkey, camera, st } = {}) {
   const OBST = [{ x0: Math.min(...cc.map(c => c[0])), x1: Math.max(...cc.map(c => c[0])), z0: Math.min(...cc.map(c => c[1])), z1: Math.max(...cc.map(c => c[1])) },
     { x0: -SXW - 0.1, x1: -SXW + 0.1, z0: ZW, z1: ZF }, { x0: SXW - 0.1, x1: SXW + 0.1, z0: ZW, z1: ZF },
     ...[PZ, PZ2].map(z => ({ x0: PX - PLW - 0.18, x1: PX + PLW + 0.18, z0: z - PLL - 0.18, z1: z + PLL + 0.18 })),   // pool tables
-    { x0: WDX - WDD - 0.05, x1: WDX + 0.08, z0: WDZ - WDW, z1: WDZ + WDW }, { x0: WDX - 0.25, x1: WDX + 0.08, z0: WDZ + WDW - 0.1, z1: WDZ + WDW + 0.66 * WDS }];   // wardrobe island + mirror wing
+    { x0: WDX - WDD - 0.05, x1: WDX + 0.08, z0: WDZ - WDW, z1: WDZ + WDW }, { x0: WDX - WDD - 0.05, x1: WDX + 0.08, z0: WDZ + WDW - 0.1, z1: WDZ + WDW + 0.66 * WDS }];   // wardrobe island + mirror wing
   const NP = { x: QX + Math.sin(GYAW) * (RO + 0.55), z: QZ + Math.cos(GYAW) * (RO + 0.55) };
   function pushOut(p) { const lx = p.x - WXp, lz = p.z;
     const dx = lx - QX, dz = lz - QZ, d = Math.hypot(dx, dz); if (d < RO + R) { const k = (RO + R) / (d || 1); p.x = WXp + QX + dx * k; p.z = QZ + dz * k; return; }
