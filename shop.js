@@ -1076,6 +1076,39 @@ export function setupShop({ scene, tp, play, monkey, camera, st } = {}) {
     }
   }, true);
 
+  // ---------- dome crown: interior of the barrel vault (radius 14, spring line y=8.5, crown y=22.5). One full tank climbs ~15.3 m, so the ticket hangs at 14.35, under the glass and inside that climb. ----------
+  const DOME_R = VR, DOME_CH = CH, DOME_Z0 = ZW, DOME_Z1 = ZF, DOME_GAP = 2.45;   // headroom 2.05 plus 0.4 so a hat stays inside the glass
+  const GOLD_KEY = 'galacticarcade.domeTicket', GOLD_Y = 14.35, GOLD_Z = VZ, GOLD_R2 = 1.2 * 1.2;
+  let goldClaimed = false; try { goldClaimed = localStorage.getItem(GOLD_KEY) === '1'; } catch (e) {}
+  function domeGlass(x, z) {
+    const lx = x - WXp, lz = z;
+    if (lx <= -DOME_R + 0.25 || lx >= DOME_R - 0.25 || lz <= DOME_Z0 + 0.4 || lz >= DOME_Z1 - 0.4) return 0;
+    const s = DOME_R * DOME_R - lx * lx; if (s <= 1) return 0;
+    return DOME_CH + Math.sqrt(s);
+  }
+  function domeCap(x, z) { const g = domeGlass(x, z); return g ? g - DOME_GAP : null; }
+  function domeCam(x, z) { const g = domeGlass(x, z); return g ? g - 0.55 : null; }
+  const goldG = new THREE.Group(); goldG.name = 'goldDomeTicket'; goldG.position.set(0, GOLD_Y, GOLD_Z); goldG.visible = !goldClaimed; G.add(goldG);
+  const goldMat = new THREE.MeshStandardMaterial({ color: 0xffc940, metalness: 0.92, roughness: 0.26, emissive: 0x8a5200, emissiveIntensity: 0.65 });
+  const card = new THREE.Mesh(new THREE.BoxGeometry(1.7, 0.07, 1.0), goldMat); card.name = 'goldDomeCard'; goldG.add(card);
+  const stub = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.08, 1.0), goldMat); stub.position.x = -0.9; goldG.add(stub);
+  const seal = new THREE.Mesh(new THREE.TorusGeometry(0.2, 0.035, 6, 16), new THREE.MeshBasicMaterial({ color: 0xfff3b0, toneMapped: false }));
+  seal.rotation.x = Math.PI / 2; seal.position.y = -0.05; seal.name = 'goldDomeSeal'; goldG.add(seal);
+  const glow = new THREE.Mesh(new THREE.CircleGeometry(1.15, 20), new THREE.MeshBasicMaterial({ color: 0xffd35a, transparent: true, opacity: 0.28, toneMapped: false, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide }));
+  glow.rotation.x = Math.PI / 2; glow.position.y = -0.08; glow.name = 'goldDomeGlow'; goldG.add(glow);
+  const goldNote = document.createElement('div'); goldNote.id = 'goldNote'; goldNote.textContent = 'Golden ticket! +1 ticket'; document.body.appendChild(goldNote);
+  const goldCss = document.createElement('style'); goldCss.textContent = '#goldNote{position:fixed;left:50%;top:16%;transform:translateX(-50%);z-index:28;display:none;max-width:90vw;text-align:center;font:900 18px/1.3 "Courier New",monospace;color:#fff6c8;background:#1a1204ee;border:2px solid #ffd24a;border-radius:12px;padding:10px 14px;letter-spacing:.04em;pointer-events:none}#goldNote.on{display:block}';
+  document.head.appendChild(goldCss);
+  let goldHide = 0;
+  function claimDomeTicket() {
+    if (goldClaimed) return;
+    goldClaimed = true; goldG.visible = false; try { localStorage.setItem(GOLD_KEY, '1'); } catch (e) {}
+    if (play && play.addTickets) play.addTickets(1);
+    goldNote.classList.add('on'); clearTimeout(goldHide); goldHide = setTimeout(() => goldNote.classList.remove('on'), 2200);
+    api.domeClaims = (api.domeClaims || 0) + 1;
+  }
+  api.domeCap = domeCap; api.domeCam = domeCam;
+  api.dome = { key: GOLD_KEY, crown: DOME_CH + DOME_R, spring: DOME_CH, radius: DOME_R, y: GOLD_Y, z: GOLD_Z, wx: WXp, r: 1.2, mesh: goldG, get claimed() { return goldClaimed; } };
   // ---------- per frame ----------
   let wasIn = false, t = 0, blinkT = 2, faceState = '';
   const tmp = new THREE.Vector3();
@@ -1090,8 +1123,16 @@ export function setupShop({ scene, tp, play, monkey, camera, st } = {}) {
     const inRoom = m.position.x > WXp / 2;
     if (inRoom && !wasIn && st) { st.pitch = 0.04; st.dist = Math.max(st.dist, 5.0); }   // shop-local camera: level, a bit closer (once per visit)
     wasIn = inRoom; if (!inRoom) { if (btn.classList.contains('on')) btn.classList.remove('on'); for (const b of poolBtns) b.classList.remove('on'); poolApi.near = false; wardBtn.classList.remove('on'); wardApi.near = false; if (api.open) closeShop(); return; }
+    if (!goldClaimed) { goldG.rotation.y = t * 0.7; goldG.position.y = GOLD_Y + Math.sin(t * 1.5) * 0.1; }
     pushOut(m.position);
     const busy = (tp && tp.locked) || (play && play.mode && play.mode !== 'walk') || !!document.querySelector('#inv.on');
+    if (!goldClaimed && !busy && st && st.fly && st.fly.air) {
+      const gp = window.__gaPlayer;
+      if (gp && gp.p && gp.p.back === 'jetpack') {
+        const dx = m.position.x - WXp, dy = m.position.y + 1.0 - goldG.position.y, dz = m.position.z - GOLD_Z;
+        if (dx * dx + dy * dy + dz * dz < GOLD_R2) claimDomeTicket();
+      }
+    }
     api.near = !busy && Math.hypot(m.position.x - WXp - NP.x, m.position.z - NP.z) < 1.9;
     btn.classList.toggle('on', api.near && !api.open); if (api.open && !api.near && !busy) closeShop();
     { const lx = m.position.x - WXp, lz = m.position.z, dx = Math.max(0, Math.abs(lx - PX) - PLW - 0.16), ds = POOLS.map(z => Math.hypot(dx, Math.max(0, Math.abs(lz - z) - PLL - 0.16)));

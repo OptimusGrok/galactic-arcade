@@ -1096,6 +1096,7 @@ function flyGround() {
 function flyCap(p) {
   let cap = H - FLY.body;
   if (inHallZ(p.z) && Math.abs(p.x) < DOOR_W / 2 + 0.45) cap = DOOR_H - FLY.body;
+  else if (shop && shop.domeCap && !(golf && golf.below)) { const c = shop.domeCap(p.x, p.z); if (c != null) cap = c; }   // shop barrel vault only; arcade and hall keep their own caps
   if (golf && golf.below) {
     const hole = p.x >= golf.X0 - 0.15 && p.x <= golf.X1 + 0.05 && p.z >= golf.Z0 && p.z <= golf.Z1;
     if (!hole) cap = Math.min(cap, golf.CEIL - FLY.body);
@@ -1207,7 +1208,9 @@ function step(dt) {
     camPos.copy(dir).multiplyScalar(st.dist).add(camTarget);
     if (golf && golf.below) golf.camClamp(camPos); else {
     camPush(camPos);
-    camPos.y = THREE.MathUtils.clamp(camPos.y, 0.25, inHallZ(camPos.z) ? DOOR_H - 0.25 : H - 1.2); }
+    let yTop = inHallZ(camPos.z) ? DOOR_H - 0.25 : H - 1.2;
+    if (!(inHallZ(camPos.z)) && shop && shop.domeCam) { const c = shop.domeCam(camPos.x, camPos.z); if (c != null) yTop = c; }
+    camPos.y = THREE.MathUtils.clamp(camPos.y, 0.25, yTop); }
     if (!st.camInit || camPos.distanceTo(camera.position) > 6) { camera.position.copy(camPos); st.camInit = true; }   // first frame / teleport
     else camera.position.lerp(camPos, 1 - Math.exp(-dt * 14));
     if (golf && golf.below) golf.camClamp(camera.position); else camPush(camera.position); camera.lookAt(camTarget);
