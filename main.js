@@ -1083,10 +1083,11 @@ function flyFx(on) {
   const f = st.fly; if (!on && !f.fxOn) return;
   let g = f.fxG;
   if (!g || !g.parent) { g = monkey.getObjectByName('gaBk_jetpack'); f.fxG = g || null; f.fx = [];
-    if (g) { const ch = g.children; for (let i = 0; i < ch.length; i++) if (ch[i].name === 'gaFlame') f.fx.push(ch[i]); } }
-  const fx = f.fx; if (!fx || !fx.length) { f.fxOn = 0; return; }
-  if (!on) { f.fxOn = 0; for (let i = 0; i < fx.length; i++) fx[i].scale.y = 1; return; }
-  f.fxOn = 1; const s = 1.55 + Math.sin(st.t * 26) * 0.2; for (let i = 0; i < fx.length; i++) fx[i].scale.y = s;
+    if (g) { const ch = g.children; for (let i = 0; i < ch.length; i++) if (ch[i].name === 'gaThruster') f.fx.push(ch[i]); } }
+  const fx = f.fx; if (!fx || fx.length < 2) { f.fxOn = 0; return; }
+  if (!on) { f.fxOn = 0; for (let i = 0; i < fx.length; i++) { fx[i].visible = false; fx[i].scale.set(1, 1, 1); } return; }
+  f.fxOn = 1; const s = 0.78 + Math.sin(st.t * 28) * 0.22, w = 0.88 + Math.sin(st.t * 17) * 0.14;
+  for (let i = 0; i < fx.length; i++) { fx[i].visible = true; fx[i].scale.set(w, s, w); }
 }
 function flyGround() {
   if (!(golf && golf.below)) return 0;

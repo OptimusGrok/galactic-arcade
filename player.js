@@ -156,9 +156,15 @@
     // backs & extras: on the torso (head.parent.parent), behind the shoulders (-z)
     var torso = head.parent && head.parent.parent || head; torso.children.filter(function (o) { return /^gaBk/.test(o.name); }).forEach(function (o) { torso.remove(o); });
     var B = {}; Object.defineProperty(h, 'bk', { value: B, enumerable: false, configurable: true }); var bg = function (n) { var q = new T.Group(); q.name = 'gaBk_' + n; q.T = T; q.position.set(0, 0.3, -0.2); torso.add(q); return q; };
-    g = B.jetpack = bg('jetpack'); var jm = std(T, 0xb8c0cc, { metalness: 0.7, roughness: 0.35 }), jr = std(T, 0xd42a2a), fl = new T.MeshBasicMaterial({ color: 0xff8a1a, transparent: true, opacity: 0.85, toneMapped: false });
+    g = B.jetpack = bg('jetpack'); var jm = std(T, 0xb8c0cc, { metalness: 0.7, roughness: 0.35 }), jr = std(T, 0xd42a2a);
+    // Exhaust is off until powered flight (main.js flyFx). Two nozzles, shared cones: hot core, orange plume, wide red shell. No lights.
+    var flameM = function (c, op) { return new T.MeshBasicMaterial({ color: c, transparent: true, opacity: op, toneMapped: false, depthWrite: false, blending: T.AdditiveBlending, side: T.DoubleSide }); };
+    var shellM = flameM(0xff2a00, 0.62), outerM = flameM(0xff9a1a, 0.95), coreM = flameM(0xfff6c8, 1);
+    var shellGeo = new T.ConeGeometry(0.2, 0.82, 7), outerGeo = new T.ConeGeometry(0.11, 1.2, 7), coreGeo = new T.ConeGeometry(0.045, 0.78, 6);
     [-1, 1].forEach(function (sd) { add(g, new T.CylinderGeometry(0.07, 0.07, 0.3, 10), jm, 0.08 * sd, 0, -0.05); add(g, new T.ConeGeometry(0.07, 0.08, 10), jr, 0.08 * sd, 0.19, -0.05);
-      m = add(g, new T.ConeGeometry(0.05, 0.16, 8), fl, 0.08 * sd, -0.24, -0.05); m.rotation.x = Math.PI; m.name = 'gaFlame'; });
+      var th = new T.Group(); th.name = 'gaThruster'; th.position.set(0.08 * sd, -0.16, -0.05); th.visible = false; th.T = T; g.add(th);
+      [[shellGeo, shellM, 'gaFlameShell', 0.82], [outerGeo, outerM, 'gaFlameOuter', 1.2], [coreGeo, coreM, 'gaFlameCore', 0.78]].forEach(function (q) {
+        m = add(th, q[0], q[1], 0, -q[3] / 2, 0); m.rotation.x = Math.PI; m.name = q[2]; m.renderOrder = 3; }); });
     add(g, new T.BoxGeometry(0.14, 0.2, 0.05), std(T, 0x303038), 0, 0, 0);
     g = B.cape = bg('cape'); var cp = std(T, 0xd42a2a, { side: T.DoubleSide, roughness: 0.7 }); m = add(g, new T.PlaneGeometry(0.56, 0.95, 1, 3), cp, 0, -0.42, -0.06); m.rotation.x = 0.12;
     add(g, new T.BoxGeometry(0.4, 0.04, 0.04), gd, 0, 0.04, 0.02);

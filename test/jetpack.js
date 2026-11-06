@@ -2,7 +2,8 @@
 // Phone viewport. node test/jetpack.js
 const { open } = require('./lib');
 const fs = require('fs');
-const SHOT = process.env.JET_SHOT || '/tmp/jetpack_fly_phone.png';
+const SHOT = process.env.JET_SHOT || '/opt/cursor/artifacts/jetpack_flames_flight_phone.png';
+const SHOP = process.env.JET_SHOP || '/opt/cursor/artifacts/accessories_back_jetpack_5.png';
 let ok = true;
 const chk = (c, m, x) => { console.log((c ? 'PASS ' : 'FAIL ') + m + (x !== undefined ? ' ' + JSON.stringify(x).slice(0, 400) : '')); if (!c) ok = false; };
 const OWN = JSON.stringify(['fur:brown', 'shoes:red']);
@@ -39,17 +40,27 @@ const LOOK = (back) => JSON.stringify({ name: 'Jet', hat: 'cap', hoodie: 'navy',
   await page.waitForFunction(() => window.__arcade && window.__arcade.stats.frames > 3 && window.__gaPlayer, null, { timeout: 90000 });
   await page.evaluate(() => Promise.all([window.__arcade.shopReady, window.__arcade.windowsReady].filter(Boolean).map(p => Promise.resolve(p))));
 
+  await page.evaluate(() => window.__wardrobe.open({ shop: true }));
+  await page.waitForSelector('#gaW .gaRow[data-k=back] .gaO[data-v=jetpack]', { timeout: 20000 });
+  const tap = async sel => { const b = page.locator(sel).first(); await b.scrollIntoViewIfNeeded(); const r = await b.boundingBox(); await page.touchscreen.tap(r.x + r.width / 2, r.y + r.height / 2); await page.waitForTimeout(400); };
   s = await page.evaluate(() => {
-    const G = window.__gaPlayer, A = window.__arcade;
-    G.tryOn('back', 'jetpack');
-    const before = G.balance();
-    const bought = G.buy();
-    const own = G.owned();
-    return { bought, before, after: G.balance(), back: G.p.back, saved: JSON.parse(localStorage.getItem('galacticarcade.player')).back, own: own.filter(x => x.indexOf('jetpack') >= 0), n: own.filter(x => x === 'back:jetpack').length, hud: document.getElementById('flyHud').classList.contains('on'), price: G.priceOf('back', 'jetpack'), cfg: A.flyCfg };
+    const e = document.getElementById('gaW'), row = e.querySelector('.gaRow[data-k=back]'), lk = row.querySelector('.gaO[data-v=jetpack] .gaLk');
+    const jets = [...e.querySelectorAll('.gaO[data-v=jetpack]')];
+    return { title: e.querySelector('#gaWT').textContent, label: row.querySelector('span').textContent, price: lk && lk.textContent, n: jets.length, own: row.querySelector('.gaO[data-v=jetpack]').classList.contains('own'), back: window.__gaPlayer.p.back, t: window.__gaPlayer.balance() };
   });
-  chk(s.bought && s.before === 40 && s.after === 35 && s.back === 'jetpack' && s.saved === 'jetpack' && s.n === 1 && s.own.join() === 'back:jetpack' && s.price === 5, 'buy once: 40 -> 35 tickets, equipped and saved as back:jetpack', s);
-  const again = await page.evaluate(() => { const G = window.__gaPlayer, b = G.balance(); G.pick('back', 'jetpack'); return { b, a: G.balance(), back: G.p.back }; });
-  chk(again.a === again.b && again.back === 'jetpack', 'equipping an owned jetpack does not charge again', again);
+  chk(s.title === 'ACCESSORIES' && s.label === 'BACK' && s.price === '🔒5' && s.n === 1 && !s.own && s.back === 'none' && s.t === 40, 'Accessories BACK row shows one jetpack locked at 5 tickets', s);
+  await tap('#gaW .gaRow[data-k=back] .gaO[data-v=jetpack]');
+  s = await page.evaluate(() => ({ buy: !document.getElementById('gaWBuy').hidden, txt: document.getElementById('gaWBuyB').textContent, back: window.__gaPlayer.p.back, t: window.__gaPlayer.balance() }));
+  chk(s.buy && s.txt === 'BUY 5 🎟' && s.back === 'none' && s.t === 40, 'tapping the locked jetpack asks for a 5-ticket purchase and does not equip it', s);
+  await page.screenshot({ path: SHOP });
+  await tap('#gaWBuyB');
+  s = await page.evaluate(() => ({ t: window.__gaPlayer.balance(), hud: document.getElementById('tixN').textContent, back: window.__gaPlayer.p.back, saved: JSON.parse(localStorage.getItem('galacticarcade.player')).back, n: window.__gaPlayer.owned().filter(x => x === 'back:jetpack').length, own: document.querySelector('#gaW .gaO[data-v=jetpack]').classList.contains('own') }));
+  chk(s.t === 35 && s.hud === '35' && s.back === 'jetpack' && s.saved === 'jetpack' && s.n === 1 && s.own, 'BUY spends 5 once, equips, and saves back:jetpack', s);
+  const againT = s.t;
+  await tap('#gaW .gaRow[data-k=back] .gaO[data-v=jetpack]');
+  const again = await page.evaluate(b => ({ a: window.__gaPlayer.balance(), back: window.__gaPlayer.p.back, buy: !document.getElementById('gaWBuy').hidden, same: window.__gaPlayer.balance() === b }), againT);
+  chk(again.a === againT && again.back === 'jetpack' && again.same && !again.buy, 'tapping the owned jetpack does not charge again', again);
+  await page.evaluate(() => window.__wardrobe.close());
 
   await page.evaluate(() => window.__arcade.simPause(true));
   await page.waitForTimeout(250);
@@ -57,12 +68,14 @@ const LOOK = (back) => JSON.stringify({ name: 'Jet', hat: 'cap', hoodie: 'navy',
   const boot = await page.evaluate(() => {
     const A = window.__arcade, st = A.st, F = A.flyCfg;
     A.setFloor('neon'); A.monkey.position.set(0, 0, 4); st.vel.set(0, 0, 0); st.yaw = 0; st.face = Math.PI; st.jump = null; st.fly.e = 1; st.fly.air = false; st.fly.hold = false;
+    const jets = () => { const g = A.monkey.getObjectByName('gaBk_jetpack'), th = g ? g.children.filter(c => c.name === 'gaThruster') : []; let tall = 0, vis = 0, parts = 0;
+      th.forEach(t => { if (t.visible) vis++; t.children.forEach(c => { parts++; const h = c.geometry && c.geometry.parameters && c.geometry.parameters.height; if (h > tall) tall = h; }); }); return { n: th.length, vis, parts, tall }; };
+    const idleFx = jets();
     const j0 = st.jumps || 0;
     A.keys.Space = true;
-    let flame = 0;
     for (let i = 0; i < 50; i++) A.step(1 / 60);
-    A.monkey.traverse(o => { if (o.name === 'gaFlame') flame = Math.max(flame, o.scale.y); });
-    const mid = { y: A.monkey.position.y, e: st.fly.e, air: st.fly.air, thrust: st.fly.thrust, jumps: (st.jumps || 0) - j0, hud: document.getElementById('flyHud').className, meter: document.getElementById('flyMeter').firstChild.style.transform, flame, fp: st.fp };
+    const flame = jets();
+    const mid = { y: A.monkey.position.y, e: st.fly.e, air: st.fly.air, thrust: st.fly.thrust, jumps: (st.jumps || 0) - j0, hud: document.getElementById('flyHud').className, meter: document.getElementById('flyMeter').firstChild.style.transform, flame, idleFx, fp: st.fp };
     st.fp = true; A.step(1 / 60);
     const first = { camY: A.camera.position.y, y: A.monkey.position.y, vis: A.monkey.visible };
     st.fp = false; A.step(1 / 60);
@@ -73,6 +86,8 @@ const LOOK = (back) => JSON.stringify({ name: 'Jet', hat: 'cap', hoodie: 'navy',
     A.keys.KeyW = true;
     for (let i = 0; i < 40; i++) A.step(1 / 60);
     A.keys.KeyW = false; A.keys.Space = false;
+    for (let i = 0; i < 8; i++) A.step(1 / 60);
+    const glide = { y: A.monkey.position.y, e: st.fly.e, air: st.fly.air, thrust: st.fly.thrust, fx: jets() };
     const moved = { z: A.monkey.position.z, y: A.monkey.position.y, z0 };
     // release: no air refill, controlled descent
     const eAir = st.fly.e, yAir = A.monkey.position.y;
@@ -81,9 +96,11 @@ const LOOK = (back) => JSON.stringify({ name: 'Jet', hat: 'cap', hoodie: 'navy',
     const eLand = st.fly.e, yLand = A.monkey.position.y;
     for (let i = 0; i < 40; i++) A.step(1 / 60);
     const eFill = st.fly.e;
-    return { mid, first, third, moved, eAir, yAir, descended, minY, eLand, yLand, eFill, below: minY < -0.02, cap: F.body, cfg: F };
+    return { mid, first, third, moved, glide, eAir, yAir, descended, minY, eLand, yLand, eFill, below: minY < -0.02, cap: F.body, cfg: F };
   });
-  chk(boot.mid.y > 1.2 && boot.mid.e < 0.9 && boot.mid.e > 0.6 && boot.mid.air && boot.mid.thrust && boot.mid.jumps === 0 && boot.mid.hud === 'on' && boot.mid.flame > 1.3 && /^scaleX\(0\.[6-8]/.test(boot.mid.meter), 'Space thrusts, drains the meter, lengthens the flames, does not jump', boot.mid);
+  chk(boot.mid.idleFx.vis === 0 && boot.mid.flame.n === 2 && boot.mid.flame.vis === 2 && boot.mid.flame.parts >= 6 && boot.mid.flame.tall >= 1.1, 'both nozzles throw a long flame only while thrusting', { idle: boot.mid.idleFx, flame: boot.mid.flame });
+  chk(boot.glide.y > 1 && boot.glide.air && !boot.glide.thrust && boot.glide.fx.vis === 0 && boot.glide.e <= boot.mid.e + 0.001, 'unpowered descent keeps the energy and puts the flames out', boot.glide);
+  chk(boot.mid.y > 1.2 && boot.mid.e < 0.9 && boot.mid.e > 0.6 && boot.mid.air && boot.mid.thrust && boot.mid.jumps === 0 && boot.mid.hud === 'on' && /^scaleX\(0\.[6-8]/.test(boot.mid.meter), 'Space thrusts, drains the meter, and does not jump', boot.mid);
   chk(boot.first.vis === false && boot.first.camY > boot.first.y && boot.third.vis === true, 'first person hides the body and follows height; third person shows it', { first: boot.first, third: boot.third });
   chk(boot.moved.z < boot.moved.z0 - 0.8 && boot.moved.y > 0.6, 'horizontal move still works in the air', boot.moved);
   chk(boot.descended && boot.eLand <= boot.eAir + 0.001 && boot.yLand <= 0.02 && boot.minY >= -0.02 && boot.eFill > boot.eLand + 0.1, 'release descends, no air refill, ground refills', boot);
@@ -163,7 +180,7 @@ const LOOK = (back) => JSON.stringify({ name: 'Jet', hat: 'cap', hoodie: 'navy',
   const clean = await page.evaluate(() => {
     const A = window.__arcade, st = A.st;
     const up = () => { A.monkey.position.set(1, 3.2, 3); st.fly.air = true; st.fly.thrust = true; st.fly.e = 0.4; st.fly.vy = 1; st.jump = null; A.play.mode = 'walk'; document.body.classList.remove('ingame'); };
-    const read = () => ({ y: +A.monkey.position.y.toFixed(2), air: st.fly.air, mode: A.play.mode });
+    const read = () => { const g = A.monkey.getObjectByName('gaBk_jetpack'); let vis = 0; if (g) for (let i = 0; i < g.children.length; i++) if (g.children[i].name === 'gaThruster' && g.children[i].visible) vis++; return { y: +A.monkey.position.y.toFixed(2), air: st.fly.air, mode: A.play.mode, vis }; };
     up(); A.play.mode = 'game'; document.body.classList.add('ingame'); A.step(1 / 60); const game = read();
     A.play.mode = 'walk'; document.body.classList.remove('ingame');
     up(); window.__tp.state = 'charge'; A.step(1 / 60); const tp = read(); window.__tp.state = 'idle';
@@ -180,7 +197,7 @@ const LOOK = (back) => JSON.stringify({ name: 'Jet', hat: 'cap', hoodie: 'navy',
     const jump = { d: (st.jumps || 0) - j0, y: A.monkey.position.y, air: st.fly.air, why };
     return { game, tp, menu, ward, pool, start, jump, d };
   });
-  chk(clean.game.y === 0 && !clean.game.air && clean.tp.y === 0 && !clean.tp.air && clean.menu.y === 0 && clean.ward.y === 0 && clean.pool.y === 0 && clean.start.y === 0, 'game, teleport, menu, wardrobe, pool and start screen end flight on the floor', clean);
+  chk(clean.game.y === 0 && !clean.game.air && clean.game.vis === 0 && clean.tp.vis === 0 && clean.menu.vis === 0 && clean.ward.vis === 0 && clean.pool.vis === 0 && clean.start.vis === 0, 'game, teleport, menu, wardrobe, pool and start screen end flight and put the flames out', clean);
   chk(clean.jump.d === 1 && clean.jump.y === 0 && !clean.jump.air, 'right-side jump still works with the jetpack on the ground', clean.jump);
 
   // touch FLY button
@@ -227,7 +244,7 @@ const LOOK = (back) => JSON.stringify({ name: 'Jet', hat: 'cap', hoodie: 'navy',
   await page.evaluate(() => {
     const A = window.__arcade, st = A.st;
     A.simPause(false);
-    A.setFloor('neon'); A.monkey.position.set(0, 0, 3.2); st.vel.set(0, 0, 0); st.yaw = 0; st.pitch = 0.18; st.dist = 3.1; st.fp = false; st.face = Math.PI; st.lookT = st.t; st.fly.e = 1; st.fly.air = false; st.jump = null;
+    A.setFloor('neon'); A.monkey.position.set(0, 0, 4); st.vel.set(0, 0, 0); st.yaw = 0.62; st.pitch = 0.04; st.dist = 2.65; st.fp = false; st.face = Math.PI + 0.62; st.lookT = st.t; st.fly.e = 1; st.fly.air = false; st.jump = null;
     A.play.mode = 'walk'; document.body.classList.remove('ingame');
     if (window.__wardrobe && window.__wardrobe.isOpen) window.__wardrobe.close();
     if (window.__pool) window.__pool.open = false;
@@ -238,10 +255,10 @@ const LOOK = (back) => JSON.stringify({ name: 'Jet', hat: 'cap', hoodie: 'navy',
   await page.waitForTimeout(200);
   const live = await page.evaluate(() => {
     const A = window.__arcade, r = document.getElementById('bFly').getBoundingClientRect(), m = document.getElementById('flyMeter').getBoundingClientRect();
-    let pack = false, bag = null; A.monkey.traverse(o => { if (o.name === 'gaBk_jetpack' && o.visible) pack = true; if (o.name === 'backpack') bag = o.visible; });
-    return { y: +A.monkey.position.y.toFixed(2), e: +A.st.fly.e.toFixed(2), thrust: A.st.fly.thrust, space: !!A.keys.Space, pack, bag, btn: r.width, bx: r.x, by: r.y, mw: m.width, my: m.y, w: innerWidth, h: innerHeight };
+    let pack = false, bag = null, vis = 0; A.monkey.traverse(o => { if (o.name === 'gaBk_jetpack' && o.visible) pack = true; if (o.name === 'backpack') bag = o.visible; if (o.name === 'gaThruster' && o.visible) vis++; });
+    return { y: +A.monkey.position.y.toFixed(2), e: +A.st.fly.e.toFixed(2), thrust: A.st.fly.thrust, space: !!A.keys.Space, pack, bag, vis, btn: r.width, bx: r.x, by: r.y, mw: m.width, my: m.y, w: innerWidth, h: innerHeight };
   });
-  chk(live.y > 2 && live.e < 0.9 && live.thrust && live.space && live.pack && live.bag === false && live.btn >= 70 && live.bx > 250 && live.bx < 390 && live.by > 400 && live.by < 820 && live.mw > 60, 'desktop Space hold flies; jetpack shows instead of the backpack; FLY + meter sit in the thumb zone', live);
+  chk(live.y > 1.2 && live.e < 0.95 && live.thrust && live.space && live.pack && live.bag === false && live.vis === 2 && live.btn >= 70 && live.mw > 60, 'third-person flight shows both nozzle flames, the meter, and FLY', live);
   await page.screenshot({ path: SHOT });
   await page.keyboard.up('Space');
   chk(fs.existsSync(SHOT) && fs.statSync(SHOT).size > 8000, 'screenshot written', SHOT + ' ' + (fs.existsSync(SHOT) ? fs.statSync(SHOT).size : 0));
