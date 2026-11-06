@@ -1076,9 +1076,9 @@ export function setupShop({ scene, tp, play, monkey, camera, st } = {}) {
     }
   }, true);
 
-  // ---------- dome crown: interior of the barrel vault (radius 14, spring line y=8.5, crown y=22.5). One full tank climbs ~15.3 m, so the ticket hangs at 14.35, under the glass and inside that climb. ----------
+  // ---------- dome crown: interior of the barrel vault (radius 14, spring line y=8.5, crown y=22.5). Feet cap at the centre is crown-2.45 = 20.05. The ticket sits just under the glass, where a body at that cap can reach it. ----------
   const DOME_R = VR, DOME_CH = CH, DOME_Z0 = ZW, DOME_Z1 = ZF, DOME_GAP = 2.45;   // headroom 2.05 plus 0.4 so a hat stays inside the glass
-  const GOLD_KEY = 'galacticarcade.domeTicket', GOLD_Y = 14.35, GOLD_Z = VZ, GOLD_R2 = 1.2 * 1.2;
+  const GOLD_KEY = 'galacticarcade.domeTicket', GOLD_Y = 21.45, GOLD_Z = VZ, GOLD_R2 = 1.2 * 1.2;
   let goldClaimed = false; try { goldClaimed = localStorage.getItem(GOLD_KEY) === '1'; } catch (e) {}
   function domeGlass(x, z) {
     const lx = x - WXp, lz = z;

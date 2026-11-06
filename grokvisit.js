@@ -8,6 +8,7 @@ const CHEER = 'Nice!';
 const TWENTY_NEXT = 'Twenty tickets! On to the next one!';
 const TWENTY_DONE = "Twenty tickets! That's me done!";
 const PLAY_S = 60;             // safety cap per machine (~20 tickets @ 2.5s)
+const APPEAR_AFTER = 30;       // seconds after the player is actually in the arcade (start dismissed and entry beam finished)
 const LOOK_NEED = 0.5;
 const LOOK_RAD = 0.42;
 const SCALE = 0.95;   // near human height so arms reach stick+buttons
@@ -42,7 +43,7 @@ const CHAT = [
   { id: 'c_pool', q: "What's 8-Ball Pool?",
     a: 'There are two 8-Ball Pool tables in my shop. Walk up and tap Play Pool. Have a break from the cabinets!' },
   { id: 'c_tips', q: 'Any tips?',
-    a: 'Face a cabinet until PLAY shows, spend tickets for credit, then dive in. Look at the teleporter pad twice and I might pop in to play!' },
+    a: 'Face a cabinet until PLAY shows, spend tickets for credit, then dive in. Hang around after you arrive and I might pop in to play!' },
 ];
 
 const CLIP = {
@@ -183,7 +184,8 @@ export function setupGrokVisit({ scene, tp, play, monkey, camera, st } = {}) {
 
   const api = {
     ready: true, state: 'idle', lookCount: 0, looks: 0, started: 0, finished: 0, said: [],
-    cab: null, reason: null, fallAt: 120 + Math.random() * 120, sessT: 0, force: false,
+    cab: null, reason: null, fallAt: 1e9, sessT: 0, force: false,
+    appearAfter: APPEAR_AFTER, entryT: 0, due: false, visited: false, rng: null,
     near: false, chatOpen: false, watchOpen: false, remarks: 0,
     tickets: 0, machinesDone: 0, tixGoal: TIX_GOAL,   // Grok's own winnings (never touch player tickets)
     start(reason = 'debug') { if (api.state !== 'idle' && api.state !== 'done') return false; api.force = true; api.reason = reason; begin(reason); return true; },
@@ -211,6 +213,18 @@ export function setupGrokVisit({ scene, tp, play, monkey, camera, st } = {}) {
     const dist = Math.hypot(dx, dz); if (dist < 0.5 || dist > 22) return false;
     return r < LOOK_RAD;
   }
+  function playableArcade() {
+    const S = window.__start;
+    if (S && S.shown && !S.dismissed) return false;
+    if (document.getElementById('start') && !(S && S.dismissed)) return false;
+    if (!S || !S.dismissed) {
+      if (document.getElementById('start')) return false;
+      if (!(window.__skipStart || (S && S.dismissed))) return false;
+    }
+    if (tp && (tp.beaming || tp.locked || (tp.state && tp.state !== 'idle'))) return false;
+    return true;
+  }
+  api.playable = () => playableArcade();
   function busy() {
     try {
       if (document.getElementById('start')) return true;
@@ -228,25 +242,34 @@ export function setupGrokVisit({ scene, tp, play, monkey, camera, st } = {}) {
     } catch (e) {}
     return false;
   }
-  api.simulateLooks = (n) => { api.lookCount = Math.max(0, n | 0); leftSince = true; lookStart = 0; if (api.lookCount >= 2 && api.state === 'idle' && !busy()) begin('look'); };
+  api.simulateLooks = (n) => { api.lookCount = Math.max(0, n | 0); leftSince = true; lookStart = 0; };
   api.isLooking = padLooking;
   api.isBusy = busy;
 
-  function pickCab(exclude) {
-    // t639u: only cabs whose attract is a live demo (no INSERT CREDIT / INSERT COIN flash). Canvas-attract cabs excluded.
-    const list = (A().featured || []).filter(c => {
-      if (!c || !c.getObjectByName) return false;
-      if (exclude && c === exclude) return false;
-      if (!c.getObjectByName('joystick')) return false;
-      const n = (c.userData && c.userData.name) || c.name || '';
-      if (!/strike|ghost/i.test(n)) return false;
-      const f = c.userData && c.userData.front; if (!f) return false;
-      if (Math.abs(f.x) > 14 || Math.abs(f.z) > 14) return false;
-      return true;
-    });
-    if (!list.length) return null;
-    return list[(Math.random() * list.length) | 0];
+  function cabEligible(c) {
+    // Live attract demos only. Canvas cabinets (berserker, monkey, orc, nova, cyber, blaster, pip, bb, roadster, …)
+    // redraw an INSERT CREDIT flash; Watch copies that screen, and scrubbing the canvas does not make it a real game.
+    if (!c || !c.getObjectByName) return false;
+    if (!c.getObjectByName('joystick')) return false;
+    const n = (c.userData && c.userData.name) || c.name || '';
+    if (!/strike|ghost/i.test(n)) return false;
+    const f = c.userData && c.userData.front; if (!f) return false;
+    if (Math.abs(f.x) > 14 || Math.abs(f.z) > 14) return false;
+    return true;
   }
+  function eligibleCabs() {
+    // Featured-array order. Never sorted by distance to Grok, the pad, or the player.
+    return (A().featured || []).filter(cabEligible);
+  }
+  function pickCab(exclude) {
+    const list = eligibleCabs().filter(c => c !== exclude);
+    if (!list.length) return null;
+    const rnd = typeof api.rng === 'function' ? api.rng : Math.random;
+    let u = rnd(); if (!(u >= 0 && u < 1)) u = ((u % 1) + 1) % 1;
+    return list[Math.min(list.length - 1, Math.floor(u * list.length))];
+  }
+  api.eligibleCabs = eligibleCabs;
+  api.pickCab = (exclude) => pickCab(exclude);
 
   let phaseT = 0, from = new THREE.Vector3(), to = new THREE.Vector3(), fromYaw = 0, toYaw = 0;
   let cab = null, joy = null, btns = [], joyBase = null, btnBase = [];
@@ -347,6 +370,7 @@ export function setupGrokVisit({ scene, tp, play, monkey, camera, st } = {}) {
     api.tickets = 0; api.machinesDone = 0; nextTixAt = 0; showTixHud(false);
     if (api.fast || reason === 'test') playDur = 4;
     else playDur = PLAY_S;
+    api.visited = true; api.due = false;
     grok.position.set(pad.x, 0, pad.z);
     grok.rotation.set(0, Math.atan2(0 - pad.x, 0 - pad.z), 0);
     grok.scale.setScalar(0.01); grok.visible = true;
@@ -793,19 +817,16 @@ export function setupGrokVisit({ scene, tp, play, monkey, camera, st } = {}) {
     }
 
     if (api.state === 'idle') {
-      if (!api._t0) api._t0 = performance.now() / 1000;
-      if (busy()) { lookStart = 0; wasLooking = false; leftSince = true; return; }
-      const looking = padLooking();
-      const now = performance.now() / 1000;
-      if (looking) {
-        if (leftSince) {
-          if (!lookStart) lookStart = now;
-          if (now - lookStart >= LOOK_NEED) { api.lookCount++; api.looks++; leftSince = false; lookStart = 0; }
+      // 30s after the player is in the arcade. The start screen and the entry beam do not count.
+      // A menu or game at the due moment waits; it does not cancel the visit or spawn him early.
+      if (!api.visited && playableArcade()) {
+        api.entryT += dt;
+        if (api.entryT >= APPEAR_AFTER) api.due = true;
+        if (api.due && !busy()) {
+          begin('enter');
+          if (api.state !== 'idle') api.visited = true;
         }
-      } else { leftSince = true; lookStart = 0; }
-      wasLooking = looking;
-      if (api.lookCount >= 2) { begin('look'); return; }
-      if ((now - api._t0) >= api.fallAt) { begin('random'); return; }
+      }
       return;
     }
 

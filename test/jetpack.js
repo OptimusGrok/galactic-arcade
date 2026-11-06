@@ -100,10 +100,10 @@ const LOOK = (back) => JSON.stringify({ name: 'Jet', hat: 'cap', hoodie: 'navy',
   });
   chk(boot.mid.idleFx.vis === 0 && boot.mid.flame.n === 2 && boot.mid.flame.vis === 2 && boot.mid.flame.parts >= 6 && boot.mid.flame.tall >= 1.1, 'both nozzles throw a long flame only while thrusting', { idle: boot.mid.idleFx, flame: boot.mid.flame });
   chk(boot.glide.y > 1 && boot.glide.air && !boot.glide.thrust && boot.glide.fx.vis === 0 && boot.glide.e <= boot.mid.e + 0.001, 'unpowered descent keeps the energy and puts the flames out', boot.glide);
-  chk(boot.mid.y > 1.2 && boot.mid.e < 0.9 && boot.mid.e > 0.6 && boot.mid.air && boot.mid.thrust && boot.mid.jumps === 0 && boot.mid.hud === 'on' && /^scaleX\(0\.[6-8]/.test(boot.mid.meter), 'Space thrusts, drains the meter, and does not jump', boot.mid);
+  chk(boot.mid.y > 1.2 && Math.abs(boot.mid.e - (1 - boot.cfg.drain * 50 / 60)) < 0.04 && boot.mid.air && boot.mid.thrust && boot.mid.jumps === 0 && boot.mid.hud === 'on' && /^scaleX\(0\.\d/.test(boot.mid.meter), 'Space thrusts, drains the meter, and does not jump', boot.mid);
   chk(boot.first.vis === false && boot.first.camY > boot.first.y && boot.third.vis === true, 'first person hides the body and follows height; third person shows it', { first: boot.first, third: boot.third });
   chk(boot.moved.z < boot.moved.z0 - 0.8 && boot.moved.y > 0.6, 'horizontal move still works in the air', boot.moved);
-  chk(boot.descended && boot.eLand <= boot.eAir + 0.001 && boot.yLand <= 0.02 && boot.minY >= -0.02 && boot.eFill > boot.eLand + 0.1, 'release descends, no air refill, ground refills', boot);
+  chk(boot.descended && boot.eLand <= boot.eAir + 0.001 && boot.yLand <= 0.02 && boot.minY >= -0.02 && boot.eFill > boot.eLand + boot.cfg.fill * 40 / 60 * 0.75, 'release descends, no air refill, ground refills', boot);
 
   const edges = await page.evaluate(() => {
     const A = window.__arcade, st = A.st, F = A.flyCfg, cap = A.room ? (8.5 - F.body) : (8.5 - F.body);

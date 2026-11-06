@@ -1035,13 +1035,13 @@ function lavaFallStep(dt) { const f = st.lavaFall; f.t += dt; const k = Math.min
 // JETPACK. The Accessories back item "jetpack" (player.js, 5 tickets, same id as the cosmetic pack) is the only one.
 // Hold the FLY button or Space. WASD and the left-side touch stick still steer. While it is equipped, Space flies instead of jumping;
 // a short tap on the right half of the screen still jumps from the ground. Tank size is 1.
-//   drain 0.22/s while thrusting            -> about 4.5 s of powered flight from full
-//   refill 0.28/s on the ground, pack on    -> about 3.6 s from empty. Nothing refills in the air, and taking it off does not refill.
-//   after empty, thrust waits for 0.08      -> about 0.3 s of ground time, so a tap cannot sip a new hop out of an empty tank
-//   climb 3.4 m/s; release or empty eases down at 2.4 m/s
+//   drain 0.125/s while thrusting           -> 8.0 s of powered flight from full
+//   refill 0.16/s on the ground, pack on    -> 6.25 s from empty. Nothing refills in the air, and taking it off does not refill.
+//   after empty, thrust waits for 0.08      -> about 0.5 s of ground time, so a tap cannot sip a new hop out of an empty tank
+//   climb 3.4 m/s; release or empty eases down at 2.4 m/s. One full tank from the floor reaches the shop dome's safe crown with fuel left to hover.
 //   2.05 m of headroom: room ceiling 8.5 -> feet <= 6.45; hallway and its doorways 3.0 -> feet <= 0.95
 // Games, pool, menus, the start screen and a teleport put the feet back on the floor. Unequipping in the air just stops thrust and descends.
-const FLY = { drain: 0.22, fill: 0.28, min: 0.08, up: 3.4, down: 2.4, body: 2.05 };
+const FLY = { drain: 0.125, fill: 0.16, min: 0.08, up: 3.4, down: 2.4, body: 2.05 };
 const FLY_MENUS = ['tview', 'homeQ', 'gOpt', 'kview', 'poolOv', 'opt'];
 const flyStyle = document.createElement('style');
 flyStyle.textContent = '#flyHud{position:fixed;right:max(12px,env(safe-area-inset-right));bottom:calc(max(12px,env(safe-area-inset-bottom)) + 158px);z-index:25;display:none;flex-direction:column;align-items:center;gap:5px;touch-action:none;user-select:none;-webkit-user-select:none}'
