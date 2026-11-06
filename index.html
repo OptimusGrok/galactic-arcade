@@ -209,10 +209,10 @@ body[data-cab=roadster] #tix.ingame{top:calc(max(10px,env(safe-area-inset-top)) 
 (function () {
   var el = document.getElementById('start'), opt = document.getElementById('opt'), S = window.__start = { shown: true, dismissed: false, at: 0, how: '', opts: 0, ignored: 0 };
   function off() { S.shown = false; if (el.isConnected) el.remove(); }
-  function floorNow() { try { var f = localStorage.getItem('neonarcade.floor'); return ['carpet', 'checkers', 'lava', 'cobble', 'ice'].indexOf(f) >= 0 ? f : 'neon'; } catch (e) { return 'neon'; } }
+  function floorNow() { try { var f = localStorage.getItem('neonarcade.floor'); return f === 'neon' || f === 'carpet' || f === 'checkers' || f === 'lava' || f === 'cobble' || f === 'ice' ? f : 'checkers'; } catch (e) { return 'checkers'; } }
   function showFloor() { var f = floorNow(); ['flNeon', 'flCarpet', 'flChk', 'flLava', 'flCob', 'flIce'].forEach(function (id) { var t = document.getElementById(id); t.classList.toggle('sel', t.dataset.floor === f); }); }
   function pickFloor(f) { if (window.__setFloor) window.__setFloor(f); else try { localStorage.setItem('neonarcade.floor', f); } catch (e) {} S.floor = f; showFloor(); }
-  function wallsNow() { try { var w = localStorage.getItem('neonarcade.walls'); return w === 'viking' || w === 'portals' || w === 'medieval' ? w : 'current'; } catch (e) { return 'current'; } }
+  function wallsNow() { try { var w = localStorage.getItem('neonarcade.walls'); return w === 'windows' ? 'current' : (w === 'current' || w === 'viking' || w === 'portals' || w === 'medieval' ? w : 'medieval'); } catch (e) { return 'medieval'; } }
   function showWalls() { var f = wallsNow(); [].forEach.call(opt.querySelectorAll('.wlT'), function (t) { t.classList.toggle('sel', t.dataset.walls === f); }); }
   function pickWalls(f) { if (window.__setWalls) window.__setWalls(f); else try { localStorage.setItem('neonarcade.walls', f); } catch (e) {} S.walls = f; showWalls(); }
   function winNow() { try { var w = localStorage.getItem('neonarcade.window'); if (!w && localStorage.getItem('neonarcade.walls') === 'windows') return 'jungle'; return w === 'jungle' || w === 'beach' ? w : 'space'; } catch (e) { return 'space'; } }
@@ -329,7 +329,7 @@ function flBtnInit() {
     else { U.openOpt(false); opt.classList.remove('game'); if (home && opt.parentNode !== home) home.appendChild(opt); } }
   setTimeout(grab, 0);
   G.openMenu = openG;
-  function cur(kind) { var a = window.__arcade; return kind === 'floor' ? (a ? a.floor : 'neon') : kind === 'window' ? (a ? a.window : 'space') : (a ? a.walls : 'current'); }
+  function cur(kind) { var a = window.__arcade; return kind === 'floor' ? (a ? a.floor : 'checkers') : kind === 'window' ? (a ? a.window : 'space') : (a ? a.walls : 'medieval'); }
   function pick(kind, v) { var U = window.__startUI; if (v === cur(kind)) return;
     if (tickets() < 1) { G.need++; showNote(true); return; }
     try { localStorage.setItem('neonarcade.tickets', String(tickets() - 1)); } catch (e) {} if (window.__neonSync) window.__neonSync(); G.spent++;

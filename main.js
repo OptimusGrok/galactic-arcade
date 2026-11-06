@@ -121,14 +121,14 @@ const ceil = new THREE.Mesh(new THREE.PlaneGeometry(HALF * 2, HALF * 2), new THR
 // wall UVs in wall space (the doorway wall is 3 merged panels: give them one continuous mapping)
 for (let i = 0; i < 4; i++) { const g = room.getObjectByName('wall' + i).geometry, P = g.attributes.position, U = g.attributes.uv;
   for (let k = 0; k < P.count; k++) U.setXY(k, (P.getX(k) + HALF) / (2 * HALF), (P.getY(k) + H / 2) / H); U.needsUpdate = true; }
-// ---------- room 1 walls option: current (default) or Viking rune panels (Options > WALLS) ----------
+// ---------- room 1 walls option: medieval gothic (default) or current neon / Viking / portals (Options > WALLS) ----------
 const WALLS_KEY = 'neonarcade.walls';
 // FAST LOAD (t229): windows.js (jungle/beach scenery) is fetched only when a JUNGLE/BEACH window is chosen or after the first frames;
 // until then `winds` is a stub that remembers the requested mode (space = nothing to draw).
 let winds = { stub: true, want: 'space', set(v) { this.want = v; if (v === 'jungle' || v === 'beach') loadWindows(); }, update() {} }; window.__windows = winds;
 let windsP = null;
 function loadWindows() { return windsP || (windsP = import('./windows.js').then(m => { const w = m.setupWindows({ THREE, room, room2, Z2, camera, HALF, H, DOOR_W, WX: 80 }); const want = winds.want; winds = w; window.__windows = w; w.set(want); return w; })); }
-let wallsMode = 'current', vikTex = null, wallBands = [], spaceWin = null;
+let wallsMode = 'medieval', vikTex = null, wallBands = [], spaceWin = null;
 // PORTALS walls (t187, Dave: 'a wall of big and small multi colour swirling portals that are moving with the colours changing'):
 // one cheap unlit procedural shader - two layers of hashed cells (big + small), each a spiral vortex that turns, drifts, pulses and cycles hue.
 // Brightness is capped (no near-white) for the flash test.
@@ -183,7 +183,10 @@ function setWalls(mode) {
 const WINDOW_KEY = 'neonarcade.window'; let windowMode = 'space';
 function setWindow(mode) { windowMode = mode === 'jungle' || mode === 'beach' ? mode : 'space'; winds.set(windowMode); try { localStorage.setItem(WINDOW_KEY, windowMode); } catch (e) {} return windowMode; }
 window.__setWindow = setWindow;
-try { const w0 = localStorage.getItem(WINDOW_KEY); if (w0) setWindow(w0); const w = localStorage.getItem(WALLS_KEY); if (w === 'windows') { setWalls('current'); setWindow('jungle'); } else if (w === 'viking' || w === 'portals' || w === 'medieval') setWalls(w); } catch (e) {}
+// Missing or unknown neonarcade.walls -> medieval. A saved current / viking / portals / medieval is kept. 'windows' stays the old jungle migration.
+let savedWalls; try { const w0 = localStorage.getItem(WINDOW_KEY); if (w0) setWindow(w0); savedWalls = localStorage.getItem(WALLS_KEY); } catch (e) { savedWalls = null; }
+if (savedWalls === 'windows') { setWalls('current'); setWindow('jungle'); }
+else setWalls(savedWalls === 'current' || savedWalls === 'viking' || savedWalls === 'portals' || savedWalls === 'medieval' ? savedWalls : 'medieval');
 window.__setWalls = setWalls;
 ceil.rotation.x = Math.PI / 2; ceil.position.y = H; room.add(ceil);
 // ceiling beam grid (dark industrial)
@@ -545,7 +548,7 @@ const dsCab = buildDeadSignalStation(); dsCab.rotation.y = Math.PI; room2.add(ds
   const g2 = new THREE.Mesh(g.geometry, m2); g2.position.set(-g.position.x, g.position.y, -g.position.z); g2.rotation.y = Math.PI; g2.name = 'spaceWindow'; room2.add(g2);   // same name: windows.js hides both for JUNGLE / BEACH
   for (const f of spaceWin.frame) { const f2 = new THREE.Mesh(f.geometry, f.material); f2.position.set(-f.position.x, f.position.y, -f.position.z); f2.rotation.y = Math.PI; f2.name = 'windowFrame2'; room2.add(f2); }
 }
-// ---------- room 1 floor option: neon reflective (default) or light-grey ARCADE character carpet (Options > FLOOR) ----------
+// ---------- room 1 floor option: black + gold CHECKERS (default) or neon / carpet / lava / cobble / ice (Options > FLOOR) ----------
 const FLOOR_KEY = 'neonarcade.floor';
 const carpetTex = new THREE.TextureLoader().load('tex/carpet.webp', () => spaceWin && floorMode === 'carpet' && spaceWin.dirty());
 carpetTex.colorSpace = THREE.SRGBColorSpace; carpetTex.wrapS = carpetTex.wrapT = THREE.RepeatWrapping;   // seamless tile (edge-cut figures removed): plain repeat, never mirrored (mirroring put copies head to head)
@@ -635,7 +638,7 @@ iceMat.emissive.setHex(0xffffff);
 const floorMats = { carpet: carpet.material, checkers: checkMat, lava: lavaMat, cobble: cobbleMat, ice: iceMat };
 for (const m of [carpet, carpet2]) m.onBeforeRender = () => { lavaU.uT.value = performance.now() / 1000 % 1000; };
 // with the carpet on, the reflector / hex overlay only cover the hallway (room 1 no longer pays for a mirror pass there)
-let floorMode = 'neon';
+let floorMode = 'checkers';
 function setFloor(mode) {
   floorMode = floorMats[mode] ? mode : 'neon'; const c = floorMode !== 'neon';
   if (c) carpet.material = carpet2.material = floorMats[floorMode];
@@ -646,8 +649,7 @@ function setFloor(mode) {
   try { localStorage.setItem(FLOOR_KEY, floorMode); } catch (e) {}
   return floorMode;
 }
-try { const f = localStorage.getItem(FLOOR_KEY); if (floorMats[f]) setFloor(f); } catch (e) {}
-window.__setFloor = setFloor;   // the start screen's Options menu calls this
+window.__setFloor = setFloor;   // the start screen's Options menu calls this. The saved/default floor is applied once tp exists (carpetWhite reads it; that binding is still in the temporal dead zone here).
 // pre-compile the CHECKERS / LAVA shaders a few seconds after load so the first tap on those tiles doesn't stall the phone
 setTimeout(() => { try { const m0 = carpet.material, v0 = carpet.visible; carpet.visible = true;
   for (const m of [checkMat, lavaMat, cobbleMat, iceMat]) if (m !== m0) { carpet.material = m; if (renderer.compileAsync) renderer.compileAsync(scene, camera).catch(() => {}); else renderer.compile(scene, camera); }
@@ -1359,6 +1361,8 @@ function arcadePause(on) { paused = on; if (!on && !rafOn) { rafOn = true; last 
 const play = setupPlay({ camera, monkey, dsCab, roadsterCab, strikeCab, ghostCab, berserkerCab, monkeyCab, orcCab, novaCab, cyberCab, blasterCab, pipCab, clawCab, bbCab, st, pause(on) { paused = on; if (!on && !rafOn) { rafOn = true; last = performance.now(); requestAnimationFrame(frame); } } });
 shield = setupShield({ scene, play, st, monkey, HALF, DOOR_W, DOOR_H });
 tp = setupTeleport({ scene, monkey, st, HALF, H, Z2 }); window.__tp = tp;
+// Missing or unknown neonarcade.floor -> checkers. A saved neon / carpet / checkers / lava / cobble / ice is kept (neon is not in floorMats).
+try { const f = localStorage.getItem(FLOOR_KEY); setFloor(f === 'neon' || floorMats[f] ? f : 'checkers'); } catch (e) {}
 // t282u: open floor spot near the usual spawn (0,0,5) with a small random offset (so simultaneous joiners don't overlap): not on a pad,
 // not inside a cabinet/collider (collide() must leave it unmoved), on the path when the floor is lava.
 function beamSpot() { const pads = [tp.PAD1, tp.PAD2].filter(Boolean), q = new THREE.Vector3();
