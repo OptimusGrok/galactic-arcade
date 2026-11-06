@@ -273,8 +273,8 @@ const hall = new THREE.Group(); hall.name = 'hallway'; scene.add(hall);
   const nc = new THREE.Mesh(mergeGeometries(topC), neon(C.cyan, 1.8)); nc.name = 'hallNeonTopCyan';
   hall.add(nb, nt, nc);
 }
-// t305u: closed LEVEL 2 steel doors in the hallway's east wall (the gap between room 1 and room 2); opening comes later (window.__level2Door)
-let l2door = null; import('./level2door.js').then(m => { l2door = m.setupLevel2Door({ THREE, parent: hall, mergeGeometries, x: DOOR_W / 2, z: -HALF - HALL_L / 2 }); if (!warm.done) renderer.compileAsync(l2door.group, camera, scene).catch(() => {}); }).catch(e => console.warn('level2door', e));
+// Closed LEVEL 2 steel doors across the hallway opening; frame front flush with room 1's north wall. Opening comes later (window.__level2Door).
+let l2door = null; import('./level2door.js').then(m => { l2door = m.setupLevel2Door({ THREE, parent: hall, mergeGeometries, x: 0, z: -HALF, width: DOOR_W, doorH: DOOR_H }); if (!warm.done) renderer.compileAsync(l2door.group, camera, scene).catch(() => {}); }).catch(e => console.warn('level2door', e));
 
 // real lights: only a handful
 scene.add(new THREE.HemisphereLight(0x3a2060, 0x080410, 0.35));
