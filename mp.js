@@ -110,6 +110,7 @@ body.ingame #mpPill,body.ingame #mpBar,body.ingame #mpChat,body.ingame #mpTags,b
     if (S && S.shown && !S.dismissed && !(tp && tp.beamIns)) return 'pre';   // t282u: still on the start screen before first Play: hidden for others
     if (tp && tp.state !== 'idle') return tp.state === 'remat' ? 'tpi' : tp.state === 'flash' ? 'tp' : 'tpo';
     if (play.mode !== 'walk' && play.cur) return (play.cur.key === 'roadster' || play.cur.key === 'deadsignal' ? 'seat:' : 'play:') + play.cur.key;
+    if (st.fly && st.fly.air) return 'fly';   // existing ~10 Hz position packet already carries y; 'fly' is just the pose tag
     if (st.jump) return 'jump'; return st.speed > 0.15 ? 'walk' : 'idle'; }
   const r2 = v => Math.round(v * 100) / 100;
   function snap() { const p = monkey.position; return { i: id, x: r2(p.x), y: r2(p.y), z: r2(p.z), r: Math.round(monkey.rotation.y * 100) / 100, m: roomOf(p), a: animOf(), gb: window.__minigolf && window.__minigolf.ballSnap ? window.__minigolf.ballSnap() : undefined }; }   // t275u gb: my golf ball while putting
@@ -247,9 +248,10 @@ body.ingame #mpPill,body.ingame #mpBar,body.ingame #mpChat,body.ingame #mpTags,b
       if (p.binT !== undefined) { if (p.s0 === undefined) p.s0 = g.scale.x; const u = Math.min(1, (now - p.binT) / 1500); if (u < 0.12) g.visible = false; const e = 1 - Math.pow(1 - u, 3); g.scale.set(p.s0 * (0.35 + 0.65 * e), p.s0 * e, p.s0 * (0.35 + 0.65 * e)); if (u >= 1) { g.scale.setScalar(p.s0); p.binT = undefined; } }   // t282u: scale/stretch in under the column
       if (ghost !== !!p.ghost) { p.ghost = ghost; g.traverse(o => { if (o.isMesh) { o.material.transparent = ghost; o.material.opacity = ghost ? 0.45 : 1; } }); }
       const sp = Math.hypot(c.x - ox, c.z - oz) / Math.max(dt, 1e-3), u = g.userData; p.phase += dt * (sp > 0.1 ? 3 + sp * 2.1 : 0);
-      if (u.legs) { const amp = Math.min(1, sp / 2.4) * 0.6, s = Math.sin(p.phase); u.legs[0].leg.rotation.x = s * amp; u.legs[1].leg.rotation.x = -s * amp;
-        if (u.arms) { u.arms[0].sh.rotation.x = -s * amp * 0.8; u.arms[1].sh.rotation.x = s * amp * 0.8; if (p.a === 'emo') {} } }
-      if (u.tail) { const tk = 0.15 + Math.min(1, sp / 2.4) * 0.35 + (p.a === 'jump' ? 0.4 : 0); u.tail.rotation.z = Math.sin(now / 625 + p.phase) * tk; const seat = /^seat:/.test(p.a); u.tail.visible = u.pack.visible = !seat; }
+      if (u.legs) { const fly = p.a === 'fly', amp = fly ? 0 : Math.min(1, sp / 2.4) * 0.6, s = Math.sin(p.phase);
+        u.legs[0].leg.rotation.x = fly ? 0.45 : s * amp; u.legs[1].leg.rotation.x = fly ? 0.45 : -s * amp;
+        if (u.arms) { u.arms[0].sh.rotation.x = fly ? -0.85 : -s * amp * 0.8; u.arms[1].sh.rotation.x = fly ? -0.85 : s * amp * 0.8; } }
+      if (u.tail) { const tk = 0.15 + Math.min(1, sp / 2.4) * 0.35 + (p.a === 'jump' || p.a === 'fly' ? 0.4 : 0); u.tail.rotation.z = Math.sin(now / 625 + p.phase) * tk; const seat = /^seat:/.test(p.a), backOn = !!(p.look && p.look.back && p.look.back !== 'none'); u.tail.visible = !seat; u.pack.visible = !seat && !backOn; }
       if (p.gb || p.ball) { if (!p.ball) { p.ball = new THREE.Mesh(new THREE.SphereGeometry(0.071, 12, 8), new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: 0x777777 })); p.ball.name = 'mpGolfBall'; scene.add(p.ball); }   // t275u: their mini golf ball
         p.ball.visible = !!p.gb && g.visible; if (p.gb) { if (!p.ball.userData.on) p.ball.position.fromArray(p.gb); else p.ball.position.lerp(GBV.fromArray(p.gb), k); } p.ball.userData.on = !!p.gb; }
       place(p.tag, g, p.top || 1.75); }

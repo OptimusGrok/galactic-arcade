@@ -837,11 +837,12 @@ monkey.position.set(0, 0, 5);
 
 // ---------- input ----------
 const keys = {};
-const st = { yaw: 0, pitch: 0.28, dist: 4.2, fp: false, vel: new THREE.Vector3(), face: Math.PI, phase: 0, speed: 0, play: 0, t: 0, joy: { x: 0, y: 0, on: false } };
+const st = { yaw: 0, pitch: 0.28, dist: 4.2, fp: false, vel: new THREE.Vector3(), face: Math.PI, phase: 0, speed: 0, play: 0, t: 0, joy: { x: 0, y: 0, on: false },
+  fly: { e: 1, air: false, thrust: false, hold: false, vy: 0, show: false, pct: -1, btn: false, fxOn: 0, fxG: null, fx: null } };
 monkey.rotation.y = st.face;
-addEventListener('keydown', e => { keys[e.code] = true; if (e.code === 'KeyV') toggleView(); if (e.code === 'KeyF') toggleFs(); if (/Arrow|Space/.test(e.code)) e.preventDefault(); if (e.code === 'Space' && !e.repeat) st.jumpReq = st.t; });
+addEventListener('keydown', e => { keys[e.code] = true; if (e.code === 'KeyV') toggleView(); if (e.code === 'KeyF') toggleFs(); if (/Arrow|Space/.test(e.code)) e.preventDefault(); if (e.code === 'Space' && !e.repeat && !jetpackEquipped()) st.jumpReq = st.t; });
 addEventListener('keyup', e => { keys[e.code] = false; });
-addEventListener('blur', () => { for (const k in keys) keys[k] = false; });
+addEventListener('blur', () => { for (const k in keys) keys[k] = false; st.fly.hold = false; });
 const cv = renderer.domElement;
 let mouseDrag = null;
 cv.addEventListener('mousedown', e => { mouseDrag = { x: e.clientX, y: e.clientY }; cv.focus(); });
@@ -1014,7 +1015,7 @@ function thud() { try { const ac = jumpAC = jumpAC || window.__unlockAC || new (
   const o = ac.createOscillator(), g = ac.createGain(), t = ac.currentTime; o.type = 'sine'; o.frequency.setValueAtTime(140, t); o.frequency.exponentialRampToValueAtTime(55, t + 0.12);
   g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.18, t + 0.01); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.16); o.connect(g).connect(ac.destination); o.start(t); o.stop(t + 0.18); } catch (e) {} }
 function canJump() { const S = window.__start, F = window.__floorBtn;
-  return !st.jump && !st.lavaFall && !st.seated && play.mode === 'walk' && !(tp && tp.locked) && !(shop && shop.open) && !(S && S.shown && !S.dismissed) && !(F && F.open) && !document.body.classList.contains('ingame'); }
+  return !st.jump && !st.fly.air && !st.lavaFall && !st.seated && play.mode === 'walk' && !(tp && tp.locked) && !(shop && shop.open) && !(S && S.shown && !S.dismissed) && !(F && F.open) && !document.body.classList.contains('ingame'); }
 const LAVA_FALL = 0.45, lavaFx = document.createElement('div'); lavaFx.id = 'lavaFx'; document.body.appendChild(lavaFx);
 let lavaAC = null;
 function sizzle() { try { const ac = lavaAC = lavaAC || window.__unlockAC || new (window.AudioContext || window.webkitAudioContext)(); if (window.__muted || (window.__mute && window.__mute.on)) return;
@@ -1031,11 +1032,115 @@ function lavaFallStep(dt) { const f = st.lavaFall; f.t += dt; const k = Math.min
   monkey.position.y = -0.95 * k * k; monkey.rotation.y = st.face;
   if (k >= 1) { const p = lavaRespawnPoint(f.x, f.z); monkey.position.set(p.x, 0, p.z); st.vel.set(0, 0, 0); st.lavaFall = null; st.lastRespawn = [p.x, p.z]; return false; }
   return true; }
+// JETPACK. The Accessories back item "jetpack" (player.js, 5 tickets, same id as the cosmetic pack) is the only one.
+// Hold the FLY button or Space. WASD and the left-side touch stick still steer. While it is equipped, Space flies instead of jumping;
+// a short tap on the right half of the screen still jumps from the ground. Tank size is 1.
+//   drain 0.22/s while thrusting            -> about 4.5 s of powered flight from full
+//   refill 0.28/s on the ground, pack on    -> about 3.6 s from empty. Nothing refills in the air, and taking it off does not refill.
+//   after empty, thrust waits for 0.08      -> about 0.3 s of ground time, so a tap cannot sip a new hop out of an empty tank
+//   climb 3.4 m/s; release or empty eases down at 2.4 m/s
+//   2.05 m of headroom: room ceiling 8.5 -> feet <= 6.45; hallway and its doorways 3.0 -> feet <= 0.95
+// Games, pool, menus, the start screen and a teleport put the feet back on the floor. Unequipping in the air just stops thrust and descends.
+const FLY = { drain: 0.22, fill: 0.28, min: 0.08, up: 3.4, down: 2.4, body: 2.05 };
+const FLY_MENUS = ['tview', 'homeQ', 'gOpt', 'kview', 'poolOv', 'opt'];
+const flyStyle = document.createElement('style');
+flyStyle.textContent = '#flyHud{position:fixed;right:max(12px,env(safe-area-inset-right));bottom:calc(max(12px,env(safe-area-inset-bottom)) + 158px);z-index:25;display:none;flex-direction:column;align-items:center;gap:5px;touch-action:none;user-select:none;-webkit-user-select:none}'
+  + '#flyHud.on{display:flex}#flyHud b{font:900 10px/1 "Courier New",monospace;letter-spacing:.14em;color:#ffe0b0;text-shadow:0 0 6px #ff8a1a}'
+  + '#flyMeter{width:74px;height:12px;border-radius:6px;border:2px solid #ffb060;background:#140804e6;overflow:hidden;box-shadow:0 0 8px #ff8a1a88}'
+  + '#flyMeter i{display:block;height:100%;width:100%;background:linear-gradient(90deg,#ff3b1a,#ffb020 55%,#ffe080);transform-origin:left center;transform:scaleX(1)}'
+  + '#flyMeter.low i{background:#ff3030}#bFly{width:74px;height:74px;border-radius:50%;border:3px solid #ffb020;background:radial-gradient(circle at 50% 42%,#4a2a08f2,#120804f2);color:#fff;font:900 16px/1 "Courier New",monospace;letter-spacing:.06em;text-shadow:0 0 8px #ff8a1a;box-shadow:0 0 14px #ff8a1a99,inset 0 0 12px #ff8a1a44;padding:0;cursor:pointer}'
+  + '#bFly.on{border-color:#fff6d0;background:radial-gradient(circle at 50% 42%,#ff9a2acc,#3a1404f2)}'
+  + '@media (pointer:fine){#bFly::after{content:"SPACE";display:block;margin-top:4px;font-size:9px;letter-spacing:.12em;color:#ffd098}}'
+  + 'body.ingame #flyHud{display:none!important}';
+document.head.appendChild(flyStyle);
+const flyHudEl = document.createElement('div'); flyHudEl.id = 'flyHud';
+flyHudEl.innerHTML = '<b>ENERGY</b><div id="flyMeter" title="Jetpack energy"><i></i></div><button id="bFly" type="button" title="Hold to fly. Space does the same.">FLY</button>';
+document.body.appendChild(flyHudEl);
+const flyMeterEl = flyHudEl.querySelector('#flyMeter'), flyBarEl = flyMeterEl.firstChild, bFly = flyHudEl.querySelector('#bFly');
+const flyStopEv = e => { e.stopPropagation(); if (e.cancelable) e.preventDefault(); };
+bFly.addEventListener('pointerdown', e => { flyStopEv(e); try { bFly.setPointerCapture(e.pointerId); } catch (err) {} st.fly.hold = true; });
+bFly.addEventListener('pointerup', e => { flyStopEv(e); st.fly.hold = false; });
+bFly.addEventListener('pointercancel', () => { st.fly.hold = false; });
+for (const ev of ['touchstart', 'touchend', 'mousedown', 'mouseup']) flyHudEl.addEventListener(ev, e => e.stopPropagation());
+addEventListener('galacticarcade:look', () => { st.fly.fxG = null; });
+function jetpackEquipped() { const g = window.__gaPlayer; return !!(g && g.p && g.p.back === 'jetpack'); }
+function flyBlocked() {
+  if (play.mode !== 'walk' || st.seated || st.lavaFall) return true;
+  if (tp && tp.locked) return true;
+  if (shop && shop.open) return true;
+  if (golf && golf.aiming) return true;
+  const S = window.__start; if (S && S.shown && !S.dismissed) return true;
+  const F = window.__floorBtn; if (F && F.open) return true;
+  if (window.__optsOpen || (window.__wardrobe && window.__wardrobe.isOpen) || (window.__inv && window.__inv.open) || (window.__pool && window.__pool.open) || document.body.classList.contains('ingame')) return true;
+  if (kiosk && kiosk.mode !== 'walk' && kiosk.mode !== 'pick') return true;
+  for (let i = 0; i < FLY_MENUS.length; i++) { const e = document.getElementById(FLY_MENUS[i]); if (e && e.classList.contains('on')) return true; }
+  return false;
+}
+function flyHud(on) { const f = st.fly; if (f.show === on) return; f.show = on; flyHudEl.classList.toggle('on', on); }
+function flyMeter(e) { const pct = (e * 100 + 0.5) | 0, f = st.fly; if (pct === f.pct) return; f.pct = pct; flyBarEl.style.transform = 'scaleX(' + (pct * 0.01) + ')'; flyMeterEl.classList.toggle('low', pct <= 18); }
+function flyBtn(on) { const f = st.fly; if (f.btn === on) return; f.btn = on; bFly.classList.toggle('on', on); }
+function flyFx(on) {
+  const f = st.fly; if (!on && !f.fxOn) return;
+  let g = f.fxG;
+  if (!g || !g.parent) { g = monkey.getObjectByName('gaBk_jetpack'); f.fxG = g || null; f.fx = [];
+    if (g) { const ch = g.children; for (let i = 0; i < ch.length; i++) if (ch[i].name === 'gaFlame') f.fx.push(ch[i]); } }
+  const fx = f.fx; if (!fx || !fx.length) { f.fxOn = 0; return; }
+  if (!on) { f.fxOn = 0; for (let i = 0; i < fx.length; i++) fx[i].scale.y = 1; return; }
+  f.fxOn = 1; const s = 1.55 + Math.sin(st.t * 26) * 0.2; for (let i = 0; i < fx.length; i++) fx[i].scale.y = s;
+}
+function flyGround() {
+  if (!(golf && golf.below)) return 0;
+  const y = monkey.position.y; golf.ground(monkey.position); const g = monkey.position.y; monkey.position.y = y; return g;
+}
+function flyCap(p) {
+  let cap = H - FLY.body;
+  if (inHallZ(p.z) && Math.abs(p.x) < DOOR_W / 2 + 0.45) cap = DOOR_H - FLY.body;
+  if (golf && golf.below) {
+    const hole = p.x >= golf.X0 - 0.15 && p.x <= golf.X1 + 0.05 && p.z >= golf.Z0 && p.z <= golf.Z1;
+    if (!hole) cap = Math.min(cap, golf.CEIL - FLY.body);
+  }
+  return cap;
+}
+function blockDoorHead(p, pz) {
+  if (p.y <= DOOR_H - FLY.body) return;
+  if (Math.abs(p.x) > DOOR_W / 2 + R) return;
+  const zA = -HALF, zB = -HALF - HALL_L;
+  if (pz >= zA - 0.02 && p.z < zA) p.z = zA;
+  else if (pz <= zB + 0.02 && p.z > zB) p.z = zB;
+  else if (p.z < zA && p.z > zB && (pz >= zA || pz <= zB)) p.z = pz >= (zA + zB) * 0.5 ? zA : zB;
+}
+function flyCut() {
+  const f = st.fly; f.hold = false; f.thrust = false; f.vy = 0;
+  if (f.air) { f.air = false; st.jump = null; monkey.position.y = flyGround(); }
+  flyHud(false); flyBtn(false); flyFx(0);
+}
+function flyGuard() { const f = st.fly; if (!f.air && !f.thrust && !f.hold && !f.show) return; if (flyBlocked()) flyCut(); }
+function flyIntegrate(dt) {
+  const f = st.fly, equipped = jetpackEquipped();
+  if (!equipped && !f.air && !f.hold && !f.thrust && !f.show) return false;
+  if (flyBlocked()) { flyCut(); return false; }
+  if (!equipped && !f.air) { f.thrust = false; f.vy = 0; flyHud(false); flyBtn(false); flyFx(0); return false; }
+  const gy = flyGround(), request = equipped && !!(f.hold || keys.Space), canStart = f.air || f.e >= FLY.min;
+  if (request && canStart && f.e > 0) f.e = Math.max(0, f.e - FLY.drain * dt);
+  const powered = request && canStart && f.e > 0;
+  if (powered && st.jump) st.jump = null;
+  if (!powered && !f.air) {
+    f.thrust = false; f.vy = 0;
+    if (!st.jump && monkey.position.y <= gy + 0.02) { if (monkey.position.y < gy) monkey.position.y = gy; if (equipped) f.e = Math.min(1, f.e + FLY.fill * dt); }
+    flyHud(equipped); flyMeter(f.e); flyBtn(false); flyFx(0); return false;
+  }
+  f.vy += ( (powered ? FLY.up : -FLY.down) - f.vy) * (1 - Math.exp(-dt * (powered ? 9 : 5)));
+  monkey.position.y += f.vy * dt;
+  const cap = flyCap(monkey.position);
+  if (monkey.position.y > cap) { monkey.position.y = cap; if (f.vy > 0) f.vy = 0; }
+  if (monkey.position.y <= gy) { monkey.position.y = gy; f.vy = 0; f.air = false; f.thrust = false; flyHud(equipped); flyMeter(f.e); flyBtn(false); flyFx(0); return false; }
+  f.air = true; f.thrust = powered; flyHud(equipped); flyMeter(f.e); flyBtn(powered); flyFx(powered ? 1 : 0); return true;
+}
 let nearCab = null;
 const ICE_SLIP = 3.2, ICE_COAST = 4.6;   // m/s (run 5.2, walk 2.4)
 function step(dt) {
   st.t += dt;
-  if (st.lavaFall && lavaFallStep(dt)) return;   // LAVA floor: sinking into the lava, then back on the nearest path
+  if (st.lavaFall) { const f = st.fly; if (f.air || f.thrust || f.hold || f.show) { f.air = false; f.thrust = false; f.hold = false; f.vy = 0; flyHud(false); flyBtn(false); flyFx(0); } if (lavaFallStep(dt)) return; }   // LAVA floor: sinking into the lava, then back on the nearest path
   let ix = (keys.KeyD || keys.ArrowRight ? 1 : 0) - (keys.KeyA || keys.ArrowLeft ? 1 : 0);
   let iz = (keys.KeyS || keys.ArrowDown ? 1 : 0) - (keys.KeyW || keys.ArrowUp ? 1 : 0);
   let mag = Math.min(1, Math.hypot(ix, iz)); if (mag) { ix /= Math.hypot(ix, iz); iz /= Math.hypot(ix, iz) || 1; }
@@ -1051,9 +1156,9 @@ function step(dt) {
   const n = Math.hypot(wx, wz) || 1;
   const vmax = (run ? 5.2 : 2.4) * mag;
   const tv = tmp.set(wx / n * vmax, 0, wz / n * vmax);
-  if (st.jump) st.vel.set(st.jump.vx, 0, st.jump.vz).lerp(tmp.set(tv.x, 0, tv.z), 0.08);   // mid-air: carry the run-up, only a touch of steering
+  if (st.jump && !st.fly.air) st.vel.set(st.jump.vx, 0, st.jump.vz).lerp(tmp.set(tv.x, 0, tv.z), 0.08);   // mid-air: carry the run-up, only a touch of steering
   else {   // ICE (t260): above ~62% of run speed you lose grip and slide/drift (low friction) until you slow under 1.2 m/s; slow walking stays grippy
-    const onIce = floorMode === 'ice' && !st.seated && play.mode === 'walk' && !(shop && shop.open) && !(tp && tp.locked);
+    const onIce = floorMode === 'ice' && !st.fly.air && !st.seated && play.mode === 'walk' && !(shop && shop.open) && !(tp && tp.locked);
     if (!onIce) st.iceSlide = false; else { const sp = Math.hypot(st.vel.x, st.vel.z); if (sp > ICE_SLIP) { if (!st.iceSlide) st.iceSlides = (st.iceSlides || 0) + 1; st.iceSlide = true; } else if (sp < 1.2) st.iceSlide = false; }
     st.iceCoast = !!st.iceSlide && mag < 0.01;   // let go at speed: glide ~1 m with legs still (t262)
     st.vel.lerp(tv, 1 - Math.exp(-dt * (st.iceCoast ? ICE_COAST : st.iceSlide ? 2.5 : 10)));
@@ -1061,10 +1166,12 @@ function step(dt) {
   const px0 = monkey.position.x, pz0 = monkey.position.z;
   monkey.position.addScaledVector(st.vel, dt); collide(monkey.position);
   if (st.iceSlide && dt > 0) { st.vel.x = (monkey.position.x - px0) / dt; st.vel.z = (monkey.position.z - pz0) / dt; }   // a wall / cabinet soaks up the slide instead of pinning you against it
-  if (st.jump) { const J = st.jump; J.t += dt; J.vx = st.vel.x; J.vz = st.vel.z; const k = Math.min(1, J.t / JUMP_T); monkey.position.y = 4 * JUMP_H * k * (1 - k); st.airMax = Math.max(st.airMax || 0, monkey.position.y);
+  blockDoorHead(monkey.position, pz0);
+  const flyOwns = flyIntegrate(dt);
+  if (!flyOwns && st.jump) { const J = st.jump; J.t += dt; J.vx = st.vel.x; J.vz = st.vel.z; const k = Math.min(1, J.t / JUMP_T); monkey.position.y = 4 * JUMP_H * k * (1 - k); st.airMax = Math.max(st.airMax || 0, monkey.position.y);
     if (k >= 1) { monkey.position.y = 0; st.jump = null; st.landT = st.t; st.lands = (st.lands || 0) + 1; thud(); } }
-  if (golf && !st.jump) { if (golf.below) golf.ground(monkey.position); else if (monkey.position.y < 0) monkey.position.y = 0; }   // down the mini golf stairs
-  if (!st.jump && floorMode === 'lava' && !st.seated && !st.lavaFall && !(golf && golf.below) && play.mode === 'walk' && !(tp && tp.locked) && !(shop && shop.open) && !LAVA.onPath(monkey.position.x, monkey.position.z)) lavaFallStart();
+  if (!flyOwns && golf && !st.jump) { if (golf.below) golf.ground(monkey.position); else if (monkey.position.y < 0) monkey.position.y = 0; }   // down the mini golf stairs
+  if (!flyOwns && !st.jump && floorMode === 'lava' && !st.seated && !st.lavaFall && !(golf && golf.below) && play.mode === 'walk' && !(tp && tp.locked) && !(shop && shop.open) && !LAVA.onPath(monkey.position.x, monkey.position.z)) lavaFallStart();
   st.speed = Math.hypot(st.vel.x, st.vel.z);
   if (st.speed > 0.15) { const target = Math.atan2(st.vel.x, st.vel.z); let d = target - st.face; d = Math.atan2(Math.sin(d), Math.cos(d)); st.face += d * (1 - Math.exp(-dt * 12)); }
   monkey.rotation.y = st.face;
@@ -1115,7 +1222,8 @@ function animateMonkey(dt) {
   u.legs[0].knee.rotation.x = Math.max(0, -c) * amp * 1.3 + P * 0.25; u.legs[1].knee.rotation.x = Math.max(0, c) * amp * 1.3 + P * 0.25;
   u.legs[0].leg.rotation.x -= P * 0.2; u.legs[1].leg.rotation.x += P * 0.05;
   if (u.tail) { const k = 0.15 + sw * 0.35 + (st.jump ? 0.4 : 0); u.tail.rotation.z = Math.sin(t * 1.6 + (sp > 0.05 ? st.phase : 0)) * k; u.tail.rotation.x = (st.jump ? -0.35 : 0) + Math.sin(t * 1.1) * 0.06;
-    const seat = !!st.seated; u.pack.visible = !seat; u.tail.visible = !seat; }   // seated in the Roadster: pack + tail tucked away so they don't clip the seat
+    const seat = !!st.seated, gp = window.__gaPlayer, backOn = !!(gp && gp.p && gp.p.back && gp.p.back !== 'none');
+    u.pack.visible = !seat && !backOn; u.tail.visible = !seat; }   // a worn back item replaces the backpack; seated in the Roadster tucks pack + tail away
   u.torso.rotation.x = 0.06 + runK * 0.22 + P * 0.38 - (coast ? 0.12 : 0); u.torso.rotation.y = s * 0.1 * sw;
   u.neck.rotation.x = -u.torso.rotation.x * 0.6; u.head.rotation.y = Math.sin(t * 0.7) * 0.15 * (1 - sw);
   for (const a of u.arms) {
@@ -1132,6 +1240,13 @@ function animateMonkey(dt) {
     u.arms.forEach(a => { a.sh.rotation.x = -2.2 * tuck - 0.3 * sq; a.sh.rotation.z = 0.35 * a.sd * tuck; a.el.rotation.x = -0.4 * tuck; });
     u.hips.position.y = 0.8 - 0.12 * sq; u.torso.rotation.x = 0.15 * tuck + 0.25 * sq; }
   idlePose(dt, u, sw);
+  if (st.fly.air && !st.jump) {   // hover: knees up, arms out; the pack's own flames lengthen while thrust is on
+    const lift = st.fly.thrust ? 1 : 0.65;
+    u.hips.position.y = 0.8 + Math.sin(st.t * 8) * 0.02 * lift;
+    for (let i = 0; i < u.legs.length; i++) { u.legs[i].leg.rotation.x = 0.5 * lift; u.legs[i].knee.rotation.x = 0.8 * lift; }
+    for (let i = 0; i < u.arms.length; i++) { const a = u.arms[i]; a.sh.rotation.x = -0.8 * lift; a.sh.rotation.z = 0.26 * a.sd; a.el.rotation.x = -0.3; }
+    u.torso.rotation.x = 0.16 * lift;
+  }
 }
 
 // ---------- idle: 5 s still -> hands in jacket pockets (+ breathing); 10 s -> phone out, scrolling a generic dark feed ----------
@@ -1152,7 +1267,7 @@ function drawFeed(u) {   // placeholder X-style feed: grey/white blocks only, no
   u.ptex.needsUpdate = true; }
 function idlePose(dt, u, sw) {
   const L = THREE.MathUtils.lerp, busy = st.play > 0.3 || (window.__inv && window.__inv.open) || window.__optsOpen || document.getElementById('start') && !(window.__start && window.__start.dismissed);
-  const moving = (st.inMag || 0) > 0.01 || st.speed > 0.15 || busy || st.t - (st.lastStep || 0) > 0.2;
+  const moving = (st.inMag || 0) > 0.01 || st.speed > 0.15 || busy || st.t - (st.lastStep || 0) > 0.2 || st.fly.air;
   if (moving) { if (idle.t > 0.5) idle.moves++; idle.t = 0; } else idle.t += dt * (window.__idleTimeScale || 1);   // tests may speed the idle clock up (slow software GL)
   idle.state = idle.t >= 10 ? 'phone' : idle.t >= 5 ? 'pockets' : 'none';
   const wantP = idle.state === 'none' ? 0 : 1, wantF = idle.state === 'phone' ? 1 : 0, rate = moving ? 12 : 2.4;
@@ -1206,7 +1321,7 @@ function frame(now) {
   const gap = Math.max(0, Math.min(100, now - last)); last = now;   // rAF time can be a hair before a resume timestamp
   if (paused) { rafOn = false; return; }   // full-screen game running: arcade render loop stopped
   const t0 = performance.now();
-  { const dtc = Math.min(gap / 1000, 0.05); if (play.update(dtc, kiosk && kiosk.mode !== 'walk' && kiosk.mode !== 'pick' ? null : nearCab) || (kiosk && kiosk.update(dtc))) stepClock(dtc); else step(dtc); }
+  { const dtc = Math.min(gap / 1000, 0.05); if (play.update(dtc, kiosk && kiosk.mode !== 'walk' && kiosk.mode !== 'pick' ? null : nearCab) || (kiosk && kiosk.update(dtc))) { flyGuard(); stepClock(dtc); } else step(dtc); }
   shield.update(Math.min(gap / 1000, 0.05));
   if (golf) { golf.update(Math.min(gap / 1000, 0.05)); golf.cam(camera, Math.min(gap / 1000, 0.05)); }   // t275u: putting camera
   bloom.strength = camera.position.x > WX / 2 ? 0.12 : 0.75;   // white room: no glare
@@ -1273,7 +1388,7 @@ const opts = setupOpts({ play, kiosk, shield, st, monkey, setFloor, getFloor: ()
 requestAnimationFrame(frame);
 
 // hooks for tests / future art work
-window.__arcade = { animateMonkey: dt => animateMonkey(dt), get window() { return windowMode; }, setWindow, get jumping() { return !!st.jump; }, canJump, LAVA, lavaRespawnPoint, get spaceWin() { return spaceWin; }, get kiosk() { return kiosk; }, setFloor, get floor() { return floorMode; }, setWalls, get walls() { return wallsMode; }, wallMat, carpet, mirror, shield, room, room2, Z2, hall, DOOR_W, DOOR_H, HALL_L, berserkerCab, monkeyCab, orcCab, cyberCab, novaCab, blasterCab, pipCab, clawCab, bbCab, roadsterCab, dsCab, play, get paused() { return paused; }, THREE, scene, camera, renderer, monkey, cabinets, strikeCab, ghostCab, featured, demo, ghostDemo, playables, blockers, st, stats, step, keys, get nearCab() { return nearCab; }, setArt: (i, part, tex, glow) => cabinets[i].userData.setArt(part, tex, glow) };
+window.__arcade = { animateMonkey: dt => animateMonkey(dt), get window() { return windowMode; }, setWindow, get jumping() { return !!st.jump; }, canJump, LAVA, lavaRespawnPoint, get spaceWin() { return spaceWin; }, get kiosk() { return kiosk; }, setFloor, get floor() { return floorMode; }, setWalls, get walls() { return wallsMode; }, wallMat, carpet, mirror, shield, room, room2, Z2, hall, DOOR_W, DOOR_H, HALL_L, berserkerCab, monkeyCab, orcCab, cyberCab, novaCab, blasterCab, pipCab, clawCab, bbCab, roadsterCab, dsCab, play, get paused() { return paused; }, simPause: arcadePause, flyCfg: FLY, jetpackOn: jetpackEquipped, THREE, scene, camera, renderer, monkey, cabinets, strikeCab, ghostCab, featured, demo, ghostDemo, playables, blockers, st, stats, step, keys, get nearCab() { return nearCab; }, setArt: (i, part, tex, glow) => cabinets[i].userData.setArt(part, tex, glow) };
 const mp = setupMP({ scene, camera, monkey, makeMonkey, st, play, getTp: () => tp, HALF, Z2, HALL_L, WX: 80 }); window.__arcade.mp = mp;   // multiplayer step 1: public room, 10 players
 // after the first room frames: pull in the shop, then the window scenery, off the critical path
 { const idle = f => (window.requestIdleCallback ? requestIdleCallback(f, { timeout: 1500 }) : setTimeout(f, 200));
