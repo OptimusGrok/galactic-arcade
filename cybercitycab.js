@@ -17,6 +17,7 @@ function circuitTex() {   // flat printed ink on dark purple laminate: lit by th
 function attract(W, H) {   // street walk -> battle flash loop in Cybercity's palette
   const c = document.createElement('canvas'); c.width = W; c.height = H; const g = c.getContext('2d');
   const tex = new THREE.CanvasTexture(c); tex.colorSpace = THREE.SRGBColorSpace;
+  const visit = { on: false };
   const T = 20;
   function draw(t) {
     const ph = t % 12, battle = ph > 7;
@@ -41,10 +42,10 @@ function attract(W, H) {   // street walk -> battle flash loop in Cybercity's pa
     }
     g.fillStyle = '#000a'; g.fillRect(0, 0, W, 46); g.textAlign = 'center'; g.font = '900 30px "Courier New", monospace';
     g.fillStyle = '#ff3fd0'; g.fillText('CYBER', W / 2 - 50, 34); g.fillStyle = '#3ff0ff'; g.fillText('CITY', W / 2 + 62, 34);
-    if (Math.floor(t * 2) % 2 === 0) { g.font = 'bold 20px "Courier New", monospace'; g.fillStyle = '#000a'; g.fillRect(W / 2 - 104, H / 2 - 18, 208, 32); g.fillStyle = '#ffb02a'; g.fillText('INSERT CREDIT', W / 2, H / 2 + 5); }
+    if (!visit.on && Math.floor(t * 2) % 2 === 0) { g.font = 'bold 20px "Courier New", monospace'; g.fillStyle = '#000a'; g.fillRect(W / 2 - 104, H / 2 - 18, 208, 32); g.fillStyle = '#ffb02a'; g.fillText('INSERT CREDIT', W / 2, H / 2 + 5); }
     tex.needsUpdate = true;
   }
-  draw(0); return { tex, draw };
+  draw(0); return { tex, draw, visit };
 }
 export function buildCyberCabinet() {
   const g = new THREE.Group(); g.name = 'cyberCabinet';
@@ -81,6 +82,6 @@ export function buildCyberCabinet() {
   for (const z of [-0.05, 0.05]) door.add(new THREE.Mesh(new THREE.BoxGeometry(0.022, 0.06, 0.04).translate(0.006, 0.06, z), slot));
   for (const z of [-0.05, 0.05]) door.add(new THREE.Mesh(new THREE.BoxGeometry(0.02, 0.05, 0.04).translate(0.006, -0.07, z), new THREE.MeshStandardMaterial({ color: 0x050505, roughness: 0.6 })));
   const glow = new THREE.PointLight(0xd070ff, 0.5, 2.4, 1.6); glow.name = 'screenGlow'; glow.position.set(sf.mid[0] + sf.n.x * 0.45, sf.mid[1] - 0.15, 0); g.add(glow);
-  g.userData = { screen: g.getObjectByName('screen'), glow, tick: at.draw, aspect: sw / sh };
+  g.userData = { screen: g.getObjectByName('screen'), glow, tick: at.draw, visit: at.visit, aspect: sw / sh };
   return g;
 }

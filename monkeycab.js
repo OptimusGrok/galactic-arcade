@@ -8,6 +8,7 @@ const load = (url, flip) => { const t = L.load(url); t.colorSpace = THREE.SRGBCo
 function attract() {
   const c = document.createElement('canvas'); c.width = 270; c.height = 480; const g = c.getContext('2d');
   const tex = new THREE.CanvasTexture(c); tex.colorSpace = THREE.SRGBColorSpace;
+  const visit = { on: false };
   const lanes = ['grass', 'road', 'road', 'grass', 'river', 'river', 'grass', 'rail', 'grass', 'road', 'road', 'grass'];
   function draw(t) {
     const lh = 40, scroll = (t * 18) % lh;
@@ -24,10 +25,10 @@ function attract() {
     g.beginPath(); g.arc(mx - 10, my - 18, 4, 0, 7); g.arc(mx + 10, my - 18, 4, 0, 7); g.fill();
     g.fillStyle = '#0008'; g.fillRect(0, 0, 270, 92); g.textAlign = 'center';
     g.font = '900 30px "Arial Black", Arial, sans-serif'; g.fillStyle = '#ff6a3a'; g.fillText('MONKEY', 135, 40); g.fillStyle = '#ffd23a'; g.fillText('CROSSING', 135, 76);
-    if (Math.floor(t * 2) % 2 === 0) { g.font = 'bold 22px "Courier New", monospace'; g.fillStyle = '#000a'; g.fillRect(28, 432, 214, 34); g.fillStyle = '#ffe14a'; g.fillText('INSERT CREDIT', 135, 456); }
+    if (!visit.on && Math.floor(t * 2) % 2 === 0) { g.font = 'bold 22px "Courier New", monospace'; g.fillStyle = '#000a'; g.fillRect(28, 432, 214, 34); g.fillStyle = '#ffe14a'; g.fillText('INSERT CREDIT', 135, 456); }
     tex.needsUpdate = true;
   }
-  draw(0); return { tex, draw };
+  draw(0); return { tex, draw, visit };
 }
 export function buildMonkeyCabinet() {
   const g = new THREE.Group(); g.name = 'monkeyCabinet';
@@ -59,6 +60,6 @@ export function buildMonkeyCabinet() {
   const slot = new THREE.MeshStandardMaterial({ color: 0x402808, emissive: 0xffa020, emissiveIntensity: 1.4 });
   for (const z of [-0.05, 0.05]) door.add(new THREE.Mesh(new THREE.BoxGeometry(0.022, 0.05, 0.03).translate(0.006, 0.07, z), slot));
   const glow = new THREE.PointLight(0x9fff80, 0.6, 2.6, 1.6); glow.name = 'screenGlow'; glow.position.set(sf.mid[0] + sf.n.x * 0.45, sf.mid[1] - 0.15, 0); g.add(glow);
-  g.userData = { screen: g.getObjectByName('screen'), glow, tick: at.draw };
+  g.userData = { screen: g.getObjectByName('screen'), glow, tick: at.draw, visit: at.visit };
   return g;
 }

@@ -14,6 +14,7 @@ function navyTex() {   // brushed, slightly worn navy paint
 function attract(W, H) {
   const c = document.createElement('canvas'); c.width = W; c.height = H; const g = c.getContext('2d');
   const tex = new THREE.CanvasTexture(c); tex.colorSpace = THREE.SRGBColorSpace;
+  const visit = { on: false };
   const stars = Array.from({ length: 70 }, (_, i) => [Math.random() * W, Math.random() * H, 0.4 + (i % 3) * 0.5]);
   function draw(t) {
     const bg = g.createLinearGradient(0, 0, 0, H); bg.addColorStop(0, '#07081f'); bg.addColorStop(0.6, '#1a0f3a'); bg.addColorStop(1, '#2a0c3a'); g.fillStyle = bg; g.fillRect(0, 0, W, H);
@@ -30,10 +31,10 @@ function attract(W, H) {
     g.fillStyle = '#0009'; g.fillRect(0, 0, W, 22); g.font = 'bold 13px "Courier New", monospace'; g.textAlign = 'left'; g.fillStyle = '#f4f1ff';
     g.fillText('SCORE ' + String(Math.floor(t * 137) % 1000000).padStart(6, '0'), 6, 15); g.textAlign = 'right'; g.fillStyle = '#ffd23f'; g.fillText('HI 120500', W - 6, 15);
     g.textAlign = 'center'; g.font = '900 30px "Courier New", monospace'; g.fillStyle = '#1a0a30'; g.fillText('NOVA TETHER', W / 2 + 2, H * 0.3 + 2); g.fillStyle = '#ff2e88'; g.fillText('NOVA TETHER', W / 2, H * 0.3);
-    if (Math.floor(t * 2) % 2 === 0) { g.font = 'bold 20px "Courier New", monospace'; g.fillStyle = '#000a'; g.fillRect(W / 2 - 100, H - 40, 200, 30); g.fillStyle = '#ffe14a'; g.fillText('INSERT CREDIT', W / 2, H - 18); }
+    if (!visit.on && Math.floor(t * 2) % 2 === 0) { g.font = 'bold 20px "Courier New", monospace'; g.fillStyle = '#000a'; g.fillRect(W / 2 - 100, H - 40, 200, 30); g.fillStyle = '#ffe14a'; g.fillText('INSERT CREDIT', W / 2, H - 18); }
     tex.needsUpdate = true;
   }
-  draw(0); return { tex, draw };
+  draw(0); return { tex, draw, visit };
 }
 export function buildNovaCabinet() {
   const g = new THREE.Group(); g.name = 'novaCabinet';
@@ -74,6 +75,6 @@ export function buildNovaCabinet() {
   for (const z of [-0.05, 0.05]) door.add(new THREE.Mesh(new THREE.BoxGeometry(0.022, 0.06, 0.04).translate(0.006, 0.08, z), slot));
   for (const z of [-0.05, 0.05]) door.add(new THREE.Mesh(new THREE.BoxGeometry(0.02, 0.05, 0.04).translate(0.006, -0.06, z), new THREE.MeshStandardMaterial({ color: 0x050505, roughness: 0.6 })));
   const glow = new THREE.PointLight(0x8a7cff, 0.5, 2.4, 1.6); glow.name = 'screenGlow'; glow.position.set(sf.mid[0] + sf.n.x * 0.45, sf.mid[1] - 0.15, 0); g.add(glow);
-  g.userData = { screen: g.getObjectByName('screen'), glow, tick: at.draw, aspect: sw / sh };
+  g.userData = { screen: g.getObjectByName('screen'), glow, tick: at.draw, visit: at.visit, aspect: sw / sh };
   return g;
 }

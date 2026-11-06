@@ -6,6 +6,7 @@ const load = (url, flip) => { const t = L.load(url); t.colorSpace = THREE.SRGBCo
 function screenTexture() {   // attract loop: the game's title art, INSERT CREDIT, 5 TICKETS TO PLAY
   const c = document.createElement('canvas'); c.width = 270; c.height = 480; const g = c.getContext('2d');
   const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace;
+  const visit = { on: false };
   const img = new Image(); img.src = 'img/bz_title.jpg'; img.onload = () => draw(0);
   function draw(time) {
     const bg = g.createRadialGradient(135, 220, 20, 135, 240, 300); bg.addColorStop(0, '#2a0a06'); bg.addColorStop(1, '#050203'); g.fillStyle = bg; g.fillRect(0, 0, 270, 480);
@@ -13,11 +14,11 @@ function screenTexture() {   // attract loop: the game's title art, INSERT CREDI
       g.save(); g.translate(135, 240); g.scale(k, k); g.drawImage(img, -w / 2, -h / 2, w, h); g.restore(); g.fillStyle = '#0006'; g.fillRect(0, 0, 270, 480); }
     g.textAlign = 'center'; g.fillStyle = '#ff3a1a'; g.shadowColor = '#ff2000'; g.shadowBlur = 14; g.font = 'bold 36px Georgia, serif'; g.fillText('BERSERKER', 135, 150);
     g.shadowBlur = 0; g.fillStyle = '#c89a3a'; g.font = '14px Georgia, serif'; g.fillText('\u16D2 \u16D6 \u16B1 \u16CA \u16D6 \u16B1 \u16B2 \u16D6 \u16B1', 135, 178);
-    if (Math.floor(time * 2) % 2 === 0) { g.fillStyle = '#000a'; g.fillRect(30, 352, 210, 34); g.fillStyle = '#ffd27a'; g.font = 'bold 22px "Courier New", monospace'; g.fillText('INSERT CREDIT', 135, 376); }
-    g.fillStyle = '#000a'; g.fillRect(20, 400, 230, 30); g.fillStyle = '#ffe08a'; g.font = 'bold 17px "Courier New", monospace'; g.fillText('5 TICKETS TO PLAY', 135, 421);
+    if (!visit.on && Math.floor(time * 2) % 2 === 0) { g.fillStyle = '#000a'; g.fillRect(30, 352, 210, 34); g.fillStyle = '#ffd27a'; g.font = 'bold 22px "Courier New", monospace'; g.fillText('INSERT CREDIT', 135, 376); }
+    if (!visit.on) { g.fillStyle = '#000a'; g.fillRect(20, 400, 230, 30); g.fillStyle = '#ffe08a'; g.font = 'bold 17px "Courier New", monospace'; g.fillText('5 TICKETS TO PLAY', 135, 421); }
     t.needsUpdate = true;
   }
-  draw(0); return { t, draw };
+  draw(0); return { t, draw, visit };
 }
 export function buildBerserkerCabinet() {
   const g = new THREE.Group(); g.name = 'berserkerCabinet';
@@ -53,6 +54,6 @@ export function buildBerserkerCabinet() {
   const slot = new THREE.MeshStandardMaterial({ color: 0x400808, emissive: 0xff2010, emissiveIntensity: 1.5 });
   for (const z of [-0.05, 0.05]) door.add(new THREE.Mesh(new THREE.BoxGeometry(0.022, 0.05, 0.03).translate(0.006, 0.07, z), slot));
   const glow = new THREE.PointLight(0xff8060, 0.6, 2.6, 1.6); glow.name = 'screenGlow'; glow.position.set(sf.mid[0] + sf.n.x * 0.45, sf.mid[1] - 0.15, 0); g.add(glow);
-  g.userData = { screen: g.getObjectByName('screen'), glow, tick: sc.draw };
+  g.userData = { screen: g.getObjectByName('screen'), glow, tick: sc.draw, visit: sc.visit };
   return g;
 }

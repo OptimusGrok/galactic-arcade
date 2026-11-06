@@ -14,6 +14,7 @@ const pxc = (g, rows, x, y, s) => rows.forEach((r, j) => { for (let i = 0; i < r
 function attract(W, H) {
   const c = document.createElement('canvas'); c.width = W; c.height = H; const g = c.getContext('2d');
   const tex = new THREE.CanvasTexture(c); tex.colorSpace = THREE.SRGBColorSpace;
+  const visit = { on: false };
   function draw(t) {
     const sky = g.createLinearGradient(0, 0, 0, H); sky.addColorStop(0, '#3a8cff'); sky.addColorStop(1, '#a8dcff'); g.fillStyle = sky; g.fillRect(0, 0, W, H);
     g.fillStyle = '#fff'; for (let i = 0; i < 4; i++) { const x = ((i * 97 - t * 12) % (W + 60) + W + 60) % (W + 60) - 30; g.beginPath(); g.ellipse(x, 30 + (i % 2) * 22, 22, 8, 0, 0, 7); g.fill(); }
@@ -24,10 +25,10 @@ function attract(W, H) {
     g.textAlign = 'center'; g.font = 'bold 26px "Courier New", monospace'; g.lineWidth = 5; g.strokeStyle = '#5a1a08';
     g.strokeText('SUPER PIP QUEST', W / 2, 60); g.fillStyle = '#ffb21a'; g.fillText('SUPER PIP QUEST', W / 2, 60);
     g.font = 'bold 11px "Courier New", monospace'; g.fillStyle = '#fff'; g.fillText('THE QUEST FOR THE SUN CROWN', W / 2, 78);
-    if (Math.floor(t * 2) % 2 === 0) { g.font = 'bold 20px "Courier New", monospace'; g.fillStyle = '#000a'; g.fillRect(W / 2 - 100, H / 2 - 4, 200, 30); g.fillStyle = '#ffe14a'; g.fillText('INSERT CREDIT', W / 2, H / 2 + 18); }
+    if (!visit.on && Math.floor(t * 2) % 2 === 0) { g.font = 'bold 20px "Courier New", monospace'; g.fillStyle = '#000a'; g.fillRect(W / 2 - 100, H / 2 - 4, 200, 30); g.fillStyle = '#ffe14a'; g.fillText('INSERT CREDIT', W / 2, H / 2 + 18); }
     tex.needsUpdate = true;
   }
-  draw(0); return { tex, draw };
+  draw(0); return { tex, draw, visit };
 }
 export function buildPipCabinet() {
   const g = new THREE.Group(); g.name = 'pipCabinet';
@@ -67,6 +68,6 @@ export function buildPipCabinet() {
     c.strokeText('INSERT', w / 2, 56); c.strokeText('COIN', w / 2, 112); c.fillStyle = '#ffb21a'; c.fillText('INSERT', w / 2, 56); c.fillText('COIN', w / 2, 112); });
   door.add(new THREE.Mesh(new THREE.PlaneGeometry(0.24, 0.12).rotateY(Math.PI / 2).translate(0.009, -0.07, 0), new THREE.MeshStandardMaterial({ map: plate, roughness: 0.4, metalness: 0.4 })));
   const glow = new THREE.PointLight(0x80c0ff, 0.5, 2.4, 1.6); glow.name = 'screenGlow'; glow.position.set(sf.mid[0] + sf.n.x * 0.45, sf.mid[1] - 0.15, 0); g.add(glow);
-  g.userData = { screen: g.getObjectByName('screen'), glow, tick: at.draw, aspect: sw / sh };
+  g.userData = { screen: g.getObjectByName('screen'), glow, tick: at.draw, visit: at.visit, aspect: sw / sh };
   return g;
 }

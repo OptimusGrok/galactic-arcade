@@ -30,6 +30,7 @@ function marqueeArt(g, w, h) {
 function attract(W, H) {
   const c = document.createElement('canvas'); c.width = W; c.height = H; const g = c.getContext('2d');
   const tex = new THREE.CanvasTexture(c); tex.colorSpace = THREE.SRGBColorSpace; const st = Array.from({ length: 50 }, () => [Math.random() * W, Math.random() * H]);
+  const visit = { on: false };
   function draw(t) {
     g.fillStyle = '#000'; g.fillRect(0, 0, W, H); g.fillStyle = '#556'; for (const [x, y] of st) g.fillRect(x, y, 1.5, 1.5);
     g.font = 'bold 13px "Courier New", monospace'; g.textAlign = 'left'; g.fillStyle = '#fff'; g.fillText('SCORE ' + (Math.floor(t / 7) * 100 % 2000), 8, 16); g.fillStyle = '#ff5'; g.fillText('HI 1900', W * 0.42, 16); g.fillStyle = '#5f5'; g.fillText('SHIPS 3', W - 70, 16);
@@ -38,10 +39,10 @@ function attract(W, H) {
     for (let i = 0; i < 3; i++) { g.fillStyle = '#ff5'; g.fillRect((fx + 20 + i * 70) % W, (t * 50 + i * 60) % (H - 40) + 40, 3, 5); }
     g.fillStyle = '#fff'; g.fillRect(sx + 8, H - 40 - (t * 180 % (H - 60)), 1.5, 6);
     g.fillStyle = '#5f5'; g.fillRect(0, H - 18, W, 1.5); g.fillStyle = '#5ff'; g.fillText('LEVEL 1', 8, H - 5);
-    if (Math.floor(t * 2) % 2 === 0) { g.textAlign = 'center'; g.font = 'bold 22px "Courier New", monospace'; g.fillStyle = '#000a'; g.fillRect(W / 2 - 110, H / 2 - 22, 220, 34); g.fillStyle = '#ffe14a'; g.fillText('INSERT CREDIT', W / 2, H / 2 + 2); }
+    if (!visit.on && Math.floor(t * 2) % 2 === 0) { g.textAlign = 'center'; g.font = 'bold 22px "Courier New", monospace'; g.fillStyle = '#000a'; g.fillRect(W / 2 - 110, H / 2 - 22, 220, 34); g.fillStyle = '#ffe14a'; g.fillText('INSERT CREDIT', W / 2, H / 2 + 2); }
     tex.needsUpdate = true;
   }
-  draw(0); return { tex, draw };
+  draw(0); return { tex, draw, visit };
 }
 export function buildBlasterCabinet() {
   const g = new THREE.Group(); g.name = 'blasterCabinet';
@@ -77,6 +78,6 @@ export function buildBlasterCabinet() {
   const slot = new THREE.MeshStandardMaterial({ color: 0x400808, emissive: 0xff2a1a, emissiveIntensity: 1.3 });
   for (const z of [-0.05, 0.05]) door.add(new THREE.Mesh(new THREE.BoxGeometry(0.022, 0.06, 0.04).translate(0.006, 0.08, z), slot));
   const glow = new THREE.PointLight(0x80a0ff, 0.5, 2.4, 1.6); glow.name = 'screenGlow'; glow.position.set(sf.mid[0] + sf.n.x * 0.45, sf.mid[1] - 0.15, 0); g.add(glow);
-  g.userData = { screen: g.getObjectByName('screen'), glow, tick: at.draw, aspect: sw / sh };
+  g.userData = { screen: g.getObjectByName('screen'), glow, tick: at.draw, visit: at.visit, aspect: sw / sh };
   return g;
 }

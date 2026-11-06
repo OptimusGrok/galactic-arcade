@@ -16,6 +16,7 @@ function woodTex() {
 function attract(W, H) {
   const c = document.createElement('canvas'); c.width = W; c.height = H; const g = c.getContext('2d');
   const tex = new THREE.CanvasTexture(c); tex.colorSpace = THREE.SRGBColorSpace;
+  const visit = { on: false };
   const path = [[0, .3], [.3, .3], [.3, .7], [.62, .7], [.62, .25], [.85, .25], [.85, .6], [1, .6]].map(([x, y]) => [x * W, y * H]);
   const seg = []; let tot = 0; for (let i = 1; i < path.length; i++) { const l = Math.hypot(path[i][0] - path[i - 1][0], path[i][1] - path[i - 1][1]); seg.push(l); tot += l; }
   const at = d => { d = ((d % tot) + tot) % tot; for (let i = 0; i < seg.length; i++) { if (d <= seg[i]) { const k = d / seg[i], a = path[i], b = path[i + 1]; return [a[0] + (b[0] - a[0]) * k, a[1] + (b[1] - a[1]) * k]; } d -= seg[i]; } return path[path.length - 1]; };
@@ -31,10 +32,10 @@ function attract(W, H) {
       const o = orcs.find(o => Math.hypot(o[0] - x, o[1] - y) < 70); if (o && Math.floor(t * 4 + i) % 2) { g.strokeStyle = i % 2 ? '#ffd040' : '#c070ff'; g.lineWidth = 2; g.beginPath(); g.moveTo(x, y - 8); g.lineTo(o[0], o[1]); g.stroke(); } });
     g.fillStyle = '#0009'; g.fillRect(0, 0, W, 46); g.textAlign = 'center'; g.font = '900 34px Georgia, serif'; g.fillStyle = '#b8d84a'; g.fillText('ORC ATTACK', W / 2, 36);
     g.font = 'bold 14px Georgia, serif'; g.fillStyle = '#f3e6c8'; g.textAlign = 'left'; g.fillText('Wave ' + (1 + Math.floor(t / 12) % 12), 8, 64);
-    if (Math.floor(t * 2) % 2 === 0) { g.textAlign = 'center'; g.font = 'bold 22px "Courier New", monospace'; g.fillStyle = '#000a'; g.fillRect(W / 2 - 110, H - 46, 220, 34); g.fillStyle = '#ffe14a'; g.fillText('INSERT CREDIT', W / 2, H - 22); }
+    if (!visit.on && Math.floor(t * 2) % 2 === 0) { g.textAlign = 'center'; g.font = 'bold 22px "Courier New", monospace'; g.fillStyle = '#000a'; g.fillRect(W / 2 - 110, H - 46, 220, 34); g.fillStyle = '#ffe14a'; g.fillText('INSERT CREDIT', W / 2, H - 22); }
     tex.needsUpdate = true;
   }
-  draw(0); return { tex, draw };
+  draw(0); return { tex, draw, visit };
 }
 export function buildOrcCabinet() {
   const g = new THREE.Group(); g.name = 'orcCabinet';
@@ -71,6 +72,6 @@ export function buildOrcCabinet() {
   for (const z of [-0.05, 0.05]) door.add(new THREE.Mesh(new THREE.BoxGeometry(0.022, 0.06, 0.04).translate(0.006, 0.08, z), slot));
   for (const z of [-0.05, 0.05]) door.add(new THREE.Mesh(new THREE.BoxGeometry(0.02, 0.05, 0.04).translate(0.006, -0.06, z), new THREE.MeshStandardMaterial({ color: 0x050505, roughness: 0.6 })));
   const glow = new THREE.PointLight(0xffb060, 0.5, 2.4, 1.6); glow.name = 'screenGlow'; glow.position.set(sf.mid[0] + sf.n.x * 0.45, sf.mid[1] - 0.15, 0); g.add(glow);
-  g.userData = { screen: g.getObjectByName('screen'), glow, tick: at.draw, aspect: sw / sh };
+  g.userData = { screen: g.getObjectByName('screen'), glow, tick: at.draw, visit: at.visit, aspect: sw / sh };
   return g;
 }

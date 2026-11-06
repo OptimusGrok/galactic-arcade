@@ -197,7 +197,7 @@ export function setupGrokVisit({ scene, tp, play, monkey, camera, st } = {}) {
   api.skipTo = (stName) => {
     if (stName === 'play') { if (api.cab) cab = api.cab; if (!cab) return false; const s = standAtCab(); grok.position.set(s.x, 0, s.z); grok.rotation.y = s.yaw; grok.scale.setScalar(SCALE); grok.visible = true; startPlayAtCab(); showNear(true); return true; }
     if (stName === 'leave') { resetControls(); hideUI(); grok.position.set(pad.x, 0, pad.z); grok.visible = true; api.state = 'leave'; phaseT = 0; fx.start(pad.x, pad.z, 'out'); powerPad(1); return true; }
-    if (stName === 'done') { resetControls(); hideUI(); grok.visible = false; powerPad(0); fx.stop(); api.state = 'done'; api.finished++; return true; }
+    if (stName === 'done') { setVisit(cab, false); resetControls(); hideUI(); grok.visible = false; powerPad(0); fx.stop(); api.state = 'done'; api.finished++; return true; }
     if (stName === 'look') { api.state = 'look'; phaseT = 0; grok.visible = true; grok.scale.setScalar(SCALE); return true; }
     return false;
   };
@@ -246,13 +246,17 @@ export function setupGrokVisit({ scene, tp, play, monkey, camera, st } = {}) {
   api.isLooking = padLooking;
   api.isBusy = busy;
 
+  function cabName(c) { return (c && ((c.userData && c.userData.name) || c.name)) || ''; }
   function cabEligible(c) {
-    // Live attract demos only. Canvas cabinets (berserker, monkey, orc, nova, cyber, blaster, pip, bb, roadster, …)
-    // redraw an INSERT CREDIT flash; Watch copies that screen, and scrubbing the canvas does not make it a real game.
+    // Upright joystick cabinets in room 1 whose screen is a live demo (Strike, Ghost) or an animated attract
+    // that can hide its INSERT CREDIT line while Grok is the one playing (userData.visit).
+    // Roadster is a seated wheel cabinet. Claw and Dead Signal are not in this list (crane / room-2 VR station).
     if (!c || !c.getObjectByName) return false;
     if (!c.getObjectByName('joystick')) return false;
-    const n = (c.userData && c.userData.name) || c.name || '';
-    if (!/strike|ghost/i.test(n)) return false;
+    const n = cabName(c);
+    if (/roadster|claw|dead/i.test(n)) return false;
+    const live = /strike|ghost/i.test(n);
+    if (!live && !(c.userData && c.userData.visit)) return false;
     const f = c.userData && c.userData.front; if (!f) return false;
     if (Math.abs(f.x) > 14 || Math.abs(f.z) > 14) return false;
     return true;
@@ -379,8 +383,11 @@ export function setupGrokVisit({ scene, tp, play, monkey, camera, st } = {}) {
     powerPad(1); zap();
   }
 
+  function setVisit(c, on) { if (c && c.userData && c.userData.visit) c.userData.visit.on = !!on; }
   function startPlayAtCab() {
     bindControls();
+    setVisit(cab, true);
+    try { if (cab.userData && cab.userData.tick) cab.userData.tick(t); } catch (e) {}
     api.tickets = 0; showTixHud(true);
     const every = (api.fast || api.reason === 'test') ? TIX_EVERY_FAST : TIX_EVERY;
     nextTixAt = t + every;
@@ -430,6 +437,90 @@ export function setupGrokVisit({ scene, tp, play, monkey, camera, st } = {}) {
     const yaw = Math.atan2(face.x, face.z);
     return { x, z, yaw };
   }
+
+  // Open-floor route. The stand and the pad may sit against a cabinet; the middle of each leg must not.
+  let route = [];
+  function pointBlocked(x, z) {
+    if (Math.abs(x) > 11.15 || Math.abs(z) > 11.15) return true;
+    const m = 0.38, list = (A().blockers) || [];
+    for (let i = 0; i < list.length; i++) {
+      const b = list[i];
+      if (b.kind === 'circle') { if (Math.hypot(x - b.cx, z - b.cz) < b.r + m) return true; continue; }
+      if (b.kind === 'obb') {
+        const c = Math.cos(b.ang), sn = Math.sin(b.ang), rx = x - b.ox, rz = z - b.oz;
+        const lx = c * rx - sn * rz, lz = sn * rx + c * rz;
+        if (lx > b.x0 - m && lx < b.x1 + m && lz > -b.hz - m && lz < b.hz + m) return true;
+        continue;
+      }
+      if (b.minX == null) continue;
+      if (x > b.minX - m && x < b.maxX + m && z > b.minZ - m && z < b.maxZ + m) return true;
+    }
+    return false;
+  }
+  api.pointBlocked = pointBlocked;
+  function segmentClear(x0, z0, x1, z1) {
+    const len = Math.hypot(x1 - x0, z1 - z0), n = Math.max(3, Math.ceil(len / 0.35));
+    for (let i = 1; i < n; i++) {
+      const k = i / n, x = x0 + (x1 - x0) * k, z = z0 + (z1 - z0) * k;
+      if (Math.hypot(x - x0, z - z0) < 0.9 || Math.hypot(x - x1, z - z1) < 0.9) continue;
+      if (pointBlocked(x, z)) return false;
+    }
+    return true;
+  }
+  function approachOf(stand, host) {
+    const inn = host && host.userData && host.userData.inward;
+    if (!inn) return { x: stand.x, z: stand.z };
+    for (let i = 1; i <= 8; i++) {
+      const x = stand.x + inn.x * i * 0.3, z = stand.z + inn.z * i * 0.3;
+      if (!pointBlocked(x, z)) return { x, z };
+    }
+    return { x: stand.x + inn.x * 2.4, z: stand.z + inn.z * 2.4 };
+  }
+  const VIAS = [{ x: 0, z: 0 }, { x: -5, z: -4 }, { x: 5, z: -4 }, { x: -5, z: 4 }, { x: 5, z: 4 }, { x: 0, z: -6 }, { x: 0, z: 6 }];
+  function buildRoute(x0, z0, stand, host) {
+    const app = approachOf(stand, host), pts = [];
+    if (!segmentClear(x0, z0, app.x, app.z)) {
+      let via = VIAS[0];
+      for (let i = 0; i < VIAS.length; i++) {
+        const v = VIAS[i];
+        if (!pointBlocked(v.x, v.z) && segmentClear(x0, z0, v.x, v.z) && segmentClear(v.x, v.z, app.x, app.z)) { via = v; break; }
+      }
+      pts.push(via);
+    }
+    if (Math.hypot(app.x - stand.x, app.z - stand.z) > 0.25) pts.push(app);
+    pts.push({ x: stand.x, z: stand.z });
+    return pts;
+  }
+  function goRoute(points, endYaw, kind) {
+    route = points.slice(); api._endYaw = endYaw;
+    api._route = points.map(p => ({ x: +p.x.toFixed(2), z: +p.z.toFixed(2) }));
+    const p = route.shift(); if (!p) return;
+    const yaw = route.length ? Math.atan2(route[0].x - grok.position.x, route[0].z - grok.position.z) : endYaw;
+    walkTo(p.x, p.z, yaw, kind);
+  }
+  function nextLeg() {
+    const p = route.shift(); if (!p) return;
+    const yaw = route.length ? Math.atan2((route[0].x - p.x), (route[0].z - p.z)) : api._endYaw;
+    walkTo(p.x, p.z, yaw, api.state === 'return' ? 'return' : 'walk');
+  }
+  function routeToStand() {
+    const s = standAtCab();
+    goRoute(buildRoute(grok.position.x, grok.position.z, s, cab), s.yaw, 'walk');
+  }
+  function routeToPad() {
+    setVisit(cab, false);
+    const inn = cab && cab.userData && cab.userData.inward;
+    const out = inn ? { x: grok.position.x + inn.x * 1.3, z: grok.position.z + inn.z * 1.3 } : { x: grok.position.x, z: grok.position.z };
+    const rest = buildRoute(out.x, out.z, { x: pad.x, z: pad.z }, null);
+    const pts = (Math.hypot(out.x - grok.position.x, out.z - grok.position.z) > 0.2) ? [out].concat(rest) : rest;
+    goRoute(pts, Math.atan2(-pad.x, -pad.z), 'return');
+  }
+  api.skipped = [
+    { name: 'Mars Roadster', why: 'seated wheel cabinet, no joystick' },
+    { name: 'Claw', why: 'crane, not stick-and-buttons play' },
+    { name: 'Dead Signal', why: 'room 2 VR station with a static screen; play puts the headset on the player' },
+    { name: '8-Ball Pool', why: 'not a cabinet' },
+  ];
 
   function bindControls() {
     joy = cab.getObjectByName('joystick');
@@ -538,8 +629,8 @@ export function setupGrokVisit({ scene, tp, play, monkey, camera, st } = {}) {
       if (cab.userData && typeof cab.userData.tick === 'function') cab.userData.tick(t);
     } catch (e) {}
     try { if (cab.userData.glow) cab.userData.glow.intensity = 1.35 + Math.sin(t * 10) * 0.1; } catch (e) {}
-    // scrub INSERT CREDIT at most ~2 Hz
-    if (t >= scrubAt) { scrubAt = t + 0.5; scrubInsertCredit(cab); }
+    // Public attracts still flash INSERT CREDIT. While visit.on, the attract itself omits that line, so do not paint black bars over the playfield.
+    if (t >= scrubAt && !(cab.userData && cab.userData.visit && cab.userData.visit.on)) { scrubAt = t + 0.5; scrubInsertCredit(cab); }
     if (api.watchOpen) drawWatchHands(pressIdx);
   }
 
@@ -637,7 +728,7 @@ export function setupGrokVisit({ scene, tp, play, monkey, camera, st } = {}) {
   function openWatch() {
     if (api.watchOpen || !cab) return;
     api.watchOpen = true; watchOv.classList.add('on');
-    sizeWatch(); scrubInsertCredit(cab); drawWatchFrame(); drawWatchHands(((t * 2.4) | 0) % 3);
+    sizeWatch(); if (!(cab.userData && cab.userData.visit && cab.userData.visit.on)) scrubInsertCredit(cab); drawWatchFrame(); drawWatchHands(((t * 2.4) | 0) % 3);
     const k = A().keys; if (k) for (const c in k) k[c] = false;
   }
   function closeWatch() {
@@ -865,8 +956,7 @@ export function setupGrokVisit({ scene, tp, play, monkey, camera, st } = {}) {
       grok.rotation.y += Math.sin(lookYawT * 0.7) * dt * 0.35;
       if (phaseT >= dur) {
         head.rotation.y = 0; head.rotation.x = 0;
-        const s = standAtCab();
-        walkTo(s.x, s.z, s.yaw, 'walk');
+        routeToStand();
       }
       return;
     }
@@ -910,6 +1000,7 @@ export function setupGrokVisit({ scene, tp, play, monkey, camera, st } = {}) {
       if (k >= 1) {
         grok.position.y = 0; grok.rotation.z = 0; grok.rotation.x = 0;
         for (const L of legs) { L.hip.rotation.x = 0; L.thigh.rotation.x = 0; }
+        if (route.length) { nextLeg(); return; }
         if (api.state === 'walk') {
           grok.position.set(to.x, 0, to.z); grok.rotation.y = toYaw; head.rotation.y = 0; head.rotation.x = 0;
           startPlayAtCab();
@@ -957,14 +1048,13 @@ export function setupGrokVisit({ scene, tp, play, monkey, camera, st } = {}) {
         idleArms(dt);
         const next = api.machinesDone < 2 ? pickCab(cab) : null;
         if (next) {
-          // walk to the other Strike/Ghost machine
+          setVisit(cab, false);
           cab = next; api.cab = cab;
           showTixHud(false);
-          const s = standAtCab();
-          walkTo(s.x, s.z, s.yaw, 'walk');
+          routeToStand();
         } else {
           showTixHud(false);
-          walkTo(pad.x, pad.z, Math.atan2(0 - pad.x, 0 - pad.z), 'return');
+          routeToPad();
         }
       }
       return;
@@ -975,6 +1065,7 @@ export function setupGrokVisit({ scene, tp, play, monkey, camera, st } = {}) {
       grok.scale.setScalar(SCALE * (1 - k) + 0.01 * k);
       powerPad(Math.max(0.2, 1 - k));
       if (k >= 1) {
+        setVisit(cab, false);
         grok.visible = false; grok.scale.setScalar(SCALE); powerPad(0); fx.stop();
         resetControls(); hideUI(); api.state = 'done'; api.finished++; api.force = false; stopVoice();
       }

@@ -39,6 +39,7 @@ function paintSide(g, w, h) {   // canvas = the side profile's bounding box: dir
 function attract(W, H) {
   const c = document.createElement('canvas'); c.width = W; c.height = H; const g = c.getContext('2d');
   const tex = new THREE.CanvasTexture(c); tex.colorSpace = THREE.SRGBColorSpace;
+  const visit = { on: false };
   function draw(t) {
     g.imageSmoothingEnabled = false; g.fillStyle = '#07070f'; g.fillRect(0, 0, W, H);
     g.fillStyle = '#2a50e8'; g.fillRect(0, 22, W, 20);
@@ -46,10 +47,10 @@ function attract(W, H) {
     g.fillStyle = '#000'; g.fillRect(W * 0.45, 42, 14, H * 0.45); g.fillRect(W * 0.2, 42 + H * 0.45, W * 0.55, 14); g.fillRect(W * 0.7, H * 0.3, 14, H * 0.3);
     const x = W * 0.2 + ((t * 30) % (W * 0.55)); px(g, DIGGER, x, 42 + H * 0.45 - 4, 2); px(g, GOGGLE, W * 0.7 - 5, H * 0.3 + ((t * 18) % (H * 0.3)) - 6, 2);
     g.textAlign = 'center'; g.font = 'bold 11px "Courier New", monospace'; g.fillStyle = '#ff4040'; g.fillText('1UP', 22, 14); g.fillStyle = '#fff'; g.fillText('HI-SCORE', W / 2, 14);
-    if (Math.floor(t * 2) % 2 === 0) { g.font = 'bold 18px "Courier New", monospace'; g.fillStyle = '#000a'; g.fillRect(W / 2 - 90, H * 0.78 - 18, 180, 26); g.fillStyle = '#ffe14a'; g.fillText('INSERT CREDIT', W / 2, H * 0.78); }
+    if (!visit.on && Math.floor(t * 2) % 2 === 0) { g.font = 'bold 18px "Courier New", monospace'; g.fillStyle = '#000a'; g.fillRect(W / 2 - 90, H * 0.78 - 18, 180, 26); g.fillStyle = '#ffe14a'; g.fillText('INSERT CREDIT', W / 2, H * 0.78); }
     tex.needsUpdate = true;
   }
-  draw(0); return { tex, draw };
+  draw(0); return { tex, draw, visit };
 }
 export function buildBBCabinet() {
   const g = new THREE.Group(); g.name = 'bbCabinet';
@@ -90,6 +91,6 @@ export function buildBBCabinet() {
   const slot = new THREE.MeshStandardMaterial({ color: 0x400808, emissive: 0xff2a1a, emissiveIntensity: 1.3 });
   for (const z of [-0.05, 0.05]) door.add(new THREE.Mesh(new THREE.BoxGeometry(0.022, 0.07, 0.045).translate(0.006, 0.08, z), slot));
   const glow = new THREE.PointLight(0xffb070, 0.5, 2.4, 1.6); glow.name = 'screenGlow'; glow.position.set(sf.mid[0] + sf.n.x * 0.45, sf.mid[1] - 0.15, 0); g.add(glow);
-  g.userData = { screen: g.getObjectByName('screen'), glow, tick: at.draw, aspect: sw / sh };
+  g.userData = { screen: g.getObjectByName('screen'), glow, tick: at.draw, visit: at.visit, aspect: sw / sh };
   return g;
 }
