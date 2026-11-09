@@ -312,7 +312,15 @@
     + '.gaO{position:relative}.gaLk{position:absolute;right:-3px;bottom:-5px;font:900 9px/1 Arial;font-style:normal;color:#ffd98a;background:#2a0a3a;border:1px solid #ffd98a;border-radius:6px;padding:1px 2px;pointer-events:none}.gaO.own .gaLk{display:none}.gaO.gaNew:not(.own){opacity:.8}.gaO.try{border-color:#ff3cf0;box-shadow:0 0 10px #ff3cf0}#gaW.gaSt .gaNew,#gaW.gaSt .gaRow[data-k=back]{display:none}'
     + '#gaWBuy{flex:none;display:flex;align-items:center;gap:10px;padding:8px 12px;border:2px solid #ffd98a;border-radius:12px;background:#1a0a2ad9;font:900 14px "Courier New",monospace}#gaWBuy[hidden]{display:none}'
     + '#gaWBuyB{font:900 16px "Arial Black",Arial;padding:9px 16px;border-radius:10px;border:2px solid #ffd98a;background:#3a1a00;color:#ffe9a8;cursor:pointer}#gaWBuyB:disabled{opacity:.55;border-color:#888;color:#bbb;background:#222;cursor:default}'
-    + '@media (max-height:640px){#gaT{font-size:clamp(24px,7vw,40px);margin-top:18px}.gaRow{padding:3px 4px}.gaO{height:32px}#gaNm{padding:5px 10px}}';
+    + '@media (max-height:640px){#gaT{font-size:clamp(24px,7vw,40px);margin-top:18px}.gaRow{padding:3px 4px}.gaO{height:32px}#gaNm{padding:5px 10px}}'
+    + '@media (orientation:landscape) and (max-height:520px){#gaP{display:grid;grid-template-columns:minmax(0,34%) minmax(0,1fr);grid-template-rows:auto minmax(0,1fr) auto auto;gap:3px 10px;padding:6px 10px 6px;overflow:hidden;align-items:stretch}'
+    + '#gaT{grid-column:1;grid-row:1;margin:0;font-size:clamp(15px,5.2vh,24px)}'
+    + '#gaStage{grid-column:1;grid-row:2;min-height:0;width:100%;max-width:none}'
+    + '#gaNm{grid-column:1;grid-row:3 / span 2;align-self:end;padding:4px 8px}#gaNm label{font-size:11px;margin-bottom:2px;letter-spacing:.08em}#gaIn{padding:5px 8px;font-size:14px}'
+    + '#gaP>.gaBox:not(#gaNm){grid-column:2;grid-row:1 / span 2;align-self:center;max-height:100%;overflow:hidden}'
+    + '#gaGo{grid-column:2;grid-row:3;justify-self:center;padding:7px 26px;font-size:clamp(16px,5.4vh,26px)}'
+    + '#gaHint{grid-column:2;grid-row:4;min-height:0;justify-self:center;font-size:11px}'
+    + '.gaRow{padding:2px}.gaO{width:34px;height:28px;font-size:16px}.gaRow span{width:48px;font-size:10px}.gaAr{width:36px;height:44px;font-size:32px}}';
   var ov = null, stHat = false;   // start screen: cap picked this visit?
   function row(k, label, shop, list) { var h = '<div class="gaRow" data-k="' + k + '"><button class="gaA" data-step="-1" aria-label="previous">‹</button><span>' + label + '</span><div class="gaCh">';
     (list || (shop ? OPTS : START)[k]).forEach(function (o) { var ic = typeof o[1] === 'string', face = ic ? o[1] : ''; var bg = ic ? '' : 'background:#' + ('00000' + o[1].toString(16)).slice(-6) + ';';
@@ -385,7 +393,7 @@
     else if (shop) L = BASE[k].filter(function (a) { return has(k, a[0]); });
     else L = START[k].filter(function (a) { return has(k, a[0]); });
     var i = 0; for (var j = 0; j < L.length; j++) if (L[j][0] === P[k]) i = j; pick(k, L[(i + d + L.length) % L.length][0]); }
-  function play(fast) { if (!named() || !goOK() || TP.st === 'out' || nmFree !== clean(P.name).trim().toLowerCase()) return; if (window.__gaNames) window.__gaNames.claim(P.name); musicStop(); P.name = clean(P.name).trim(); save(); apply(); var inp = document.getElementById('gaIn'); if (inp) inp.blur();
+  function play(fast) { if (!named() || !goOK() || TP.st === 'out' || nmFree !== clean(P.name).trim().toLowerCase()) return; try { if (window.__wantWide) window.__wantWide(); } catch (e) {} if (window.__gaNames) window.__gaNames.claim(P.name); musicStop(); P.name = clean(P.name).trim(); save(); apply(); var inp = document.getElementById('gaIn'); if (inp) inp.blur();
     var cv = ov && ov.querySelector('#gaCv'); if (prev.r && cv && prev.r.domElement === cv && cv.clientWidth && !fast && !window.__gaNoTp) { var done = 0, fin = function () { if (done++) return; TP.gone = true; go2(); }; tpStart('out', fin); setTimeout(function () { if (!done) { TP.st = 'idle'; TP.cb = null; fin(); } }, 2600); return; } go2(); }
   function go2() { var b = document.getElementById('stStart'); if (!b) return; if (!stHat && P.hat !== 'none') { P.hat = 'none'; save(); apply(); } /* Dave: no cap picked = start hatless */ var ev; try { ev = new PointerEvent('pointerup', { bubbles: true, cancelable: true, pointerType: 'touch' }); } catch (e) { ev = new Event('pointerup', { bubbles: true, cancelable: true }); }
     b.dispatchEvent(ev); window.__gaPlayer.started = (window.__gaPlayer.started || 0) + 1; }
