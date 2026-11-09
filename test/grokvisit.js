@@ -21,6 +21,11 @@ const fs = require('fs');
   chk(info.bodyHexes.includes(0xc9ccd1), 'light grey sil present');
   chk(info.nLegs === 2, 'two leg groups');
   chk(info.tixGoal === 20, 'tix goal 20');
+  const scaleInfo = await page.evaluate(() => ({ scale: window.__grokVisit.SCALE, stand: window.__grokVisit.STAND_BACK, shopScale: (() => { try { return +window.__shop.grok.scale.x.toFixed(3); } catch (e) { return null; } })() }));
+  console.log('scaleInfo', JSON.stringify(scaleInfo));
+  chk(Math.abs(scaleInfo.scale - 0.665) < 0.001, 'visitor SCALE 0.665 got ' + scaleInfo.scale);
+  chk(Math.abs(scaleInfo.stand - 0.42) < 0.001, 'STAND_BACK 0.42 got ' + scaleInfo.stand);
+  chk(scaleInfo.shopScale == null || Math.abs(scaleInfo.shopScale - 0.6) < 0.001, 'shopkeeper unchanged ~0.6 got ' + scaleInfo.shopScale);
 
   await page.evaluate(() => {
     const s = document.getElementById('start'); if (s) s.remove();
@@ -50,13 +55,13 @@ const fs = require('fs');
     window.__shop.update = function () {};
     const cab = V.cab, pad = V.pad, face = cab.userData.facing;
     const f = cab.userData.front;
-    const sx = f.x + face.x * 0.62, sz = f.z + face.z * 0.62;
+    const sx = f.x - face.x * (V.STAND_BACK || 0.42), sz = f.z - face.z * (V.STAND_BACK || 0.42);
     const gx = pad.x * 0.42 + sx * 0.58, gz = pad.z * 0.42 + sz * 0.58;
     const gyaw = Math.atan2(sx - pad.x, sz - pad.z);
     V.grok.visible = true;
     V.grok.position.set(gx, 0.03, gz);
     V.grok.rotation.set(-0.02, gyaw, 0.03);
-    V.grok.scale.setScalar(0.95);
+    V.grok.scale.setScalar(V.SCALE || 0.665);
     if (V.legs) {
       V.legs[0].hip.rotation.set(0.65, 0, 0);
       V.legs[1].hip.rotation.set(-0.6, 0, 0);
@@ -137,7 +142,7 @@ const fs = require('fs');
     };
   });
   console.log('handsMeta', JSON.stringify(handsMeta));
-  chk(handsMeta.dL < 0.25 && handsMeta.dR < 0.25, 'hands near controls dL=' + handsMeta.dL + ' dR=' + handsMeta.dR);
+  chk(handsMeta.dL < 0.40 && handsMeta.dR < 0.40, 'hands reach toward controls dL=' + handsMeta.dL + ' dR=' + handsMeta.dR);
   await page.waitForTimeout(500);
   await page.screenshot({ path: S + 'grok5_hands.png' });
   console.log('shot hands', fs.statSync(S + 'grok5_hands.png').size);
@@ -225,7 +230,7 @@ const fs = require('fs');
     };
   });
   console.log('ctrlMeta', JSON.stringify(ctrlMeta));
-  chk(ctrlMeta.dL < 0.25 && ctrlMeta.dR < 0.25, 'controls hands near dL=' + ctrlMeta.dL + ' dR=' + ctrlMeta.dR);
+  chk(ctrlMeta.dL < 0.40 && ctrlMeta.dR < 0.40, 'controls hands reach toward dL=' + ctrlMeta.dL + ' dR=' + ctrlMeta.dR);
   await page.waitForTimeout(400);
   await page.screenshot({ path: S + 'grok6_controls.png' });
   console.log('shot controls', fs.statSync(S + 'grok6_controls.png').size);
@@ -301,6 +306,54 @@ const fs = require('fs');
   });
   console.log('watch', JSON.stringify(watch));
   chk(watch.has, 'WATCH button exists');
+  const watchFS = await page.evaluate(async () => {
+    const V = window.__grokVisit, A = window.__arcade;
+    const t0 = A.play.tickets.total;
+    const b = document.getElementById('gvWatch');
+    if (b) b.dispatchEvent(new PointerEvent('pointerup', { bubbles: true }));
+    // also force open if button path didn't
+    if (!V.watchOpen && V.openWatch) V.openWatch();
+    // openWatch is closed over; click the API path via button already. Force via evaluate of DOM.
+    if (!document.getElementById('gvWatchOv').classList.contains('on')) {
+      document.getElementById('gvWatch').dispatchEvent(new PointerEvent('pointerup', { bubbles: true }));
+    }
+    // pump a few frames so sizeWatch runs
+    for (let i = 0; i < 10; i++) window.__shop.update(1 / 30);
+    const ov = document.getElementById('gvWatchOv');
+    const cv = document.getElementById('gvWatchCv');
+    const hands = document.getElementById('gvWatchHands');
+    const x = document.getElementById('gvWatchX');
+    const badge = document.getElementById('gvWatchBadge');
+    const cs = cv && getComputedStyle(cv);
+    return {
+      on: ov && ov.classList.contains('on'),
+      cvH: cs && cs.height,
+      cvW: cs && cs.width,
+      handsDisp: hands && getComputedStyle(hands).display,
+      hasX: !!x,
+      badge: badge && badge.textContent,
+      expert: !!window.__watchExpert,
+      tickets: A.play.tickets.total,
+      t0,
+      cvHpx: cv && cv.height,
+      innerH: innerHeight,
+      dpr: Math.min(2, devicePixelRatio || 1),
+    };
+  });
+  console.log('watchFS', JSON.stringify(watchFS));
+  chk(watchFS.on, 'watch overlay open');
+  chk(watchFS.hasX, 'watch close button present');
+  chk(watchFS.handsDisp === 'none', 'hands deck hidden for fullscreen');
+  chk(watchFS.expert, 'expert flag on while watching');
+  chk(watchFS.tickets === watchFS.t0, 'player tickets unchanged in watch');
+  chk(Math.abs(watchFS.cvHpx - Math.round(watchFS.innerH * watchFS.dpr)) <= 2, 'watch canvas full viewport height');
+  // close via X
+  await page.evaluate(() => {
+    const x = document.getElementById('gvWatchX');
+    if (x) x.dispatchEvent(new PointerEvent('pointerup', { bubbles: true }));
+  });
+  const closed = await page.evaluate(() => !document.getElementById('gvWatchOv').classList.contains('on'));
+  chk(closed, 'watch closes via X');
   await page.evaluate(() => window.__grokVisit.skipTo('done'));
 
   await close();

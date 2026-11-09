@@ -5,7 +5,9 @@ const MIME = { '.html': 'text/html', '.js': 'text/javascript', '.json': 'applica
 function serve() { return new Promise(r => { const s = http.createServer((q, res) => { let p = decodeURIComponent(q.url.split('?')[0]); if (p.endsWith('/')) p += 'index.html'; const f = path.join(ROOT, p); fs.readFile(f, (e, d) => { if (e) { res.writeHead(404); res.end(); return; } res.writeHead(200, { 'Content-Type': MIME[path.extname(f)] || 'application/octet-stream' }); res.end(d); }); }); s.listen(0, () => r(s)); }); }
 async function open(opts = {}) {
   const srv = await serve();
-  const browser = await chromium.launch({ executablePath: '/home/box/.cache/ms-playwright/chromium-1248/chrome-linux64/chrome', args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] });
+  const chromeBins = ['/home/box/.cache/ms-playwright/chromium-1248/chrome-linux64/chrome', '/opt/ungoogled-chromium/chrome'];
+  const executablePath = chromeBins.find(f => fs.existsSync(f));
+  const browser = await chromium.launch({ executablePath, args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] });
   const ctx = await browser.newContext(opts.phone ? { viewport: { width: opts.w || 390, height: opts.h || 844 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true } : { viewport: { width: opts.w || 1280, height: opts.h || 720 } });
   const page = await ctx.newPage(); const errors = [], requests = [];
   ctx.on('request', r => requests.push(r.url()));
