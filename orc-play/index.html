@@ -1,4 +1,4 @@
-<!doctype html><html lang="en"><head><script>
+<!doctype html><html lang="en"><head><script src="../watch-shim.js"></script><script>
 // PLAY GUARD: the cabinet's playable Strike may talk ONLY to its own site and the Strike world leaderboard (Supabase project kfupqtafhaflzaoqtenf).
 (function(){const OK=u=>{try{const x=new URL(u,location.href);return x.origin===location.origin}catch(e){return false}};
 const f0=window.fetch.bind(window);window.fetch=(u,o)=>OK(typeof u==='string'?u:u.url)?f0(u,o):Promise.reject(new Error('arcade: off-site request blocked'));
