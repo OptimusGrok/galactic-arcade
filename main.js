@@ -853,15 +853,34 @@ addEventListener('mousemove', e => {
   if (!mouseDrag) return; look(e.clientX - mouseDrag.x, e.clientY - mouseDrag.y); mouseDrag = { x: e.clientX, y: e.clientY };
 });
 cv.addEventListener('dblclick', () => { if (!MOBILE) cv.requestPointerLock?.(); });
-cv.addEventListener('wheel', e => { st.lookT = st.t; st.distUser = true; st.dist = THREE.MathUtils.clamp(st.dist + e.deltaY * 0.004, 1.6, 10); e.preventDefault(); }, { passive: false });
+// Pinch / wheel zoom (Dave t701u): third-person camera distance. Default = PR6 wider cam (7.6 landscape / 4.2 portrait).
+const ZOOM_KEY = 'galacticarcade.zoom';
+const DIST_PORTRAIT = 4.2, DIST_WIDE = 7.6, DIST_MIN = 2.0, DIST_MAX = DIST_WIDE * 2;   // max ~2× the wider default
+function saveZoom() { try { localStorage.setItem(ZOOM_KEY, String(+st.dist.toFixed(3))); } catch (e) {} }
+function setDist(d, persist = true) {
+  st.dist = THREE.MathUtils.clamp(d, DIST_MIN, DIST_MAX);
+  st.distUser = true; st.lookT = st.t;
+  if (persist) saveZoom();
+  return st.dist;
+}
+function loadZoom() {
+  try {
+    const v = parseFloat(localStorage.getItem(ZOOM_KEY));
+    if (Number.isFinite(v) && v >= DIST_MIN && v <= DIST_MAX) { st.dist = v; st.distUser = true; return true; }
+  } catch (e) {}
+  return false;
+}
+loadZoom();
+cv.addEventListener('wheel', e => { setDist(st.dist + e.deltaY * 0.004); e.preventDefault(); }, { passive: false });
 function look(dx, dy) { st.lookT = st.t; st.yaw -= dx * 0.005; st.pitch = THREE.MathUtils.clamp(st.pitch + dy * 0.004, -0.6, 1.25); }
 // touch: the bottom-left stick steers. The thumb stays inside the base; the dotted line and the
 // speed follow the real finger, so a drag past the rim still walks faster up to a capped sprint.
+// Two non-joystick fingers on the game view pinch to zoom; those fingers do not turn or jump.
 const joyEl = document.getElementById('joy'), knob = document.getElementById('knob');
 const joyLine = document.getElementById('joyLine'), joyDash = document.getElementById('joyDash');
 const JOY_DEAD = 12, JOY_REACH = 176, JOY_GENTLE = 1.05, JOY_SPRINT = 5.2;
 const touches = {};
-let joyId = null, joyArm = null;
+let joyId = null, joyArm = null, pinch = null;
 function joyCenter() {
   const r = joyEl.getBoundingClientRect();
   return { x: r.left + r.width / 2, y: r.top + r.height / 2, R: Math.min(r.width, r.height) / 2 - 12 };
@@ -899,19 +918,51 @@ function syncJoyArm() {
   joyArm = on; joyEl.classList.toggle('arm', on);
   if (!on) joyClear();
 }
+function viewTouchIds() {
+  const ids = [];
+  for (const id in touches) { const T = touches[id]; if (T && T.kind !== 'joy') ids.push(+id); }
+  return ids;
+}
+function syncPinch() {
+  const ids = viewTouchIds();
+  if (ids.length === 2) {
+    const a = touches[ids[0]], b = touches[ids[1]];
+    const d = Math.hypot(a.x - b.x, a.y - b.y);
+    if (!pinch || pinch.idA !== ids[0] || pinch.idB !== ids[1]) {
+      pinch = { idA: ids[0], idB: ids[1], d0: Math.max(28, d), dist0: st.dist };
+      a.kind = 'pinch'; b.kind = 'pinch';
+    } else {
+      // fingers apart (d grows) → zoom in (dist shrinks); together → zoom out
+      setDist(pinch.dist0 * (pinch.d0 / Math.max(28, d)));
+    }
+    return true;
+  }
+  if (pinch) {
+    // leave pinch mode: any remaining non-joy finger becomes look again
+    for (const id of ids) { const T = touches[id]; if (T && T.kind === 'pinch') T.kind = 'look'; }
+    pinch = null;
+  }
+  return false;
+}
 cv.addEventListener('touchstart', e => {
   for (const t of e.changedTouches) {
     if (joyId == null && inJoyZone(t.clientX, t.clientY)) { joyId = t.identifier; touches[t.identifier] = { kind: 'joy', x0: t.clientX, y0: t.clientY }; joyFrom(t.clientX, t.clientY); }
     else touches[t.identifier] = { kind: 'look', x: t.clientX, y: t.clientY, x0: t.clientX, y0: t.clientY, t0: e.timeStamp, moved: 0 };
   }
+  syncPinch();
   e.preventDefault();
 }, { passive: false });
 cv.addEventListener('touchmove', e => {
   for (const t of e.changedTouches) {
     const T = touches[t.identifier]; if (!T) continue;
     if (T.kind === 'joy') joyFrom(t.clientX, t.clientY);
-    else { T.moved = Math.max(T.moved, Math.hypot(t.clientX - T.x0, t.clientY - T.y0)); look((t.clientX - T.x) * 1.4, (t.clientY - T.y) * 1.4); T.x = t.clientX; T.y = t.clientY; }
+    else {
+      T.moved = Math.max(T.moved, Math.hypot(t.clientX - T.x0, t.clientY - T.y0));
+      const px = T.x, py = T.y; T.x = t.clientX; T.y = t.clientY;
+      if (T.kind === 'look') look((t.clientX - px) * 1.4, (t.clientY - py) * 1.4);
+    }
   }
+  syncPinch();
   e.preventDefault();
 }, { passive: false });
 const endTouch = e => {
@@ -921,9 +972,13 @@ const endTouch = e => {
       const tap = e.type === 'touchend' && Math.hypot(t.clientX - T.x0, t.clientY - T.y0) < 10;
       joyClear();
       if (tap && window.__grid) window.__grid.tapAt(t.clientX, t.clientY);
-    } else if (e.type === 'touchend' && T.moved < 14 && e.timeStamp - T.t0 < 350) { if (!(window.__grid && window.__grid.tapAt(t.clientX, t.clientY))) st.jumpReq = st.t; }
+    } else if (T.kind === 'look' && e.type === 'touchend' && T.moved < 14 && e.timeStamp - T.t0 < 350) {
+      if (!(window.__grid && window.__grid.tapAt(t.clientX, t.clientY))) st.jumpReq = st.t;
+    }
+    // pinch fingers: no jump
     delete touches[t.identifier];
   }
+  syncPinch();
 };
 cv.addEventListener('touchend', endTouch); cv.addEventListener('touchcancel', endTouch);
 function toggleView() { st.fp = !st.fp; }
@@ -969,7 +1024,7 @@ function resize(force) {
   vw0 = W; vh0 = H;
   camera.aspect = W / H;
   camera.fov = camera.aspect < 0.85 ? 72 : (MOBILE && camera.aspect > 1.15 ? 70 : 60);
-  if (MOBILE && !st.fp && !st.distUser) st.dist = camera.aspect > 1.15 ? 7.6 : 4.2;
+  if (MOBILE && !st.fp && !st.distUser) st.dist = camera.aspect > 1.15 ? DIST_WIDE : DIST_PORTRAIT;
   camera.updateProjectionMatrix();
   updateTurn(); syncJoyArm();
   renderer.setPixelRatio(dpr); renderer.setSize(W, H, false); composer.setPixelRatio(dpr); composer.setSize(W, H);
@@ -1459,7 +1514,7 @@ const opts = setupOpts({ play, kiosk, shield, st, monkey, setFloor, getFloor: ()
 requestAnimationFrame(frame);
 
 // hooks for tests / future art work
-window.__arcade = { animateMonkey: dt => animateMonkey(dt), get window() { return windowMode; }, setWindow, get jumping() { return !!st.jump; }, canJump, LAVA, lavaRespawnPoint, get spaceWin() { return spaceWin; }, get kiosk() { return kiosk; }, setFloor, get floor() { return floorMode; }, setWalls, get walls() { return wallsMode; }, wallMat, carpet, mirror, shield, room, room2, Z2, hall, DOOR_W, DOOR_H, HALL_L, berserkerCab, monkeyCab, orcCab, cyberCab, novaCab, blasterCab, pipCab, clawCab, bbCab, roadsterCab, dsCab, play, get paused() { return paused; }, simPause: arcadePause, flyCfg: FLY, jetpackOn: jetpackEquipped, wantWide, joyFrom, joyClear, THREE, scene, camera, renderer, monkey, cabinets, strikeCab, ghostCab, featured, demo, ghostDemo, playables, blockers, st, stats, step, keys, get nearCab() { return nearCab; }, setArt: (i, part, tex, glow) => cabinets[i].userData.setArt(part, tex, glow) };
+window.__arcade = { animateMonkey: dt => animateMonkey(dt), get window() { return windowMode; }, setWindow, get jumping() { return !!st.jump; }, canJump, LAVA, lavaRespawnPoint, get spaceWin() { return spaceWin; }, get kiosk() { return kiosk; }, setFloor, get floor() { return floorMode; }, setWalls, get walls() { return wallsMode; }, wallMat, carpet, mirror, shield, room, room2, Z2, hall, DOOR_W, DOOR_H, HALL_L, berserkerCab, monkeyCab, orcCab, cyberCab, novaCab, blasterCab, pipCab, clawCab, bbCab, roadsterCab, dsCab, play, get paused() { return paused; }, simPause: arcadePause, flyCfg: FLY, jetpackOn: jetpackEquipped, wantWide, joyFrom, joyClear, setDist, loadZoom, saveZoom, zoom: { key: ZOOM_KEY, min: DIST_MIN, max: DIST_MAX, wide: DIST_WIDE, portrait: DIST_PORTRAIT }, THREE, scene, camera, renderer, monkey, cabinets, strikeCab, ghostCab, featured, demo, ghostDemo, playables, blockers, st, stats, step, keys, get nearCab() { return nearCab; }, setArt: (i, part, tex, glow) => cabinets[i].userData.setArt(part, tex, glow) };
 const mp = setupMP({ scene, camera, monkey, makeMonkey, st, play, getTp: () => tp, HALF, Z2, HALL_L, WX: 80 }); window.__arcade.mp = mp;   // multiplayer step 1: public room, 10 players
 // after the first room frames: pull in the shop, then the window scenery, off the critical path
 { const idle = f => (window.requestIdleCallback ? requestIdleCallback(f, { timeout: 1500 }) : setTimeout(f, 200));

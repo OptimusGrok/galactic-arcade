@@ -2,8 +2,8 @@
 // node test/landscape.js
 const { open } = require('./lib');
 const fs = require('fs');
-const START = '/opt/cursor/artifacts/landscape_start.png';
-const GAME = '/opt/cursor/artifacts/landscape_game.png';
+const START = '/workspace/artifacts/landscape_start.png';
+const GAME = '/workspace/artifacts/landscape_game.png';
 let ok = true;
 const chk = (c, m, x) => { console.log((c ? 'PASS ' : 'FAIL ') + m + (x !== undefined ? ' ' + JSON.stringify(x).slice(0, 500) : '')); if (!c) ok = false; };
 
@@ -25,7 +25,7 @@ const fit = () => {
 };
 
 (async () => {
-  fs.mkdirSync('/opt/cursor/artifacts', { recursive: true });
+  fs.mkdirSync('/workspace/artifacts', { recursive: true });
   const o = await open({ phone: true, start: true, w: 844, h: 390 });
   const page = o.page;
   await page.waitForFunction(() => window.__arcade && window.__arcade.stats.frames > 2 && document.getElementById('gaIn'), null, { timeout: 90000 });
