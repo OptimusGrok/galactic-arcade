@@ -684,6 +684,7 @@ export function setupGrokVisit({ scene, tp, play, monkey, camera, st } = {}) {
     '#gvWatchOv{position:fixed;inset:0;z-index:130;display:none;background:#000}' +
     '#gvWatchOv.on{display:block}' +
     '#gvWatchCv{position:absolute;inset:0;width:100%;height:100%;background:#000;display:block}' +
+    '#gvWatchFrame{position:absolute;inset:0;width:100%;height:100%;border:0;background:#000;display:block;pointer-events:none;z-index:1}' +
     '#gvWatchHands{display:none;pointer-events:none}' +
     '#gvWatchBadge{position:absolute;left:50%;top:calc(10px + env(safe-area-inset-top));transform:translateX(-50%);z-index:2;padding:6px 14px;border-radius:999px;border:2px solid #00e5ffaa;background:#021018cc;color:#dffbff;font:800 12px/1 "Courier New",monospace;letter-spacing:.14em;pointer-events:none}' +
     '#gvWatchX{position:absolute;right:calc(10px + env(safe-area-inset-right));top:calc(10px + env(safe-area-inset-top));z-index:2;width:46px;height:46px;border-radius:23px;border:2px solid #fff8;background:#000a;color:#fff;font:900 22px/1 Arial,sans-serif;cursor:pointer}';
@@ -704,10 +705,93 @@ export function setupGrokVisit({ scene, tp, play, monkey, camera, st } = {}) {
   // fixed, centred just below the PLAY card cluster — fully on-screen at 360-430px, never overlaps PLAY
   document.body.appendChild(watchB);
   const watchOv = document.createElement('div'); watchOv.id = 'gvWatchOv';
-  watchOv.innerHTML = '<button id="gvWatchX" aria-label="Close">✕</button><div id="gvWatchBadge">DEMO · EXPERT</div><canvas id="gvWatchCv"></canvas><canvas id="gvWatchHands"></canvas>';
+  watchOv.innerHTML = '<button id="gvWatchX" aria-label="Close">✕</button><div id="gvWatchBadge">DEMO · EXPERT</div><canvas id="gvWatchCv"></canvas><iframe id="gvWatchFrame" title="Watch demo" allow="autoplay" tabindex="-1" style="display:none"></iframe><canvas id="gvWatchHands"></canvas>';
   document.body.appendChild(watchOv);
   const watchCv = watchOv.querySelector('#gvWatchCv'), watchHands = watchOv.querySelector('#gvWatchHands');
   const wctx = watchCv.getContext('2d'), hctx = watchHands.getContext('2d');
+  const watchFrame = watchOv.querySelector('#gvWatchFrame');
+  let watchBot = null, watchPilotT = 0, watchGen = 0;
+
+  function machineForCab(c) {
+    try {
+      const P = A().play; if (!P || !P.machines || !c) return null;
+      return Object.values(P.machines).find(m => m.cab === c) || null;
+    } catch (e) { return null; }
+  }
+  function stopWatchGame() {
+    watchGen++;
+    watchBot = null;
+    if (watchPilotT) { clearInterval(watchPilotT); watchPilotT = 0; }
+    try {
+      if (watchFrame) {
+        try { const w = watchFrame.contentWindow; if (w && w.__demo && w.__demo.stop) w.__demo.stop(); } catch (e) {}
+        watchFrame.style.display = 'none';
+        try { watchFrame.src = 'about:blank'; } catch (e) {}
+        watchFrame.removeAttribute('src');
+      }
+    } catch (e) {}
+    watchCv.style.display = 'block';
+  }
+  function fallbackPilot(w) {
+    watchBot = 'fallback';
+    if (watchPilotT) clearInterval(watchPilotT);
+    let n = 0;
+    watchPilotT = setInterval(() => {
+      if (!api.watchOpen) return;
+      try {
+        n++;
+        const codes = ['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Space', 'KeyZ', 'KeyX', 'Enter'];
+        const c = codes[n % codes.length];
+        const evInit = { key: c.startsWith('Key') ? c.slice(3).toLowerCase() : c.replace('Arrow', '').toLowerCase(), code: c, bubbles: true, cancelable: true };
+        w.dispatchEvent(new KeyboardEvent('keydown', evInit));
+        setTimeout(() => { try { w.dispatchEvent(new KeyboardEvent('keyup', evInit)); } catch (e) {} }, 90);
+        if (n % 5 === 1) {
+          const cv = w.document && (w.document.querySelector('canvas') || w.document.body);
+          if (cv) {
+            const r = cv.getBoundingClientRect ? cv.getBoundingClientRect() : { left: 0, top: 0, width: 100, height: 100 };
+            const x = r.left + r.width * 0.5, y = r.top + r.height * 0.55;
+            ['pointerdown', 'mousedown', 'pointerup', 'mouseup', 'click'].forEach(type => {
+              try { cv.dispatchEvent(new MouseEvent(type, { bubbles: true, clientX: x, clientY: y })); } catch (e) {}
+            });
+          }
+        }
+      } catch (e) {}
+    }, 220);
+  }
+  function startWatchGame() {
+    stopWatchGame();
+    const m = machineForCab(cab);
+    if (!m || !m.src) { drawWatchFrame(); return; }
+    const src = m.src + (m.src.indexOf('?') >= 0 ? '&' : '?') + 'watch=1';
+    sizeWatch();
+    wctx.fillStyle = '#05060a'; wctx.fillRect(0, 0, watchCv.width, watchCv.height);
+    wctx.fillStyle = '#9ff8ff'; wctx.font = 'bold 22px monospace'; wctx.textAlign = 'center';
+    wctx.fillText('LOADING REAL GAME…', watchCv.width / 2, watchCv.height / 2);
+    watchCv.style.display = 'block';
+    watchFrame.style.display = 'block';
+    const gen = watchGen;
+    watchFrame.src = src;
+    watchFrame.addEventListener('load', () => {
+      if (gen !== watchGen || !api.watchOpen) return;
+      try {
+        const w = watchFrame.contentWindow;
+        if (!w) return;
+        if (m.demo) { m.demo(w); watchBot = 'smart'; }
+        else if (w.__demo && typeof w.__demo.start === 'function') { w.__demo.start(); watchBot = 'smart'; }
+        else fallbackPilot(w);
+        try { watchFrame.blur(); window.focus(); } catch (e) {}
+        watchCv.style.display = 'none';
+      } catch (e) {
+        console.warn('watch demo start', e);
+        if (gen !== watchGen || !api.watchOpen) return;
+        try { fallbackPilot(watchFrame.contentWindow); watchCv.style.display = 'none'; } catch (e2) {}
+      }
+    }, { once: true });
+  }
+
+  Object.defineProperty(api, 'watchBot', { get: () => watchBot });
+  Object.defineProperty(api, 'watchFrame', { get: () => watchFrame });
+  api.watchSrcOf = (c) => { const m = machineForCab(c || cab); return m && m.src; };
 
   function showNear(on) {
     api.near = !!on;
@@ -746,12 +830,14 @@ export function setupGrokVisit({ scene, tp, play, monkey, camera, st } = {}) {
     api.watchOpen = true; api.watchExpert = true; watchOv.classList.add('on');
     try { window.__watchExpert = true; } catch (e) {}
     try { const th = document.getElementById('turnHint'); if (th) { api._turnHintWas = th.classList.contains('on'); th.classList.remove('on'); } } catch (e) {}
-    sizeWatch(); if (cab.userData && cab.userData.visit && !cab.userData.visit.on) scrubInsertCredit(cab); drawWatchFrame();
+    sizeWatch(); startWatchGame();
     const k = A().keys; if (k) for (const c in k) k[c] = false;
   }
   function closeWatch() {
     if (!api.watchOpen) return;
     api.watchOpen = false; api.watchExpert = false; watchOv.classList.remove('on');
+    stopWatchGame();
+    try { window.focus(); } catch (e) {}
     try { const th = document.getElementById('turnHint'); if (th && api._turnHintWas) th.classList.add('on'); api._turnHintWas = false; } catch (e) {}
     // keep expert flag while Grok is still mid-play on this cab
     if (!(cab && cab.userData && cab.userData.visit && cab.userData.visit.on)) {
@@ -767,6 +853,7 @@ export function setupGrokVisit({ scene, tp, play, monkey, camera, st } = {}) {
   }
   function drawWatchFrame() {
     if (!api.watchOpen || !cab) return;
+    if (watchFrame && watchFrame.style.display !== 'none' && watchCv.style.display === 'none') return;
     const scr = cab.getObjectByName && cab.getObjectByName('screen');
     const mat = scr && scr.material;
     const map = mat && (mat.map || (mat.emissiveMap) || (mat.uniforms && mat.uniforms.map && mat.uniforms.map.value));

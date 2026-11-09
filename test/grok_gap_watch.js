@@ -69,9 +69,8 @@ const OUT = '/workspace';
   console.log('shot gap', fs.statSync(OUT + '/grok-gap-play.png').size);
 
   // Watch full-screen portrait (still frozen; openWatch itself does not need shop.update)
-  const watchP = await page.evaluate(() => {
+  const watchP0 = await page.evaluate(() => {
     const V = window.__grokVisit, A = window.__arcade;
-    // ensure play + cab
     if (V.state !== 'play') {
       V.cab = A.strikeCab; V.skipTo('play');
       window.__shop.update = window.__savedShopUpdate;
@@ -80,81 +79,82 @@ const OUT = '/workspace';
     }
     const t0 = A.play.tickets.total;
     V.openWatch();
-    const cv = document.getElementById('gvWatchCv');
+    return { t0, on: document.getElementById('gvWatchOv').classList.contains('on'), state: V.state };
+  });
+  await page.waitForFunction(() => {
+    const fr = document.getElementById('gvWatchFrame');
+    try { return !!(fr && fr.contentWindow && (fr.contentWindow.__DEMO || fr.contentWindow.document.querySelector('canvas'))); }
+    catch (e) { return false; }
+  }, null, { timeout: 15000 });
+  const watchP = await page.evaluate((t0) => {
+    const V = window.__grokVisit, A = window.__arcade;
+    const fr = document.getElementById('gvWatchFrame');
     const ov = document.getElementById('gvWatchOv');
     const hands = document.getElementById('gvWatchHands');
-    // draw a couple frames manually
-    if (V.drawWatchNow) V.drawWatchNow(1);
+    const r = fr.getBoundingClientRect();
     return {
       on: ov.classList.contains('on'),
       expert: !!window.__watchExpert,
       hands: getComputedStyle(hands).display,
-      cvH: cv.height, innerH: innerHeight, dpr: Math.min(2, devicePixelRatio || 1),
+      frH: Math.round(r.height), innerH: innerHeight,
       tickets: A.play.tickets.total, t0,
       badge: (document.getElementById('gvWatchBadge') || {}).textContent || '',
-      state: V.state, watchOpen: V.watchOpen,
+      state: V.state, watchOpen: V.watchOpen, bot: V.watchBot,
+      src: fr && fr.src,
     };
-  });
+  }, watchP0.t0);
   console.log('watchP', JSON.stringify(watchP));
   chk(watchP.on && watchP.expert, 'watch open expert');
   chk(watchP.hands === 'none', 'hands hidden');
-  chk(Math.abs(watchP.cvH - Math.round(watchP.innerH * watchP.dpr)) <= 2, 'portrait full height');
+  chk(Math.abs(watchP.frH - watchP.innerH) <= 2, 'portrait full height iframe');
   chk(watchP.tickets === watchP.t0, 'tickets unchanged');
-  await page.waitForTimeout(400);
+  chk(/watch=1/.test(watchP.src || ''), 'watch=1 on iframe');
+  await page.waitForTimeout(800);
   await page.screenshot({ path: OUT + '/grok-watch-portrait.png' });
   console.log('shot watch portrait', fs.statSync(OUT + '/grok-watch-portrait.png').size);
 
   // Landscape 844x390
   await page.setViewportSize({ width: 844, height: 390 });
-  const watchL = await page.evaluate(() => {
+  await page.evaluate(() => {
     const V = window.__grokVisit, A = window.__arcade;
-    // stay frozen; keep play state
     if (V.state !== 'play') { V.cab = A.strikeCab; V.skipTo('play'); }
     if (V.watchOpen) V.closeWatch();
     V.openWatch();
-    const cv = document.getElementById('gvWatchCv');
-    const dpr = Math.min(2, devicePixelRatio || 1);
-    cv.width = Math.round(innerWidth * dpr); cv.height = Math.round(innerHeight * dpr);
-    cv.style.width = '100%'; cv.style.height = '100%';
-    // paint from the live strike demo canvas if CRT is empty/dark
-    const wctx = cv.getContext('2d');
-    wctx.fillStyle = '#05060a'; wctx.fillRect(0, 0, cv.width, cv.height);
-    let src = null;
+  });
+  await page.waitForFunction(() => {
+    const fr = document.getElementById('gvWatchFrame');
+    try { return !!(fr && fr.contentWindow && (fr.contentWindow.__DEMO || fr.contentWindow.document.querySelector('canvas'))); }
+    catch (e) { return false; }
+  }, null, { timeout: 15000 });
+  await page.waitForTimeout(1000);
+  const watchL = await page.evaluate(() => {
+    const V = window.__grokVisit;
+    const fr = document.getElementById('gvWatchFrame');
+    const r = fr.getBoundingClientRect();
+    let ink = 0;
     try {
-      const demo = A.demo;
-      const iframe = demo && demo.iframe;
-      const ic = iframe && iframe.contentDocument && iframe.contentDocument.getElementById('c');
-      if (ic) src = ic;
+      const cv = fr.contentWindow.document.querySelector('canvas');
+      if (cv) {
+        const c = document.createElement('canvas'); c.width = 64; c.height = 36;
+        const x = c.getContext('2d'); x.drawImage(cv, 0, 0, 64, 36);
+        const d = x.getImageData(0, 0, 64, 36).data;
+        for (let i = 0; i < d.length; i += 4) ink += d[i] + d[i + 1] + d[i + 2];
+      }
     } catch (e) {}
-    if (!src) {
-      try {
-        const scr = V.cab.getObjectByName('screen');
-        const mat = scr && scr.material;
-        const map = mat && (mat.map || (mat.uniforms && mat.uniforms.map && mat.uniforms.map.value));
-        src = map && (map.image || (map.source && map.source.data));
-      } catch (e) {}
-    }
-    if (src && src.width) {
-      const s = Math.max(cv.width / src.width, cv.height / src.height);
-      const dw = src.width * s, dh = src.height * s;
-      wctx.drawImage(src, (cv.width - dw) / 2, (cv.height - dh) / 2, dw, dh);
-    }
-    const mid = wctx.getImageData(cv.width >> 1, cv.height >> 1, 1, 1).data;
     return {
       on: document.getElementById('gvWatchOv').classList.contains('on'),
-      cvW: cv.width, cvH: cv.height, innerW: innerWidth, innerH: innerHeight, dpr,
-      expert: !!window.__watchExpert, state: V.state,
-      mid: [mid[0], mid[1], mid[2]],
+      frW: Math.round(r.width), frH: Math.round(r.height), innerW: innerWidth, innerH: innerHeight,
+      expert: !!window.__watchExpert, state: V.state, bot: V.watchBot, ink,
       hintOn: document.getElementById('turnHint').classList.contains('on'),
-      dataUrl: cv.toDataURL('image/png'),
+      src: fr && fr.src,
     };
   });
-  console.log('watchL', JSON.stringify({ ...watchL, dataUrl: watchL.dataUrl.slice(0, 32) + '...' }));
+  console.log('watchL', JSON.stringify(watchL));
   chk(watchL.on && watchL.expert, 'landscape watch open expert');
-  chk(Math.abs(watchL.cvW - Math.round(watchL.innerW * watchL.dpr)) <= 2, 'landscape full width');
-  chk(Math.abs(watchL.cvH - Math.round(watchL.innerH * watchL.dpr)) <= 2, 'landscape full height');
-  chk(watchL.mid[0] + watchL.mid[1] + watchL.mid[2] > 20, 'landscape canvas has game pixels');
-  fs.writeFileSync(OUT + '/grok-watch-landscape.png', Buffer.from(watchL.dataUrl.split(',')[1], 'base64'));
+  chk(Math.abs(watchL.frW - watchL.innerW) <= 2, 'landscape full width');
+  chk(Math.abs(watchL.frH - watchL.innerH) <= 2, 'landscape full height');
+  chk(watchL.ink > 1000, 'landscape iframe has game pixels');
+  await page.screenshot({ path: OUT + '/grok-watch-landscape.png' });
   await page.screenshot({ path: OUT + '/grok-watch-landscape-page.png' });
   console.log('shot watch landscape', fs.statSync(OUT + '/grok-watch-landscape.png').size, 'page', fs.statSync(OUT + '/grok-watch-landscape-page.png').size);
 
