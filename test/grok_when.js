@@ -176,7 +176,7 @@ const chk = (c, m, x) => { console.log((c ? 'PASS ' : 'FAIL ') + m + (x !== unde
       if ((V.state === 'walk' || V.state === 'return') && trail.length < 800) trail.push([+V.grok.position.x.toFixed(2), +V.grok.position.z.toFixed(2)]);
     }
     if (V.state !== 'done') V.skipTo('done');
-    const spots = [farA, farB].map(c => { const f = c.userData.front, face = c.userData.facing; return { x: f.x + -face.x * (window.__grokVisit.STAND_BACK || 0.55), z: f.z - face.z * (window.__grokVisit.STAND_BACK || 0.55) }; });
+    const spots = [farA, farB].map(c => { const f = c.userData.front, face = c.userData.facing; return { x: f.x + -face.x * (window.__grokVisit.STAND_BACK || 0.42), z: f.z - face.z * (window.__grokVisit.STAND_BACK || 0.42) }; });
     spots.push({ x: V.pad.x, z: V.pad.z });
     let clipped = 0;
     for (const [x, z] of trail) {

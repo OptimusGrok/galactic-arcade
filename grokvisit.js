@@ -12,7 +12,7 @@ const APPEAR_AFTER = 30;       // seconds after the player is actually in the ar
 const LOOK_NEED = 0.5;
 const LOOK_RAD = 0.42;
 const SCALE = 0.665;  // was 0.95; Dave t700u: 30% smaller (×0.7). Shopkeeper stays 0.6 in shop.js.
-const STAND_BACK = 0.55; // metres further INTO THE ROOM from the play-spot (front). facing points at the cabinet, so we subtract it.
+const STAND_BACK = 0.42; // metres further INTO THE ROOM from the play-spot. Clear gap, short enough that arms stay natural.
 const NEAR_R = 1.85;
 const WALK_SPD = 1.05;          // m/s calm walk
 const LOOK_AROUND_S = 3.4;
@@ -572,8 +572,10 @@ export function setupGrokVisit({ scene, tp, play, monkey, camera, st } = {}) {
     const roll = Math.atan2(_loc.x, Math.max(0.04, Math.hypot(_loc.y, _loc.z)));
     const tipLen = handLen || 0.45;
     const need = dist / SCALE;
-    // longer reach so a smaller Grok standing further back still grips the controls
-    arm.el.position.set(0, -Math.min(1.35, Math.max(0.22, need - tipLen)), 0);
+    // Cap extension so smaller Grok doesn't grow noodle arms. Hands may hover just short of the
+    // stick/buttons when the stand-back gap is large — still reads as reaching the controls.
+    const MAX_EL = 0.92;
+    arm.el.position.set(0, -Math.min(MAX_EL, Math.max(0.22, need - tipLen)), 0);
     arm.sh.rotation.x = THREE.MathUtils.clamp(pitch - 0.05, -2.6, 0.5);
     arm.sh.rotation.z = THREE.MathUtils.clamp(roll + sd * 0.04, -1.5, 1.5);
     arm.sh.rotation.y = 0;
@@ -586,6 +588,10 @@ export function setupGrokVisit({ scene, tp, play, monkey, camera, st } = {}) {
     arm.el.position.x += tmp2.x;
     arm.el.position.y += tmp2.y;
     arm.el.position.z += tmp2.z;
+    // hard clamp after the tip correction so fine-tuning can't re-stretch into noodles
+    arm.el.position.y = THREE.MathUtils.clamp(arm.el.position.y, -MAX_EL, -0.22);
+    arm.el.position.x = THREE.MathUtils.clamp(arm.el.position.x, -0.2, 0.2);
+    arm.el.position.z = THREE.MathUtils.clamp(arm.el.position.z, -0.2, 0.2);
   }
 
   // Paint over INSERT CREDIT / INSERT COIN flash bands on attract canvases (no Arcade file edits)
