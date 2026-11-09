@@ -91,12 +91,21 @@ export function startGhostDemo(cab) {
   });
   return d;
 }
+function ghostExpert() { try { return !!(window.__watchExpert || (window.__grokVisit && (window.__grokVisit.watchOpen || (window.__grokVisit.cab && window.__grokVisit.cab.userData && window.__grokVisit.cab.userData.visit && window.__grokVisit.cab.userData.visit.on)))); } catch (e) { return false; } }
 export function tickGhostDemo(d, dt, visible) {
   if (!d.ready || !visible) { d.running = false; return; }
-  d.running = true; d.acc = (d.acc || 0) + dt; if (d.acc < 1 / 30) return; d.acc = Math.min(d.acc - 1 / 30, 1 / 30);
+  d.running = true; d.acc = (d.acc || 0) + dt;
+  const expert = ghostExpert();
+  const interval = expert ? 1 / 40 : 1 / 30; if (d.acc < interval) return; d.acc = Math.min(d.acc - interval, interval);
   try { const G = d.gh.G;
     if (G.state === 'over' || G.state === 'title') { if (++d.idle > 45) { d.idle = 0; d.gh.startGame(++d.seed); } } else d.idle = 0;
-    for (let i = 0; i < 2; i++) { d.w.__bot(); d.gh.step(1); }
+    if (expert && G.state === 'play') {
+      G.lives = Math.max(G.lives, 4);
+      if (G.diff > 0.35) G.diff = 0.35;   // keep difficulty milder so the bot survives longer / scores more
+      if (G.inv < 0.2) G.inv = 0.2;
+    }
+    const steps = expert ? 3 : 2;
+    for (let i = 0; i < steps; i++) { d.w.__bot(); d.gh.step(1); }
     d.gh.render(); d.texture.needsUpdate = true; d.frames++;
   } catch (e) { d.err = String(e); d.ready = false; console.warn('ghost demo', e); }
 }

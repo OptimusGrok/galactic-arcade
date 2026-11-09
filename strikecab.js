@@ -232,23 +232,29 @@ export function startStrikeDemo(cab) {
   return demo;
 }
 function newRun(d, stage) { d.SK.start(stage, { god: true, weapon: 'R', lv: 3 }); d.stage = stage; d.idle = 0; }
-function autopilot(d) {
-  const SK = d.SK, pl = SK.pl, I = SK.Input, H = 480; let tx = 135 + Math.sin(d.frames * 0.013) * 80, ty = H - 110 + Math.sin(d.frames * 0.021) * 40;
+function expertOn() { try { return !!(window.__watchExpert || (window.__grokVisit && (window.__grokVisit.watchOpen || (window.__grokVisit.cab && window.__grokVisit.cab.userData && window.__grokVisit.cab.userData.visit && window.__grokVisit.cab.userData.visit.on)))); } catch (e) { return false; } }
+function autopilot(d, expert) {
+  const SK = d.SK, pl = SK.pl, I = SK.Input, H = 480;
+  const track = expert ? 0.14 : 0.08, dodge = expert ? 110 : 60, limX = expert ? 3.8 : 2.6, limY = expert ? 2.8 : 2;
+  let tx = 135 + Math.sin(d.frames * 0.013) * 80, ty = H - 110 + Math.sin(d.frames * 0.021) * 40;
   let best = null, bd = 1e9; for (const e of SK.pools.enemies.items) if (e.alive && e.y > 10 && e.y < pl.y - 30) { const dd = Math.abs(e.x - pl.x) + (pl.y - e.y) * 0.3; if (dd < bd) { bd = dd; best = e; } }
-  if (best) tx = best.x + Math.sin(d.frames * 0.05) * 10;
-  let ax = 0, ay = 0; for (const b of SK.pools.ebul.items) if (b.alive) { const dx = pl.x - b.x, dy = pl.y - b.y, r2 = dx * dx + dy * dy; if (r2 < 1600 && dy > -10) { ax += dx / (r2 + 50) * 60; ay += dy / (r2 + 50) * 30; } }
-  const mx = Math.max(-2.6, Math.min(2.6, (tx - pl.x) * 0.08 + ax)), my = Math.max(-2, Math.min(2, (ty - pl.y) * 0.05 + ay));
+  if (best) tx = best.x + Math.sin(d.frames * (expert ? 0.03 : 0.05)) * (expert ? 4 : 10);
+  let ax = 0, ay = 0; for (const b of SK.pools.ebul.items) if (b.alive) { const dx = pl.x - b.x, dy = pl.y - b.y, r2 = dx * dx + dy * dy; if (r2 < (expert ? 2600 : 1600) && dy > -10) { ax += dx / (r2 + 50) * dodge; ay += dy / (r2 + 50) * (expert ? 48 : 30); } }
+  const mx = Math.max(-limX, Math.min(limX, (tx - pl.x) * track + ax)), my = Math.max(-limY, Math.min(limY, (ty - pl.y) * (expert ? 0.08 : 0.05) + ay));
   I.botMove = { x: mx, y: my };
 }
 export function tickStrikeDemo(d, dt, visible) {
   if (!d.ready || !visible) { d.running = false; return; }
   d.running = true; d.acc = (d.acc || 0) + dt;
-  const interval = 1 / 30; if (d.acc < interval) return; d.acc = Math.min(d.acc - interval, interval);
+  const expert = expertOn();
+  const interval = expert ? 1 / 40 : 1 / 30; if (d.acc < interval) return; d.acc = Math.min(d.acc - interval, interval);
   try {
     const st = d.SK.state();
     if (st.scene !== 'play') { if (++d.idle > 20) newRun(d, st.scene === 'ending' ? 0 : (d.stage + 1) % 5); }
-    else { d.stage = st.stage; d.SK.G.lives = Math.max(d.SK.G.lives, 3); }
-    autopilot(d); d.SK.step(); autopilot(d); d.SK.step(); d.SK.render();
+    else { d.stage = st.stage; d.SK.G.lives = Math.max(d.SK.G.lives, expert ? 5 : 3); if (expert && d.SK.G.score != null) d.SK.G.score += 0; }
+    const steps = expert ? 3 : 2;
+    for (let i = 0; i < steps; i++) { autopilot(d, expert); d.SK.step(); }
+    d.SK.render();
     d.texture.needsUpdate = true; d.frames++;
   } catch (e) { d.err = String(e); d.ready = false; console.warn('strike demo', e); }
 }

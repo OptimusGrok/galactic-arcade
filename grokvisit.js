@@ -1,4 +1,4 @@
-// t635u/t639u/t641u/t644u (Dave): light-grey Grok, natural walk+look, hands on controls, centred WATCH,
+// t635u/t639u/t641u/t644u/t700u (Dave): light-grey Grok, natural walk+look, hands on controls, centred WATCH,
 // SHOP+CHAT near him, male voice 1 clips, WATCH overlay, two-cab 20-ticket run + floating counter.
 // Lazy from shop.js; no Arcade edits. Grok's tickets never touch the player's.
 import { buildGrokClerk } from './shop.js';
@@ -11,7 +11,8 @@ const PLAY_S = 60;             // safety cap per machine (~20 tickets @ 2.5s)
 const APPEAR_AFTER = 30;       // seconds after the player is actually in the arcade (start dismissed and entry beam finished)
 const LOOK_NEED = 0.5;
 const LOOK_RAD = 0.42;
-const SCALE = 0.95;   // near human height so arms reach stick+buttons
+const SCALE = 0.665;  // was 0.95; Dave t700u: 30% smaller (×0.7). Shopkeeper stays 0.6 in shop.js.
+const STAND_BACK = 0.55; // metres further INTO THE ROOM from the play-spot (front). facing points at the cabinet, so we subtract it.
 const NEAR_R = 1.85;
 const WALK_SPD = 1.05;          // m/s calm walk
 const LOOK_AROUND_S = 3.4;
@@ -383,10 +384,14 @@ export function setupGrokVisit({ scene, tp, play, monkey, camera, st } = {}) {
     powerPad(1); zap();
   }
 
-  function setVisit(c, on) { if (c && c.userData && c.userData.visit) c.userData.visit.on = !!on; }
+  function setVisit(c, on) {
+    if (c && c.userData && c.userData.visit) c.userData.visit.on = !!on;
+    if (!on && !api.watchOpen) { try { window.__watchExpert = false; } catch (e) {} }
+  }
   function startPlayAtCab() {
     bindControls();
     setVisit(cab, true);
+    try { window.__watchExpert = true; } catch (e) {}  // Grok plays expert; Watch inherits it
     try { if (cab.userData && cab.userData.tick) cab.userData.tick(t); } catch (e) {}
     api.tickets = 0; showTixHud(true);
     const every = (api.fast || api.reason === 'test') ? TIX_EVERY_FAST : TIX_EVERY;
@@ -432,8 +437,9 @@ export function setupGrokVisit({ scene, tp, play, monkey, camera, st } = {}) {
 
   function standAtCab() {
     const f = cab.userData.front, face = cab.userData.facing || _faceFallback;
-    // stand on the play spot, leaned into the panel so arms reach stick+buttons
-    const x = f.x + face.x * 0.62, z = f.z + face.z * 0.62;
+    // facing points at the cabinet. Subtract it so Grok stands further into the room with a clear gap;
+    // IK stretches the arms forward to the stick/buttons.
+    const x = f.x - face.x * STAND_BACK, z = f.z - face.z * STAND_BACK;
     const yaw = Math.atan2(face.x, face.z);
     return { x, z, yaw };
   }
@@ -549,6 +555,7 @@ export function setupGrokVisit({ scene, tp, play, monkey, camera, st } = {}) {
     if (palmL.parent) palmL.parent.remove(palmL); scene.add(palmL); palmL.visible = false;
     if (palmR.parent) palmR.parent.remove(palmR); scene.add(palmR); palmR.visible = false;
     joy = null; btns = []; joyBase = null; btnBase = [];
+    try { grok.rotation.x = 0; } catch (e) {}
   }
 
   // Aim arm so the baked forearm tip (el local 0,-0.40,0.02) lands on targetW.
@@ -565,7 +572,8 @@ export function setupGrokVisit({ scene, tp, play, monkey, camera, st } = {}) {
     const roll = Math.atan2(_loc.x, Math.max(0.04, Math.hypot(_loc.y, _loc.z)));
     const tipLen = handLen || 0.45;
     const need = dist / SCALE;
-    arm.el.position.set(0, -Math.min(0.9, Math.max(0.22, need - tipLen)), 0);
+    // longer reach so a smaller Grok standing further back still grips the controls
+    arm.el.position.set(0, -Math.min(1.35, Math.max(0.22, need - tipLen)), 0);
     arm.sh.rotation.x = THREE.MathUtils.clamp(pitch - 0.05, -2.6, 0.5);
     arm.sh.rotation.z = THREE.MathUtils.clamp(roll + sd * 0.04, -1.5, 1.5);
     arm.sh.rotation.y = 0;
@@ -583,6 +591,7 @@ export function setupGrokVisit({ scene, tp, play, monkey, camera, st } = {}) {
   // Paint over INSERT CREDIT / INSERT COIN flash bands on attract canvases (no Arcade file edits)
   function scrubInsertCredit(cab) {
     try {
+      if (!cab || !cab.userData || !cab.userData.visit) return; // live Strike/Ghost demos: never paint over the iframe canvas
       const scr = cab && cab.getObjectByName && cab.getObjectByName('screen');
       const mat = scr && scr.material;
       const map = mat && (mat.map || mat.emissiveMap || (mat.uniforms && mat.uniforms.map && mat.uniforms.map.value));
@@ -629,8 +638,8 @@ export function setupGrokVisit({ scene, tp, play, monkey, camera, st } = {}) {
       if (cab.userData && typeof cab.userData.tick === 'function') cab.userData.tick(t);
     } catch (e) {}
     try { if (cab.userData.glow) cab.userData.glow.intensity = 1.35 + Math.sin(t * 10) * 0.1; } catch (e) {}
-    // Public attracts still flash INSERT CREDIT. While visit.on, the attract itself omits that line, so do not paint black bars over the playfield.
-    if (t >= scrubAt && !(cab.userData && cab.userData.visit && cab.userData.visit.on)) { scrubAt = t + 0.5; scrubInsertCredit(cab); }
+    // Only scrub cabinets that expose a visit flag (canvas attracts). Live Strike/Ghost demos have no visit and must not be painted over.
+    if (t >= scrubAt && cab.userData && cab.userData.visit && !cab.userData.visit.on) { scrubAt = t + 0.5; scrubInsertCredit(cab); }
     if (api.watchOpen) drawWatchHands(pressIdx);
   }
 
@@ -666,10 +675,11 @@ export function setupGrokVisit({ scene, tp, play, monkey, camera, st } = {}) {
     '.gvChip:active{transform:scale(.96)}' +
     '#gvWatch{position:fixed;left:50%;top:calc(50% + 118px);transform:translate(-50%,0) scale(.92);z-index:7;display:none;width:min(78vw,240px);max-width:calc(100vw - 24px);margin:0;padding:12px 22px 11px;border-radius:12px;border:3px solid #00e5ff;background:linear-gradient(#062a36f2,#021018f2);color:#dffbff;font:900 clamp(18px,4.6vw,28px)/1 "Courier New",monospace;letter-spacing:.12em;box-shadow:0 0 14px #00e5ffaa,inset 0 0 10px #00e5ff44;text-shadow:0 0 8px #00e5ff;cursor:pointer;touch-action:manipulation;opacity:0;pointer-events:none;transition:opacity .3s ease,transform .3s ease;box-sizing:border-box;text-align:center}' +
     '#gvWatch.on{display:block;opacity:1;pointer-events:auto;transform:translate(-50%,0) scale(1)}' +
-    '#gvWatchOv{position:fixed;inset:0;z-index:55;display:none;background:#000;flex-direction:column;align-items:stretch}' +
-    '#gvWatchOv.on{display:flex}' +
-    '#gvWatchCv{flex:1;width:100%;background:#000;object-fit:contain}' +
-    '#gvWatchHands{position:absolute;left:0;right:0;bottom:0;height:28%;pointer-events:none}' +
+    '#gvWatchOv{position:fixed;inset:0;z-index:130;display:none;background:#000}' +
+    '#gvWatchOv.on{display:block}' +
+    '#gvWatchCv{position:absolute;inset:0;width:100%;height:100%;background:#000;display:block}' +
+    '#gvWatchHands{display:none;pointer-events:none}' +
+    '#gvWatchBadge{position:absolute;left:50%;top:calc(10px + env(safe-area-inset-top));transform:translateX(-50%);z-index:2;padding:6px 14px;border-radius:999px;border:2px solid #00e5ffaa;background:#021018cc;color:#dffbff;font:800 12px/1 "Courier New",monospace;letter-spacing:.14em;pointer-events:none}' +
     '#gvWatchX{position:absolute;right:calc(10px + env(safe-area-inset-right));top:calc(10px + env(safe-area-inset-top));z-index:2;width:46px;height:46px;border-radius:23px;border:2px solid #fff8;background:#000a;color:#fff;font:900 22px/1 Arial,sans-serif;cursor:pointer}';
   document.head.appendChild(css);
 
@@ -688,7 +698,7 @@ export function setupGrokVisit({ scene, tp, play, monkey, camera, st } = {}) {
   // fixed, centred just below the PLAY card cluster — fully on-screen at 360-430px, never overlaps PLAY
   document.body.appendChild(watchB);
   const watchOv = document.createElement('div'); watchOv.id = 'gvWatchOv';
-  watchOv.innerHTML = '<button id="gvWatchX" aria-label="Close">✕</button><canvas id="gvWatchCv"></canvas><canvas id="gvWatchHands"></canvas>';
+  watchOv.innerHTML = '<button id="gvWatchX" aria-label="Close">✕</button><div id="gvWatchBadge">DEMO · EXPERT</div><canvas id="gvWatchCv"></canvas><canvas id="gvWatchHands"></canvas>';
   document.body.appendChild(watchOv);
   const watchCv = watchOv.querySelector('#gvWatchCv'), watchHands = watchOv.querySelector('#gvWatchHands');
   const wctx = watchCv.getContext('2d'), hctx = watchHands.getContext('2d');
@@ -727,20 +737,27 @@ export function setupGrokVisit({ scene, tp, play, monkey, camera, st } = {}) {
 
   function openWatch() {
     if (api.watchOpen || !cab) return;
-    api.watchOpen = true; watchOv.classList.add('on');
-    sizeWatch(); if (!(cab.userData && cab.userData.visit && cab.userData.visit.on)) scrubInsertCredit(cab); drawWatchFrame(); drawWatchHands(((t * 2.4) | 0) % 3);
+    api.watchOpen = true; api.watchExpert = true; watchOv.classList.add('on');
+    try { window.__watchExpert = true; } catch (e) {}
+    try { const th = document.getElementById('turnHint'); if (th) { api._turnHintWas = th.classList.contains('on'); th.classList.remove('on'); } } catch (e) {}
+    sizeWatch(); if (cab.userData && cab.userData.visit && !cab.userData.visit.on) scrubInsertCredit(cab); drawWatchFrame();
     const k = A().keys; if (k) for (const c in k) k[c] = false;
   }
   function closeWatch() {
     if (!api.watchOpen) return;
-    api.watchOpen = false; watchOv.classList.remove('on');
+    api.watchOpen = false; api.watchExpert = false; watchOv.classList.remove('on');
+    try { const th = document.getElementById('turnHint'); if (th && api._turnHintWas) th.classList.add('on'); api._turnHintWas = false; } catch (e) {}
+    // keep expert flag while Grok is still mid-play on this cab
+    if (!(cab && cab.userData && cab.userData.visit && cab.userData.visit.on)) {
+      try { window.__watchExpert = false; } catch (e) {}
+    }
   }
   function sizeWatch() {
     const dpr = Math.min(2, devicePixelRatio || 1);
-    watchCv.width = Math.round(innerWidth * dpr); watchCv.height = Math.round(innerHeight * 0.72 * dpr);
-    watchCv.style.width = '100%'; watchCv.style.height = '72%';
-    watchHands.width = Math.round(innerWidth * dpr); watchHands.height = Math.round(innerHeight * 0.28 * dpr);
-    watchHands.style.width = '100%'; watchHands.style.height = '28%';
+    // full-screen game fill (portrait + landscape); hands deck hidden
+    watchCv.width = Math.round(innerWidth * dpr); watchCv.height = Math.round(innerHeight * dpr);
+    watchCv.style.width = '100%'; watchCv.style.height = '100%';
+    watchHands.width = 1; watchHands.height = 1;
   }
   function drawWatchFrame() {
     if (!api.watchOpen || !cab) return;
@@ -751,7 +768,8 @@ export function setupGrokVisit({ scene, tp, play, monkey, camera, st } = {}) {
     wctx.fillStyle = '#05060a'; wctx.fillRect(0, 0, watchCv.width, watchCv.height);
     if (img && img.width) {
       const cw = watchCv.width, ch = watchCv.height, iw = img.width, ih = img.height;
-      const s = Math.min(cw / iw, ch / ih);
+      // cover: fill the phone screen (crop edges if needed) in portrait and landscape
+      const s = Math.max(cw / iw, ch / ih);
       const dw = iw * s, dh = ih * s;
       try { wctx.drawImage(img, (cw - dw) / 2, (ch - dh) / 2, dw, dh); } catch (e) {}
     } else {
@@ -875,7 +893,7 @@ export function setupGrokVisit({ scene, tp, play, monkey, camera, st } = {}) {
       const tk = talking ? [0.15, 0.7, 1, 0.4][(t * 11 | 0) % 4] : 0;
       const fs = (happy ? 'h' : blinkT < 0 ? 'b' : 'o') + tk;
       if (fs !== faceState) { faceState = fs; drawFace(faceTex.g, blinkT < 0, tk, happy); faceTex.t.needsUpdate = true; }
-      if (api.state === 'play' || api.state === 'cheer') grok.position.y = 0;
+      if (api.state === 'play' || api.state === 'cheer') { grok.position.y = 0; if (api.state === 'play') grok.rotation.x += (0.08 - grok.rotation.x) * Math.min(1, dt * 4); else grok.rotation.x += (0 - grok.rotation.x) * Math.min(1, dt * 4); }
       else if (api.state !== 'walk' && api.state !== 'return') grok.position.y = Math.sin(t * 1.6) * 0.015;
     }
     fx.tick(dt);
@@ -1085,6 +1103,9 @@ export function setupGrokVisit({ scene, tp, play, monkey, camera, st } = {}) {
 
   api.palms = { L: palmL, R: palmR };
   api.placeTixHud = placeTixHud;
+  api.SCALE = SCALE; api.STAND_BACK = STAND_BACK;
+  api.watchExpert = false;
+  api.openWatch = openWatch; api.closeWatch = closeWatch;
   api._t0 = performance.now() / 1000;
   return api;
 }
