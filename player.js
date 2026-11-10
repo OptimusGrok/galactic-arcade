@@ -34,7 +34,8 @@
     if (localStorage.getItem(MIGKEY) !== '1') { ['hat', 'hoodie', 'fur', 'shoes', 'glasses', 'back'].forEach(function (k) { add(k, d[k]); }); localStorage.setItem(MIGKEY, '1'); ch = 1; }
     add('fur', 'brown'); add('shoes', 'red');   /* base monkey always owned */
     if (ch) localStorage.setItem(OKEY, JSON.stringify(o)); } catch (e) {} }
-  function load() { var d = { name: '', hat: 'cap', hoodie: 'navy', fur: 'brown', shoes: 'red', glasses: 'none', back: 'none' }; try { var o = JSON.parse(localStorage.getItem(KEY) || '{}'); for (var k in d) if (typeof o[k] === 'string') d[k] = o[k]; } catch (e) {}
+  function load() { var d = { name: '', hat: 'cap', hoodie: 'navy', fur: 'brown', shoes: 'red', glasses: 'none', back: 'none', char: 'monkey' }; try { var o = JSON.parse(localStorage.getItem(KEY) || '{}'); for (var k in d) if (typeof o[k] === 'string') d[k] = o[k]; } catch (e) {}
+    if (d.char !== 'alien') d.char = 'monkey';   /* old saves and unknown values default to the monkey */
     migrateOwned(d); for (var k2 in OPTS) if (!OPTS[k2].some(function (a) { return a[0] === d[k2]; }) || !has(k2, d[k2])) d[k2] = OPTS[k2][0][0]; d.name = clean(d.name); return d; }
   function clean(s) { return String(s || '').replace(/[\u0000-\u001f<>]/g, '').slice(0, MAXN); }
   var P = load();
@@ -193,7 +194,14 @@
     g.font = '900 34px "Courier New",monospace'; var w = Math.min(248, g.measureText(P.name).width + 30); g.fillStyle = '#0a0418cc'; g.strokeStyle = '#ff3cf0'; g.lineWidth = 3;
     g.beginPath(); if (g.roundRect) g.roundRect(128 - w / 2, 8, w, 48, 14); else g.rect(128 - w / 2, 8, w, 48); g.fill(); g.stroke();
     g.fillStyle = '#fff'; g.shadowColor = '#00e5ff'; g.shadowBlur = 8; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(P.name, 128, 33, 236); tag.material.map.needsUpdate = true; }
-  function apply() { var A = window.__arcade; if (!A || !A.monkey) return; var T = A.THREE; if (!mats) mats = scanMats(A.monkey); applyMats(); applyRoot(T, A.monkey); applyTag(T, A.monkey); if (prev.root) applyRoot(T, prev.root); }
+  function clonePlayer() { var A = window.__arcade, mk = A.monkey, ud = mk.userData, tg = tag; mk.userData = {}; if (tg) mk.remove(tg); var c = mk.clone(true); mk.userData = ud; if (tg) mk.add(tg);
+    var junk = []; c.traverse(function (o) { if (/^ga/.test(o.name)) junk.push(o); delete o.userData.gaHats; }); junk.forEach(function (o) { if (o.parent) o.parent.remove(o); });
+    c.position.set(0, 0, 0); c.rotation.set(0, 0, 0); c.visible = true; c.traverse(function (o) { o.visible = o.name === 'idlePhone' ? false : o.visible; }); return c; }
+  function rebuildPrev() { if (!prev.scene) return; if (prev.root && prev.root.parent) prev.root.parent.remove(prev.root); prev.root = clonePlayer(); prev.scene.add(prev.root); prev.hat = null; applyRoot(window.__arcade.THREE, prev.root); }
+  function apply() { var A = window.__arcade; if (!A || !A.monkey) return; var T = A.THREE, before = A.monkey.userData.char || 'monkey';
+    if (A.setChar) A.setChar(P.char || 'monkey'); var swapped = (A.monkey.userData.char || 'monkey') !== before;
+    if (swapped || !mats) mats = scanMats(A.monkey); applyMats(); applyRoot(T, A.monkey); applyTag(T, A.monkey);
+    if (swapped && prev.scene) rebuildPrev(); else if (prev.root) applyRoot(T, prev.root); }
 
   // ---------- preview (own small renderer + a clone of the real monkey sharing its materials) ----------
   var prev = { root: null, r: null, scene: null, cam: null, rot: 0, want: 0, auto: true, drag: null, raf: 0 };
@@ -219,21 +227,22 @@
     var s = prev.scene = new T.Scene(); prev.cam = new T.PerspectiveCamera(30, 1, 0.1, 50);
     s.add(new T.HemisphereLight(0xcfd8ff, 0x302040, 1.6)); var d = new T.DirectionalLight(0xffffff, 2.2); d.position.set(1.5, 3, 3); s.add(d);
     var r1 = new T.PointLight(0xff3cf0, 3, 6); r1.position.set(-1.6, 1.4, 1); s.add(r1); var r2 = new T.PointLight(0x00e5ff, 3, 6); r2.position.set(1.6, 1.2, 1); s.add(r2);
-    var mk = A.monkey, ud = mk.userData, tg = tag; mk.userData = {}; if (tg) mk.remove(tg); var c = mk.clone(true); mk.userData = ud; if (tg) mk.add(tg);
-    var junk = []; c.traverse(function (o) { if (/^ga/.test(o.name)) junk.push(o); delete o.userData.gaHats; }); junk.forEach(function (o) { o.parent.remove(o); });   // userData is JSON-copied by clone(): drop the copied hat refs so the preview builds its own
-    c.position.set(0, 0, 0); c.rotation.set(0, 0, 0); c.visible = true; c.traverse(function (o) { o.visible = o.name === 'idlePhone' ? false : o.visible; }); prev.root = c; s.add(c);
+    prev.root = clonePlayer(); s.add(prev.root);   // userData is JSON-copied by clone(): drop the copied hat refs so the preview builds its own
     var disc = new T.Mesh(new T.CylinderGeometry(0.62, 0.68, 0.06, 40), new T.MeshStandardMaterial({ color: 0x120a2a, roughness: 0.4, metalness: 0.6, emissive: 0x1a0a40 })); disc.position.y = -0.03; s.add(disc);
     for (var i = 0; i < 3; i++) { var ring = new T.Mesh(new T.TorusGeometry(0.25 + i * 0.17, 0.012, 6, 48), new T.MeshBasicMaterial({ color: i === 1 ? 0xff3cf0 : 0x00e5ff, toneMapped: false })); ring.rotation.x = Math.PI / 2; ring.position.y = 0.005; s.add(ring); }
     var beam = new T.Mesh(new T.CylinderGeometry(0.62, 0.62, 2.1, 32, 1, true), new T.MeshBasicMaterial({ color: 0x2a6cff, transparent: true, opacity: 0.08, side: T.DoubleSide, depthWrite: false, blending: T.AdditiveBlending })); beam.position.y = 1.05; s.add(beam);
-    applyRoot(T, c); }
+    applyRoot(T, prev.root); }
   function frame() { prev.raf = requestAnimationFrame(frame); var wc = want(); if (!wc || !prev.scene) return; if (!prev.r || prev.r.domElement !== wc) attach(wc); if (!prev.r) return; if (prev.r.getContext().isContextLost()) { if (!prev.lostAt) prev.lostAt = performance.now(); if (performance.now() - prev.lostAt > 600) { prev.lostAt = 0; remake(); } return; } prev.lostAt = 0;
     var cv = prev.r.domElement, w = cv.clientWidth, h = cv.clientHeight; if (!w || !h) return;
     if (cv.width !== Math.round(w * prev.r.getPixelRatio()) || cv.height !== Math.round(h * prev.r.getPixelRatio())) { prev.r.setSize(w, h, false); }
     prev.cam.aspect = w / h; var fit = Math.max(1, 0.62 / prev.cam.aspect); prev.cam.position.set(0, 1.3, 4.9 * fit); prev.cam.lookAt(0, 1.02, 0); prev.cam.updateProjectionMatrix();
     var PL = pLook(); if (wc.id === 'gaCv') { PL = Object.assign({}, PL, { glasses: 'none', hat: stHat ? PL.hat : 'none' }); }   // Dave: no hat until a cap is tapped   // Dave: no eyewear on the start screen (saved glasses kept for the game)
-    var pk = PL.hat + PL.glasses + PL.back + PL.hoodie + wc.id; if (prev.hat !== pk) { prev.hat = pk; applyRoot(window.__arcade.THREE, prev.root, PL); if (W.try) applyMats(PL); }   // the preview always wears the chosen hat, however the pick or load happened
+    var pk = PL.hat + PL.glasses + PL.back + PL.hoodie + (PL.char || '') + wc.id; if (prev.hat !== pk) { prev.hat = pk; applyRoot(window.__arcade.THREE, prev.root, PL); if (W.try) applyMats(PL); }   // the preview always wears the chosen hat, however the pick or load happened
     if (prev.auto && !prev.drag) prev.want += 0.006; prev.rot += (prev.want - prev.rot) * 0.15; prev.root.rotation.y = prev.rot;
     var now = performance.now(), dt = Math.min(0.25, prev.lt ? (now - prev.lt) / 1000 : 0.016); prev.lt = now;
+    var bot = prev.root.getObjectByName('alienBot'); if (bot) { var bt = now / 1000, y0 = bot.userData.baseY != null ? bot.userData.baseY : 0.58;
+      bot.position.x = 0.44 + Math.sin(bt * 1.15) * 0.02; bot.position.y = y0 + Math.sin(bt * 2.35) * 0.05; bot.position.z = 0.02 + Math.cos(bt * 1.05) * 0.02;
+      bot.rotation.y = Math.sin(bt * 1.45) * 0.45; bot.rotation.z = Math.sin(bt * 1.9) * 0.1; }
     if (!TP.seen && wc.id === 'gaCv') { TP.seen = true; TP.gone = false; tpStart('in'); }   // first paint of the start screen: beam in
     tpRender(tpStep(dt)); }
   // ---------- start-screen teleport (same look as teleport.js: cyan swirl column, rising sparkles, feet-up dissolve, flash, zap/vwoom) ----------
@@ -300,6 +309,9 @@
     + '.gaRow{display:flex;align-items:center;gap:6px;padding:6px 4px}.gaRow .gaA{width:30px;height:40px;border:none;background:none;color:#7fe8ff;font:900 26px/1 Arial;flex:none;cursor:pointer}'
     + '.gaRow span{width:62px;flex:none;font:900 12px/1.1 "Courier New",monospace;text-align:center;letter-spacing:.04em}.gaCh{flex:1;display:flex;gap:6px;justify-content:safe center;overflow-x:auto;overflow-y:hidden;scrollbar-width:none;touch-action:pan-x;scroll-snap-type:x proximity;padding:2px}.gaCh::-webkit-scrollbar{display:none}.gaCh .gaO{flex:none;scroll-snap-align:center}'
     + '.gaO{width:42px;height:38px;border-radius:8px;border:2px solid #ffffff33;background:#151030;font:20px/1 sans-serif;color:#fff;padding:0;cursor:pointer}.gaO.sel{border-color:#ffd98a;box-shadow:0 0 10px #ffb000cc}'
+    + '.gaRow[hidden]{display:none!important}'
+    + '#gaWho{display:flex;gap:8px;padding:8px 10px 2px;justify-content:center}'
+    + '.gaWho{flex:1;max-width:170px;height:36px;border-radius:10px;border:2px solid #ffffff33;background:#151030;color:#d8e7ff;font:900 13px/1 "Courier New",monospace;letter-spacing:.08em;cursor:pointer;-webkit-tap-highlight-color:transparent}.gaWho.sel{border-color:#ffd98a;color:#fff;box-shadow:0 0 10px #ffb000cc}'
     + '#gaGo{flex:none;font:900 clamp(26px,8vw,38px)/1 "Arial Black",Impact,sans-serif;letter-spacing:.1em;color:#dffbff;padding:12px 54px;border-radius:14px;border:3px solid #00e5ff;background:linear-gradient(#0c1a3aee,#050a1aee);text-shadow:0 0 8px #00e5ff,0 0 20px #00a0ff;box-shadow:0 0 18px #00e5ffaa,inset 0 0 14px #00e5ff44;cursor:pointer;animation:pp 1.6s ease-in-out infinite}'
     + '#gaHint.gaTaken{color:#ff5a7a;font-weight:900}#gaGo[hidden]{display:none}#gaGo:not([hidden]){animation:gaPop .45s cubic-bezier(.2,1.6,.4,1) both}@keyframes gaPop{0%{opacity:0;transform:scale(.6)}100%{opacity:1;transform:scale(1)}}#gaHint{flex:none;font:700 12px system-ui;color:#ffd0fa;opacity:.85;min-height:48px;display:flex;align-items:center}#gaHint[hidden]{display:none}'
     + '#start.ga #stBtns{display:none!important}#start.ga #stBox{visibility:hidden}'
@@ -320,7 +332,8 @@
     + '#gaP>.gaBox:not(#gaNm){grid-column:2;grid-row:1 / span 2;align-self:center;max-height:100%;overflow:hidden}'
     + '#gaGo{grid-column:2;grid-row:3;justify-self:center;padding:7px 26px;font-size:clamp(16px,5.4vh,26px)}'
     + '#gaHint{grid-column:2;grid-row:4;min-height:0;justify-self:center;font-size:11px}'
-    + '.gaRow{padding:2px}.gaO{width:34px;height:28px;font-size:16px}.gaRow span{width:48px;font-size:10px}.gaAr{width:36px;height:44px;font-size:32px}}';
+    + '.gaRow{padding:2px}.gaO{width:34px;height:28px;font-size:16px}.gaRow span{width:48px;font-size:10px}.gaAr{width:36px;height:44px;font-size:32px}'
+    + '#gaWho{padding:2px 6px 0;gap:6px}.gaWho{height:24px;font-size:10px;max-width:130px}}';
   var ov = null, stHat = false;   // start screen: cap picked this visit?
   function row(k, label, shop, list) { var h = '<div class="gaRow" data-k="' + k + '"><button class="gaA" data-step="-1" aria-label="previous">‹</button><span>' + label + '</span><div class="gaCh">';
     (list || (shop ? OPTS : START)[k]).forEach(function (o) { var ic = typeof o[1] === 'string', face = ic ? o[1] : ''; var bg = ic ? '' : 'background:#' + ('00000' + o[1].toString(16)).slice(-6) + ';';
@@ -340,7 +353,7 @@
     ov.innerHTML = '<canvas id="gaStars"></canvas><div id="gaT"><b>GALACTIC</b><i>ARCADE</i></div>'
       + '<div id="gaStage"><canvas id="gaCv"></canvas><button class="gaAr" id="gaL" aria-label="rotate left">‹</button><button class="gaAr" id="gaR" aria-label="rotate right">›</button></div>'
       + '<div class="gaBox" id="gaNm"><label for="gaIn">YOUR NAME</label><input id="gaIn" maxlength="' + MAXN + '" placeholder="Enter your name..." autocomplete="nickname" autocapitalize="words" spellcheck="false" enterkeyhint="go"></div>'
-      + '<div class="gaBox">' + rows() + '</div>'
+      + '<div class="gaBox"><div id="gaWho"><button type="button" class="gaWho" data-v="monkey">MONKEY</button><button type="button" class="gaWho" data-v="alien">ALIEN</button></div>' + rows() + '</div>'
       + '<button id="gaGo" hidden>PLAY</button><div id="gaHint">Type your name to play</div>';
     st.appendChild(ov); st.classList.add('ga'); var inp = ov.querySelector('#gaIn'); inp.value = P.name;
     inp.addEventListener('input', function () { var v = clean(inp.value); if (v !== inp.value) inp.value = v; P.name = v; save(); sync(); apply(); nameCheck(); });
@@ -351,16 +364,21 @@
   function syncRows(root, scroll) { [].forEach.call(root.querySelectorAll('.gaRow'), function (r) { var k = r.dataset.k; [].forEach.call(r.querySelectorAll('.gaO'), function (b) { var on = b.dataset.v === P[k] && !(root === ov && k === 'hat' && !stHat); b.classList.toggle('sel', on);
       if (b.classList.contains('gaNew')) { b.classList.toggle('own', has(k, b.dataset.v)); b.classList.toggle('try', !!(W.try && W.try.k === k && W.try.v === b.dataset.v)); }
       if (on && scroll) { var ch = b.parentNode; if (ch.scrollWidth > ch.clientWidth) { var br = b.getBoundingClientRect(), cr = ch.getBoundingClientRect(); ch.scrollLeft += (br.left + br.width / 2) - (cr.left + cr.width / 2); } } }); }); }
-  function sync(scroll) { if (W.el) syncRows(W.el, scroll); if (!ov) return; syncRows(ov, scroll);
+  function hideCharRows(root) { if (!root) return; var alien = P.char === 'alien';
+    [].forEach.call(root.querySelectorAll('.gaRow'), function (r) { if (r.dataset.k === 'hoodie' || r.dataset.k === 'fur' || r.dataset.k === 'shoes') r.hidden = alien && (root !== ov || r.dataset.k === 'hoodie'); });
+    [].forEach.call(root.querySelectorAll('.gaWho'), function (b) { b.classList.toggle('sel', b.dataset.v === (P.char || 'monkey')); }); }
+  function sync(scroll) { if (W.el) { syncRows(W.el, scroll); hideCharRows(W.el); } if (!ov) return; syncRows(ov, scroll); hideCharRows(ov);
     var free = !named() || nmFree === clean(P.name).trim().toLowerCase(), hint = ov.querySelector('#gaHint');   // unique names (names.js): PLAY waits for a free name
     ov.querySelector('#gaGo').hidden = !(named() && goOK() && free); hint.hidden = named() && (free || nmBusy); hint.textContent = named() ? (nmWhy === 'bad' ? 'Pick a different name' : 'Name taken') : 'Type your name to play'; hint.classList.toggle('gaTaken', named() && !free); }
   // unique names: debounced check as the user types; nmFree = the lower(trim) name last confirmed free
   var nmFree = null, nmBusy = true, nmT = 0, nmSeq = 0, nmWhy = '';   /* t286u: nmWhy 'bad' = blocked word (names.js isBad) */
   function nameCheck(now) { var Nm = window.__gaNames, k = clean(P.name).trim().toLowerCase(); clearTimeout(nmT); if (!Nm) { nmFree = k; sync(); return; } nmBusy = true; if (nmFree !== k) nmFree = null; sync();
     nmT = setTimeout(function () { var q = ++nmSeq; Nm.check(P.name).then(function (r) { if (q !== nmSeq) return; nmBusy = false; nmWhy = r.why; nmFree = r.free ? k : null; sync(); }); }, now ? 0 : 350); }
-  function look() { return { name: P.name, hat: P.hat, hoodie: P.hoodie, fur: P.fur, shoes: P.shoes, glasses: P.glasses, back: P.back }; }
+  function look() { return { name: P.name, hat: P.hat, hoodie: P.hoodie, fur: P.fur, shoes: P.shoes, glasses: P.glasses, back: P.back, char: P.char || 'monkey' }; }
   function pLook() { if (!W.try || !W.open) return P; var L = Object.assign({}, P); L[W.try.k] = W.try.v; return L; }
-  function pick(k, v) { if (!OPTS[k] || !OPTS[k].some(function (a) { return a[0] === v; }) || !has(k, v)) return; if (W.try) { W.try = null; buyUI(); } P[k] = v; save(); sync(true); apply();
+  function setChar(v) { v = v === 'alien' ? 'alien' : 'monkey'; if (P.char === v) { sync(true); return; } P.char = v; save(); sync(true); apply();
+    try { window.dispatchEvent(new CustomEvent('galacticarcade:look', { detail: look() })); } catch (e) {} }
+  function pick(k, v) { if (k === 'char') { setChar(v); return; } if (!OPTS[k] || !OPTS[k].some(function (a) { return a[0] === v; }) || !has(k, v)) return; if (W.try) { W.try = null; buyUI(); } P[k] = v; save(); sync(true); apply();
     try { window.dispatchEvent(new CustomEvent('galacticarcade:look', { detail: look() })); } catch (e) {} }
 
   // ---------- in-game wardrobe (window.__wardrobe.open/close): same rows, live turntable, applies + saves at once ----------
@@ -446,6 +464,7 @@
     if (t.closest('#gaGo')) play();
     else if (t.closest('#gaL')) { prev.auto = false; prev.want -= Math.PI / 4; }
     else if (t.closest('#gaR')) { prev.auto = false; prev.want += Math.PI / 4; }
+    else if ((b = t.closest('.gaWho'))) setChar(b.dataset.v);
     else if ((b = t.closest('.gaO'))) { var k0 = b.closest('.gaRow').dataset.k; if (k0 === 'hat') { var off = stHat && P.hat === b.dataset.v; stHat = true; prev.hat = null; pick('hat', off ? 'none' : b.dataset.v); } else pick(k0, b.dataset.v); }   // tap selected cap again = off
     else if ((b = t.closest('.gaA'))) { if (b.closest('.gaRow').dataset.k === 'hat') { stHat = true; prev.hat = null; } step(b.closest('.gaRow').dataset.k, +b.dataset.step); }
   }
@@ -474,5 +493,5 @@
     var wrap = setInterval(function () { var U = window.__startUI; if (!U || !U.show || U.show.ga) return; clearInterval(wrap); var o = U.show; U.show = function () { untouch(); stHat = false; TP.seen = false; TP.st = 'idle'; TP.cb = null; var r = o.apply(this, arguments); tickets(); sync(); return r; }; U.show.ga = 1; }, 200); }
   var booted = false; function boot1() { if (booted) return; booted = true; boot(); }
   if (document.readyState === 'loading') { var mo = new MutationObserver(function () { if (document.getElementById('start')) { mo.disconnect(); boot1(); } }); mo.observe(document.documentElement, { childList: true, subtree: true }); document.addEventListener('DOMContentLoaded', boot1); } else boot1();   // build ours the moment #start is parsed
-  window.__gaPlayer = { KEY: KEY, get p() { return P; }, pick: pick, play: play, apply: apply, opts: BASE, allOpts: OPTS, priceOf: priceOf, isStart: isStart, isFree: isFree, get tag() { return tag; }, get prev() { return prev; }, music: MU, dress: dress, look: look, glasses: GLAS, wardrobe: W, tp: TP, NEW: NEW, PRICE: PRICE, owned: owned, has: has, buy: buy, tryOn: tryOn, balance: balance };
+  window.__gaPlayer = { KEY: KEY, get p() { return P; }, pick: pick, setChar: setChar, play: play, apply: apply, opts: BASE, allOpts: OPTS, priceOf: priceOf, isStart: isStart, isFree: isFree, get tag() { return tag; }, get prev() { return prev; }, music: MU, dress: dress, look: look, glasses: GLAS, wardrobe: W, tp: TP, NEW: NEW, PRICE: PRICE, owned: owned, has: has, buy: buy, tryOn: tryOn, balance: balance };
 })();

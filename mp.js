@@ -26,7 +26,7 @@ async function getLib() {
 // on the public channel. No-op (false) when multiplayer is off / not connected; never throws. Clients that don't know an event ignore it.
 export function announce(type, payload) { try { const m = window.__mp; return !!(m && m.announce && m.announce(type, payload)); } catch (e) { return false; } }
 window.__announce = announce;
-export function setupMP({ scene, camera, monkey, makeMonkey, st, play, getTp, HALF, Z2, HALL_L, WX }) {
+export function setupMP({ scene, camera, monkey, makeMonkey, makeAlien, st, play, getTp, HALF, Z2, HALL_L, WX }) {
   const id = window.__mpId || (LSg('neonarcade.mpId') || (() => { const v = Math.random().toString(36).slice(2, 10); LSs('neonarcade.mpId', v); return v; })());
   // name + look come from the start screen (player.js, key galacticarcade.player); neonarcade.mpName is only a fallback for no name yet
   let fallback = LSg('neonarcade.mpName'); if (!fallback) { fallback = 'Monkey' + (100 + Math.floor(Math.random() * 900)); LSs('neonarcade.mpName', fallback); }
@@ -125,7 +125,17 @@ body.ingame #mpPill,body.ingame #mpBar,body.ingame #mpChat,body.ingame #mpTags,b
   const PAL = { hoodie: { navy: [0x1d2452, 0x141a3a], red: [0xd42a2a, 0x7a1414], blue: [0x2b62e8, 0x173a8a], green: [0x2fae3a, 0x16601c], yellow: [0xf2c418, 0x9a7a08] },
     fur: { brown: [0x4e2a14, 0xd9a779], gold: [0xb7862a, 0xf3d79a], silver: [0x8d939c, 0xe4e7ec] }, shoes: { red: [0x8a1e2c, 0xf1e8d6], blue: [0x1f4fbf, 0xeaf0ff], black: [0x1a1a1e, 0x4a4a52] } };
   function own(root) { root.traverse(o => { if (o.isMesh && o.material && o.material.color) { o.material = o.material.clone(); o.material.userData.orig = o.material.color.getHex(); } }); }
+  function bodyOf(lk) { return (lk && lk.char === 'alien' && typeof makeAlien === 'function') ? makeAlien() : makeMonkey(); }
+  function ensureBody(p, lk) {
+    const want = (lk && lk.char === 'alien') ? 'alien' : 'monkey';
+    if (p.kind === want) return;
+    const vis = p.g.visible, pos = p.g.position.clone(), rot = p.g.rotation.clone(), nm = p.g.name;
+    scene.remove(p.g); p.g.traverse(o => { if (o.isMesh && o.material && o.material.dispose) o.material.dispose(); });
+    const g = bodyOf(lk); g.name = nm; own(g); g.position.copy(pos); g.rotation.copy(rot); g.visible = vis; scene.add(g);
+    p.g = g; p.kind = want; p.thG = null; p.th = []; p.top = topOf(p.g);
+  }
   function paint(p, meta) { const lk = meta && meta.look && typeof meta.look === 'object' ? meta.look : null, key = lk ? JSON.stringify(lk) : 'h' + ((meta && meta.hue) || 0); if (p.lookKey === key) return; p.lookKey = key;
+    ensureBody(p, lk);
     const map = {}; if (lk) { const H = PAL.hoodie[lk.hoodie] || PAL.hoodie.navy, F = PAL.fur[lk.fur] || PAL.fur.brown, S2 = PAL.shoes[lk.shoes] || PAL.shoes.red;
       map[0x1d2452] = H[0]; map[0x141a3a] = H[1]; map[0x4e2a14] = F[0]; map[0xd9a779] = F[1]; map[0x8a1e2c] = S2[0]; map[0xf1e8d6] = S2[1]; }
     const h = (meta && meta.hue) || 0; let cap = null;
@@ -146,7 +156,7 @@ body.ingame #mpPill,body.ingame #mpBar,body.ingame #mpChat,body.ingame #mpTags,b
   function peer(pid, meta) { let p = M.peers.get(pid);
     if (!p) { const g = makeMonkey(); g.name = 'remoteMonkey_' + pid; own(g); scene.add(g); g.visible = false;
       const tag = el('div', { className: 'mpTag' }, tags); tag.addEventListener('click', e => { e.stopPropagation(); toggleMute(pid); });
-      p = { id: pid, name: 'Monkey', g, tag, cur: null, tgt: null, a: 'idle', m: 'room1', last: performance.now(), phase: 0, bub: {} }; M.peers.set(pid, p); }
+      p = { id: pid, name: 'Monkey', g, tag, cur: null, tgt: null, a: 'idle', m: 'room1', last: performance.now(), phase: 0, bub: {}, kind: 'monkey' }; M.peers.set(pid, p); }
     if (meta) paint(p, meta); else if (!p.lookKey) paint(p, { hue: 0 }); if (meta && meta.name) p.name = String(meta.name).slice(0, 14); p.tag.textContent = p.name; p.tag.classList.toggle('mute', M.muted.has(pid)); return p; }
   function drop(pid) { const p = M.peers.get(pid); if (!p) return; if (p.ball) { scene.remove(p.ball); p.ball.geometry.dispose(); p.ball.material.dispose(); } scene.remove(p.g); p.g.traverse(o => { if (o.isMesh) o.material.dispose(); }); p.tag.remove(); for (const k in p.bub) p.bub[k].el.remove(); M.peers.delete(pid); }
   function toggleMute(pid) { if (M.muted.has(pid)) M.muted.delete(pid); else M.muted.add(pid); LSs('neonarcade.mpMuted', JSON.stringify([...M.muted])); const p = M.peers.get(pid); if (p) { p.tag.classList.toggle('mute', M.muted.has(pid)); if (M.muted.has(pid)) clearBub(p, 'chat'); } renderLog(); }
@@ -251,7 +261,8 @@ body.ingame #mpPill,body.ingame #mpBar,body.ingame #mpChat,body.ingame #mpTags,b
       if (u.legs) { const fly = p.a === 'fly' || p.a === 'glide', amp = fly ? 0 : Math.min(1, sp / 2.4) * 0.6, s = Math.sin(p.phase);
         u.legs[0].leg.rotation.x = fly ? 0.45 : s * amp; u.legs[1].leg.rotation.x = fly ? 0.45 : -s * amp;
         if (u.arms) { u.arms[0].sh.rotation.x = fly ? -0.85 : -s * amp * 0.8; u.arms[1].sh.rotation.x = fly ? -0.85 : s * amp * 0.8; } }
-      if (u.tail) { const tk = 0.15 + Math.min(1, sp / 2.4) * 0.35 + (p.a === 'jump' || p.a === 'fly' || p.a === 'glide' ? 0.4 : 0); u.tail.rotation.z = Math.sin(now / 625 + p.phase) * tk; const seat = /^seat:/.test(p.a), backOn = !!(p.look && p.look.back && p.look.back !== 'none'); u.tail.visible = !seat; u.pack.visible = !seat && !backOn; }
+      if (u.tail) { const tk = 0.15 + Math.min(1, sp / 2.4) * 0.35 + (p.a === 'jump' || p.a === 'fly' || p.a === 'glide' ? 0.4 : 0); u.tail.rotation.z = Math.sin(now / 625 + p.phase) * tk; const seat = /^seat:/.test(p.a), backOn = !!(p.look && p.look.back && p.look.back !== 'none'); u.tail.visible = !seat && !!u.tail.children.length; u.pack.visible = !seat && !backOn; }
+      if (u.bot && window.__arcade && window.__arcade.tickBot) window.__arcade.tickBot(u, now / 1000);
       if (p.flameA !== p.a) { p.flameA = p.a; if (!(p.thG && p.thG.parent)) { p.th = []; const pack = p.g.getObjectByName('gaBk_jetpack'); p.thG = pack || null;
         if (pack) { const ch = pack.children; for (let i = 0; i < ch.length; i++) if (ch[i].name === 'gaThruster') p.th.push(ch[i]); } } }
       if (p.th && p.th.length) { const burn = p.a === 'fly'; if (burn) { const sY = 0.78 + Math.sin(now / 36) * 0.22, sW = 0.88 + Math.sin(now / 58) * 0.14; for (let i = 0; i < p.th.length; i++) { p.th[i].visible = true; p.th[i].scale.set(sW, sY, sW); } } else if (p.thOn) { for (let i = 0; i < p.th.length; i++) { p.th[i].visible = false; p.th[i].scale.set(1, 1, 1); } } p.thOn = burn; }
