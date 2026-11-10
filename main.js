@@ -33,10 +33,23 @@ import { lavaPaths, PATH_HW } from './lavapaths.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 
 const MOBILE = matchMedia('(pointer:coarse)').matches || /Android|iPhone|iPad/i.test(navigator.userAgent) || (navigator.maxTouchPoints > 0 && matchMedia('(hover: none)').matches);
-const Q = MOBILE ? { dpr: 1.5, refl: 0.35, bloom: 0.5 } : { dpr: 2, refl: 0.6, bloom: 0.5 };
+// Phone power-save (Dave: cooler-running mode). On by default on touch/mobile. Caps draws at ~30fps
+// (physics still uses real dt), clamps pixel ratio, uses a cheaper bloom/reflection budget, and
+// throttles far cabinet screen updates. Toggle lives in OPTIONS (neonarcade.powersave).
+const PS_KEY = 'neonarcade.powersave';
+function readPowerSave() {
+  try { const v = localStorage.getItem(PS_KEY); if (v === '0' || v === 'off') return false; if (v === '1' || v === 'on') return true; } catch (e) {}
+  return MOBILE;
+}
+function qualityFor(on) {
+  if (on) return { dpr: MOBILE ? 1.25 : 1.5, refl: MOBILE ? 0.22 : 0.35, bloom: 0.28 };
+  return MOBILE ? { dpr: 1.5, refl: 0.35, bloom: 0.5 } : { dpr: 2, refl: 0.6, bloom: 0.5 };
+}
+const PS = window.__powerSave = { on: readPowerSave(), key: PS_KEY, fps: 30, cabNear: 7, cabFar: 14, cabNearMs: 200, cabFarMs: 450, draws: 0, skipped: 0, hiddenSkips: 0, lastDraw: 0 };
+let Q = qualityFor(PS.on);
 
 // ---------- renderer / scene ----------
-const renderer = new THREE.WebGLRenderer({ antialias: !MOBILE, powerPreference: 'high-performance' }); renderer.localClippingEnabled = true; if (!/[?&]glcheck/.test(location.search)) renderer.debug.checkShaderErrors = false;   // t295u: no sync getProgramInfoLog per shader (~3.9 s of the start-screen freeze at 4x CPU); ?glcheck turns it back on   // teleporter dissolve
+const renderer = new THREE.WebGLRenderer({ antialias: !MOBILE, powerPreference: PS.on ? 'low-power' : 'high-performance' }); renderer.localClippingEnabled = true; if (!/[?&]glcheck/.test(location.search)) renderer.debug.checkShaderErrors = false;   // t295u: no sync getProgramInfoLog per shader (~3.9 s of the start-screen freeze at 4x CPU); ?glcheck turns it back on   // teleporter dissolve
 let dpr = Math.min(devicePixelRatio || 1, Q.dpr);
 renderer.setPixelRatio(dpr);
 renderer.setSize(innerWidth, innerHeight, false);   // CSS (100vw x 100dvh) owns the on-screen size; resize() matches the buffer to it
@@ -1005,7 +1018,7 @@ document.getElementById('bFs').onclick = toggleFs;
 if (matchMedia('(display-mode: fullscreen), (display-mode: standalone)').matches) document.getElementById('bFs').style.display = 'none';
 
 // ---------- post ----------
-const rt = new THREE.WebGLRenderTarget(innerWidth * dpr, innerHeight * dpr, { type: THREE.HalfFloatType, samples: MOBILE ? 2 : 4 });
+const rt = new THREE.WebGLRenderTarget(innerWidth * dpr, innerHeight * dpr, { type: THREE.HalfFloatType, samples: PS.on ? 0 : (MOBILE ? 2 : 4) });
 const composer = new EffectComposer(renderer, rt);
 composer.addPass(new RenderPass(scene, camera));
 const bloom = new UnrealBloomPass(new THREE.Vector2(innerWidth * Q.bloom, innerHeight * Q.bloom), 0.75, 0.5, 0.4); bloom.highPassUniforms.smoothWidth.value = 0.6;   // soft knee 0.4..1.0 (was a hard cut at 0.85): cyan/amber tubes (lum >= 1) bloom as before, the 70% pink strips (lum ~0.68) keep a weaker halo instead of losing it
@@ -1038,6 +1051,9 @@ addEventListener('resize', resizeSoon); addEventListener('orientationchange', re
 window.visualViewport?.addEventListener('resize', resizeSoon);
 if (window.ResizeObserver) new ResizeObserver(() => resize()).observe(renderer.domElement);
 resize(true);
+function applyQuality() { Q = qualityFor(PS.on); dpr = Math.min(devicePixelRatio || 1, Q.dpr); resize(true); }
+function setPowerSave(on) { PS.on = !!on; try { localStorage.setItem(PS_KEY, PS.on ? '1' : '0'); } catch (e) {} applyQuality(); try { if (window.__powerSaveUI) window.__powerSaveUI.sync(); } catch (e) {} return PS.on; }
+PS.set = setPowerSave;
 
 // ---------- simulation ----------
 const R = 0.3, LIM = HALF - 0.35;
@@ -1428,8 +1444,9 @@ const demo = startStrikeDemo(strikeCab), ghostDemo = startGhostDemo(ghostCab), _
   const t = setInterval(() => { const S = window.__start; if (!(window.__skipStart || (S && S.dismissed) || !document.getElementById('start'))) return; clearInterval(t);
     idle(() => { demo.attach(); idle(() => ghostDemo.attach()); }); }, 200); }
 const _frus = new THREE.Frustum(), _pm = new THREE.Matrix4(), _sph = new THREE.Sphere();
-const stats = { frames: 0, cpu: 0, cpuAvg: 0, gapAvg: 16, quality: dpr };
+const stats = { frames: 0, cpu: 0, cpuAvg: 0, gapAvg: 16, quality: dpr, draws: 0, skipped: 0 };
 let last = performance.now(), slow = 0, fast = 0;
+document.addEventListener('visibilitychange', () => { if (!document.hidden) { last = performance.now(); PS.lastDraw = 0; } });
 let paused = false, rafOn = true;
 // t295u start-screen freeze: the first room render compiled ~100 shader programs in one frame (getProgramParameter/link stalls,
 // ~8 s at 4x CPU in swiftshader, a visible freeze on a phone). While the opaque start screen is up, the room is not drawn; its shaders are
@@ -1447,6 +1464,7 @@ function frame(now) {
   syncJoyArm();
   const gap = Math.max(0, Math.min(100, now - last)); last = now;   // rAF time can be a hair before a resume timestamp
   if (paused) { rafOn = false; return; }   // full-screen game running: arcade render loop stopped
+  if (document.hidden) { PS.hiddenSkips++; requestAnimationFrame(frame); return; }   // pause GPU work while the tab is in the background
   const t0 = performance.now();
   { const dtc = Math.min(gap / 1000, 0.05); if (play.update(dtc, kiosk && kiosk.mode !== 'walk' && kiosk.mode !== 'pick' ? null : nearCab) || (kiosk && kiosk.update(dtc))) { flyGuard(); stepClock(dtc); } else step(dtc); }
   shield.update(Math.min(gap / 1000, 0.05));
@@ -1458,24 +1476,30 @@ function frame(now) {
   if (tp && !st.beamed && window.__start && window.__start.dismissed && !(window.__skipStart && !window.__beamTest)) { st.beamed = true; const b = beamSpot(); tp.beamIn(b.x, b.z); }   // t282u: once per session, first Play
   if (tp) tp.update(Math.min(gap / 1000, 0.05), !!document.querySelector('#bPack.on') && !document.querySelector('#inv.on'));
   if (window.__camOverride) { const o = window.__camOverride; camera.position.set(...o.pos); camera.lookAt(...o.at); if (!o.showMonkey) monkey.visible = false; } // screenshots / tests
+  const draw = !PS.on || (now - PS.lastDraw) >= (1000 / Math.max(1, PS.fps)) - 0.75;   // power-save: skip GPU frames; movement above already used real dt
   camera.updateMatrixWorld();
   { // run each cabinet screen only when that cabinet is near and in view
     _frus.setFromProjectionMatrix(_pm.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse));
     cullRooms(_frus);
-    const vis = c => { const sc = c.userData.centre; return (_frus.intersectsSphere(_sph.set(_v.copy(sc).setY(1.2), 1.4)) && camera.position.distanceTo(sc) < 18) || !!window.__forceDemo; };
+    const vis = c => { const sc = c.userData.centre, maxD = PS.on ? PS.cabFar : 18; return (_frus.intersectsSphere(_sph.set(_v.copy(sc).setY(1.2), 1.4)) && camera.position.distanceTo(sc) < maxD) || !!window.__forceDemo; };
     const dts = Math.min(gap / 1000, 0.1);
-    tickStrikeDemo(demo, dts, vis(strikeCab)); tickGhostDemo(ghostDemo, dts, vis(ghostCab));
-    if (now - (frame.attT || 0) > 120) { frame.attT = now; for (const c of [berserkerCab, monkeyCab, orcCab, novaCab, cyberCab, blasterCab, pipCab, roadsterCab, clawCab, bbCab, rockfallCab]) if (vis(c) && !(c.userData.visit && c.userData.visit.on)) c.userData.tick(now / 1000); }
+    if (draw) { tickStrikeDemo(demo, dts, vis(strikeCab)); tickGhostDemo(ghostDemo, dts, vis(ghostCab)); }
+    const nearMs = PS.on ? PS.cabNearMs : 120;
+    if (now - (frame.attT || 0) > nearMs) { frame.attT = now; for (const c of [berserkerCab, monkeyCab, orcCab, novaCab, cyberCab, blasterCab, pipCab, roadsterCab, clawCab, bbCab, rockfallCab]) {
+      if (!(vis(c) && !(c.userData.visit && c.userData.visit.on))) continue;
+      if (PS.on && camera.position.distanceTo(c.userData.centre) > PS.cabNear && (now - (c.userData._psTick || 0) < PS.cabFarMs)) continue;
+      c.userData._psTick = now; c.userData.tick(now / 1000); } }
     strikeCab.userData.glow.intensity = demo.running ? 1.2 + Math.sin(now * 0.013) * 0.08 + Math.sin(now * 0.031) * 0.06 : 0.6;
     ghostCab.userData.glow.intensity = ghostDemo.running ? 1.1 + Math.sin(now * 0.017) * 0.08 : 0.5;
   }
   if (spaceWin) spaceWin.update(now);
-  if (warm.done || !document.getElementById('start') || (window.__start && window.__start.dismissed)) composer.render();   // t295u: the opaque start screen hides the room; let its shaders compile in slices first
+  if (draw && (warm.done || !document.getElementById('start') || (window.__start && window.__start.dismissed))) { composer.render(); PS.lastDraw = now; PS.draws++; stats.draws = PS.draws; }   // t295u: the opaque start screen hides the room; let its shaders compile in slices first
+  else if (!draw) { PS.skipped++; stats.skipped = PS.skipped; }
   const cpu = performance.now() - t0;
   stats.frames++; stats.cpu = cpu; stats.cpuAvg += (cpu - stats.cpuAvg) * 0.05; stats.gapAvg += (gap - stats.gapAvg) * 0.05;
   if (!window.__noAdapt) {
     if (stats.gapAvg > 24) { if (++slow > 90 && dpr > 0.75) { dpr = Math.max(0.75, dpr - 0.25); resize(); slow = 0; } } else slow = 0;
-    if (stats.gapAvg < 14) { if (++fast > 400 && dpr < Math.min(devicePixelRatio || 1, Q.dpr)) { dpr += 0.25; resize(); fast = 0; } } else fast = 0;
+    if (!PS.on && stats.gapAvg < 14) { if (++fast > 400 && dpr < Math.min(devicePixelRatio || 1, Q.dpr)) { dpr += 0.25; resize(); fast = 0; } } else fast = 0;
     stats.quality = dpr;
   }
   requestAnimationFrame(frame);
@@ -1515,7 +1539,7 @@ const opts = setupOpts({ play, kiosk, shield, st, monkey, setFloor, getFloor: ()
 requestAnimationFrame(frame);
 
 // hooks for tests / future art work
-window.__arcade = { animateMonkey: dt => animateMonkey(dt), get window() { return windowMode; }, setWindow, get jumping() { return !!st.jump; }, canJump, LAVA, lavaRespawnPoint, get spaceWin() { return spaceWin; }, get kiosk() { return kiosk; }, setFloor, get floor() { return floorMode; }, setWalls, get walls() { return wallsMode; }, wallMat, carpet, mirror, shield, room, room2, Z2, hall, DOOR_W, DOOR_H, HALL_L, berserkerCab, monkeyCab, orcCab, cyberCab, novaCab, blasterCab, pipCab, clawCab, bbCab, rockfallCab, roadsterCab, dsCab, play, get paused() { return paused; }, simPause: arcadePause, flyCfg: FLY, jetpackOn: jetpackEquipped, wantWide, joyFrom, joyClear, setDist, loadZoom, saveZoom, zoom: { key: ZOOM_KEY, min: DIST_MIN, max: DIST_MAX, wide: DIST_WIDE, portrait: DIST_PORTRAIT }, THREE, scene, camera, renderer, monkey, cabinets, strikeCab, ghostCab, featured, demo, ghostDemo, playables, blockers, st, stats, step, keys, get nearCab() { return nearCab; }, setArt: (i, part, tex, glow) => cabinets[i].userData.setArt(part, tex, glow) };
+window.__arcade = { powerSave: PS, animateMonkey: dt => animateMonkey(dt), get window() { return windowMode; }, setWindow, get jumping() { return !!st.jump; }, canJump, LAVA, lavaRespawnPoint, get spaceWin() { return spaceWin; }, get kiosk() { return kiosk; }, setFloor, get floor() { return floorMode; }, setWalls, get walls() { return wallsMode; }, wallMat, carpet, mirror, shield, room, room2, Z2, hall, DOOR_W, DOOR_H, HALL_L, berserkerCab, monkeyCab, orcCab, cyberCab, novaCab, blasterCab, pipCab, clawCab, bbCab, rockfallCab, roadsterCab, dsCab, play, get paused() { return paused; }, simPause: arcadePause, flyCfg: FLY, jetpackOn: jetpackEquipped, wantWide, joyFrom, joyClear, setDist, loadZoom, saveZoom, zoom: { key: ZOOM_KEY, min: DIST_MIN, max: DIST_MAX, wide: DIST_WIDE, portrait: DIST_PORTRAIT }, THREE, scene, camera, renderer, monkey, cabinets, strikeCab, ghostCab, featured, demo, ghostDemo, playables, blockers, st, stats, step, keys, get nearCab() { return nearCab; }, setArt: (i, part, tex, glow) => cabinets[i].userData.setArt(part, tex, glow) };
 const mp = setupMP({ scene, camera, monkey, makeMonkey, st, play, getTp: () => tp, HALF, Z2, HALL_L, WX: 80 }); window.__arcade.mp = mp;   // multiplayer step 1: public room, 10 players
 // after the first room frames: pull in the shop, then the window scenery, off the critical path
 { const idle = f => (window.requestIdleCallback ? requestIdleCallback(f, { timeout: 1500 }) : setTimeout(f, 200));

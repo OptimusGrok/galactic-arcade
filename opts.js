@@ -16,6 +16,7 @@ export function setupOpts({ play, kiosk, shield, st, monkey, setFloor, getFloor,
   op.innerHTML = `<div class="opBox"><div class="opHd"><canvas id="opFace"></canvas><b>OPTIONS</b><button id="opX" title="Close (Esc)">✕</button></div>
   <button class="opB" id="opTitle">BACK TO TITLE SCREEN</button>
   <button class="opB" id="opMute">MUTE: <span>OFF</span></button>
+  <button class="opB" id="opCool">COOLER PHONE: <span>ON</span></button>
   <div class="opSub">SAVE / LOAD <small id="opNote"></small></div><div id="opSlots"></div></div>
   <div id="opQ"><div class="opQb"><div id="opQt"></div><div id="opQn"></div><div class="opQr"><button class="opB" id="opYes">YES</button><button class="opB" id="opNo">NO</button></div></div></div>`;
   document.body.appendChild(op); face($('opFace'), 64);
@@ -52,6 +53,7 @@ export function setupOpts({ play, kiosk, shield, st, monkey, setFloor, getFloor,
   function render() {
     const g = inGame(); $('opNote').textContent = g ? 'EXIT THE GAME TO SAVE OR LOAD' : '';
     $('opMute').querySelector('span').textContent = window.__mute && window.__mute.on ? 'ON' : 'OFF'; $('opMute').classList.toggle('sel', !!(window.__mute && window.__mute.on));
+    if ($('opCool') && window.__powerSave) { $('opCool').querySelector('span').textContent = window.__powerSave.on ? 'ON' : 'OFF'; $('opCool').classList.toggle('sel', !!window.__powerSave.on); }
     slots.querySelectorAll('.opSl').forEach(r => { const s = read(r.dataset.i);
       r.querySelector('.opSs').textContent = s ? `${fmt(s.at)} · 🎟${s.tickets} · ⚔${s.viking || 0} · $${s.cash ? s.cash.bal : 5} · ${s.room}` : 'EMPTY';
       r.classList.toggle('full', !!s); r.querySelector('.sv').disabled = g; r.querySelector('.ld').disabled = g || !s; r.querySelector('.dl').disabled = !s; }); }
@@ -71,6 +73,7 @@ export function setupOpts({ play, kiosk, shield, st, monkey, setFloor, getFloor,
   on('bOpt', () => show(!O.open)); on('opX', () => show(false));
   on('opTitle', () => { show(false); play.home.ask(true); });
   on('opMute', () => { window.__mute.set(!window.__mute.on); render(); });
+  on('opCool', () => { if (window.__powerSave) window.__powerSave.set(!window.__powerSave.on); render(); });
   on('opYes', () => { const f = qFn; qClose(); if (f) f(); }); on('opNo', qClose);
   op.addEventListener('click', e => { if (e.target === op) show(false); });
   slots.addEventListener('click', e => { const b = e.target.closest('button'); if (!b || b.disabled) return; sw(e); const i = +b.closest('.opSl').dataset.i, s = read(i);
