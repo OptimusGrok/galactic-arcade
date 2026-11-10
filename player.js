@@ -237,14 +237,14 @@
     var cv = prev.r.domElement, w = cv.clientWidth, h = cv.clientHeight; if (!w || !h) return;
     if (cv.width !== Math.round(w * prev.r.getPixelRatio()) || cv.height !== Math.round(h * prev.r.getPixelRatio())) { prev.r.setSize(w, h, false); }
     prev.cam.aspect = w / h; var fit = Math.max(1, 0.62 / prev.cam.aspect); var alienPrev = !!(prev.root && prev.root.getObjectByName('alienBot'));
-    prev.cam.position.set(0, alienPrev ? 1.40 : 1.3, (alienPrev ? 5.35 : 4.9) * fit); prev.cam.lookAt(0, alienPrev ? 1.18 : 1.02, 0); prev.cam.updateProjectionMatrix();
+    prev.cam.position.set(0, alienPrev ? 1.40 : 1.3, (alienPrev ? 5.55 : 4.9) * fit); prev.cam.lookAt(0, alienPrev ? 1.18 : 1.02, 0); prev.cam.updateProjectionMatrix();
     var PL = pLook(); if (wc.id === 'gaCv') { PL = Object.assign({}, PL, { glasses: 'none', hat: stHat ? PL.hat : 'none' }); }   // Dave: no hat until a cap is tapped   // Dave: no eyewear on the start screen (saved glasses kept for the game)
     var pk = PL.hat + PL.glasses + PL.back + PL.hoodie + (PL.char || '') + wc.id; if (prev.hat !== pk) { prev.hat = pk; applyRoot(window.__arcade.THREE, prev.root, PL); if (W.try) applyMats(PL); }   // the preview always wears the chosen hat, however the pick or load happened
     if (prev.auto && !prev.drag) prev.want += 0.006; prev.rot += (prev.want - prev.rot) * 0.15; prev.root.rotation.y = prev.rot;
     var now = performance.now(), dt = Math.min(0.25, prev.lt ? (now - prev.lt) / 1000 : 0.016); prev.lt = now;
-    var bot = prev.root.getObjectByName('alienBot'); if (bot) { var bt = now / 1000, y0 = bot.userData.baseY != null ? bot.userData.baseY : 0.55;
-      bot.position.x = 0.54 + Math.sin(bt * 1.15) * 0.016; bot.position.y = y0 + Math.sin(bt * 2.35) * 0.04; bot.position.z = 0.28 + Math.cos(bt * 1.05) * 0.012;
-      bot.rotation.y = 0; bot.rotation.z = Math.sin(bt * 1.9) * 0.06; }
+    var bot = prev.root.getObjectByName('alienBot'); if (bot) { var bt = now / 1000, y0 = bot.userData.baseY != null ? bot.userData.baseY : 0.52;
+      bot.position.x = 0.64 + Math.sin(bt * 1.15) * 0.016; bot.position.y = y0 + Math.sin(bt * 2.35) * 0.035; bot.position.z = -0.16 + Math.cos(bt * 1.05) * 0.01;
+      bot.rotation.y = 0; bot.rotation.z = Math.sin(bt * 1.9) * 0.05; }
     if (!TP.seen && wc.id === 'gaCv') { TP.seen = true; TP.gone = false; tpStart('in'); }   // first paint of the start screen: beam in
     tpRender(tpStep(dt)); }
   // ---------- start-screen teleport (same look as teleport.js: cyan swirl column, rising sparkles, feet-up dissolve, flash, zap/vwoom) ----------

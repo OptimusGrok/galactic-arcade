@@ -902,16 +902,56 @@ function makeAlien() { // chibi grey alien: huge spherical head (~37% of height)
   const eggPts = [[0.022, 0.008], [0.048, 0.028], [0.095, 0.055], [0.14, 0.09], [0.172, 0.125], [0.186, 0.162], [0.188, 0.2], [0.178, 0.24], [0.155, 0.278], [0.118, 0.312], [0.058, 0.338], [0.001, 0.352]].map(p => new THREE.Vector2(p[0], p[1]));
   const egg = part(head, new THREE.LatheGeometry(eggPts, 64), skin);
   egg.geometry.computeVertexNormals();
+  // Eyes as thin decals stamped onto the egg: start as spherical caps, tilt the outer corners up, then
+  // project every vertex onto the cranium so nothing can poke past the silhouette from any view.
+  // SphereGeometry phi=0 is -X, phi=PI/2 is +Z (front), phi=PI is +X.
+  const eggR = y => {
+    if (y <= eggPts[0].y) return eggPts[0].x;
+    if (y >= eggPts[eggPts.length - 1].y) return eggPts[eggPts.length - 1].x;
+    for (let i = 0; i < eggPts.length - 1; i++) {
+      if (y <= eggPts[i + 1].y) {
+        const t = (y - eggPts[i].y) / (eggPts[i + 1].y - eggPts[i].y);
+        return eggPts[i].x + t * (eggPts[i + 1].x - eggPts[i].x);
+      }
+    }
+    return eggPts[eggPts.length - 1].x;
+  };
+  const yEye = 0.168, rEye = 0.192, _ev = new THREE.Vector3();
+  const stampOnEgg = (x, yLoc, z, extra) => {
+    const cyl = Math.hypot(x, z);
+    if (cyl < 1e-8) return [x, yLoc, z];
+    const s = (eggR(yLoc + yEye) + extra) / cyl;
+    return [x * s, yLoc, z * s];
+  };
   for (const sd of [-1, 1]) {
-    part(head, S(0.055, 20, 16), skinD, 0.114 * sd, 0.166, 0.16, 1.32, 0.76, 0.38);
-    const eye = part(head, S(0.07, 32, 24), eyeM, 0.116 * sd, 0.167, 0.195, 1.42, 0.72, 0.58);
-    eye.name = 'alienEye'; eye.rotation.z = 0.36 * sd; eye.rotation.y = -0.18 * sd;
-    part(eye, S(0.018, 14, 12), hlA, -0.006, 0.018, 0.052);
-    part(eye, S(0.008, 8, 6), hlB, 0.016, -0.01, 0.055);
+    const gap = 0.14, width = 0.90;
+    const phiStart = sd > 0 ? Math.PI / 2 + gap : Math.PI / 2 - gap - width;
+    const midPhi = phiStart + width / 2;
+    const tilt = new THREE.Matrix4().makeRotationAxis(new THREE.Vector3(-Math.cos(midPhi), 0, Math.sin(midPhi)).normalize(), -0.36 * sd);
+    const geo = new THREE.SphereGeometry(rEye, 32, 22, phiStart, width, Math.PI / 2 - 0.38, 0.76);
+    geo.applyMatrix4(tilt);
+    const arr = geo.attributes.position;
+    for (let i = 0; i < arr.count; i++) {
+      _ev.fromBufferAttribute(arr, i);
+      const q = stampOnEgg(_ev.x, _ev.y, _ev.z, 0.0025);
+      arr.setXYZ(i, q[0], q[1], q[2]);
+    }
+    arr.needsUpdate = true;
+    geo.computeVertexNormals();
+    const eye = new THREE.Mesh(geo, eyeM);
+    eye.position.set(0, yEye, 0); eye.name = 'alienEye'; eye.castShadow = false;
+    head.add(eye);
+    const hlAt = (phi, th, extra, rad, mat, seg) => {
+      _ev.set(-rEye * Math.cos(phi) * Math.sin(th), rEye * Math.cos(th), rEye * Math.sin(phi) * Math.sin(th)).applyMatrix4(tilt);
+      const q = stampOnEgg(_ev.x, _ev.y, _ev.z, extra);
+      part(eye, S(rad, seg, seg - 2), mat, q[0], q[1], q[2]);
+    };
+    hlAt(midPhi - 0.16 * sd, Math.PI / 2 - 0.17, 0.004, 0.016, hlA, 12);
+    hlAt(midPhi + 0.14 * sd, Math.PI / 2 + 0.06, 0.003, 0.007, hlB, 8);
   }
-  part(head, S(0.007, 8, 6), skinD, -0.012, 0.112, 0.208, 0.7, 1.1, 0.45);
-  part(head, S(0.007, 8, 6), skinD, 0.012, 0.112, 0.208, 0.7, 1.1, 0.45);
-  const mouth = part(head, new THREE.TorusGeometry(0.022, 0.004, 6, 16, Math.PI * 0.48), lip, 0, 0.07, 0.205);
+  part(head, S(0.006, 8, 6), skinD, -0.012, 0.108, 0.156, 0.7, 1.1, 0.4);
+  part(head, S(0.006, 8, 6), skinD, 0.012, 0.108, 0.156, 0.7, 1.1, 0.4);
+  const mouth = part(head, new THREE.TorusGeometry(0.022, 0.0035, 6, 16, Math.PI * 0.48), lip, 0, 0.072, 0.118);
   mouth.rotation.set(1.05, 0, Math.PI);
   const cap = new THREE.Group(); cap.position.set(0, 0.215, -0.005); cap.rotation.x = -0.08; cap.userData.gaCap = 1; head.add(cap);
   part(cap, new THREE.SphereGeometry(0.188, 24, 10, 0, Math.PI * 2, 0, Math.PI / 2), pink, 0, 0, 0, 1, 0.82, 1.03);
@@ -940,7 +980,7 @@ function makeAlien() { // chibi grey alien: huge spherical head (~37% of height)
   arms[1].el.add(phone); phone.position.set(0.0, -0.28, 0.055); phone.rotation.set(-0.2, 0.75, -2.1);
   const pack = new THREE.Group(); pack.name = 'backpack'; pack.position.set(0, 0.2, -0.2); torso.add(pack);
   // robot: keep ~current size or a touch bigger (r=0.195); visor + eye on +Z so it faces the same way as the alien
-  const bot = new THREE.Group(); bot.name = 'alienBot'; bot.position.set(0.54, 0.55, 0.28); bot.userData.baseY = 0.55; torso.add(bot);
+  const bot = new THREE.Group(); bot.name = 'alienBot'; bot.position.set(0.64, 0.52, -0.16); bot.userData.baseY = 0.52; torso.add(bot);
   const botShell = mk(0xe8eef4, { roughness: 0.28, metalness: 0.48, emissive: 0x2a3848, emissiveIntensity: 0.18 });
   const botDark = mk(0x10141a, { roughness: 0.22, metalness: 0.45 });
   part(bot, S(0.195, 32, 24), botShell);
@@ -978,10 +1018,10 @@ function setPlayerChar(kind) {
 }
 function tickBot(u, t) {
   const b = u && u.bot; if (!b) return;
-  const y0 = b.userData.baseY != null ? b.userData.baseY : 0.55;
-  b.position.x = 0.54 + Math.sin(t * 1.15) * 0.016;
-  b.position.y = y0 + Math.sin(t * 2.35) * 0.04;
-  b.position.z = 0.28 + Math.cos(t * 1.05) * 0.012;
+  const y0 = b.userData.baseY != null ? b.userData.baseY : 0.52;
+  b.position.x = 0.64 + Math.sin(t * 1.15) * 0.016;
+  b.position.y = y0 + Math.sin(t * 2.35) * 0.035;
+  b.position.z = -0.16 + Math.cos(t * 1.05) * 0.01;
   b.rotation.y = 0;   // visor stays on the alien's forward (+Z)
   b.rotation.z = Math.sin(t * 1.9) * 0.06;
 }
