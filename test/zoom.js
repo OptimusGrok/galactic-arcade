@@ -1,4 +1,4 @@
-// Pinch / wheel zoom: clamps, persistence, joystick+look still works, pinch suppresses jump.
+// Wheel zoom: clamps and persistence. Pinch no longer changes distance; joystick+look still works.
 const { open } = require('./lib');
 const fs = require('fs');
 const OUT = '/workspace';
@@ -82,9 +82,9 @@ const OUT = '/workspace';
     return { mid, inDist, outDist, jumped };
   });
   console.log('pinch', JSON.stringify(pinch));
-  chk(pinch.inDist < pinch.mid - 0.3, 'pinch apart zooms in', pinch);
-  chk(pinch.outDist > pinch.inDist + 0.3, 'pinch together zooms out', pinch);
-  chk(!pinch.jumped, 'ending a pinch does not jump', pinch);
+  chk(Math.abs(pinch.inDist - pinch.mid) < 0.15, 'pinch apart no longer zooms', pinch);
+  chk(Math.abs(pinch.outDist - pinch.inDist) < 0.15, 'pinch together no longer zooms', pinch);
+  chk(!pinch.jumped, 'ending a two-finger drag does not jump', pinch);
 
   // joystick + second finger still turns (not treated as pinch alone with joy)
   const both = await page.evaluate(() => {
