@@ -1047,7 +1047,7 @@ addEventListener('mousemove', e => {
   if (!mouseDrag) return; look(e.clientX - mouseDrag.x, e.clientY - mouseDrag.y); mouseDrag = { x: e.clientX, y: e.clientY };
 });
 cv.addEventListener('dblclick', () => { if (!MOBILE) cv.requestPointerLock?.(); });
-// Pinch / wheel zoom (Dave t701u): third-person camera distance. Default = PR6 wider cam (7.6 landscape / 4.2 portrait).
+// Camera distance (Dave): desktop mouse-wheel zoom still persists. On a phone, hold the ZOOM button beside the backpack to ease in; release returns to the default. Default = PR6 wider cam (7.6 landscape / 4.2 portrait).
 const ZOOM_KEY = 'galacticarcade.zoom';
 const DIST_PORTRAIT = 4.2, DIST_WIDE = 7.6, DIST_MIN = 2.0, DIST_MAX = DIST_WIDE * 2;   // max ~2× the wider default
 function saveZoom() { try { localStorage.setItem(ZOOM_KEY, String(+st.dist.toFixed(3))); } catch (e) {} }
@@ -1064,17 +1064,18 @@ function loadZoom() {
   } catch (e) {}
   return false;
 }
-loadZoom();
+if (!MOBILE) loadZoom();   // desktop wheel zoom may persist; the hold-to-zoom button never writes this key
 cv.addEventListener('wheel', e => { setDist(st.dist + e.deltaY * 0.004); e.preventDefault(); }, { passive: false });
 function look(dx, dy) { st.lookT = st.t; st.yaw -= dx * 0.005; st.pitch = THREE.MathUtils.clamp(st.pitch + dy * 0.004, -0.6, 1.25); }
+function defaultDist() { return (MOBILE && camera.aspect > 1.15) ? DIST_WIDE : DIST_PORTRAIT; }
 // touch: the bottom-left stick steers. The thumb stays inside the base; the dotted line and the
 // speed follow the real finger, so a drag past the rim still walks faster up to a capped sprint.
-// Two non-joystick fingers on the game view pinch to zoom; those fingers do not turn or jump.
+// One-finger swipe on the game view (outside the stick and HUD) turns the camera, as it did before pinch-zoom.
 const joyEl = document.getElementById('joy'), knob = document.getElementById('knob');
 const joyLine = document.getElementById('joyLine'), joyDash = document.getElementById('joyDash');
 const JOY_DEAD = 12, JOY_REACH = 176, JOY_GENTLE = 1.05, JOY_SPRINT = 5.2;
 const touches = {};
-let joyId = null, joyArm = null, pinch = null;
+let joyId = null, joyArm = null;
 function joyCenter() {
   const r = joyEl.getBoundingClientRect();
   return { x: r.left + r.width / 2, y: r.top + r.height / 2, R: Math.min(r.width, r.height) / 2 - 12 };
@@ -1112,38 +1113,11 @@ function syncJoyArm() {
   joyArm = on; joyEl.classList.toggle('arm', on);
   if (!on) joyClear();
 }
-function viewTouchIds() {
-  const ids = [];
-  for (const id in touches) { const T = touches[id]; if (T && T.kind !== 'joy') ids.push(+id); }
-  return ids;
-}
-function syncPinch() {
-  const ids = viewTouchIds();
-  if (ids.length === 2) {
-    const a = touches[ids[0]], b = touches[ids[1]];
-    const d = Math.hypot(a.x - b.x, a.y - b.y);
-    if (!pinch || pinch.idA !== ids[0] || pinch.idB !== ids[1]) {
-      pinch = { idA: ids[0], idB: ids[1], d0: Math.max(28, d), dist0: st.dist };
-      a.kind = 'pinch'; b.kind = 'pinch';
-    } else {
-      // fingers apart (d grows) → zoom in (dist shrinks); together → zoom out
-      setDist(pinch.dist0 * (pinch.d0 / Math.max(28, d)));
-    }
-    return true;
-  }
-  if (pinch) {
-    // leave pinch mode: any remaining non-joy finger becomes look again
-    for (const id of ids) { const T = touches[id]; if (T && T.kind === 'pinch') T.kind = 'look'; }
-    pinch = null;
-  }
-  return false;
-}
 cv.addEventListener('touchstart', e => {
   for (const t of e.changedTouches) {
     if (joyId == null && inJoyZone(t.clientX, t.clientY)) { joyId = t.identifier; touches[t.identifier] = { kind: 'joy', x0: t.clientX, y0: t.clientY }; joyFrom(t.clientX, t.clientY); }
     else touches[t.identifier] = { kind: 'look', x: t.clientX, y: t.clientY, x0: t.clientX, y0: t.clientY, t0: e.timeStamp, moved: 0 };
   }
-  syncPinch();
   e.preventDefault();
 }, { passive: false });
 cv.addEventListener('touchmove', e => {
@@ -1152,11 +1126,9 @@ cv.addEventListener('touchmove', e => {
     if (T.kind === 'joy') joyFrom(t.clientX, t.clientY);
     else {
       T.moved = Math.max(T.moved, Math.hypot(t.clientX - T.x0, t.clientY - T.y0));
-      const px = T.x, py = T.y; T.x = t.clientX; T.y = t.clientY;
-      if (T.kind === 'look') look((t.clientX - px) * 1.4, (t.clientY - py) * 1.4);
+      look((t.clientX - T.x) * 1.4, (t.clientY - T.y) * 1.4); T.x = t.clientX; T.y = t.clientY;
     }
   }
-  syncPinch();
   e.preventDefault();
 }, { passive: false });
 const endTouch = e => {
@@ -1169,12 +1141,44 @@ const endTouch = e => {
     } else if (T.kind === 'look' && e.type === 'touchend' && T.moved < 14 && e.timeStamp - T.t0 < 350) {
       if (!(window.__grid && window.__grid.tapAt(t.clientX, t.clientY))) st.jumpReq = st.t;
     }
-    // pinch fingers: no jump
     delete touches[t.identifier];
   }
-  syncPinch();
 };
 cv.addEventListener('touchend', endTouch); cv.addEventListener('touchcancel', endTouch);
+// Hold-to-zoom button (Dave): sits just left of the backpack. Hold eases the camera in toward
+// DIST_MIN over ~0.7 s; let go and it eases back to the normal portrait/landscape default. Never saved.
+const ZOOM_HOLD_T = 0.7;
+const zoomHold = { on: false, k: 0 };
+const zoomCss = document.createElement('style');
+zoomCss.textContent = '#bZoom{position:fixed;right:calc(max(4px,env(safe-area-inset-right)) + 108px);bottom:calc(max(4px,env(safe-area-inset-bottom)) + 24px);z-index:24;width:56px;height:56px;border-radius:50%;padding:0;display:none;flex-direction:column;align-items:center;justify-content:center;gap:1px;border:2px solid #00e5ffaa;background:#0a0612ee;color:#dffbff;box-shadow:0 0 12px #00e5ff66,inset 0 0 10px #00e5ff33;cursor:pointer;touch-action:none;-webkit-tap-highlight-color:transparent;user-select:none;-webkit-user-select:none}'
+  + '#bZoom.on{display:flex}#bZoom.held,#bZoom:active{border-color:#ffe08a;box-shadow:0 0 16px #ffb00099,inset 0 0 12px #ffb00044;transform:scale(.96)}'
+  + '#bZoom svg{width:22px;height:22px;display:block;filter:drop-shadow(0 0 4px #00e5ff)}#bZoom span{font:900 8px/1 "Courier New",monospace;letter-spacing:.08em;color:#dffbff}'
+  + 'body.ingame #bZoom{display:none!important}';
+document.head.appendChild(zoomCss);
+const bZoom = document.createElement('button'); bZoom.id = 'bZoom'; bZoom.type = 'button'; bZoom.title = 'Hold to zoom in'; bZoom.setAttribute('aria-label', 'Hold to zoom in');
+bZoom.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="#dffbff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.2"/><path d="M15.2 15.2L21 21"/><path d="M10.5 7.6v5.8M7.6 10.5h5.8"/></svg><span>ZOOM</span>';
+document.body.appendChild(bZoom);
+function zoomStopEv(e) { e.stopPropagation(); if (e.cancelable) e.preventDefault(); }
+bZoom.addEventListener('pointerdown', e => { zoomStopEv(e); try { bZoom.setPointerCapture(e.pointerId); } catch (err) {} zoomHold.on = true; bZoom.classList.add('held'); });
+bZoom.addEventListener('pointerup', e => { zoomStopEv(e); zoomHold.on = false; bZoom.classList.remove('held'); });
+bZoom.addEventListener('pointercancel', () => { zoomHold.on = false; bZoom.classList.remove('held'); });
+for (const ev of ['touchstart', 'touchend', 'mousedown', 'mouseup', 'click']) bZoom.addEventListener(ev, zoomStopEv);
+function syncZoomBtn() {
+  const pack = document.getElementById('bPack'), show = !!(pack && pack.classList.contains('on'));
+  bZoom.classList.toggle('on', show);
+  if (!show && zoomHold.on) { zoomHold.on = false; bZoom.classList.remove('held'); }
+}
+function tickZoom(dt) {
+  const goal = zoomHold.on ? 1 : 0;
+  if (zoomHold.k === goal && !zoomHold.on) return;
+  if (zoomHold.k !== goal) {
+    const dir = goal > zoomHold.k ? 1 : -1;
+    zoomHold.k = THREE.MathUtils.clamp(zoomHold.k + dir * Math.min(Math.max(dt, 0), 0.2) / ZOOM_HOLD_T, 0, 1);
+  }
+  const home = defaultDist(), e = zoomHold.k * zoomHold.k * (3 - 2 * zoomHold.k);
+  st.dist = home + (DIST_MIN - home) * e;
+  st.lookT = st.t;   // keep cabinet showcase from fighting the zoom
+}
 function toggleView() { st.fp = !st.fp; }
 function toggleFs() { const d = document; if (!d.fullscreenElement) d.documentElement.requestFullscreen?.().catch(() => {}); else d.exitFullscreen?.(); }
 function updateTurn() {
@@ -1646,6 +1650,7 @@ function frame(now) {
   const gap = Math.max(0, Math.min(100, now - last)); last = now;   // rAF time can be a hair before a resume timestamp
   if (paused) { rafOn = false; return; }   // full-screen game running: arcade render loop stopped
   if (document.hidden) { PS.hiddenSkips++; requestAnimationFrame(frame); return; }   // pause GPU work while the tab is in the background
+  syncZoomBtn(); tickZoom(gap / 1000);
   const t0 = performance.now();
   { const dtc = Math.min(gap / 1000, 0.05); if (play.update(dtc, kiosk && kiosk.mode !== 'walk' && kiosk.mode !== 'pick' ? null : nearCab) || (kiosk && kiosk.update(dtc))) { flyGuard(); stepClock(dtc); } else step(dtc); }
   shield.update(Math.min(gap / 1000, 0.05));
@@ -1720,7 +1725,7 @@ const opts = setupOpts({ play, kiosk, shield, st, monkey, setFloor, getFloor: ()
 requestAnimationFrame(frame);
 
 // hooks for tests / future art work
-window.__arcade = { powerSave: PS, animateMonkey: dt => animateMonkey(dt), get window() { return windowMode; }, setWindow, get jumping() { return !!st.jump; }, canJump, LAVA, lavaRespawnPoint, get spaceWin() { return spaceWin; }, get kiosk() { return kiosk; }, setFloor, get floor() { return floorMode; }, setWalls, get walls() { return wallsMode; }, wallMat, carpet, mirror, shield, room, room2, Z2, hall, DOOR_W, DOOR_H, HALL_L, berserkerCab, monkeyCab, orcCab, cyberCab, novaCab, blasterCab, pipCab, clawCab, bbCab, rockfallCab, roadsterCab, dsCab, play, get paused() { return paused; }, simPause: arcadePause, flyCfg: FLY, jetpackOn: jetpackEquipped, wantWide, joyFrom, joyClear, setDist, loadZoom, saveZoom, zoom: { key: ZOOM_KEY, min: DIST_MIN, max: DIST_MAX, wide: DIST_WIDE, portrait: DIST_PORTRAIT }, THREE, scene, camera, renderer, monkey, makeMonkey, makeAlien, setChar: setPlayerChar, tickBot, cabinets, strikeCab, ghostCab, featured, demo, ghostDemo, playables, blockers, st, stats, step, keys, get nearCab() { return nearCab; }, setArt: (i, part, tex, glow) => cabinets[i].userData.setArt(part, tex, glow) };
+window.__arcade = { powerSave: PS, animateMonkey: dt => animateMonkey(dt), get window() { return windowMode; }, setWindow, get jumping() { return !!st.jump; }, canJump, LAVA, lavaRespawnPoint, get spaceWin() { return spaceWin; }, get kiosk() { return kiosk; }, setFloor, get floor() { return floorMode; }, setWalls, get walls() { return wallsMode; }, wallMat, carpet, mirror, shield, room, room2, Z2, hall, DOOR_W, DOOR_H, HALL_L, berserkerCab, monkeyCab, orcCab, cyberCab, novaCab, blasterCab, pipCab, clawCab, bbCab, rockfallCab, roadsterCab, dsCab, play, get paused() { return paused; }, simPause: arcadePause, flyCfg: FLY, jetpackOn: jetpackEquipped, wantWide, joyFrom, joyClear, setDist, loadZoom, saveZoom, defaultDist, zoomHold, tickZoom, zoom: { key: ZOOM_KEY, min: DIST_MIN, max: DIST_MAX, wide: DIST_WIDE, portrait: DIST_PORTRAIT, holdT: ZOOM_HOLD_T }, THREE, scene, camera, renderer, monkey, makeMonkey, makeAlien, setChar: setPlayerChar, tickBot, cabinets, strikeCab, ghostCab, featured, demo, ghostDemo, playables, blockers, st, stats, step, keys, get nearCab() { return nearCab; }, setArt: (i, part, tex, glow) => cabinets[i].userData.setArt(part, tex, glow) };
 const mp = setupMP({ scene, camera, monkey, makeMonkey, makeAlien, st, play, getTp: () => tp, HALF, Z2, HALL_L, WX: 80 }); window.__arcade.mp = mp;   // multiplayer step 1: public room, 10 players
 // after the first room frames: pull in the shop, then the window scenery, off the critical path
 { const idle = f => (window.requestIdleCallback ? requestIdleCallback(f, { timeout: 1500 }) : setTimeout(f, 200));
