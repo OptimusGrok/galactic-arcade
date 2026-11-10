@@ -201,7 +201,7 @@ body[data-cab=roadster] #tix.ingame{top:calc(max(10px,env(safe-area-inset-top)) 
 <div id="optNote"></div><div id="flTiles"><div class="flT" data-floor="neon" id="flNeon"><img loading="lazy" src="img/floor_neon.webp" alt="" draggable="false">CURRENT<span class="now">NEON</span></div><div class="flT" data-floor="carpet" id="flCarpet"><img loading="lazy" src="img/floor_carpet.webp" alt="" draggable="false">ARCADE<span class="now">CHARACTER CARPET</span></div><div class="flT" data-floor="checkers" id="flChk"><img loading="lazy" src="img/floor_checkers.webp" alt="" draggable="false">CHECKERS<span class="now">BLACK + GOLD</span></div><div class="flT" data-floor="lava" id="flLava"><img loading="lazy" src="img/floor_lava.webp" alt="" draggable="false">LAVA<span class="now">CAVE PATHS</span></div><div class="flT" data-floor="cobble" id="flCob"><img loading="lazy" src="img/floor_cobble.webp" alt="" draggable="false">MEDIEVAL<span class="now">COBBLESTONE</span></div><div class="flT" data-floor="ice" id="flIce"><img loading="lazy" src="img/floor_ice.webp" alt="" draggable="false">ICE<span class="now">SLIPPERY</span></div></div>
 <div id="wlTiles"><div class="flT wlT" data-walls="current" id="wlCur"><img loading="lazy" src="img/walls_current.webp" alt="" draggable="false">CURRENT<span class="now">NEON PANELS</span></div><div class="flT wlT" data-walls="viking" id="wlVik"><img loading="lazy" src="img/walls_viking.webp" alt="" draggable="false">VIKING<span class="now">RUNE WALLS</span></div><div class="flT wlT" data-walls="portals" id="wlPor"><img loading="lazy" src="img/walls_portals.webp" alt="" draggable="false">PORTALS<span class="now">SWIRLING VORTEX</span></div><div class="flT wlT" data-walls="medieval" id="wlMed"><img loading="lazy" src="img/walls_medieval.webp" alt="" draggable="false">MEDIEVAL<span class="now">GOTHIC WINDOWS</span></div></div>
 <div id="wnTiles"><div class="flT wnT" data-win="space" id="wnSpace"><img loading="lazy" src="img/window_space.webp" alt="" draggable="false">SPACE<span class="now">NEBULA VIEW</span></div><div class="flT wnT" data-win="jungle" id="wnJungle"><img loading="lazy" src="img/window_jungle.webp" alt="" draggable="false">JUNGLE<span class="now">RAINFOREST</span></div><div class="flT wnT" data-win="beach" id="wnBeach"><img loading="lazy" src="img/window_beach.webp" alt="" draggable="false">BEACH<span class="now">SAND + SEA</span></div></div>
-<button class="flT" id="musBtn" style="display:block;margin:14px auto 0;width:min(100%,300px)">MUSIC: <span id="musSt">ON</span></button><button class="stB" id="optBack">BACK</button></div></div><div id="secHot" aria-hidden="true"></div>
+<button class="flT" id="musBtn" style="display:block;margin:14px auto 0;width:min(100%,300px)">MUSIC: <span id="musSt">ON</span></button><button class="flT" id="coolBtn" style="display:block;margin:10px auto 0;width:min(100%,300px)">COOLER PHONE: <span id="coolSt">ON</span></button><button class="stB" id="optBack">BACK</button></div></div><div id="secHot" aria-hidden="true"></div>
 <div id="sec" aria-hidden="true"><div id="secP"><button id="secX" title="Cancel">✕</button><canvas id="secCv"></canvas></div></div>
 <div id="tk" aria-hidden="true"><div id="optP"><div id="optHd"><div id="optT">TICKETS</div><button id="tkX" class="optXb" title="Done" style="width:42px;height:42px;border-radius:50%;border:2px solid #ff3cf0aa;background:#120208;color:#ffd0fa;font:700 20px sans-serif">✕</button></div>
 <div class="tkR">🎟 GOLD <b id="tkG">0</b></div><div class="tkBs"><button class="tkB" data-g="1">+1</button><button class="tkB" data-g="5">+5</button><button class="tkB" data-g="10">+10</button><button class="tkB" data-g="50">+50</button><button class="tkB z" data-g="-1">−1</button><button class="tkB z" data-g="0">RESET</button></div>
@@ -226,9 +226,14 @@ body[data-cab=roadster] #tix.ingame{top:calc(max(10px,env(safe-area-inset-top)) 
   function pickWin(f) { if (window.__setWindow) window.__setWindow(f); else try { localStorage.setItem('neonarcade.window', f); } catch (e) {} S.window = f; showWin(); }
   function tab(w) { var k = w === 'window' ? 'window' : w ? 'walls' : 'floor'; opt.classList.toggle('wl', k === 'walls'); opt.classList.toggle('wn', k === 'window');
     document.getElementById('tabFloor').classList.toggle('off', k !== 'floor'); document.getElementById('tabWalls').classList.toggle('off', k !== 'walls'); document.getElementById('tabWin').classList.toggle('off', k !== 'window'); S.tab = k; }
-  function openOpt(on) { opt.classList.toggle('on', on); opt.setAttribute('aria-hidden', on ? 'false' : 'true'); if (on) { S.opts++; tab(false); showFloor(); showWalls(); showWin(); showMus(); } }
+  function openOpt(on) { opt.classList.toggle('on', on); opt.setAttribute('aria-hidden', on ? 'false' : 'true'); if (on) { S.opts++; tab(false); showFloor(); showWalls(); showWin(); showMus(); showCool(); } }
   function showMus() { var m = window.__music; document.getElementById('musSt').textContent = !m || m.on ? 'ON' : 'OFF'; document.getElementById('musBtn').classList.toggle('sel', !m || m.on); }
-  window.__startUI = { openOpt: openOpt, pickFloor: pickFloor, pickWalls: pickWalls, pickWin: pickWin, tab: tab, opt: opt };
+  function coolOn() { if (window.__powerSave) return !!window.__powerSave.on;
+    try { var v = localStorage.getItem('neonarcade.powersave'); if (v === '0' || v === 'off') return false; if (v === '1' || v === 'on') return true; } catch (e) {}
+    return matchMedia('(pointer:coarse)').matches || /Android|iPhone|iPad/i.test(navigator.userAgent) || (navigator.maxTouchPoints > 0 && matchMedia('(hover: none)').matches); }
+  function showCool() { var on = coolOn(), b = document.getElementById('coolBtn'), st = document.getElementById('coolSt'); if (st) st.textContent = on ? 'ON' : 'OFF'; if (b) b.classList.toggle('sel', on); }
+  window.__powerSaveUI = { sync: function () { showCool(); try { if (window.__opts && window.__opts.render) window.__opts.render(); } catch (e) {} } };
+  window.__startUI = { openOpt: openOpt, pickFloor: pickFloor, pickWalls: pickWalls, pickWin: pickWin, tab: tab, opt: opt, showMus: showMus, showCool: showCool };
   // ---- hidden ticket menu: triple-tap top-right -> 3x3 unlock pattern -> TICKETS panel ----
   var sec = document.getElementById('sec'), tk = document.getElementById('tk'), sP = document.getElementById('secP'), cv = document.getElementById('secCv'), taps = [], pat = [], drawing = false, cur = null;
   function hsh(a) { var h = 7; for (var i = 0; i < a.length; i++) h = (h * 31 + a.charCodeAt(i)) % 1000003; return h; }
@@ -289,6 +294,7 @@ body[data-cab=roadster] #tix.ingame{top:calc(max(10px,env(safe-area-inset-top)) 
         else if (hit('#stOpt')) openOpt(true);
         else if (hit('#optX') || hit('#optBack')) openOpt(false);
         else if (hit('#musBtn')) { if (window.__music) window.__music.setOn(!window.__music.on); showMus(); }
+        else if (hit('#coolBtn')) { if (window.__powerSave) window.__powerSave.set(!window.__powerSave.on); else try { localStorage.setItem('neonarcade.powersave', coolOn() ? '0' : '1'); } catch (e) {} showCool(); }
         else if (hit('#tabFloor')) tab(false);
         else if (hit('#tabWalls')) tab(true);
         else if (hit('#tabWin')) tab('window');
@@ -348,6 +354,7 @@ function flBtnInit() {
   opt.addEventListener('pointerup', function (e) { if (!opt.classList.contains('game')) return; e.stopPropagation(); var t = e.target, h = function (s) { return t && t.closest && t.closest(s); }, U = window.__startUI;
     if (h('#optX') || h('#optBack') || !h('#optP')) openG(false);
     else if (h('#musBtn')) { if (window.__music) window.__music.setOn(!window.__music.on); U.openOpt(true); showNote(false); }
+    else if (h('#coolBtn')) { if (window.__powerSave) window.__powerSave.set(!window.__powerSave.on); if (U.showCool) U.showCool(); U.openOpt(true); showNote(false); }
     else if (h('#tabFloor')) U.tab(false); else if (h('#tabWalls')) U.tab(true); else if (h('#tabWin')) U.tab('window');
     else if (h('.wnT')) pick('window', h('.wnT').dataset.win); else if (h('.wlT')) pick('walls', h('.wlT').dataset.walls); else if (h('.flT')) pick('floor', h('.flT').dataset.floor); }); }
   addEventListener('keydown', function (e) { if (G.open && (e.code === 'Escape' || e.code === 'Backspace')) { e.stopImmediatePropagation(); openG(false); } }, true);

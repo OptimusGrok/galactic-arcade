@@ -235,7 +235,7 @@ body.ingame #mpPill,body.ingame #mpBar,body.ingame #mpChat,body.ingame #mpTags,b
   const V = new THREE.Vector3(); let lt = performance.now();
   function place(node, obj, h, dy) { V.set(obj.position.x, obj.position.y + h, obj.position.z).project(camera);
     if (V.z > 1 || !obj.visible) { node.style.display = 'none'; return; } node.style.display = 'block'; node.style.left = ((V.x + 1) / 2 * innerWidth).toFixed(1) + 'px'; node.style.top = ((1 - V.y) / 2 * innerHeight - (dy || 0)).toFixed(1) + 'px'; }
-  function frame(now) { const dt = Math.min(0.1, (now - lt) / 1000); lt = now; const k = 1 - Math.exp(-dt * 12);
+  function frame(now) { if (document.hidden) { lt = now; requestAnimationFrame(frame); return; } const dt = Math.min(0.1, (now - lt) / 1000); lt = now; const k = 1 - Math.exp(-dt * 12);
     for (const p of M.peers.values()) {
       if (now - p.last > 10000 && p.cur) { p.g.visible = false; p.tag.style.display = 'none'; continue; }   // went quiet: hide until it speaks again
       if (!p.cur) continue; const c = p.cur, t = p.tgt, ox = c.x, oz = c.z;
