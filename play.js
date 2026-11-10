@@ -78,6 +78,11 @@ export function setupPlay(A) {
       start(w) { w.__bb.start(); },
       scene(w) { return w.__bb.scene(); }, active(w) { return w.__bb.active(); },
       hold(w) { return w.__bb.hold(); }, unhold(w) { w.__bb.unhold(); }, overHold: 4500, scoresHold: 0 },
+    rockfall: { key: 'rockfall', cab: A.rockfallCab, src: 'rockfall-play/index.html', credits: 0, games: 0, aspect: (A.rockfallCab && A.rockfallCab.userData.aspect) || 4 / 3, cost: 5,   // ROCKFALL RUSH (#14, slot 2:3): 5 tickets = 1 credit = one run of 3 lives
+      demo(w) { w.__demo.start(); }, stopDemo(w) { w.__demo.stop(); },
+      start(w) { w.__rockfall.start(); },
+      scene(w) { return w.__rockfall.scene(); }, active(w) { return w.__rockfall.active(); },
+      hold(w) { return w.__rockfall.hold(); }, unhold(w) { w.__rockfall.unhold(); }, overHold: 4500, scoresHold: 0 },
     nova: { key: 'nova', cab: A.novaCab, src: 'nova-play/index.html', credits: 0, games: 0, aspect: (A.novaCab && A.novaCab.userData.aspect) || 16 / 9, cost: 5,   // 5 tickets = 1 credit = one run
       demo(w) { w.__demo.start(); }, stopDemo(w) { w.__demo.stop(); },
       start(w) { w.__nova.start(); },
@@ -110,6 +115,7 @@ export function setupPlay(A) {
   if (!A.dsCab) delete MACHINES.ds;
   if (!A.roadsterCab) delete MACHINES.roadster;
   if (!A.clawCab) delete MACHINES.claw;
+  if (!A.rockfallCab) delete MACHINES.rockfall;
   // MARS ROADSTER: sit the monkey in the chosen bucket seat (hands on the wheel) for the zoom, stand him up behind it on the way out
   function seatMonkey(cab, on) { const u = cab.userData, s = u.seats[u.seat], mu = monkey.userData;
     if (on) { monkey.position.set(s.world.x, 0, s.world.z + 0.12); st.face = 0; monkey.rotation.y = 0; st.vel.set(0, 0, 0); st.speed = 0; st.seated = u.seat; if (monkey.userData.pack) monkey.userData.pack.visible = monkey.userData.tail.visible = false;
