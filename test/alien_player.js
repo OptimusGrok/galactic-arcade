@@ -31,7 +31,9 @@ const MIRROR = '/workspace/alien-mirror.png';
       rows: [...document.querySelectorAll('#gaP .gaRow')].filter(r => !r.hidden).map(r => r.dataset.k),
       allRows: [...document.querySelectorAll('#gaP .gaRow')].map(r => r.dataset.k),
       go: !!(document.getElementById('gaGo') && !document.getElementById('gaGo').hidden),
-      inp: (document.getElementById('gaIn') || {}).value || ''
+      inp: (document.getElementById('gaIn') || {}).value || '',
+      whoH: (() => { const e = document.getElementById('gaWhoH'); if (!e) return null; const r = e.getBoundingClientRect();
+        return { t: (e.textContent || '').trim(), vis: r.height > 6 && r.top >= -2 && r.bottom <= innerHeight + 2 }; })()
     };
   });
 
@@ -40,7 +42,7 @@ const MIRROR = '/workspace/alien-mirror.png';
   await page.reload({ timeout: 120000 }); await ready();
   let a = await info();
   chk(a.char === 'monkey' && a.ud === 'monkey' && a.saved == null && !a.bot && a.eyes === 0, 'fresh save: monkey is the default player', a);
-  chk(a.who.length === 2 && a.who[0][0] === 'monkey' && a.who[0][1] && a.who[1][0] === 'alien' && !a.who[1][1] && a.who.every(w => w[2]), 'start screen has a Monkey / Alien picker, Monkey selected', a.who);
+  chk(a.who.length === 2 && a.who[0][0] === 'monkey' && a.who[0][1] && a.who[1][0] === 'alien' && !a.who[1][1] && a.who.every(w => w[2]) && a.whoH && a.whoH.t === 'SELECT PLAYER' && a.whoH.vis, 'start screen has a SELECT PLAYER heading and Monkey / Alien cards, Monkey selected', a);
   chk(a.rows.join() === 'hat,hoodie' && !a.hoodieHidden && !a.go, 'monkey start: hat + hoodie rows, no PLAY until a name', a);
 
   // --- old save without a char field stays a monkey ---
@@ -76,9 +78,11 @@ const MIRROR = '/workspace/alien-mirror.png';
   await page.waitForTimeout(1800);
   const land = await page.evaluate(() => {
     const who = [...document.querySelectorAll('#gaWho .gaWho')].map(b => { const r = b.getBoundingClientRect(); return { v: b.dataset.v, sel: b.classList.contains('sel'), h: r.height, top: r.top, bot: r.bottom }; });
-    return { who, vh: innerHeight, vw: innerWidth, hood: document.querySelector('#gaP .gaRow[data-k=hoodie]').hidden };
+    const h = document.getElementById('gaWhoH'); const hr = h && h.getBoundingClientRect();
+    return { who, vh: innerHeight, vw: innerWidth, hood: document.querySelector('#gaP .gaRow[data-k=hoodie]').hidden,
+      whoH: h && { t: (h.textContent || '').trim(), h: hr.height, top: hr.top, bot: hr.bottom } };
   });
-  chk(land.who.length === 2 && land.who.every(w => w.h > 8 && w.top >= -2 && w.bot <= land.vh + 2) && land.hood, 'landscape: both picker buttons fit and hoodie stays hidden', land);
+  chk(land.who.length === 2 && land.who.every(w => w.h > 8 && w.top >= -2 && w.bot <= land.vh + 2) && land.hood && land.whoH && land.whoH.t === 'SELECT PLAYER' && land.whoH.h > 6 && land.whoH.top >= -2 && land.whoH.bot <= land.vh + 2, 'landscape: SELECT PLAYER heading and both picker cards fit and hoodie stays hidden', land);
   await page.screenshot({ path: LANDSCAPE });
   chk(fs.existsSync(LANDSCAPE) && fs.statSync(LANDSCAPE).size > 20000, 'wrote alien-start-landscape.png');
 

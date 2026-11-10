@@ -190,6 +190,7 @@
   var tag = null, tagName = null;
   function applyTag(T, mk) { if (!tag) { var c = document.createElement('canvas'); c.width = 256; c.height = 64; var tx = new T.CanvasTexture(c); tx.colorSpace = T.SRGBColorSpace;
       tag = new T.Sprite(new T.SpriteMaterial({ map: tx, transparent: true, depthWrite: false })); tag.scale.set(0.8, 0.2, 1); tag.position.y = 2.2; tag.name = 'gaNameTag'; tag.renderOrder = 5; mk.add(tag); }
+    tag.position.y = (P.char === 'alien') ? 2.38 : 2.2;
     if (tagName === P.name) return; tagName = P.name; var c2 = tag.material.map.image, g = c2.getContext('2d'); g.clearRect(0, 0, 256, 64); tag.visible = named(); if (!named()) return;
     g.font = '900 34px "Courier New",monospace'; var w = Math.min(248, g.measureText(P.name).width + 30); g.fillStyle = '#0a0418cc'; g.strokeStyle = '#ff3cf0'; g.lineWidth = 3;
     g.beginPath(); if (g.roundRect) g.roundRect(128 - w / 2, 8, w, 48, 14); else g.rect(128 - w / 2, 8, w, 48); g.fill(); g.stroke();
@@ -235,14 +236,15 @@
   function frame() { prev.raf = requestAnimationFrame(frame); var wc = want(); if (!wc || !prev.scene) return; if (!prev.r || prev.r.domElement !== wc) attach(wc); if (!prev.r) return; if (prev.r.getContext().isContextLost()) { if (!prev.lostAt) prev.lostAt = performance.now(); if (performance.now() - prev.lostAt > 600) { prev.lostAt = 0; remake(); } return; } prev.lostAt = 0;
     var cv = prev.r.domElement, w = cv.clientWidth, h = cv.clientHeight; if (!w || !h) return;
     if (cv.width !== Math.round(w * prev.r.getPixelRatio()) || cv.height !== Math.round(h * prev.r.getPixelRatio())) { prev.r.setSize(w, h, false); }
-    prev.cam.aspect = w / h; var fit = Math.max(1, 0.62 / prev.cam.aspect); prev.cam.position.set(0, 1.3, 4.9 * fit); prev.cam.lookAt(0, 1.02, 0); prev.cam.updateProjectionMatrix();
+    prev.cam.aspect = w / h; var fit = Math.max(1, 0.62 / prev.cam.aspect); var alienPrev = !!(prev.root && prev.root.getObjectByName('alienBot'));
+    prev.cam.position.set(0, alienPrev ? 1.36 : 1.3, 4.9 * fit); prev.cam.lookAt(0, alienPrev ? 1.12 : 1.02, 0); prev.cam.updateProjectionMatrix();
     var PL = pLook(); if (wc.id === 'gaCv') { PL = Object.assign({}, PL, { glasses: 'none', hat: stHat ? PL.hat : 'none' }); }   // Dave: no hat until a cap is tapped   // Dave: no eyewear on the start screen (saved glasses kept for the game)
     var pk = PL.hat + PL.glasses + PL.back + PL.hoodie + (PL.char || '') + wc.id; if (prev.hat !== pk) { prev.hat = pk; applyRoot(window.__arcade.THREE, prev.root, PL); if (W.try) applyMats(PL); }   // the preview always wears the chosen hat, however the pick or load happened
     if (prev.auto && !prev.drag) prev.want += 0.006; prev.rot += (prev.want - prev.rot) * 0.15; prev.root.rotation.y = prev.rot;
     var now = performance.now(), dt = Math.min(0.25, prev.lt ? (now - prev.lt) / 1000 : 0.016); prev.lt = now;
-    var bot = prev.root.getObjectByName('alienBot'); if (bot) { var bt = now / 1000, y0 = bot.userData.baseY != null ? bot.userData.baseY : 0.58;
-      bot.position.x = 0.44 + Math.sin(bt * 1.15) * 0.02; bot.position.y = y0 + Math.sin(bt * 2.35) * 0.05; bot.position.z = 0.02 + Math.cos(bt * 1.05) * 0.02;
-      bot.rotation.y = Math.sin(bt * 1.45) * 0.45; bot.rotation.z = Math.sin(bt * 1.9) * 0.1; }
+    var bot = prev.root.getObjectByName('alienBot'); if (bot) { var bt = now / 1000, y0 = bot.userData.baseY != null ? bot.userData.baseY : 0.68;
+      bot.position.x = 0.54 + Math.sin(bt * 1.15) * 0.02; bot.position.y = y0 + Math.sin(bt * 2.35) * 0.045; bot.position.z = 0.14 + Math.cos(bt * 1.05) * 0.018;
+      bot.rotation.y = Math.sin(bt * 1.45) * 0.35; bot.rotation.z = Math.sin(bt * 1.9) * 0.08; }
     if (!TP.seen && wc.id === 'gaCv') { TP.seen = true; TP.gone = false; tpStart('in'); }   // first paint of the start screen: beam in
     tpRender(tpStep(dt)); }
   // ---------- start-screen teleport (same look as teleport.js: cyan swirl column, rising sparkles, feet-up dissolve, flash, zap/vwoom) ----------
@@ -310,8 +312,12 @@
     + '.gaRow span{width:62px;flex:none;font:900 12px/1.1 "Courier New",monospace;text-align:center;letter-spacing:.04em}.gaCh{flex:1;display:flex;gap:6px;justify-content:safe center;overflow-x:auto;overflow-y:hidden;scrollbar-width:none;touch-action:pan-x;scroll-snap-type:x proximity;padding:2px}.gaCh::-webkit-scrollbar{display:none}.gaCh .gaO{flex:none;scroll-snap-align:center}'
     + '.gaO{width:42px;height:38px;border-radius:8px;border:2px solid #ffffff33;background:#151030;font:20px/1 sans-serif;color:#fff;padding:0;cursor:pointer}.gaO.sel{border-color:#ffd98a;box-shadow:0 0 10px #ffb000cc}'
     + '.gaRow[hidden]{display:none!important}'
-    + '#gaWho{display:flex;gap:8px;padding:8px 10px 2px;justify-content:center}'
-    + '.gaWho{flex:1;max-width:170px;height:36px;border-radius:10px;border:2px solid #ffffff33;background:#151030;color:#d8e7ff;font:900 13px/1 "Courier New",monospace;letter-spacing:.08em;cursor:pointer;-webkit-tap-highlight-color:transparent}.gaWho.sel{border-color:#ffd98a;color:#fff;box-shadow:0 0 10px #ffb000cc}'
+    + '#gaWho{display:flex;flex-direction:column;align-items:stretch;gap:6px;padding:8px 10px 4px}'
+    + '.gaWhoH{font:900 12px/1 "Courier New",monospace;letter-spacing:.2em;text-align:center;color:#bff8ff;text-shadow:0 0 6px #00e5ff,0 0 14px #0090ff}'
+    + '.gaWhoRow{display:flex;gap:8px;justify-content:center}'
+    + '.gaWho{flex:1;max-width:180px;min-height:54px;height:auto;padding:7px 8px 8px;border-radius:12px;border:2px solid #ffffff33;background:#151030;color:#d8e7ff;font:900 12px/1 "Courier New",monospace;letter-spacing:.08em;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;cursor:pointer;-webkit-tap-highlight-color:transparent}'
+    + '.gaWho.sel{border-color:#ffd98a;color:#fff;background:#2a1840;box-shadow:0 0 12px #ffb000cc,inset 0 0 10px #ffb00033}'
+    + '.gaWhoI{font-size:20px;line-height:1;filter:drop-shadow(0 0 5px #00e5ff66)}.gaWho.sel .gaWhoI{filter:drop-shadow(0 0 6px #ffd98a)}.gaWhoN{letter-spacing:.12em}'
     + '#gaGo{flex:none;font:900 clamp(26px,8vw,38px)/1 "Arial Black",Impact,sans-serif;letter-spacing:.1em;color:#dffbff;padding:12px 54px;border-radius:14px;border:3px solid #00e5ff;background:linear-gradient(#0c1a3aee,#050a1aee);text-shadow:0 0 8px #00e5ff,0 0 20px #00a0ff;box-shadow:0 0 18px #00e5ffaa,inset 0 0 14px #00e5ff44;cursor:pointer;animation:pp 1.6s ease-in-out infinite}'
     + '#gaHint.gaTaken{color:#ff5a7a;font-weight:900}#gaGo[hidden]{display:none}#gaGo:not([hidden]){animation:gaPop .45s cubic-bezier(.2,1.6,.4,1) both}@keyframes gaPop{0%{opacity:0;transform:scale(.6)}100%{opacity:1;transform:scale(1)}}#gaHint{flex:none;font:700 12px system-ui;color:#ffd0fa;opacity:.85;min-height:48px;display:flex;align-items:center}#gaHint[hidden]{display:none}'
     + '#start.ga #stBtns{display:none!important}#start.ga #stBox{visibility:hidden}'
@@ -324,7 +330,8 @@
     + '.gaO{position:relative}.gaLk{position:absolute;right:-3px;bottom:-5px;font:900 9px/1 Arial;font-style:normal;color:#ffd98a;background:#2a0a3a;border:1px solid #ffd98a;border-radius:6px;padding:1px 2px;pointer-events:none}.gaO.own .gaLk{display:none}.gaO.gaNew:not(.own){opacity:.8}.gaO.try{border-color:#ff3cf0;box-shadow:0 0 10px #ff3cf0}#gaW.gaSt .gaNew,#gaW.gaSt .gaRow[data-k=back]{display:none}'
     + '#gaWBuy{flex:none;display:flex;align-items:center;gap:10px;padding:8px 12px;border:2px solid #ffd98a;border-radius:12px;background:#1a0a2ad9;font:900 14px "Courier New",monospace}#gaWBuy[hidden]{display:none}'
     + '#gaWBuyB{font:900 16px "Arial Black",Arial;padding:9px 16px;border-radius:10px;border:2px solid #ffd98a;background:#3a1a00;color:#ffe9a8;cursor:pointer}#gaWBuyB:disabled{opacity:.55;border-color:#888;color:#bbb;background:#222;cursor:default}'
-    + '@media (max-height:640px){#gaT{font-size:clamp(24px,7vw,40px);margin-top:18px}.gaRow{padding:3px 4px}.gaO{height:32px}#gaNm{padding:5px 10px}}'
+    + '@media (max-height:640px){#gaT{font-size:clamp(24px,7vw,40px);margin-top:18px}.gaRow{padding:3px 4px}.gaO{height:32px}#gaNm{padding:5px 10px}'
+    + '#gaWho{padding:6px 8px 2px;gap:4px}.gaWhoH{font-size:10px}.gaWho{min-height:0;height:40px;flex-direction:row;gap:6px;padding:4px 8px}.gaWhoI{font-size:16px}}'
     + '@media (orientation:landscape) and (max-height:520px){#gaP{display:grid;grid-template-columns:minmax(0,34%) minmax(0,1fr);grid-template-rows:auto minmax(0,1fr) auto auto;gap:3px 10px;padding:6px 10px 6px;overflow:hidden;align-items:stretch}'
     + '#gaT{grid-column:1;grid-row:1;margin:0;font-size:clamp(15px,5.2vh,24px)}'
     + '#gaStage{grid-column:1;grid-row:2;min-height:0;width:100%;max-width:none}'
@@ -333,7 +340,8 @@
     + '#gaGo{grid-column:2;grid-row:3;justify-self:center;padding:7px 26px;font-size:clamp(16px,5.4vh,26px)}'
     + '#gaHint{grid-column:2;grid-row:4;min-height:0;justify-self:center;font-size:11px}'
     + '.gaRow{padding:2px}.gaO{width:34px;height:28px;font-size:16px}.gaRow span{width:48px;font-size:10px}.gaAr{width:36px;height:44px;font-size:32px}'
-    + '#gaWho{padding:2px 6px 0;gap:6px}.gaWho{height:24px;font-size:10px;max-width:130px}}';
+    + '#gaWho{padding:2px 6px 2px;gap:3px}.gaWhoH{font-size:9px;letter-spacing:.16em;text-shadow:0 0 5px #00e5ff,0 0 10px #0090ff}'
+    + '.gaWhoRow{gap:6px}.gaWho{min-height:0;height:28px;flex-direction:row;gap:5px;padding:2px 8px;font-size:10px;max-width:150px;border-radius:8px}.gaWhoI{font-size:14px}}';
   var ov = null, stHat = false;   // start screen: cap picked this visit?
   function row(k, label, shop, list) { var h = '<div class="gaRow" data-k="' + k + '"><button class="gaA" data-step="-1" aria-label="previous">‹</button><span>' + label + '</span><div class="gaCh">';
     (list || (shop ? OPTS : START)[k]).forEach(function (o) { var ic = typeof o[1] === 'string', face = ic ? o[1] : ''; var bg = ic ? '' : 'background:#' + ('00000' + o[1].toString(16)).slice(-6) + ';';
@@ -353,7 +361,10 @@
     ov.innerHTML = '<canvas id="gaStars"></canvas><div id="gaT"><b>GALACTIC</b><i>ARCADE</i></div>'
       + '<div id="gaStage"><canvas id="gaCv"></canvas><button class="gaAr" id="gaL" aria-label="rotate left">‹</button><button class="gaAr" id="gaR" aria-label="rotate right">›</button></div>'
       + '<div class="gaBox" id="gaNm"><label for="gaIn">YOUR NAME</label><input id="gaIn" maxlength="' + MAXN + '" placeholder="Enter your name..." autocomplete="nickname" autocapitalize="words" spellcheck="false" enterkeyhint="go"></div>'
-      + '<div class="gaBox"><div id="gaWho"><button type="button" class="gaWho" data-v="monkey">MONKEY</button><button type="button" class="gaWho" data-v="alien">ALIEN</button></div>' + rows() + '</div>'
+      + '<div class="gaBox"><div id="gaWho"><div class="gaWhoH" id="gaWhoH">SELECT PLAYER</div><div class="gaWhoRow">'
+      + '<button type="button" class="gaWho" data-v="monkey"><span class="gaWhoI" aria-hidden="true">🐵</span><span class="gaWhoN">MONKEY</span></button>'
+      + '<button type="button" class="gaWho" data-v="alien"><span class="gaWhoI" aria-hidden="true">👽</span><span class="gaWhoN">ALIEN</span></button>'
+      + '</div></div>' + rows() + '</div>'
       + '<button id="gaGo" hidden>PLAY</button><div id="gaHint">Type your name to play</div>';
     st.appendChild(ov); st.classList.add('ga'); var inp = ov.querySelector('#gaIn'); inp.value = P.name;
     inp.addEventListener('input', function () { var v = clean(inp.value); if (v !== inp.value) inp.value = v; P.name = v; save(); sync(); apply(); nameCheck(); });
