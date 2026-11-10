@@ -844,122 +844,120 @@ function makeMonkey() { // "Arcade Kid": cartoon monkey, no tail, pink cap, tie-
   return root;
 }
 
-function makeAlien() { // chibi grey alien + larger robot companion, matched to Dave's mockup
+function makeAlien() { // chibi grey alien: huge spherical head (~37% of height), short stocky body, forward-facing robot
   const mk = (c, o = {}) => new THREE.MeshStandardMaterial(Object.assign({ color: c, roughness: 0.8 }, o));
-  const skin = mk(0x9aa5ab, { roughness: 0.32, metalness: 0.2, emissive: 0x1c2428, emissiveIntensity: 0.1 });
-  const skinD = mk(0x7e888e, { roughness: 0.4, metalness: 0.15, emissive: 0x141a1e, emissiveIntensity: 0.08 });
-  const gun = mk(0x5a636e, { roughness: 0.46, metalness: 0.34, emissive: 0x141820, emissiveIntensity: 0.1 });
-  const gunL = mk(0x717b88, { roughness: 0.42, metalness: 0.3, emissive: 0x1a2230, emissiveIntensity: 0.08 });
-  const gunD = mk(0x3c434c, { roughness: 0.5, metalness: 0.28 });
-  const purp = mk(0x6a3a9a, { roughness: 0.4, metalness: 0.28, emissive: 0x2a1055, emissiveIntensity: 0.38 });
-  const purpD = mk(0x4a2578, { roughness: 0.46, metalness: 0.24, emissive: 0x1a0840, emissiveIntensity: 0.22 });
-  const eyeM = mk(0x05060a, { roughness: 0.06, metalness: 0.72, emissive: 0x140818, emissiveIntensity: 0.35 });
-  const lip = mk(0x5a6268, { roughness: 0.45 });
+  const skin = mk(0x9aa5ab, { roughness: 0.34, metalness: 0.16, emissive: 0x1c2428, emissiveIntensity: 0.1 });
+  const skinD = mk(0x7e888e, { roughness: 0.42, metalness: 0.12, emissive: 0x141a1e, emissiveIntensity: 0.08 });
+  const gun = mk(0x5a636e, { roughness: 0.48, metalness: 0.28, emissive: 0x141820, emissiveIntensity: 0.08 });
+  const gunD = mk(0x3c434c, { roughness: 0.52, metalness: 0.24 });
+  const purp = mk(0x6a3a9a, { roughness: 0.42, metalness: 0.22, emissive: 0x2a1055, emissiveIntensity: 0.35 });
+  const eyeM = mk(0x05060a, { roughness: 0.05, metalness: 0.78, emissive: 0x140818, emissiveIntensity: 0.28 });
+  const lip = mk(0x5a6268, { roughness: 0.48 });
+  const glove = mk(0x8b959e, { roughness: 0.5, metalness: 0.12 });
   const cyan = mk(0x3ae8ff, { roughness: 0.22, metalness: 0.35, emissive: 0x14c8e6, emissiveIntensity: 1.15 });
   const cyanG = new THREE.MeshBasicMaterial({ color: 0x48f2ff, toneMapped: false });
   const hlA = new THREE.MeshBasicMaterial({ color: 0x8aa0ff, toneMapped: false });
   const hlB = new THREE.MeshBasicMaterial({ color: 0xc4b8ff, toneMapped: false });
   const pink = mk(0xff4f9e, { roughness: 0.6 }), pinkD = mk(0xd93a82, { roughness: 0.6 });
-  const CAP = (r, len, cs = 8, rs = 16) => new THREE.CapsuleGeometry(r, len, cs, rs);
+  const CAP = (r, len, cs = 12, rs = 24) => new THREE.CapsuleGeometry(r, len, cs, rs);
   const root = new THREE.Group(); root.name = 'monkey';
   const hips = new THREE.Group(); hips.position.y = 0.8; root.add(hips);
-  // rounded pelvis in the same gunmetal — no light 'shorts' slab
-  part(hips, new THREE.SphereGeometry(0.175, 24, 18), gun, 0, 0.02, 0, 1.22, 0.78, 0.95);
-  part(hips, CYL(0.188, 0.188, 0.04, 24), gunD, 0, 0.05, 0, 1, 1, 0.88);   // belt
-  part(hips, new THREE.BoxGeometry(0.055, 0.048, 0.028), gunL, 0, 0.05, 0.18);         // buckle
-  part(hips, new THREE.BoxGeometry(0.028, 0.028, 0.012), cyanG, 0, 0.05, 0.198);
+  // chunky pelvis + belt — same suit colour so it reads as one jacket/hip piece
+  part(hips, new THREE.SphereGeometry(0.19, 28, 20), gun, 0, 0.02, 0, 1.2, 0.82, 0.98);
+  part(hips, CYL(0.2, 0.2, 0.038, 28), gunD, 0, 0.055, 0, 1, 1, 0.9);
+  part(hips, new THREE.BoxGeometry(0.052, 0.044, 0.026), gun, 0, 0.055, 0.185);
+  part(hips, new THREE.BoxGeometry(0.026, 0.026, 0.012), cyanG, 0, 0.055, 0.202);
   const legs = [];
   for (const sd of [-1, 1]) {
-    const leg = new THREE.Group(); leg.position.set(0.1 * sd, -0.02, 0); hips.add(leg);
-    part(leg, CAP(0.078, 0.3, 8, 18), gun, 0, -0.2, 0);                                    // overlaps hip + knee
-    part(leg, S(0.055, 12, 10), purpD, -0.032 * sd, -0.16, 0.02, 0.7, 1.2, 0.65);
-    const knee = new THREE.Group(); knee.position.y = -0.4; leg.add(knee);
-    part(knee, CAP(0.068, 0.2, 8, 16), gun, 0, -0.15, 0);
-    part(knee, S(0.082, 16, 12), gunL, 0, 0.0, 0.038, 1.08, 0.78, 0.7);                    // knee pad
-    part(knee, S(0.05, 12, 10), purpD, 0, 0.0, 0.058, 0.95, 0.65, 0.4);
-    const shoe = new THREE.Group(); shoe.position.set(0, -0.34, 0.05); knee.add(shoe);
-    part(shoe, S(0.095, 16, 12), gun, 0, 0.035, -0.02, 1.12, 0.95, 1.05);                   // ankle
-    const foot = part(shoe, CAP(0.09, 0.14, 6, 16), gun, 0, -0.015, 0.055); foot.rotation.x = Math.PI / 2;
-    part(shoe, S(0.098, 16, 12), gunL, 0, -0.01, 0.17, 1.18, 0.72, 0.95);                   // chunky rounded toe
-    part(shoe, new THREE.BoxGeometry(0.22, 0.048, 0.36), gunD, 0, -0.072, 0.05);            // sole
-    part(shoe, CYL(0.092, 0.092, 0.016, 16), cyanG, 0, 0.058, -0.02);                       // ankle cyan ring
+    const leg = new THREE.Group(); leg.position.set(0.12 * sd, -0.015, 0); hips.add(leg);
+    part(leg, CAP(0.112, 0.22, 12, 26), gun, 0, -0.18, 0);                 // one thick thigh, same radius as shin, buried into the knee
+    const knee = new THREE.Group(); knee.position.y = -0.36; leg.add(knee);
+    part(knee, CAP(0.112, 0.12, 12, 26), gun, 0, -0.08, 0);                 // matching shin, overlaps the thigh so the straight leg reads as one piece
+    const shoe = new THREE.Group(); shoe.position.set(0, -0.34, 0.07); knee.add(shoe);
+    part(shoe, S(0.128, 20, 16), gun, 0, 0.055, -0.015, 1.18, 1.05, 1.15); // boot shaft, clearly bigger than the ankle
+    const foot = part(shoe, CAP(0.122, 0.13, 8, 20), gun, 0, 0.0, 0.08); foot.rotation.x = Math.PI / 2;
+    part(shoe, S(0.128, 18, 14), gun, 0, 0.005, 0.21, 1.22, 0.72, 1.02);   // rounded toe
+    part(shoe, new THREE.BoxGeometry(0.28, 0.055, 0.4), gunD, 0, -0.085, 0.08);
+    part(shoe, CYL(0.118, 0.118, 0.016, 18), cyanG, 0, 0.1, -0.015);
     legs.push({ leg, knee });
   }
   const torso = new THREE.Group(); torso.position.y = 0.06; hips.add(torso);
-  part(torso, CAP(0.175, 0.32, 10, 24), gun, 0, 0.24, 0, 1.1, 1, 0.86);                   // smooth jacket, overlaps hips
-  part(torso, S(0.2, 22, 16), gunL, 0, 0.48, 0, 1.18, 0.48, 0.86);                         // rounded chest/shoulders
-  part(torso, S(0.082, 14, 12), purp, -0.05, 0.3, 0.132, 0.9, 1.65, 0.42);                 // purple inner panels
-  part(torso, S(0.082, 14, 12), purp, 0.05, 0.3, 0.132, 0.9, 1.65, 0.42);
-  part(torso, new THREE.BoxGeometry(0.016, 0.34, 0.014), cyanG, 0, 0.3, 0.168);            // cyan zip
-  part(torso, new THREE.BoxGeometry(0.022, 0.03, 0.02), cyanG, 0, 0.14, 0.176);
-  for (const sd of [-1, 1]) part(torso, S(0.062, 12, 10), purpD, 0.145 * sd, 0.2, 0.05, 0.7, 1.25, 0.8);
-  // high open collar, gap centred on +z (front)
-  const col = part(torso, new THREE.CylinderGeometry(0.088, 0.132, 0.15, 28, 1, true, 0.7, Math.PI * 2 - 1.4), gunL, 0, 0.54, 0.02);
+  // one short rounded jacket (overlaps the belt), not a stack of separate volumes
+  part(torso, CAP(0.195, 0.12, 12, 28), gun, 0, 0.13, 0, 1.14, 1, 0.92);
+  part(torso, S(0.205, 28, 20), gun, 0, 0.26, 0, 1.16, 0.52, 0.9);
+  // purple lining along the zip (front of the jacket) + cyan zipper — not floating side ovals
+  part(torso, new THREE.BoxGeometry(0.052, 0.2, 0.018), purp, -0.036, 0.17, 0.172);
+  part(torso, new THREE.BoxGeometry(0.052, 0.2, 0.018), purp, 0.036, 0.17, 0.172);
+  part(torso, new THREE.BoxGeometry(0.014, 0.24, 0.012), cyanG, 0, 0.17, 0.184);
+  part(torso, new THREE.BoxGeometry(0.02, 0.022, 0.016), cyanG, 0, 0.075, 0.19);
+  // high open collar, purple inner, gap on +z
+  const col = part(torso, new THREE.CylinderGeometry(0.085, 0.125, 0.13, 32, 1, true, 0.7, Math.PI * 2 - 1.4), gun, 0, 0.34, 0.018);
   col.material = col.material.clone(); col.material.side = THREE.DoubleSide;
-  const colIn = part(torso, new THREE.CylinderGeometry(0.078, 0.12, 0.14, 28, 1, true, 0.7, Math.PI * 2 - 1.4), purp, 0, 0.54, 0.016);
+  const colIn = part(torso, new THREE.CylinderGeometry(0.076, 0.114, 0.12, 32, 1, true, 0.7, Math.PI * 2 - 1.4), purp, 0, 0.34, 0.014);
   colIn.material = colIn.material.clone(); colIn.material.side = THREE.DoubleSide;
-  const neck = new THREE.Group(); neck.position.y = 0.52; torso.add(neck);
-  part(neck, CAP(0.038, 0.05, 6, 14), skin, 0, 0.02, 0);
-  const head = new THREE.Group(); head.position.y = 0.07; neck.add(head);
-  // inverted-egg / light-bulb cranium: wide through the face, short rounded chin, taper at the crown so hats sit on top
-  const eggPts = [[0.02, 0.0], [0.055, 0.03], [0.105, 0.065], [0.152, 0.102], [0.182, 0.138], [0.196, 0.172], [0.192, 0.205], [0.178, 0.24], [0.152, 0.278], [0.115, 0.318], [0.055, 0.342], [0.001, 0.355]].map(p => new THREE.Vector2(p[0], p[1]));
-  part(head, new THREE.LatheGeometry(eggPts, 40), skin);
+  const neck = new THREE.Group(); neck.position.y = 0.34; torso.add(neck);
+  part(neck, CAP(0.03, 0.035, 8, 16), skin, 0, 0.012, 0);
+  const head = new THREE.Group(); head.position.y = 0.05; neck.add(head);
+  // hat-friendly local skull (top ~0.35, cap at 0.215), then scaled up so the head is ~37% of standing height and wider than the shoulders
+  const eggPts = [[0.022, 0.008], [0.048, 0.028], [0.095, 0.055], [0.14, 0.09], [0.172, 0.125], [0.186, 0.162], [0.188, 0.2], [0.178, 0.24], [0.155, 0.278], [0.118, 0.312], [0.058, 0.338], [0.001, 0.352]].map(p => new THREE.Vector2(p[0], p[1]));
+  const egg = part(head, new THREE.LatheGeometry(eggPts, 64), skin);
+  egg.geometry.computeVertexNormals();
   for (const sd of [-1, 1]) {
-    part(head, S(0.055, 16, 12), skinD, 0.1 * sd, 0.16, 0.15, 1.35, 0.78, 0.48);            // socket
-    const eye = part(head, S(0.06, 24, 18), eyeM, 0.102 * sd, 0.162, 0.168, 1.5, 0.72, 0.6);
-    eye.name = 'alienEye'; eye.rotation.z = 0.36 * sd; eye.rotation.y = -0.4 * sd;
-    part(eye, S(0.018, 12, 10), hlA, -0.006, 0.016, 0.048);                                  // spec rides with the almond
-    part(eye, S(0.008, 8, 6), hlB, 0.016, -0.01, 0.052);
+    part(head, S(0.055, 20, 16), skinD, 0.114 * sd, 0.166, 0.16, 1.32, 0.76, 0.38);
+    const eye = part(head, S(0.07, 32, 24), eyeM, 0.116 * sd, 0.167, 0.195, 1.42, 0.72, 0.58);
+    eye.name = 'alienEye'; eye.rotation.z = 0.36 * sd; eye.rotation.y = -0.18 * sd;
+    part(eye, S(0.018, 14, 12), hlA, -0.006, 0.018, 0.052);
+    part(eye, S(0.008, 8, 6), hlB, 0.016, -0.01, 0.055);
   }
-  part(head, S(0.007, 8, 6), skinD, -0.012, 0.108, 0.2, 0.7, 1.1, 0.45);                     // nose slits
-  part(head, S(0.007, 8, 6), skinD, 0.012, 0.108, 0.2, 0.7, 1.1, 0.45);
-  const mouth = part(head, new THREE.TorusGeometry(0.024, 0.004, 6, 16, Math.PI * 0.5), lip, 0, 0.068, 0.198);
+  part(head, S(0.007, 8, 6), skinD, -0.012, 0.112, 0.208, 0.7, 1.1, 0.45);
+  part(head, S(0.007, 8, 6), skinD, 0.012, 0.112, 0.208, 0.7, 1.1, 0.45);
+  const mouth = part(head, new THREE.TorusGeometry(0.022, 0.004, 6, 16, Math.PI * 0.48), lip, 0, 0.07, 0.205);
   mouth.rotation.set(1.05, 0, Math.PI);
   const cap = new THREE.Group(); cap.position.set(0, 0.215, -0.005); cap.rotation.x = -0.08; cap.userData.gaCap = 1; head.add(cap);
   part(cap, new THREE.SphereGeometry(0.188, 24, 10, 0, Math.PI * 2, 0, Math.PI / 2), pink, 0, 0, 0, 1, 0.82, 1.03);
   part(cap, new THREE.CylinderGeometry(0.19, 0.19, 0.03, 24, 1, true), pinkD, 0, 0.005, 0, 1, 1, 1.03);
   part(cap, new THREE.CylinderGeometry(0.15, 0.15, 0.014, 22, 1, false, -Math.PI * 0.5, Math.PI), pinkD, 0, -0.005, 0.17, 1, 1, 1.0).rotation.x = 0.1;
   part(cap, S(0.018, 8, 6), pinkD, 0, 0.152, 0);
-  head.scale.setScalar(1.52);   // chibi: bigger head; hats/glasses inherit the scale and stay on the crown
+  head.scale.setScalar(2.18);   // chibi head ~38% of standing height and wider than the shoulders; hats/glasses inherit the scale
   const arms = [];
   for (const sd of [-1, 1]) {
-    const sh = new THREE.Group(); sh.position.set(0.29 * sd, 0.47, 0); torso.add(sh);
-    part(sh, S(0.12, 18, 14), gunL, 0.035 * sd, 0.02, 0, 1.28, 0.7, 1.15);                   // rounded shoulder pad
-    part(sh, CAP(0.06, 0.28, 8, 16), gun, 0.02 * sd, -0.18, 0);                               // overlaps shoulder + elbow
-    const el = new THREE.Group(); el.position.set(0.02 * sd, -0.34, 0); sh.add(el);
-    part(el, CAP(0.052, 0.18, 8, 14), gun, 0, -0.12, 0);
-    part(el, CYL(0.06, 0.06, 0.05, 16), cyanG, 0, -0.25, 0);                                 // glowing cyan cuff
-    part(el, CYL(0.064, 0.064, 0.014, 16), cyan, 0, -0.25, 0);
-    const hand = part(el, S(0.042, 14, 12), skin, 0, -0.31, 0.01, 0.85, 1.05, 1);
-    part(hand, CAP(0.01, 0.028, 4, 8), skin, -0.028 * sd, 0.005, 0.03);                      // thumb
-    for (let f = 0; f < 3; f++) part(hand, CAP(0.008, 0.032, 4, 8), skin, (f - 1) * 0.016, -0.048, 0.01);
+    const sh = new THREE.Group(); sh.position.set(0.225 * sd, 0.28, 0); torso.add(sh);
+    part(sh, S(0.078, 20, 16), gun, 0.01 * sd, 0.01, 0);                   // rounded pad, same colour, not a flat disc
+    part(sh, CAP(0.07, 0.14, 12, 24), gun, 0.008 * sd, -0.12, 0);          // short thick upper arm, buried into the elbow
+    const el = new THREE.Group(); el.position.set(0.01 * sd, -0.22, 0); sh.add(el);
+    part(el, CAP(0.07, 0.1, 12, 24), gun, 0, -0.06, 0);                    // matching forearm radius, overlaps the upper arm
+    part(el, CYL(0.072, 0.072, 0.042, 18), cyanG, 0, -0.175, 0);
+    part(el, CYL(0.076, 0.076, 0.012, 18), cyan, 0, -0.175, 0);
+    const hand = part(el, S(0.05, 16, 14), glove, 0, -0.24, 0.016, 1.1, 0.82, 1.15);
+    part(hand, CAP(0.016, 0.03, 6, 10), glove, -0.04 * sd, 0.0, 0.03);    // thumb
+    for (let f = 0; f < 4; f++) part(hand, CAP(0.014, 0.036, 6, 10), glove, (f - 1.5) * 0.018, -0.044, 0.014);
     arms.push({ sh, el, hand, sd });
   }
   const phone = new THREE.Group(); phone.name = 'idlePhone'; phone.visible = false;
   const pcv = document.createElement('canvas'); pcv.width = 128; pcv.height = 256; const ptex = new THREE.CanvasTexture(pcv); ptex.colorSpace = THREE.SRGBColorSpace;
   part(phone, new THREE.BoxGeometry(0.075, 0.14, 0.009), mk(0x111116, { roughness: 0.3, metalness: 0.6 }));
   const scr = new THREE.Mesh(new THREE.PlaneGeometry(0.066, 0.128), new THREE.MeshBasicMaterial({ map: ptex, color: 0xe0e8f4 })); scr.position.z = 0.0052; phone.add(scr);
-  arms[1].el.add(phone); phone.position.set(0.0, -0.36, 0.06); phone.rotation.set(-0.2, 0.75, -2.1);
-  const pack = new THREE.Group(); pack.name = 'backpack'; pack.position.set(0, 0.3, -0.22); torso.add(pack);
-  // robot: ~60% of head width (head ~0.58 wide after scale → sphere d≈0.36), visor + one cyan eye
-  const bot = new THREE.Group(); bot.name = 'alienBot'; bot.position.set(0.54, 0.68, 0.14); bot.userData.baseY = 0.68; torso.add(bot);
+  arms[1].el.add(phone); phone.position.set(0.0, -0.28, 0.055); phone.rotation.set(-0.2, 0.75, -2.1);
+  const pack = new THREE.Group(); pack.name = 'backpack'; pack.position.set(0, 0.2, -0.2); torso.add(pack);
+  // robot: keep ~current size or a touch bigger (r=0.195); visor + eye on +Z so it faces the same way as the alien
+  const bot = new THREE.Group(); bot.name = 'alienBot'; bot.position.set(0.54, 0.55, 0.28); bot.userData.baseY = 0.55; torso.add(bot);
   const botShell = mk(0xe8eef4, { roughness: 0.28, metalness: 0.48, emissive: 0x2a3848, emissiveIntensity: 0.18 });
   const botDark = mk(0x10141a, { roughness: 0.22, metalness: 0.45 });
-  part(bot, S(0.18, 28, 22), botShell);                                                     // body (d=0.36 ≈ 62% of head width)
-  const aura = part(bot, S(0.198, 18, 14), new THREE.MeshBasicMaterial({ color: 0x44e8ff, transparent: true, opacity: 0.14, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false }));
+  part(bot, S(0.195, 32, 24), botShell);
+  const aura = part(bot, S(0.214, 20, 16), new THREE.MeshBasicMaterial({ color: 0x44e8ff, transparent: true, opacity: 0.14, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false }));
   aura.renderOrder = 2;
-  part(bot, S(0.145, 22, 16), botDark, 0, 0.01, 0.085, 0.88, 0.82, 0.48);                    // dark visor
-  part(bot, S(0.068, 20, 16), cyanG, 0, 0.014, 0.15);                                        // one large cyan eye
-  part(bot, S(0.032, 14, 12), new THREE.MeshBasicMaterial({ color: 0xd8ffff, toneMapped: false }), 0, 0.02, 0.188);
-  part(bot, new THREE.TorusGeometry(0.072, 0.01, 8, 22), cyanG, 0, 0.014, 0.148);
-  for (const sd of [-1, 1]) {                                                               // side ear discs
-    const ear = part(bot, CYL(0.048, 0.048, 0.028, 16), botShell, 0.168 * sd, 0.015, 0);
+  part(bot, S(0.16, 24, 18), botDark, 0, 0.014, 0.125, 0.88, 0.8, 0.5);
+  part(bot, S(0.088, 24, 18), cyanG, 0, 0.018, 0.188);
+  part(bot, S(0.04, 14, 12), new THREE.MeshBasicMaterial({ color: 0xd8ffff, toneMapped: false }), 0, 0.026, 0.228);
+  part(bot, new THREE.TorusGeometry(0.09, 0.011, 8, 24), cyanG, 0, 0.018, 0.18);
+  for (const sd of [-1, 1]) {
+    const ear = part(bot, CYL(0.05, 0.05, 0.03, 16), botShell, 0.182 * sd, 0.016, 0);
     ear.rotation.z = Math.PI / 2;
-    const rim = part(bot, new THREE.TorusGeometry(0.048, 0.008, 8, 16), gunD, 0.182 * sd, 0.015, 0);
+    const rim = part(bot, new THREE.TorusGeometry(0.05, 0.008, 8, 16), gunD, 0.198 * sd, 0.016, 0);
     rim.rotation.y = Math.PI / 2;
   }
-  part(bot, CYL(0.012, 0.01, 0.1, 8), gunL, 0, 0.23, 0);                                     // antenna
-  part(bot, S(0.028, 12, 10), botShell, 0, 0.29, 0);
+  part(bot, CYL(0.012, 0.01, 0.1, 8), gun, 0, 0.25, 0);
+  part(bot, S(0.03, 12, 10), botShell, 0, 0.31, 0);
   const tail = new THREE.Group(); tail.name = 'tail'; tail.visible = false; hips.add(tail);
   root.userData = { hips, torso, neck, head, legs, arms, phone, pcv, ptex, pack, tail, bot, char: 'alien' };
   return root;
@@ -980,12 +978,12 @@ function setPlayerChar(kind) {
 }
 function tickBot(u, t) {
   const b = u && u.bot; if (!b) return;
-  const y0 = b.userData.baseY != null ? b.userData.baseY : 0.68;
-  b.position.x = 0.54 + Math.sin(t * 1.15) * 0.02;
-  b.position.y = y0 + Math.sin(t * 2.35) * 0.045;
-  b.position.z = 0.14 + Math.cos(t * 1.05) * 0.018;
-  b.rotation.y = Math.sin(t * 1.45) * 0.35;
-  b.rotation.z = Math.sin(t * 1.9) * 0.08;
+  const y0 = b.userData.baseY != null ? b.userData.baseY : 0.55;
+  b.position.x = 0.54 + Math.sin(t * 1.15) * 0.016;
+  b.position.y = y0 + Math.sin(t * 2.35) * 0.04;
+  b.position.z = 0.28 + Math.cos(t * 1.05) * 0.012;
+  b.rotation.y = 0;   // visor stays on the alien's forward (+Z)
+  b.rotation.z = Math.sin(t * 1.9) * 0.06;
 }
 
 const monkey = makeMonkey(); scene.add(monkey);

@@ -190,7 +190,7 @@
   var tag = null, tagName = null;
   function applyTag(T, mk) { if (!tag) { var c = document.createElement('canvas'); c.width = 256; c.height = 64; var tx = new T.CanvasTexture(c); tx.colorSpace = T.SRGBColorSpace;
       tag = new T.Sprite(new T.SpriteMaterial({ map: tx, transparent: true, depthWrite: false })); tag.scale.set(0.8, 0.2, 1); tag.position.y = 2.2; tag.name = 'gaNameTag'; tag.renderOrder = 5; mk.add(tag); }
-    tag.position.y = (P.char === 'alien') ? 2.38 : 2.2;
+    tag.position.y = (P.char === 'alien') ? 2.42 : 2.2;
     if (tagName === P.name) return; tagName = P.name; var c2 = tag.material.map.image, g = c2.getContext('2d'); g.clearRect(0, 0, 256, 64); tag.visible = named(); if (!named()) return;
     g.font = '900 34px "Courier New",monospace'; var w = Math.min(248, g.measureText(P.name).width + 30); g.fillStyle = '#0a0418cc'; g.strokeStyle = '#ff3cf0'; g.lineWidth = 3;
     g.beginPath(); if (g.roundRect) g.roundRect(128 - w / 2, 8, w, 48, 14); else g.rect(128 - w / 2, 8, w, 48); g.fill(); g.stroke();
@@ -237,14 +237,14 @@
     var cv = prev.r.domElement, w = cv.clientWidth, h = cv.clientHeight; if (!w || !h) return;
     if (cv.width !== Math.round(w * prev.r.getPixelRatio()) || cv.height !== Math.round(h * prev.r.getPixelRatio())) { prev.r.setSize(w, h, false); }
     prev.cam.aspect = w / h; var fit = Math.max(1, 0.62 / prev.cam.aspect); var alienPrev = !!(prev.root && prev.root.getObjectByName('alienBot'));
-    prev.cam.position.set(0, alienPrev ? 1.36 : 1.3, 4.9 * fit); prev.cam.lookAt(0, alienPrev ? 1.12 : 1.02, 0); prev.cam.updateProjectionMatrix();
+    prev.cam.position.set(0, alienPrev ? 1.40 : 1.3, (alienPrev ? 5.35 : 4.9) * fit); prev.cam.lookAt(0, alienPrev ? 1.18 : 1.02, 0); prev.cam.updateProjectionMatrix();
     var PL = pLook(); if (wc.id === 'gaCv') { PL = Object.assign({}, PL, { glasses: 'none', hat: stHat ? PL.hat : 'none' }); }   // Dave: no hat until a cap is tapped   // Dave: no eyewear on the start screen (saved glasses kept for the game)
     var pk = PL.hat + PL.glasses + PL.back + PL.hoodie + (PL.char || '') + wc.id; if (prev.hat !== pk) { prev.hat = pk; applyRoot(window.__arcade.THREE, prev.root, PL); if (W.try) applyMats(PL); }   // the preview always wears the chosen hat, however the pick or load happened
     if (prev.auto && !prev.drag) prev.want += 0.006; prev.rot += (prev.want - prev.rot) * 0.15; prev.root.rotation.y = prev.rot;
     var now = performance.now(), dt = Math.min(0.25, prev.lt ? (now - prev.lt) / 1000 : 0.016); prev.lt = now;
-    var bot = prev.root.getObjectByName('alienBot'); if (bot) { var bt = now / 1000, y0 = bot.userData.baseY != null ? bot.userData.baseY : 0.68;
-      bot.position.x = 0.54 + Math.sin(bt * 1.15) * 0.02; bot.position.y = y0 + Math.sin(bt * 2.35) * 0.045; bot.position.z = 0.14 + Math.cos(bt * 1.05) * 0.018;
-      bot.rotation.y = Math.sin(bt * 1.45) * 0.35; bot.rotation.z = Math.sin(bt * 1.9) * 0.08; }
+    var bot = prev.root.getObjectByName('alienBot'); if (bot) { var bt = now / 1000, y0 = bot.userData.baseY != null ? bot.userData.baseY : 0.55;
+      bot.position.x = 0.54 + Math.sin(bt * 1.15) * 0.016; bot.position.y = y0 + Math.sin(bt * 2.35) * 0.04; bot.position.z = 0.28 + Math.cos(bt * 1.05) * 0.012;
+      bot.rotation.y = 0; bot.rotation.z = Math.sin(bt * 1.9) * 0.06; }
     if (!TP.seen && wc.id === 'gaCv') { TP.seen = true; TP.gone = false; tpStart('in'); }   // first paint of the start screen: beam in
     tpRender(tpStep(dt)); }
   // ---------- start-screen teleport (same look as teleport.js: cyan swirl column, rising sparkles, feet-up dissolve, flash, zap/vwoom) ----------
