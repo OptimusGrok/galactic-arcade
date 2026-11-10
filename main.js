@@ -902,9 +902,10 @@ function makeAlien() { // chibi grey alien: huge spherical head (~37% of height)
   const eggPts = [[0.022, 0.008], [0.048, 0.028], [0.095, 0.055], [0.14, 0.09], [0.172, 0.125], [0.186, 0.162], [0.188, 0.2], [0.178, 0.24], [0.155, 0.278], [0.118, 0.312], [0.058, 0.338], [0.001, 0.352]].map(p => new THREE.Vector2(p[0], p[1]));
   const egg = part(head, new THREE.LatheGeometry(eggPts, 64), skin);
   egg.geometry.computeVertexNormals();
-  // Eyes as thin decals stamped onto the egg: start as spherical caps, tilt the outer corners up, then
-  // project every vertex onto the cranium so nothing can poke past the silhouette from any view.
-  // SphereGeometry phi=0 is -X, phi=PI/2 is +Z (front), phi=PI is +X.
+  // 1dcb401 rounded ellipsoid eyes (smooth black almonds, outer corners tilted up).
+  // Same grape / tilt / highlights as 1dcb401; vertices that would poke past the head
+  // outline are pulled back onto a thin shell just outside the egg so the 3D bulge
+  // stays but the far eye no longer floats outside the silhouette.
   const eggR = y => {
     if (y <= eggPts[0].y) return eggPts[0].x;
     if (y >= eggPts[eggPts.length - 1].y) return eggPts[eggPts.length - 1].x;
@@ -916,38 +917,34 @@ function makeAlien() { // chibi grey alien: huge spherical head (~37% of height)
     }
     return eggPts[eggPts.length - 1].x;
   };
-  const yEye = 0.168, rEye = 0.192, _ev = new THREE.Vector3();
-  const stampOnEgg = (x, yLoc, z, extra) => {
-    const cyl = Math.hypot(x, z);
-    if (cyl < 1e-8) return [x, yLoc, z];
-    const s = (eggR(yLoc + yEye) + extra) / cyl;
-    return [x * s, yLoc, z * s];
+  const pullEyeIn = (mesh, pad) => {
+    mesh.updateMatrix();
+    const mat = mesh.matrix.clone();
+    const inv = mat.clone().invert();
+    const pos = mesh.geometry.attributes.position;
+    const v = new THREE.Vector3();
+    for (let i = 0; i < pos.count; i++) {
+      v.fromBufferAttribute(pos, i).applyMatrix4(mat);
+      const R = eggR(v.y) + pad;
+      const r = Math.hypot(v.x, v.z);
+      if (r > R && r > 1e-8) {
+        const k = R / r;
+        v.x *= k;
+        v.z *= k;
+        v.applyMatrix4(inv);
+        pos.setXYZ(i, v.x, v.y, v.z);
+      }
+    }
+    pos.needsUpdate = true;
+    mesh.geometry.computeVertexNormals();
   };
   for (const sd of [-1, 1]) {
-    const gap = 0.14, width = 0.90;
-    const phiStart = sd > 0 ? Math.PI / 2 + gap : Math.PI / 2 - gap - width;
-    const midPhi = phiStart + width / 2;
-    const tilt = new THREE.Matrix4().makeRotationAxis(new THREE.Vector3(-Math.cos(midPhi), 0, Math.sin(midPhi)).normalize(), -0.36 * sd);
-    const geo = new THREE.SphereGeometry(rEye, 32, 22, phiStart, width, Math.PI / 2 - 0.38, 0.76);
-    geo.applyMatrix4(tilt);
-    const arr = geo.attributes.position;
-    for (let i = 0; i < arr.count; i++) {
-      _ev.fromBufferAttribute(arr, i);
-      const q = stampOnEgg(_ev.x, _ev.y, _ev.z, 0.0025);
-      arr.setXYZ(i, q[0], q[1], q[2]);
-    }
-    arr.needsUpdate = true;
-    geo.computeVertexNormals();
-    const eye = new THREE.Mesh(geo, eyeM);
-    eye.position.set(0, yEye, 0); eye.name = 'alienEye'; eye.castShadow = false;
-    head.add(eye);
-    const hlAt = (phi, th, extra, rad, mat, seg) => {
-      _ev.set(-rEye * Math.cos(phi) * Math.sin(th), rEye * Math.cos(th), rEye * Math.sin(phi) * Math.sin(th)).applyMatrix4(tilt);
-      const q = stampOnEgg(_ev.x, _ev.y, _ev.z, extra);
-      part(eye, S(rad, seg, seg - 2), mat, q[0], q[1], q[2]);
-    };
-    hlAt(midPhi - 0.16 * sd, Math.PI / 2 - 0.17, 0.004, 0.016, hlA, 12);
-    hlAt(midPhi + 0.14 * sd, Math.PI / 2 + 0.06, 0.003, 0.007, hlB, 8);
+    part(head, S(0.055, 24, 18), skinD, 0.114 * sd, 0.166, 0.16, 1.32, 0.76, 0.38);
+    const eye = part(head, S(0.07, 40, 32), eyeM, 0.116 * sd, 0.167, 0.195, 1.42, 0.72, 0.58);
+    eye.name = 'alienEye'; eye.rotation.z = 0.36 * sd; eye.rotation.y = -0.18 * sd;
+    pullEyeIn(eye, 0.042);
+    part(eye, S(0.018, 16, 14), hlA, -0.006, 0.018, 0.052);
+    part(eye, S(0.008, 10, 8), hlB, 0.016, -0.01, 0.055);
   }
   part(head, S(0.006, 8, 6), skinD, -0.012, 0.108, 0.156, 0.7, 1.1, 0.4);
   part(head, S(0.006, 8, 6), skinD, 0.012, 0.108, 0.156, 0.7, 1.1, 0.4);
