@@ -1177,22 +1177,44 @@ function tickZoom(dt) {
 }
 function toggleView() { st.fp = !st.fp; }
 function toggleFs() { const d = document; if (!d.fullscreenElement) d.documentElement.requestFullscreen?.().catch(() => {}); else d.exitFullscreen?.(); }
+function cabinetScreenUp() {
+  if (document.body.classList.contains('ingame')) return true;
+  const w = document.getElementById('gvWatchOv');
+  if (w && w.classList.contains('on')) return true;
+  const p = window.__arcade && window.__arcade.play;
+  return !!(p && p.mode === 'game');
+}
 function updateTurn() {
   const el = document.getElementById('turnHint'); if (!el) return;
   const portrait = MOBILE && innerHeight > innerWidth * 1.08;
-  el.classList.toggle('on', portrait);
+  el.classList.toggle('on', portrait && !cabinetScreenUp());   // hide the rotate-to-landscape hint while a cabinet game or Watch is up
 }
-function wantWide() {
-  if (!MOBILE) { st.orientLock = 'desktop'; updateTurn(); return; }
+function lockOrient(mode) {
+  st.orientWant = mode;
+  updateTurn();
+  if (!MOBILE) { st.orientLock = 'desktop'; return; }
   st.orientTried = true;
   const root = document.documentElement, fs = root.requestFullscreen || root.webkitRequestFullscreen;
   if (fs && !document.fullscreenElement) Promise.resolve(fs.call(root)).catch(() => {});
   const o = screen.orientation;
   if (o && typeof o.lock === 'function') {
-    Promise.resolve(o.lock('landscape')).then(() => { st.orientLock = 'ok'; updateTurn(); }).catch(() => { st.orientLock = 'failed'; updateTurn(); });
+    Promise.resolve(o.lock(mode)).then(() => { st.orientLock = 'ok'; updateTurn(); }).catch(() => { st.orientLock = 'failed'; updateTurn(); });
   } else { st.orientLock = 'unsupported'; updateTurn(); }
 }
-window.__wantWide = wantWide;
+function wantWide() { lockOrient('landscape'); }   // walking the arcade floor (Dave: keep this sideways)
+function wantTall() { lockOrient('portrait'); }    // cabinet play / watch: upright, then wantWide() again on the way out
+window.__wantWide = wantWide; window.__wantTall = wantTall;
+function hookWatchOrient() {
+  const hook = el => {
+    const sync = () => { if (el.classList.contains('on')) wantTall(); else if (!cabinetScreenUp()) wantWide(); };
+    new MutationObserver(sync).observe(el, { attributes: true, attributeFilter: ['class'] });
+  };
+  const el = document.getElementById('gvWatchOv');
+  if (el) { hook(el); return; }
+  const mo = new MutationObserver(() => { const n = document.getElementById('gvWatchOv'); if (n) { mo.disconnect(); hook(n); } });
+  mo.observe(document.documentElement, { childList: true, subtree: true });
+}
+hookWatchOrient();
 document.getElementById('bView').onclick = toggleView;
 document.getElementById('bFs').onclick = toggleFs;
 if (matchMedia('(display-mode: fullscreen), (display-mode: standalone)').matches) document.getElementById('bFs').style.display = 'none';
@@ -1721,7 +1743,7 @@ const opts = setupOpts({ play, kiosk, shield, st, monkey, setFloor, getFloor: ()
 requestAnimationFrame(frame);
 
 // hooks for tests / future art work
-window.__arcade = { powerSave: PS, animateMonkey: dt => animateMonkey(dt), get window() { return windowMode; }, setWindow, get jumping() { return !!st.jump; }, canJump, LAVA, lavaRespawnPoint, get spaceWin() { return spaceWin; }, get kiosk() { return kiosk; }, setFloor, get floor() { return floorMode; }, setWalls, get walls() { return wallsMode; }, wallMat, carpet, mirror, shield, room, room2, Z2, hall, DOOR_W, DOOR_H, HALL_L, berserkerCab, monkeyCab, orcCab, cyberCab, novaCab, blasterCab, pipCab, clawCab, bbCab, rockfallCab, roadsterCab, dsCab, play, get paused() { return paused; }, simPause: arcadePause, flyCfg: FLY, jetpackOn: jetpackEquipped, wantWide, joyFrom, joyClear, setDist, loadZoom, saveZoom, defaultDist, zoomHold, tickZoom, zoom: { key: ZOOM_KEY, min: DIST_MIN, max: DIST_MAX, wide: DIST_WIDE, portrait: DIST_PORTRAIT, holdT: ZOOM_HOLD_T }, THREE, scene, camera, renderer, monkey, makeMonkey, makeAlien, setChar: setPlayerChar, tickBot, cabinets, strikeCab, ghostCab, featured, demo, ghostDemo, playables, blockers, st, stats, step, keys, get nearCab() { return nearCab; }, setArt: (i, part, tex, glow) => cabinets[i].userData.setArt(part, tex, glow) };
+window.__arcade = { powerSave: PS, animateMonkey: dt => animateMonkey(dt), get window() { return windowMode; }, setWindow, get jumping() { return !!st.jump; }, canJump, LAVA, lavaRespawnPoint, get spaceWin() { return spaceWin; }, get kiosk() { return kiosk; }, setFloor, get floor() { return floorMode; }, setWalls, get walls() { return wallsMode; }, wallMat, carpet, mirror, shield, room, room2, Z2, hall, DOOR_W, DOOR_H, HALL_L, berserkerCab, monkeyCab, orcCab, cyberCab, novaCab, blasterCab, pipCab, clawCab, bbCab, rockfallCab, roadsterCab, dsCab, play, get paused() { return paused; }, simPause: arcadePause, flyCfg: FLY, jetpackOn: jetpackEquipped, wantWide, wantTall, joyFrom, joyClear, setDist, loadZoom, saveZoom, defaultDist, zoomHold, tickZoom, zoom: { key: ZOOM_KEY, min: DIST_MIN, max: DIST_MAX, wide: DIST_WIDE, portrait: DIST_PORTRAIT, holdT: ZOOM_HOLD_T }, THREE, scene, camera, renderer, monkey, makeMonkey, makeAlien, setChar: setPlayerChar, tickBot, cabinets, strikeCab, ghostCab, featured, demo, ghostDemo, playables, blockers, st, stats, step, keys, get nearCab() { return nearCab; }, setArt: (i, part, tex, glow) => cabinets[i].userData.setArt(part, tex, glow) };
 const mp = setupMP({ scene, camera, monkey, makeMonkey, makeAlien, st, play, getTp: () => tp, HALF, Z2, HALL_L, WX: 80 }); window.__arcade.mp = mp;   // multiplayer step 1: public room, 10 players
 // after the first room frames: pull in the shop, then the window scenery, off the critical path
 { const idle = f => (window.requestIdleCallback ? requestIdleCallback(f, { timeout: 1500 }) : setTimeout(f, 200));
