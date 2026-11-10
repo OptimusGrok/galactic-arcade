@@ -1098,8 +1098,13 @@ function joyFrom(x, y) {
   knob.style.transform = show ? `translate(${st.joy.x * cl}px,${st.joy.y * cl}px)` : '';
   if (show) {
     joyLine.classList.add('on');
+    // line goes past the visible outer ring by exactly 4 dots at the current dash spacing, then stops
+    const br = document.getElementById('joyBase').getBoundingClientRect();
+    const outerR = Math.min(br.width, br.height) / 2;
+    const da = getComputedStyle(joyDash).strokeDasharray.replace(/px/gi, '').split(/[,\s]+/).map(Number);
+    const len = outerR + 4 * ((da[0] || 1.5) + (da[1] || 21.5));
     joyDash.setAttribute('x1', c.x); joyDash.setAttribute('y1', c.y);
-    joyDash.setAttribute('x2', x); joyDash.setAttribute('y2', y);
+    joyDash.setAttribute('x2', c.x + st.joy.x * len); joyDash.setAttribute('y2', c.y + st.joy.y * len);
   } else joyLine.classList.remove('on');
 }
 function joyClear() {
