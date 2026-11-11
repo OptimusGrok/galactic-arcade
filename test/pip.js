@@ -21,7 +21,7 @@ const PHONE = process.argv[2] === 'phone';
   chk(slot.wall === 'west' && slot.idx === 0 && slot.x < -11 && slot.z === 8 && !slot.blank, 'SUPER PIP QUEST replaces blank A on the west wall (x=' + slot.x + ', z=' + slot.z + ')');
   chk(slot.parts && slot.bad.length === 0 && slot.over > 0, 'cabinet parts present, no neon on the body, wall edge glow outlines it (' + slot.over + ') ' + slot.bad);
   chk(slot.art[0] === 'spq_marquee.jpg' && slot.art[1] === 'spq_side.jpg', 'marquee + side art from Dave\'s mockup ' + slot.art);
-  chk(bk['1:0'] === '11' && bk['1:1'] === '10' && bk['2:0'] === '8' && bk['r2:centre'] === '9' && bk['2:2'] === 'E' && bk['r2:0:0'] === 'H' && !slot.bs.some(b => b[0] === 'A' || b[0] === 'B'), 'NUMBERS: PIP = 11, BLASTER 10, ROADSTER 8, DEAD SIGNAL 9, letters E/H stay, A + B retired');
+  chk(bk['1:0'] === '11' && bk['1:1'] === '10' && bk['2:0'] === '8' && bk['r2:centre'] === '9' && bk['2:2'] === '15' && bk['r2:0:0'] === 'H' && !slot.bs.some(b => b[0] === 'A' || b[0] === 'B' || b[0] === 'E'), 'NUMBERS: PIP = 11, BLASTER 10, ROADSTER 8, DEAD SIGNAL 9, SKY TOWER 15, letter H stays, A/B/E retired');
   await page.evaluate(() => { const p = window.__arcade.play; p.tickets.total = 1; localStorage.setItem('neonarcade.tickets', '1'); p.machines.pip.credits = 0; });
   await page.evaluate(PH => { window.__arcade.monkey.position.set(-6, 0, 5); window.__camOverride = { pos: PH ? [-7.0, 2.0, 4.6] : [-7.4, 2.0, 5.2], at: [-11.6, 1.25, 8.4] }; }, PHONE); await page.waitForTimeout(3000);
   await page.screenshot({ path: 'shots/pip_room' + sfx + '.png' }); await page.evaluate(() => { window.__camOverride = null; });

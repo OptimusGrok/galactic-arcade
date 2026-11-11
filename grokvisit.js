@@ -36,7 +36,7 @@ const CHAT = [
   { id: 'c_shop', q: "What's in the prize shop?",
     a: 'My prize shop has big plushies, toys, boxed sets and lollies. Spend tickets at the hologram counter. Accessories cost 1 or 5 tickets on the wall!' },
   { id: 'c_games', q: 'Tell me about the games',
-    a: "We've got Strike, Ghost 256, Berserker, Monkey Crossing, Orc Attack, Cybercity, Blaster, Super Pip Quest, Burrow Buster, Nova Tether, Mars Roadster, the claw machine, and Dead Signal next door!" },
+    a: "We've got Strike, Ghost 256, Berserker, Monkey Crossing, Orc Attack, Cybercity, Blaster, Super Pip Quest, Burrow Buster, Rockfall Rush, Sky Tower, Nova Tether, Mars Roadster, the claw machine, and Dead Signal next door!" },
   { id: 'c_fav', q: "What's your favourite?",
     a: 'Hard to pick! I love Strike for the action, and Monkey Crossing when I want to hop. Ghost 256 is a classic too!' },
   { id: 'c_acc', q: 'How do accessories work?',

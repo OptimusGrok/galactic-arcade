@@ -11,7 +11,7 @@
   var CFG = {
     monkey: { exitTop: 92, hideInFrame: ['#tk'] },
     strike: { exitTop: 64 }, ghost: { exitTop: 64, accent: '#ffcc33' }, berserker: { exitTop: 92, accent: '#e0a040' }, orc: { exitTop: 64, accent: '#9fd24a', title: '#d8ff7a' },
-    cyber: { exitTop: 64, accent: '#ff3fd0', title: '#7ff6ff', panelBottom: 46 }, blaster: { exitTop: 64 }, pip: { exitTop: 64 }, bb: { exitTop: 64 }, rockfall: { exitTop: 64, accent: '#e8b04a', title: '#ffe27a' }, nova: { exitTop: 64, accent: '#6fb8ff', title: '#bfe4ff' },
+    cyber: { exitTop: 64, accent: '#ff3fd0', title: '#7ff6ff', panelBottom: 46 }, blaster: { exitTop: 64 }, pip: { exitTop: 64 }, bb: { exitTop: 64 }, rockfall: { exitTop: 64, accent: '#e8b04a', title: '#ffe27a' }, skytower: { exitTop: 64, accent: '#4fc3ff', title: '#ffe14a' }, nova: { exitTop: 64, accent: '#6fb8ff', title: '#bfe4ff' },
     claw: { cost: 1, exitTop: 64, accent: '#ff7ac0' }, roadster: { exitTop: 92, accent: '#ff6a2a' }, ds: { exitTop: 64, accent: '#4cffb0', title: '#b8ffe0' }
   };
   var D = window.__cabDemo = { mounted: false, key: null, cfg: CFG };

@@ -13,7 +13,7 @@ const PHONE = process.argv[2] === 'phone';
     const others = A.blockers.filter(k => k.name !== 'roadster' && k.kind === 'cabinet' && k.maxZ > -12.5 && k.minZ < 12.5 && k.minX > -12.5 && k.maxX < 12.5).filter(k => k.minX < b.max.x && k.maxX > b.min.x && k.minZ < b.max.z && k.maxZ > b.min.z).length;
     const blanksCD = A.cabinets.filter(k => k.userData.wall === 'south' && k.userData.index < 2).length;
     const bad = []; c.traverse(o => { if (o.isMesh && o.material.isMeshBasicMaterial) bad.push(o.name || o.geometry.type); });
-    const badges = window.__dev.badges.map(s => s.userData).filter(u => u && (u.game === 'roadster' || u.letter === 'C' || u.letter === 'D' || u.letter === 'E'));
+    const badges = window.__dev.badges.map(s => s.userData).filter(u => u && (u.game === 'roadster' || u.game === 'skytower' || u.letter === 'C' || u.letter === 'D' || u.letter === 'E'));
     const tube = A.room.getObjectByName('wallNeonRun').geometry.attributes.position, v = new T.Vector3(); let over = 0;
     for (let i = 0; i < tube.count; i++) { v.fromBufferAttribute(tube, i); if (v.x > 3 && v.x < 9 && v.z > 11.5 && v.y > 3.0) over++; }
     const kiosk = A.blockers.filter(k => /kiosk/.test(k.kind || '') || /kiosk/.test(k.name || ''));
@@ -29,8 +29,8 @@ const PHONE = process.argv[2] === 'phone';
   chk(Math.hypot(B.x0 - 0, B.z0 - 0) > 7 && Math.hypot(B.x0 - pl.tp[0], B.z0 - pl.tp[1]) > 15 && B.x0 > 1.6 + 1.5, 'well clear of the kiosk (0,0), the north doorway and the NW teleporter nook');
   chk(pl.parts.length === 0 && pl.bad.length === 0, 'parts present (hood, marquee, 2 screens, 2 wheels, 2 bucket seats on MARS pods, side art, chrome trim); no neon on the body ' + pl.parts + pl.bad);
   chk(pl.over > 0, 'the standard pink wall neon goes round its sides and top (' + pl.over + ' vertices above 3 m)');
-  const n8 = pl.badges.find(u => u.game === 'roadster'), lE = pl.badges.find(u => u.letter === 'E');
-  chk(n8 && n8.n === 8 && !pl.badges.some(u => u.letter === 'C' || u.letter === 'D') && lE && lE.key === '2:2', 'NUMBERS: #8 MARS ROADSTER, letters C/D retired, E stays on 2:2 ' + JSON.stringify(pl.badges));
+  const n8 = pl.badges.find(u => u.game === 'roadster'), n15 = pl.badges.find(u => u.game === 'skytower');
+  chk(n8 && n8.n === 8 && !pl.badges.some(u => u.letter === 'C' || u.letter === 'D' || u.letter === 'E') && n15 && n15.key === '2:2' && n15.n === 15, 'NUMBERS: #8 MARS ROADSTER, SKY TOWER #15 on 2:2, letters C/D/E retired ' + JSON.stringify(pl.badges));
   // walk-around: monkey can't enter the footprint
   const col = await page.evaluate(() => { const A = window.__arcade; window.__noAdapt = 1; A.st.fp = false; A.monkey.position.set(6, 0, 6); A.st.face = 0; A.st.vel.set(0, 0, 0);
     for (let i = 0; i < 120; i++) { A.keys.KeyS = true; A.st.yaw = 0; A.step(1 / 60); } A.keys.KeyS = false; return +A.monkey.position.z.toFixed(2); });

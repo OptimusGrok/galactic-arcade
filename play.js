@@ -83,6 +83,11 @@ export function setupPlay(A) {
       start(w) { w.__rockfall.start(); },
       scene(w) { return w.__rockfall.scene(); }, active(w) { return w.__rockfall.active(); },
       hold(w) { return w.__rockfall.hold(); }, unhold(w) { w.__rockfall.unhold(); }, overHold: 4500, scoresHold: 0 },
+    skytower: { key: 'skytower', cab: A.skyTowerCab, src: 'sky-tower-play/index.html', credits: 0, games: 0, aspect: (A.skyTowerCab && A.skyTowerCab.userData.aspect) || 16 / 9, cost: 5,   // SKY TOWER (#15, slot 2:2): 5 tickets = 1 credit = one climb of 50 platforms
+      demo(w) { w.__demo.start(); }, stopDemo(w) { w.__demo.stop(); },
+      start(w) { w.__skytower.start(); },
+      scene(w) { return w.__skytower.scene(); }, active(w) { return w.__skytower.active(); },
+      hold(w) { return w.__skytower.hold(); }, unhold(w) { w.__skytower.unhold(); }, overHold: 4500, scoresHold: 0 },
     nova: { key: 'nova', cab: A.novaCab, src: 'nova-play/index.html', credits: 0, games: 0, aspect: (A.novaCab && A.novaCab.userData.aspect) || 16 / 9, cost: 5,   // 5 tickets = 1 credit = one run
       demo(w) { w.__demo.start(); }, stopDemo(w) { w.__demo.stop(); },
       start(w) { w.__nova.start(); },
@@ -116,6 +121,7 @@ export function setupPlay(A) {
   if (!A.roadsterCab) delete MACHINES.roadster;
   if (!A.clawCab) delete MACHINES.claw;
   if (!A.rockfallCab) delete MACHINES.rockfall;
+  if (!A.skyTowerCab) delete MACHINES.skytower;
   // MARS ROADSTER: sit the monkey in the chosen bucket seat (hands on the wheel) for the zoom, stand him up behind it on the way out
   function seatMonkey(cab, on) { const u = cab.userData, s = u.seats[u.seat], mu = monkey.userData;
     if (on) { monkey.position.set(s.world.x, 0, s.world.z + 0.12); st.face = 0; monkey.rotation.y = 0; st.vel.set(0, 0, 0); st.speed = 0; st.seated = u.seat; if (monkey.userData.pack) monkey.userData.pack.visible = monkey.userData.tail.visible = false;
