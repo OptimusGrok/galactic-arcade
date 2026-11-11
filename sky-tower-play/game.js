@@ -3,7 +3,7 @@
 // (parent.__neonTicket) while a real credit is running; never in DEMO / WATCH.
 import * as THREE from '../vendor/three.module.js';
 
-const N = 50, GAP = 5.4;
+const N = 50, GAP = 8.2, SPAN = 6.8, MIN_SEP = 3.8;
 const FLY = { drain: 0.125, fill: 0.16, min: 0.08, up: 3.4, down: 2.4 };
 const R = 0.32, PH = 1.82, HI_KEY = 'arcade_skytower_best', RUN_CAP = 20;
 const BRICKS = [0xc91a09, 0xf5cd2f, 0x0055bf, 0x237841, 0xfe8a18, 0xf4f4f4, 0x81007b, 0x078bc9];
@@ -288,13 +288,43 @@ for (let i = 0; i < 48; i++) {
   clouds.add(m);
 }
 
-function sizeOf(i) { return 12 - 8.6 * (i - 1) / (N - 1); }
-function yOf(i) { return (i - 1) * GAP; }
-function offsetOf(i) {
-  if (i === 1 || i === N) return { x: 0, z: 0 };
-  return { x: Math.sin(i * 1.71) * Math.min(6.2, 0.9 + i * 0.08), z: Math.cos(i * 1.23) * Math.min(6.2, 0.9 + i * 0.07) };
-}
 function isCheck(i) { return i === 1 || (i - 1) % 10 === 0; }
+function sizeOf(i) {
+  if (i === 1) return 12;
+  if (i === N) return 9.5;
+  if (isCheck(i)) return 11;
+  // A few studs wide (about 4 down to 3), shrinking slightly toward space, always landable.
+  return 3.15 - 0.75 * (i - 1) / (N - 1);
+}
+function yOf(i) { return (i - 1) * GAP; }
+function buildOffsets() {
+  const gold = Math.PI * (3 - Math.sqrt(5)), out = [{ x: 0, z: 0 }];
+  let x = 0, z = 0, ang = 0.4;
+  for (let i = 2; i <= N; i++) {
+    let placed = false;
+    for (let attempt = 0; attempt < 36 && !placed; attempt++) {
+      const trial = ang + gold + attempt * 0.19 + Math.sin(i * 1.7) * 0.15;
+      const step = SPAN + Math.sin(i * 0.9) * 0.45;
+      const nx = x + Math.sin(trial) * step, nz = z + Math.cos(trial) * step;
+      let ok = true;
+      for (const p of out) if (Math.hypot(nx - p.x, nz - p.z) < MIN_SEP) { ok = false; break; }
+      if (ok) { ang = trial; x = nx; z = nz; out.push({ x, z }); placed = true; }
+    }
+    if (!placed) {
+      for (const extra of [1.2, 2, 3, 4.5, 6]) {
+        const trial = ang + gold;
+        const nx = x + Math.sin(trial) * (SPAN + extra), nz = z + Math.cos(trial) * (SPAN + extra);
+        let ok = true;
+        for (const p of out) if (Math.hypot(nx - p.x, nz - p.z) < MIN_SEP) { ok = false; break; }
+        if (ok) { ang = trial; x = nx; z = nz; out.push({ x, z }); placed = true; break; }
+      }
+    }
+    if (!placed) { x += SPAN; out.push({ x, z }); }
+  }
+  return out;
+}
+const OFFSETS = buildOffsets();
+function offsetOf(i) { return OFFSETS[i - 1]; }
 
 function addStuds(group, size, color, yTop) {
   const mat = lamb(color);
@@ -329,26 +359,27 @@ function buildPlatform(i) {
     flag.material.side = THREE.DoubleSide;
   }
   const p = { i, g, size, x: off.x, y, z: off.z, h, top: y + top, col, traps: [], solids: [] };
-  // traps scale with height; platform 50 is a safe finish
+  // Heavy traps only on large checkpoint pads; tiny pads keep a timed spinner or a gentle wind.
   if (i > 1 && i < N) {
-    if (i >= 3 && i % 3 === 0) {
+    const large = isCheck(i);
+    if (large && i >= 3 && i % 3 === 0) {
       const ms = Math.max(1.4, size * 0.32);
       const mover = part(g, new THREE.BoxGeometry(ms, 0.4, ms * 0.7), lamb(0xff8a18), 0, top + 0.22, 0);
       addStuds(mover, ms * 0.85, 0xff8a18, 0.2);
       p.traps.push({ type: 'mover', mesh: mover, size: ms, axis: i % 2 ? 'x' : 'z', amp: size * 0.32, speed: 0.9 + i * 0.025, t0: i * 0.4 });
     }
     if (i >= 5 && (i % 4 === 1 || i >= 28)) {
-      const len = size * 0.85;
+      const len = size * (large ? 0.85 : 0.92);
       const bar = part(g, new THREE.BoxGeometry(len, 0.16, 0.16), lamb(0x222228), 0, top + 0.7, 0);
       part(bar, CYL(0.05, 0.05, 0.2, 8), basic(0xff3030), 0, 0, 0);
       p.traps.push({ type: 'spinner', mesh: bar, len, speed: 0.85 + i * 0.035, y: top + 0.7 });
     }
-    if (i >= 8 && i % 5 === 2) {
+    if (large && i >= 8 && i % 5 === 2) {
       const cs = Math.max(1.2, size * 0.28);
       const cr = part(g, new THREE.BoxGeometry(cs, 0.28, cs), lamb(0x8a6a3a), size * 0.28, top + 0.16, -size * 0.18);
       p.traps.push({ type: 'crumble', mesh: cr, size: cs, timer: 0, falling: false, dead: false, ox: cr.position.x, oy: cr.position.y, oz: cr.position.z });
     }
-    if (i >= 12 && (i % 4 === 0 || i >= 32)) {
+    if (large && i >= 12 && (i % 4 === 0 || i >= 32)) {
       const ks = Math.max(1.1, size * 0.22);
       const kb = part(g, new THREE.BoxGeometry(ks, 0.45, ks), basic(0xff2450), -size * 0.22, top + 0.25, size * 0.2);
       kb.material.transparent = true; kb.material.opacity = 0.88;
@@ -356,12 +387,16 @@ function buildPlatform(i) {
     }
     if (i >= 16 && i % 5 === 0) {
       const dir = new V3(Math.sin(i * 2.1), 0, Math.cos(i * 2.1)).normalize();
-      p.traps.push({ type: 'wind', dir, mesh: null, str: 5.5 + i * 0.05 });
+      p.traps.push({ type: 'wind', dir, mesh: null, str: large ? 5.5 + i * 0.05 : 3.2 + i * 0.03 });
     }
   }
   platforms.push(p); return p;
 }
 for (let i = 1; i <= N; i++) buildPlatform(i);
+{
+  const fin = platforms[N - 1];
+  earth.position.set(fin.x + 85, fin.top - 236, fin.z + 145);
+}
 
 const windLines = [];
 { const m = basic(0xc8f0ff, { transparent: true, opacity: 0.45 });
@@ -420,7 +455,7 @@ function setSky() {
   scene.fog.density = 0.012 - t * 0.0112;
   stars.material.opacity = THREE.MathUtils.clamp((t - 0.45) / 0.35, 0, 1);
   sun.intensity = 1.35 - t * 0.7;
-  clouds.visible = h < 90;
+  clouds.visible = t < 0.4;
   earth.visible = t > 0.55;
 }
 
@@ -604,6 +639,11 @@ function hurt(dx, dz) {
   if (G.hp <= 0) respawn('hit');
   hud();
 }
+function bump(dx, dz, force) {
+  const L = Math.hypot(dx, dz) || 1;
+  force = force || 3.2;
+  G.vx += (dx / L) * force; G.vz += (dz / L) * force; G.vy = Math.max(G.vy, 1.1);
+}
 
 function fire() {
   if (G.cooldown > 0 || G.hold || (G.mode !== 'play' && !window.__DEMO)) return null;
@@ -629,15 +669,6 @@ function spawnAlien(opts) {
   }
   a.cx = a.x; a.cz = a.z; a.cy = a.y;
   a.mesh.position.set(a.x, a.y, a.z); scene.add(a.mesh); aliens.push(a); return a;
-}
-
-function enemyShoot(a) {
-  const dir = new V3(player.position.x - a.x, (player.position.y + 1.1) - a.y, player.position.z - a.z);
-  if (dir.lengthSq() < 0.01) return;
-  dir.normalize();
-  const mesh = new THREE.Mesh(shotGeo, shotMat);
-  mesh.position.set(a.x, a.y + 0.4, a.z); scene.add(mesh);
-  shots.push({ mesh, dir, speed: 7.2, life: 3.2, alive: true });
 }
 
 function updateCombat(dt) {
@@ -677,10 +708,8 @@ function updateCombat(dt) {
     a.y = a.cy + Math.sin(a.t * 1.4) * 0.35;
     a.mesh.position.set(a.x, a.y, a.z);
     a.mesh.lookAt(player.position.x, a.y, player.position.z);
-    if (Math.abs(a.y - (player.position.y + 1)) < 10) {
-      a.fireT -= dt;
-      if (a.fireT <= 0) { enemyShoot(a); a.fireT = 1.8 + Math.random() * 1.1 - Math.min(0.6, G.platform * 0.01); }
-    }
+    const dx = player.position.x - a.x, dy = (player.position.y + 1) - a.y, dz = player.position.z - a.z;
+    if (Math.hypot(dx, dy, dz) < 0.85) bump(dx, dz, 3.4);
   }
 }
 
@@ -1013,7 +1042,7 @@ const api = {
   hold() { if (!(G.run && !G.over)) return false; G.hold = true; return true; },
   unhold() { G.hold = false; },
   get ready() { return true; },
-  N, R, PH, TK, D, G, player, platforms, lasers, aliens, shots, earth, world: scene, camera, renderer,
+  N, R, PH, FLY, GAP, SPAN, MIN_SEP, sizeOf, offsetOf, yOf, isCheck, TK, D, G, player, platforms, lasers, aliens, shots, earth, world: scene, camera, renderer,
   fly: setFly, fire, spawnAlien, placeOn, step, give,
   get platform() { return G.platform; },
   get won() { return G.won; },
@@ -1042,12 +1071,6 @@ const api = {
         L.mesh.lookAt(a.x, p.top + 1.28, a.z);
         L.mesh.scale.set(4.6, 4.6, 3.6);
       }
-      enemyShoot(a);
-      const sh = shots[shots.length - 1];
-      if (sh) {
-        sh.mesh.position.set(p.x + 1.85, p.top + 1.78, p.z - 0.55);
-        sh.mesh.scale.set(2.5, 2.5, 2.5);
-      }
       camera.position.set(p.x + 1.2, p.top + 2.5, p.z + 6.5);
       camera.lookAt(p.x + 1.15, p.top + 1.12, p.z + 0.1);
       setSky();
@@ -1065,6 +1088,17 @@ const api = {
       earth.visible = true;
       setSky();
       earth.visible = true;
+    } else if (kind === 'spread') {
+      placeOn(1);
+      window.__DEMO = false; D.on = false; G.hold = false;
+      bannerEl.classList.remove('on');
+      G.face = 0.4; player.rotation.y = G.face; G.camYaw = 0.15;
+      for (const q of platforms) q.g.visible = q.i <= 16;
+      const p1 = platforms[0], p4 = platforms[3], p8 = platforms[7];
+      camera.fov = 60; camera.updateProjectionMatrix();
+      camera.position.set(p1.x + 7.5, p1.top + 4.6, p1.z + 13.2);
+      camera.lookAt(p4.x * 0.4, p8.top * 0.42, p4.z);
+      setSky();
     } else if (kind === 'joystick') {
       placeOn(1);
       window.__DEMO = false; D.on = false; G.hold = false;
