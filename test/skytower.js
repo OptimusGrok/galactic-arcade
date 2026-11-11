@@ -80,6 +80,68 @@ const { open } = require('./lib'); const { helpers } = require('./cabflow');
   }, W);
   chk(shot.fired && shot.before >= 1 && shot.alive === false, 'FIRE spawns a laser that destroys a Lego alien ' + JSON.stringify(shot));
 
+  const col = await page.evaluate(W => {
+    const w = eval(W), S = w.__skytower, p2 = S.platforms[1], under = p2.top - p2.h;
+    S.placeOn(1);
+    S.player.position.set(p2.x, under - S.PH - 0.25, p2.z);
+    S.G.vx = 0; S.G.vz = 0; S.G.vy = 0; S.G.air = true; S.G.energy = 1;
+    S.fly(true);
+    let maxHead = -1e9;
+    for (let i = 0; i < 90; i++) { S.step(1 / 30); maxHead = Math.max(maxHead, S.player.position.y + S.PH); }
+    S.fly(false);
+    return { maxHead, under, feet: S.player.position.y, vy: S.G.vy, ph: S.PH };
+  }, W);
+  chk(col.maxHead <= col.under + 0.06, 'thrusting up from under a platform does not pass through (head ' + col.maxHead.toFixed(2) + ' vs underside ' + col.under.toFixed(2) + ') ' + JSON.stringify(col));
+
+  const side = await page.evaluate(W => {
+    const w = eval(W), S = w.__skytower, p2 = S.platforms[1];
+    const edge = p2.x + p2.size * 0.5 + S.R;
+    S.placeOn(1);
+    S.player.position.set(edge + 0.45, p2.top - 0.22, p2.z);
+    S.G.vx = -6; S.G.vz = 0; S.G.vy = 0; S.G.air = true; S.G.ix = 0; S.G.iz = 0; S.G.joy.on = false;
+    S.fly(false);
+    for (let i = 0; i < 24; i++) S.step(1 / 30);
+    return { x: S.player.position.x, edge, min: edge - 0.1, y: S.player.position.y, top: p2.top };
+  }, W);
+  chk(side.x >= side.min, 'approaching a platform from the side is blocked (x=' + side.x.toFixed(2) + ' edge=' + side.edge.toFixed(2) + ') ' + JSON.stringify(side));
+
+  const land = await page.evaluate(W => {
+    const w = eval(W), S = w.__skytower, p2 = S.platforms[1];
+    S.placeOn(1);
+    S.player.position.set(p2.x + p2.size * 0.5 + S.R + 0.85, p2.top + 1.05, p2.z);
+    S.G.vx = -3.6; S.G.vz = 0; S.G.vy = 0; S.G.air = true; S.G.ix = 0; S.G.iz = 0; S.G.joy.on = false;
+    S.fly(false);
+    for (let i = 0; i < 55; i++) S.step(1 / 30);
+    return { x: S.player.position.x, y: S.player.position.y, z: S.player.position.z, top: p2.top, plat: S.platform, air: S.G.air, px: p2.x, hs: p2.size * 0.5 };
+  }, W);
+  chk(Math.abs(land.y - land.top) < 0.12 && Math.abs(land.x - land.px) <= land.hs && land.plat >= 2,
+    'flying around the edge lets you land on top ' + JSON.stringify(land));
+
+  const stick = await page.evaluate(W => {
+    const w = eval(W), S = w.__skytower;
+    function run(sx, sy) {
+      S.placeOn(1);
+      S.G.camYaw = 0; S.G.face = 0; S.G.vx = 0; S.G.vz = 0; S.G.vy = 0; S.G.air = false;
+      S.G.ix = 0; S.G.iz = 0; S.player.rotation.y = 0;
+      const x0 = S.player.position.x, z0 = S.player.position.z, yaw0 = S.G.camYaw;
+      const pts = [[x0, z0]];
+      S.G.joy.on = true; S.G.joy.x = sx; S.G.joy.y = sy;
+      for (let i = 0; i < 30; i++) { S.step(1 / 30); pts.push([S.player.position.x, S.player.position.z]); }
+      S.G.joy.on = false; S.G.joy.x = 0; S.G.joy.y = 0;
+      const x1 = S.player.position.x, z1 = S.player.position.z, dx = x1 - x0, dz = z1 - z0, disp = Math.hypot(dx, dz);
+      let maxDev = 0;
+      for (const [x, z] of pts) {
+        const t = disp > 1e-6 ? ((x - x0) * dx + (z - z0) * dz) / (disp * disp) : 0;
+        maxDev = Math.max(maxDev, Math.hypot(x - (x0 + t * dx), z - (z0 + t * dz)));
+      }
+      return { disp, dYaw: S.G.camYaw - yaw0, maxDev, dx, dz };
+    }
+    return { right: run(1, 0), up: run(0, -1) };
+  }, W);
+  const straight = (r, name) => r.disp > 2 && Math.abs(r.dYaw) < 0.08 && r.maxDev < 0.45;
+  chk(straight(stick.right) && stick.right.dx > 1.6, 'joystick right walks a straight camera-relative line ' + JSON.stringify(stick.right));
+  chk(straight(stick.up) && stick.up.dz > 1.6, 'joystick up walks a straight camera-relative line ' + JSON.stringify(stick.up));
+
   const adv = await page.evaluate(W => {
     const w = eval(W), S = w.__skytower, p0 = S.platform;
     S.placeOn(12);
