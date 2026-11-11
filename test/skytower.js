@@ -228,6 +228,11 @@ const { open } = require('./lib'); const { helpers } = require('./cabflow');
     S.G.cooldown = 0;
     const L = S.fire();
     const dist = L ? L.mesh.position.distanceTo(muz) : 99;
+    const barrel = S.gunBarrelDir();
+    const shot = { x: Math.sin(S.G.face), y: 0.02, z: Math.cos(S.G.face) };
+    const sl = Math.hypot(shot.x, shot.y, shot.z) || 1;
+    const dot = (barrel.x * shot.x + barrel.y * shot.y + barrel.z * shot.z) / sl;
+    const shotAng = Math.acos(Math.min(1, Math.max(-1, dot)));
     S.G.fireHeld = false; S.G.gunAimT = 0;
     S.step(1 / 30);
     const downX = u.arms[1].sh.rotation.x, downAim = S.G.gunAim;
@@ -238,6 +243,7 @@ const { open } = require('./lib'); const { helpers } = require('./cabflow');
       color: L && L.color, dist,
       hex: L && L.mesh.material.color.getHexString(),
       restX, restAim, midX, midAim, aimX, aimBlend, downX, downAim, backX,
+      shotAng, barrel: { x: +barrel.x.toFixed(3), y: +barrel.y.toFixed(3), z: +barrel.z.toFixed(3) },
       aimTime: S.GUN_AIM_TIME, restTarget: S.GUN_REST.shx, aimTarget: S.GUN_AIM.shx
     };
   }, W);
@@ -247,6 +253,7 @@ const { open } = require('./lib'); const { helpers } = require('./cabflow');
     'monkey raises the gun smoothly rather than snapping ' + JSON.stringify(gun));
   chk(gun.aimX < -1.0 && gun.aimBlend > 0.92, 'monkey aims the gun outward while firing ' + JSON.stringify(gun));
   chk(gun.color === 'cyan' && gun.dist < 0.55, 'monkey laser originates at the gun muzzle ' + JSON.stringify(gun));
+  chk(gun.shotAng <= 15 * Math.PI / 180, 'monkey gun barrel points within 15° of the shot direction (' + (gun.shotAng * 180 / Math.PI).toFixed(1) + '°) ' + JSON.stringify(gun));
   chk(gun.downX > gun.aimX && gun.backX > -0.45, 'monkey lowers the gun back to his side after firing ' + JSON.stringify(gun));
 
   const layout = await page.evaluate(W => {

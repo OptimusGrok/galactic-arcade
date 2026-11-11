@@ -805,8 +805,8 @@ function applyWind(dt) {
   }
 }
 
-const GUN_REST = { shx: -0.12, shy: 0.04, shz: 0.26, elx: 0.22, elz: 0.06, gx: 0.78 };
-const GUN_AIM = { shx: -1.42, shy: -0.06, shz: 0.16, elx: -0.06, elz: 0, gx: 0.05 };
+const GUN_REST = { shx: -0.12, shy: 0.04, shz: 0.26, elx: 0.22, elz: 0.06, gx: 0.78, gy: 0 };
+const GUN_AIM = { shx: -1.40, shy: 0, shz: 0.20, elx: -0.08, elz: 0, gx: 1.48, gy: -0.25 };
 const GUN_AIM_TIME = 0.35;
 function lerpNum(a, b, t) { return a + (b - a) * t; }
 function poseMonkeyGun(k) {
@@ -820,6 +820,21 @@ function poseMonkeyGun(k) {
   el.rotation.x = lerpNum(GUN_REST.elx, GUN_AIM.elx, k);
   el.rotation.z = lerpNum(GUN_REST.elz, GUN_AIM.elz, k);
   u.gun.rotation.x = lerpNum(GUN_REST.gx, GUN_AIM.gx, k);
+  u.gun.rotation.y = lerpNum(GUN_REST.gy, GUN_AIM.gy, k);
+}
+
+function gunBarrelDir(out) {
+  const dir = out || new V3();
+  const u = player.userData;
+  if (u && u.gun && u.muzzle) {
+    player.updateMatrixWorld(true);
+    const base = new V3();
+    u.gun.getWorldPosition(base);
+    u.muzzle.getWorldPosition(dir);
+    dir.sub(base);
+    if (dir.lengthSq() > 1e-8) return dir.normalize();
+  }
+  return dir.set(Math.sin(G.face), 0.02, Math.cos(G.face)).normalize();
 }
 
 function animatePlayer(dt) {
@@ -1169,7 +1184,7 @@ const api = {
   hold() { if (!(G.run && !G.over)) return false; G.hold = true; return true; },
   unhold() { G.hold = false; },
   get ready() { return true; },
-  N, R, PH, FLY, AIR_SPEED, MIN_SEP, PITCH_MIN, PITCH_MAX, GUN_AIM_TIME, GUN_REST, GUN_AIM, poseMonkeyGun, sizeOf, offsetOf, yOf, isCheck, isSlider, hopFuel, gapYOf, gapXZOf, lookDrag, updateCamera, updateSlides, TK, D, G, player, platforms, lasers, aliens, shots, earth, world: scene, camera, renderer,
+  N, R, PH, FLY, AIR_SPEED, MIN_SEP, PITCH_MIN, PITCH_MAX, GUN_AIM_TIME, GUN_REST, GUN_AIM, poseMonkeyGun, gunBarrelDir, sizeOf, offsetOf, yOf, isCheck, isSlider, hopFuel, gapYOf, gapXZOf, lookDrag, updateCamera, updateSlides, TK, D, G, player, platforms, lasers, aliens, shots, earth, world: scene, camera, renderer,
   fly: setFly, fire, spawnAlien, placeOn, step, give,
   get platform() { return G.platform; },
   get won() { return G.won; },
@@ -1313,9 +1328,20 @@ const api = {
         camera.position.set(player.position.x + c * 2.2 + s * 1.45, player.position.y + 1.18, player.position.z - s * 2.2 + c * 1.45);
         camera.lookAt(player.position.x + c * 0.22 + s * 0.05, player.position.y + 0.82, player.position.z - s * 0.22 + c * 0.05);
       } else {
+        const yaw = G.face;
+        G.camYaw = yaw; G.camPitch = 0;
         camera.fov = 50; camera.updateProjectionMatrix();
-        camera.position.set(player.position.x + c * 1.95 + s * 1.7, player.position.y + 1.36, player.position.z - s * 1.95 + c * 1.7);
-        camera.lookAt(origin.x - s * 0.05, origin.y + 0.02, origin.z - c * 0.05);
+        const back = 3.35, height = 2.28, side = 1.15;
+        camera.position.set(
+          player.position.x - Math.sin(yaw) * back + Math.cos(yaw) * side,
+          player.position.y + height,
+          player.position.z - Math.cos(yaw) * back - Math.sin(yaw) * side
+        );
+        camera.lookAt(
+          player.position.x + Math.sin(yaw) * 0.45,
+          player.position.y + 1.22,
+          player.position.z + Math.cos(yaw) * 0.45
+        );
       }
       setSky();
     }
