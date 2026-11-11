@@ -26,7 +26,7 @@ const MIRROR = '/workspace/alien-mirror.png';
     return {
       char: p.char || 'monkey', ud: m.userData.char || 'monkey', saved: saved.char || null, name: p.name,
       bot: !!(bot && bot.visible), prevBot: !!(prevBot && prevBot.visible), eyes,
-      cap: !!cap, hoodieHidden: !!(hood && hood.hidden),
+      cap: !!cap, hoodieHidden: !hood || !!hood.hidden,
       who: [...document.querySelectorAll('#gaWho .gaWho')].map(b => [b.dataset.v, b.classList.contains('sel'), b.getBoundingClientRect().height > 8]),
       rows: [...document.querySelectorAll('#gaP .gaRow')].filter(r => !r.hidden).map(r => r.dataset.k),
       allRows: [...document.querySelectorAll('#gaP .gaRow')].map(r => r.dataset.k),
@@ -43,7 +43,7 @@ const MIRROR = '/workspace/alien-mirror.png';
   let a = await info();
   chk(a.char === 'monkey' && a.ud === 'monkey' && a.saved == null && !a.bot && a.eyes === 0, 'fresh save: monkey is the default player', a);
   chk(a.who.length === 2 && a.who[0][0] === 'monkey' && a.who[0][1] && a.who[1][0] === 'alien' && !a.who[1][1] && a.who.every(w => w[2]) && a.whoH && a.whoH.t === 'SELECT PLAYER' && a.whoH.vis, 'start screen has a SELECT PLAYER heading and Monkey / Alien cards, Monkey selected', a);
-  chk(a.rows.join() === 'hat,hoodie' && !a.hoodieHidden && !a.go, 'monkey start: hat + hoodie rows, no PLAY until a name', a);
+  chk(a.rows.join() === '' && a.allRows.join() === '' && !a.go, 'monkey start: no accessory rows, no PLAY until a name', a);
 
   // --- old save without a char field stays a monkey ---
   await page.evaluate(() => localStorage.setItem('galacticarcade.player', JSON.stringify({ name: 'OldDave', hat: 'none', hoodie: 'navy', fur: 'brown', shoes: 'red' })));
@@ -56,8 +56,8 @@ const MIRROR = '/workspace/alien-mirror.png';
   await page.waitForTimeout(600);
   a = await info();
   chk(a.char === 'alien' && a.ud === 'alien' && a.saved === 'alien' && a.bot && a.prevBot && a.eyes === 2 && a.cap, 'picking Alien swaps the player, saves, shows eyes + robot in game and preview', a);
-  const hoodCss = await page.evaluate(() => getComputedStyle(document.querySelector('#gaP .gaRow[data-k=hoodie]')).display);
-  chk(a.hoodieHidden && hoodCss === 'none' && a.rows.join() === 'hat' && a.allRows.join() === 'hat,hoodie', 'alien start: hoodie row actually hidden, hat row stays', { hoodieHidden: a.hoodieHidden, hoodCss, rows: a.rows });
+  const hoodCss = await page.evaluate(() => { const e = document.querySelector('#gaP .gaRow[data-k=hoodie]'); return e ? getComputedStyle(e).display : 'none'; });
+  chk(a.rows.join() === '' && a.allRows.join() === '' && hoodCss === 'none', 'alien start: no accessory rows', { hoodieHidden: a.hoodieHidden, hoodCss, rows: a.rows, allRows: a.allRows });
   chk(!a.go, 'PLAY still hidden until the 2 s touch (name already filled)', a);
 
   // three-quarter turn so the robot sits in view beside the shoulder
@@ -79,7 +79,7 @@ const MIRROR = '/workspace/alien-mirror.png';
   const land = await page.evaluate(() => {
     const who = [...document.querySelectorAll('#gaWho .gaWho')].map(b => { const r = b.getBoundingClientRect(); return { v: b.dataset.v, sel: b.classList.contains('sel'), h: r.height, top: r.top, bot: r.bottom }; });
     const h = document.getElementById('gaWhoH'); const hr = h && h.getBoundingClientRect();
-    return { who, vh: innerHeight, vw: innerWidth, hood: document.querySelector('#gaP .gaRow[data-k=hoodie]').hidden,
+    return { who, vh: innerHeight, vw: innerWidth, hood: !document.querySelector('#gaP .gaRow[data-k=hoodie]'),
       whoH: h && { t: (h.textContent || '').trim(), h: hr.height, top: hr.top, bot: hr.bottom } };
   });
   chk(land.who.length === 2 && land.who.every(w => w.h > 8 && w.top >= -2 && w.bot <= land.vh + 2) && land.hood && land.whoH && land.whoH.t === 'SELECT PLAYER' && land.whoH.h > 6 && land.whoH.top >= -2 && land.whoH.bot <= land.vh + 2, 'landscape: SELECT PLAYER heading and both picker cards fit and hoodie stays hidden', land);

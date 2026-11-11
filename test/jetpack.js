@@ -16,14 +16,14 @@ const LOOK = (back) => JSON.stringify({ name: 'Jet', hat: 'cap', hoodie: 'navy',
   else {
   o = await open({ phone: true, w: 390, h: 844, start: true });
   page = o.page;
-  await page.waitForSelector('#gaP .gaRow', { timeout: 30000 }).catch(() => {});
+  await page.waitForSelector('#gaWho', { timeout: 30000 }).catch(() => {});
   s = await page.evaluate(() => {
     const G = window.__gaPlayer;
     const rows = [...document.querySelectorAll('#gaP .gaRow')].map(r => r.dataset.k);
     const ids = [...document.querySelectorAll('#gaP .gaO')].map(b => b.dataset.v);
     return { rows, jet: ids.includes('jetpack'), backRow: rows.includes('back'), price: G.priceOf('back', 'jetpack'), start: G.isStart('back', 'jetpack'), free: G.isFree('back', 'jetpack') };
   });
-  chk(!s.jet && !s.backRow && s.rows.join() === 'hat,hoodie' && s.price === 5 && s.start === false && s.free === false, 'start screen has no jetpack; it stays a 5-ticket accessory', s);
+  chk(!s.jet && !s.backRow && s.rows.join() === '' && s.price === 5 && s.start === false && s.free === false, 'start screen has no jetpack or accessory rows; jetpack stays a 5-ticket accessory', s);
   await o.close();
   }
 

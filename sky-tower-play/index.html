@@ -35,6 +35,10 @@ canvas{display:block;width:100%;height:100%}
 #plat{position:fixed;left:50%;top:max(8px,env(safe-area-inset-top));transform:translateX(-50%);z-index:20;font:900 16px/1.2 "Courier New",monospace;letter-spacing:.08em;color:#ffe14a;text-shadow:0 0 8px #000,0 0 10px #ffb000;background:#0008;border:2px solid #ffe14a88;border-radius:10px;padding:6px 14px;pointer-events:none}
 #hp{position:fixed;left:max(10px,env(safe-area-inset-left));top:max(8px,env(safe-area-inset-top));z-index:20;font:900 20px/1 "Courier New",monospace;color:#ff4a4a;text-shadow:0 0 8px #000;pointer-events:none}
 #best{position:fixed;right:max(10px,env(safe-area-inset-right));top:max(8px,env(safe-area-inset-top));z-index:20;font:800 12px/1 "Courier New",monospace;letter-spacing:.1em;color:#9fe8ff;text-shadow:0 0 6px #000;pointer-events:none}
+#tixHud{position:fixed;left:max(10px,env(safe-area-inset-left));top:max(36px,calc(env(safe-area-inset-top) + 28px));z-index:20;font:900 15px/1 "Courier New",monospace;color:#ffe14a;text-shadow:0 0 8px #000,0 0 10px #ffb000;pointer-events:none}
+#plusLayer{position:fixed;inset:0;pointer-events:none;z-index:35}
+.skyPlus{position:absolute;font:900 22px/1 "Courier New",monospace;color:#ffe14a;text-shadow:0 0 8px #000,0 0 14px #ffb000;transform:translate(-50%,-50%);animation:skyPlus .85s ease-out forwards}
+@keyframes skyPlus{to{opacity:0;transform:translate(-50%,-140%)}}
 #flyHud{position:fixed;right:max(12px,env(safe-area-inset-right));bottom:max(12px,env(safe-area-inset-bottom));z-index:22;display:flex;flex-direction:column;align-items:center;gap:6px;touch-action:none}
 #flyHud b{font:900 10px/1 "Courier New",monospace;letter-spacing:.14em;color:#ffe0b0;text-shadow:0 0 6px #ff8a1a}
 #flyMeter{width:74px;height:12px;border-radius:6px;border:2px solid #ffb060;background:#140804e6;overflow:hidden;box-shadow:0 0 8px #ff8a1a88}
@@ -60,6 +64,8 @@ body.demo #hp,body.demo #best{opacity:.35}
 <div id="plat">PLATFORM 1/50</div>
 <div id="hp">♥♥♥</div>
 <div id="best">BEST 0</div>
+<div id="tixHud">🎟 0</div>
+<div id="plusLayer"></div>
 <div id="flyHud">
   <b>ENERGY</b>
   <div id="flyMeter" title="Jetpack energy"><i></i></div>

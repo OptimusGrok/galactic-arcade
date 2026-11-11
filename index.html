@@ -115,15 +115,16 @@ body.ingame #ui{top:calc(max(10px,env(safe-area-inset-top)) + 58px)}
 #tix{left:calc(max(8px,env(safe-area-inset-left)) + var(--fbw,60px) + 6px)}
 @media (min-width:900px) and (min-height:500px){#tix{--fbw:76px}}
 body.ingame #flBtn,body.ingame #wdBtn{display:none}
-/* WARDROBE HUD button (Dave t218u: 'wardrobe button just below the floor box top left'): same size + neon as #flBtn */
-#wdBtn{--fb:60px;position:fixed;top:calc(max(8px,env(safe-area-inset-top)) + var(--fb) + 6px);left:max(8px,env(safe-area-inset-left));z-index:23;width:var(--fb);height:var(--fb);box-sizing:border-box;border-radius:10px;border:2px solid #ffb000aa;background:radial-gradient(circle at 50% 40%,#3a1650,#0a0612 70%);overflow:hidden;cursor:pointer;padding:0;box-shadow:0 0 10px #ffb00055;touch-action:none;-webkit-tap-highlight-color:transparent}
+/* Wardrobe moved into the FLOOR·WALLS menu (t731u); keep #wdBtn hidden if a leftover node exists */
+#wdBtn{display:none!important}
+#wdBtn.hide{--fb:60px;position:fixed;top:calc(max(8px,env(safe-area-inset-top)) + var(--fb) + 6px);left:max(8px,env(safe-area-inset-left));z-index:23;width:var(--fb);height:var(--fb);box-sizing:border-box;border-radius:10px;border:2px solid #ffb000aa;background:radial-gradient(circle at 50% 40%,#3a1650,#0a0612 70%);overflow:hidden;cursor:pointer;padding:0;box-shadow:0 0 10px #ffb00055;touch-action:none;-webkit-tap-highlight-color:transparent}
 #wdBtn svg{position:absolute;left:14%;top:8%;width:72%;height:64%;filter:drop-shadow(0 0 4px #ff4fd8)}
 #wdBtn span{position:absolute;left:0;right:0;bottom:0;font:900 8px/1.5 'Courier New',monospace;letter-spacing:.06em;color:#ffe08a;background:#000a;text-align:center;pointer-events:none}
 @media (min-width:900px) and (min-height:500px){#wdBtn{--fb:76px}#wdBtn span{font-size:10px}}
 .wdToast{position:fixed;left:calc(max(8px,env(safe-area-inset-left)) + 74px);top:calc(max(8px,env(safe-area-inset-top)) + 80px);z-index:45;font:900 13px 'Courier New',monospace;color:#ffe08a;background:#0a0612ee;border:1px solid #ffb000aa;border-radius:8px;padding:7px 11px;letter-spacing:.08em;pointer-events:none;box-shadow:0 0 10px #ffb00055}
 #tix.ingame{left:max(8px,env(safe-area-inset-left))}
 #opt.game{position:fixed;z-index:95}
-#opt.game .flT:not(.sel):not(#musBtn)::after{content:'1 🎟';display:block;margin-top:3px;font-size:10px;color:#ffe08a}
+#opt.game .flT:not(.sel):not(#musBtn):not(#coolBtn):not(#optWard)::after{content:'1 🎟';display:block;margin-top:3px;font-size:10px;color:#ffe08a}
 #optNote{display:none;text-align:center;margin:-6px 0 10px;font-size:12px;color:#ffe08a;letter-spacing:.08em}
 #opt.game #optNote{display:block}
 #optNote.need{color:#ff5a6e;animation:shk .35s}
@@ -169,7 +170,7 @@ body[data-cab=roadster] #tix.ingame{top:calc(max(10px,env(safe-area-inset-top)) 
 /* 4 floors in ONE row (a wrapped 2nd row fell below the visible screen on phones, esp. landscape / with browser bars) */
 #flTiles,#wlTiles{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}#flTiles .flT,#wlTiles .flT{max-width:none;min-width:0;padding:4px;font-size:clamp(9px,2.6vmin,13px);letter-spacing:.06em}#flTiles .flT img,#wlTiles .flT img{aspect-ratio:1;max-height:22dvh}#flTiles .flT .now,#wlTiles .flT .now{font-size:clamp(7px,1.9vmin,10px)}
 #optP{max-height:calc(100dvh - 12px);overflow-y:auto;box-sizing:border-box}
-@media (max-height:500px){#optP{padding:8px 12px 10px}#optHd{margin-bottom:6px}#optTabs{margin-bottom:8px}#optBack{margin-top:8px}#musBtn{margin-top:8px!important}}
+@media (max-height:500px){#optP{padding:8px 12px 10px}#optHd{margin-bottom:6px}#optTabs{margin-bottom:8px}#optBack{margin-top:8px}#musBtn{margin-top:8px!important}#optWard{margin:0 auto 8px!important}}
 @media (max-width:460px){#optTabs{gap:6px}.optTab{padding:7px 9px;font-size:12px;letter-spacing:.08em}}
 #opt.wl #flTiles,#opt.wn #flTiles,#opt:not(.wl) #wlTiles,#opt:not(.wn) #wnTiles{display:none}#wnTiles{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}#wnTiles .flT{max-width:none;min-width:0;padding:4px;font-size:clamp(9px,2.6vmin,13px);letter-spacing:.06em}#wnTiles .flT img{aspect-ratio:1;max-height:22dvh}#wnTiles .flT .now{font-size:clamp(7px,1.9vmin,10px)}
 .optTab.off{border-color:#663a66;background:#12040f;color:#a888a8;text-shadow:none}
@@ -198,7 +199,7 @@ body[data-cab=roadster] #tix.ingame{top:calc(max(10px,env(safe-area-inset-top)) 
 <div id="start" role="dialog" aria-label="Galactic Arcade start screen"><div id="stBg"></div><div id="stBox"><picture><source srcset="img/start.webp" type="image/webp"><img src="img/start.jpg" alt="Galactic Arcade — tap to start" draggable="false"></picture><div id="stBtns"><button class="stB" id="stStart">START</button><button class="stB" id="stOpt">OPTIONS</button></div></div>
 <div id="opt" aria-hidden="true"><div id="optP"><div id="optHd"><div id="optT">OPTIONS</div><button id="optX" title="Back">✕</button></div>
 <div id="optTabs"><button class="optTab" id="tabFloor">FLOOR</button><button class="optTab off" id="tabWalls">WALLS</button><button class="optTab off" id="tabWin">WINDOW</button></div>
-<div id="optNote"></div><div id="flTiles"><div class="flT" data-floor="neon" id="flNeon"><img loading="lazy" src="img/floor_neon.webp" alt="" draggable="false">CURRENT<span class="now">NEON</span></div><div class="flT" data-floor="carpet" id="flCarpet"><img loading="lazy" src="img/floor_carpet.webp" alt="" draggable="false">ARCADE<span class="now">CHARACTER CARPET</span></div><div class="flT" data-floor="checkers" id="flChk"><img loading="lazy" src="img/floor_checkers.webp" alt="" draggable="false">CHECKERS<span class="now">BLACK + GOLD</span></div><div class="flT" data-floor="lava" id="flLava"><img loading="lazy" src="img/floor_lava.webp" alt="" draggable="false">LAVA<span class="now">CAVE PATHS</span></div><div class="flT" data-floor="cobble" id="flCob"><img loading="lazy" src="img/floor_cobble.webp" alt="" draggable="false">MEDIEVAL<span class="now">COBBLESTONE</span></div><div class="flT" data-floor="ice" id="flIce"><img loading="lazy" src="img/floor_ice.webp" alt="" draggable="false">ICE<span class="now">SLIPPERY</span></div></div>
+<div id="optNote"></div><button class="flT" id="optWard" style="display:block;margin:0 auto 10px;width:min(100%,300px)">WARDROBE</button><div id="flTiles"><div class="flT" data-floor="neon" id="flNeon"><img loading="lazy" src="img/floor_neon.webp" alt="" draggable="false">CURRENT<span class="now">NEON</span></div><div class="flT" data-floor="carpet" id="flCarpet"><img loading="lazy" src="img/floor_carpet.webp" alt="" draggable="false">ARCADE<span class="now">CHARACTER CARPET</span></div><div class="flT" data-floor="checkers" id="flChk"><img loading="lazy" src="img/floor_checkers.webp" alt="" draggable="false">CHECKERS<span class="now">BLACK + GOLD</span></div><div class="flT" data-floor="lava" id="flLava"><img loading="lazy" src="img/floor_lava.webp" alt="" draggable="false">LAVA<span class="now">CAVE PATHS</span></div><div class="flT" data-floor="cobble" id="flCob"><img loading="lazy" src="img/floor_cobble.webp" alt="" draggable="false">MEDIEVAL<span class="now">COBBLESTONE</span></div><div class="flT" data-floor="ice" id="flIce"><img loading="lazy" src="img/floor_ice.webp" alt="" draggable="false">ICE<span class="now">SLIPPERY</span></div></div>
 <div id="wlTiles"><div class="flT wlT" data-walls="current" id="wlCur"><img loading="lazy" src="img/walls_current.webp" alt="" draggable="false">CURRENT<span class="now">NEON PANELS</span></div><div class="flT wlT" data-walls="viking" id="wlVik"><img loading="lazy" src="img/walls_viking.webp" alt="" draggable="false">VIKING<span class="now">RUNE WALLS</span></div><div class="flT wlT" data-walls="portals" id="wlPor"><img loading="lazy" src="img/walls_portals.webp" alt="" draggable="false">PORTALS<span class="now">SWIRLING VORTEX</span></div><div class="flT wlT" data-walls="medieval" id="wlMed"><img loading="lazy" src="img/walls_medieval.webp" alt="" draggable="false">MEDIEVAL<span class="now">GOTHIC WINDOWS</span></div></div>
 <div id="wnTiles"><div class="flT wnT" data-win="space" id="wnSpace"><img loading="lazy" src="img/window_space.webp" alt="" draggable="false">SPACE<span class="now">NEBULA VIEW</span></div><div class="flT wnT" data-win="jungle" id="wnJungle"><img loading="lazy" src="img/window_jungle.webp" alt="" draggable="false">JUNGLE<span class="now">RAINFOREST</span></div><div class="flT wnT" data-win="beach" id="wnBeach"><img loading="lazy" src="img/window_beach.webp" alt="" draggable="false">BEACH<span class="now">SAND + SEA</span></div></div>
 <button class="flT" id="musBtn" style="display:block;margin:14px auto 0;width:min(100%,300px)">MUSIC: <span id="musSt">ON</span></button><button class="flT" id="coolBtn" style="display:block;margin:10px auto 0;width:min(100%,300px)">COOLER PHONE: <span id="coolSt">ON</span></button><button class="stB" id="optBack">BACK</button></div></div><div id="secHot" aria-hidden="true"></div>
@@ -293,6 +294,7 @@ body[data-cab=roadster] #tix.ingame{top:calc(max(10px,env(safe-area-inset-top)) 
         if (hit('#stStart')) go('start');
         else if (hit('#stOpt')) openOpt(true);
         else if (hit('#optX') || hit('#optBack')) openOpt(false);
+        else if (hit('#optWard')) { openOpt(false); if (window.__wardrobeBtn && window.__wardrobeBtn.openFromMenu) window.__wardrobeBtn.openFromMenu(); else if (window.__wardrobe && window.__wardrobe.open) window.__wardrobe.open(); }
         else if (hit('#musBtn')) { if (window.__music) window.__music.setOn(!window.__music.on); showMus(); }
         else if (hit('#coolBtn')) { if (window.__powerSave) window.__powerSave.set(!window.__powerSave.on); else try { localStorage.setItem('neonarcade.powersave', coolOn() ? '0' : '1'); } catch (e) {} showCool(); }
         else if (hit('#tabFloor')) tab(false);
@@ -353,6 +355,7 @@ function flBtnInit() {
   ['pointerdown', 'mousedown', 'touchstart', 'touchend', 'click', 'wheel'].forEach(function (t) { opt.addEventListener(t, function (e) { if (opt.classList.contains('game')) e.stopPropagation(); }, { passive: true }); });
   opt.addEventListener('pointerup', function (e) { if (!opt.classList.contains('game')) return; e.stopPropagation(); var t = e.target, h = function (s) { return t && t.closest && t.closest(s); }, U = window.__startUI;
     if (h('#optX') || h('#optBack') || !h('#optP')) openG(false);
+    else if (h('#optWard')) { openG(false); if (window.__wardrobeBtn && window.__wardrobeBtn.openFromMenu) window.__wardrobeBtn.openFromMenu(); else if (window.__wardrobe && window.__wardrobe.open) window.__wardrobe.open(); }
     else if (h('#musBtn')) { if (window.__music) window.__music.setOn(!window.__music.on); U.openOpt(true); showNote(false); }
     else if (h('#coolBtn')) { if (window.__powerSave) window.__powerSave.set(!window.__powerSave.on); if (U.showCool) U.showCool(); U.openOpt(true); showNote(false); }
     else if (h('#tabFloor')) U.tab(false); else if (h('#tabWalls')) U.tab(true); else if (h('#tabWin')) U.tab('window');
@@ -360,21 +363,25 @@ function flBtnInit() {
   addEventListener('keydown', function (e) { if (G.open && (e.code === 'Escape' || e.code === 'Backspace')) { e.stopImmediatePropagation(); openG(false); } }, true);
 }
 // WARDROBE button: opens player.js's wardrobe (window.__wardrobe.open()); until that exists, a 'Coming soon' toast. Taps never reach walking / jumping.
-function wdBtnInit() { var b = document.getElementById('wdBtn'), W = window.__wardrobeBtn = { taps: 0, toasts: 0 }, tt = 0;
-  function stop(e) { e.stopPropagation(); }
-  ['pointerdown', 'mousedown', 'touchstart', 'touchend', 'click'].forEach(function (t) { b.addEventListener(t, stop, { passive: true }); });
-  b.addEventListener('pointerup', function (e) { e.stopPropagation(); var p = window.__arcade && window.__arcade.play; if (p && p.mode !== 'walk') return; W.taps++;
+function wdBtnInit() {
+  var W = window.__wardrobeBtn = { taps: 0, toasts: 0 }, tt = 0;
+  W.openFromMenu = function () {
+    var p = window.__arcade && window.__arcade.play;
+    if (p && p.mode && p.mode !== 'walk') return false;
+    W.taps++;
     try { var k = window.__arcade.keys; for (var c in k) k[c] = false; } catch (er) {}
-    if (window.__wardrobe && typeof window.__wardrobe.open === 'function') { window.__wardrobe.open(); return; }
+    if (window.__wardrobe && typeof window.__wardrobe.open === 'function') { window.__wardrobe.open(); return true; }
     W.toasts++; var o = document.querySelector('.wdToast'); if (!o) { o = document.createElement('div'); o.className = 'wdToast'; document.body.appendChild(o); } o.textContent = 'Coming soon'; o.style.display = 'block';
-    clearTimeout(tt); tt = setTimeout(function () { o.style.display = 'none'; }, 1800); }); }
-if (document.getElementById('wdBtn')) wdBtnInit(); else document.addEventListener('DOMContentLoaded', wdBtnInit);
+    clearTimeout(tt); tt = setTimeout(function () { o.style.display = 'none'; }, 1800); return false;
+  };
+}
+wdBtnInit();
 if (document.getElementById('flBtn')) flBtnInit(); else document.addEventListener('DOMContentLoaded', flBtnInit);
 </script>
 <div id="ui"><button id="bView" title="First / third person (V)">V</button><button id="bFs" title="Fullscreen">⛶</button><button id="bOpt" title="Options"><canvas></canvas></button></div>
 <div id="homeQ" aria-hidden="true"><div id="homeP"><div id="homeT">BACK TO START SCREEN?</div><div id="homeN"></div><div id="homeB"><button class="stB" id="homeYes">YES</button><button class="stB" id="homeNo">NO</button></div></div></div>
 <div id="playUI"><button id="bPlay">PLAY</button><div id="credit">CREDIT 1</div><div id="hint">ENTER / E / SPACE</div></div>
-<div id="demoUI"><div id="dTag">DEMO</div><div id="dInsert">INSERT CREDIT</div><div id="dCredit">CREDIT 0</div><div id="dCost" style="display:none"></div><button id="bTicket">INSERT TICKET · 1 🎟</button></div><button id="bExit" title="Exit (Esc)">✕</button><button id="flBtn" title="Floor &amp; walls (1 ticket to change)"><img id="flBtnA" src="img/floor_neon.webp" alt=""><img id="flBtnB" class="off" alt=""><span>FLOOR·WALLS</span></button><button id="wdBtn" title="Wardrobe"><svg viewBox="0 0 48 40" fill="none" stroke="#ff8ef0" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 9a4 4 0 1 1 6 3.5c-1.3.8-2 1.6-2 3V17"/><path d="M24 17L4 31c-1.6 1.2-.8 3 1 3h38c1.8 0 2.6-1.8 1-3L24 17z"/></svg><span>WARDROBE</span></button><div id="tix" role="button" tabindex="0" title="Show ticket"><canvas id="tixIco"></canvas><span id="tixN">0</span></div><div id="vix" role="button" tabindex="0" title="Show Viking ticket" style="display:none"><canvas id="vixIco"></canvas><span id="vixN">0</span></div><div id="tview" aria-hidden="true"><button id="tvX" title="Close (Esc)">✕</button><div id="tvWrap"><canvas id="tvCv"></canvas><div id="tvShine"></div></div><div id="tvCount">🎟 0 TICKETS</div><div id="tvHint">TAP OR ESC TO CLOSE</div></div><div id="over">GAME OVER</div>
+<div id="demoUI"><div id="dTag">DEMO</div><div id="dInsert">INSERT CREDIT</div><div id="dCredit">CREDIT 0</div><div id="dCost" style="display:none"></div><button id="bTicket">INSERT TICKET · 1 🎟</button></div><button id="bExit" title="Exit (Esc)">✕</button><button id="flBtn" title="Floor &amp; walls (1 ticket to change)"><img id="flBtnA" src="img/floor_neon.webp" alt=""><img id="flBtnB" class="off" alt=""><span>FLOOR·WALLS</span></button><div id="tix" role="button" tabindex="0" title="Show ticket"><canvas id="tixIco"></canvas><span id="tixN">0</span></div><div id="vix" role="button" tabindex="0" title="Show Viking ticket" style="display:none"><canvas id="vixIco"></canvas><span id="vixN">0</span></div><div id="tview" aria-hidden="true"><button id="tvX" title="Close (Esc)">✕</button><div id="tvWrap"><canvas id="tvCv"></canvas><div id="tvShine"></div></div><div id="tvCount">🎟 0 TICKETS</div><div id="tvHint">TAP OR ESC TO CLOSE</div></div><div id="over">GAME OVER</div>
 <button id="bUse">USE</button><button id="bPick">PICK UP 🎟</button><div id="cash"></div>
 <div id="kview"><div id="kHd"><b>TICKET EXCHANGE</b><button id="kX" title="Exit (Esc)">✕</button></div>
 <button class="kOff">$1 = 10 TICKETS</button><button class="kOff">$5 = 60 TICKETS</button><button class="kOff">$10 = 150 TICKETS</button>

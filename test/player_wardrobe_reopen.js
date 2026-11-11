@@ -16,7 +16,7 @@ const good = s => s.r && !s.lost && s.inDom && s.mk > 400 && s.whiteFrac < 0.2;
     chk(good(s) && s.id === 'gaWCv', 'open #' + i + ': preview draws the monkey (not white)', s); await page.evaluate(() => window.__wardrobe.close()); await page.waitForTimeout(400);
     chk(!(await page.evaluate(() => !!window.__gaPlayer.prev.r)), 'close #' + i + ': context freed'); }
   // also via the real button + DONE
-  if (await page.locator('#wdBtn').count()) { for (let i = 0; i < 2; i++) { await page.locator('#wdBtn').tap(); await page.waitForTimeout(1500); const s = await pix(page); chk(good(s), 'WARDROBE button open #' + (i + 1) + ' draws', s); await page.locator('#gaWDone').tap(); await page.waitForTimeout(400); } }
+  if (await page.locator('#flBtn').count()) { for (let i = 0; i < 2; i++) { await page.locator('#flBtn').tap(); await page.waitForTimeout(400); await page.locator('#optWard').tap(); await page.waitForTimeout(1500); const s = await pix(page); chk(good(s), 'WARDROBE menu option open #' + (i + 1) + ' draws', s); await page.locator('#gaWDone').tap(); await page.waitForTimeout(400); } }
   // forced context loss while open
   await page.evaluate(() => window.__wardrobe.open()); await page.waitForTimeout(1200);
   const r0 = await page.evaluate(() => window.__gaPlayer.prev.remakes || 0);

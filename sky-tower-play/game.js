@@ -6,7 +6,8 @@ import * as THREE from '../vendor/three.module.js';
 const N = 50, AIR_SPEED = 6.2, MIN_SEP = 10;
 const PITCH_MIN = -0.22, PITCH_MAX = 1.12;
 const FLY = { drain: 0.125, fill: 0.16, min: 0.08, up: 3.4, down: 2.4 };
-const R = 0.32, PH = 1.82, HI_KEY = 'arcade_skytower_best', RUN_CAP = 20;
+const R = 0.32, PH = 1.82, HI_KEY = 'arcade_skytower_best', RUN_CAP = 50;
+const FLY_TICKETS = 30, FLY_TICKET_VALUE = 1, TICKET_HIT_R = 0.82;
 const BRICKS = [0xc91a09, 0xf5cd2f, 0x0055bf, 0x237841, 0xfe8a18, 0xf4f4f4, 0x81007b, 0x078bc9];
 const studGeo = new THREE.CylinderGeometry(0.11, 0.11, 0.07, 7);
 const dummy = new THREE.Object3D();
@@ -257,6 +258,7 @@ function earthTex() {
 
 const q = document.getElementById.bind(document);
 const platEl = q('plat'), hpEl = q('hp'), bestEl = q('best'), bannerEl = q('banner');
+const tixEl = q('tixHud'), plusLayer = q('plusLayer');
 const flyMeterEl = q('flyMeter'), flyBarEl = flyMeterEl.firstChild, bFly = q('bFly'), bFire = q('bFire');
 const joyEl = q('joy'), joyKnob = q('joyKnob');
 
@@ -456,7 +458,7 @@ const G = {
   gunAim: 0, gunAimT: 0
 };
 
-const TK = { got: 0, run: 0, log: [], awarded: Object.create(null) };
+const TK = { got: 0, run: 0, fly: 0, log: [], awarded: Object.create(null) };
 function quiet() { return !!window.__DEMO || G.mode !== 'play' || !G.run || G.hold; }
 function give(n, why) {
   if (window.__DEMO || !G.run || G.over) return 0;
@@ -479,7 +481,144 @@ function hud() {
   flyMeterEl.classList.toggle('low', G.energy <= 0.18);
   bFly.classList.toggle('on', G.thrust);
   bFire.classList.toggle('on', G.fireHeld);
+  if (tixEl) tixEl.textContent = '🎟 ' + (TK.fly || 0);
 }
+
+const tickets = [], sparks = [];
+function tickRand(i, k) {
+  const x = Math.sin(i * 127.1 + k * 311.7) * 43758.5453;
+  return x - Math.floor(x);
+}
+function makeGoldTicket() {
+  const g = new THREE.Group(); g.name = 'skyTicket';
+  const gold = lamb(0xffc433, { emissive: 0xb36a00 });
+  const shine = basic(0xffe37a);
+  const stripe = lamb(0xd4a017, { emissive: 0x6a3a00 });
+  part(g, new THREE.BoxGeometry(0.62, 0.36, 0.08), gold);
+  part(g, new THREE.BoxGeometry(0.68, 0.08, 0.09), stripe, 0, 0.02, 0);
+  part(g, new THREE.BoxGeometry(0.66, 0.4, 0.03), shine, 0, 0, -0.02);
+  part(g, CYL(0.075, 0.075, 0.06, 8), gold, -0.16, 0.08, 0.06);
+  part(g, CYL(0.075, 0.075, 0.06, 8), gold, 0.16, 0.08, 0.06);
+  part(g, new THREE.BoxGeometry(0.1, 0.1, 0.09), stripe, 0.28, 0.14, 0);
+  return g;
+}
+function spawnFlyTickets() {
+  for (const t of tickets) if (t.mesh) scene.remove(t.mesh);
+  tickets.length = 0;
+  for (let i = 0; i < FLY_TICKETS; i++) {
+    const pi = Math.max(1, Math.min(N - 2, Math.floor((i + 0.5) / FLY_TICKETS * (N - 2))));
+    const p = platforms[pi];
+    const kind = i % 5;
+    const speed = 11.5 + tickRand(i, 2) * 5;
+    let heading;
+    if (kind === 0) heading = 0;
+    else if (kind === 1) heading = Math.PI;
+    else if (kind === 2) heading = Math.PI * 0.5;
+    else if (kind === 3) heading = -Math.PI * 0.5;
+    else heading = tickRand(i, 3) * Math.PI * 2;
+    const vx = Math.sin(heading) * speed, vz = Math.cos(heading) * speed;
+    const vy = (i % 3 === 0) ? (tickRand(i, 4) - 0.5) * 6.2 : 0;
+    const hl = Math.hypot(vx, vz) || 1;
+    const ux = vx / hl, uz = vz / hl;
+    const span = 14 + tickRand(i, 5) * 6;
+    const y = p.top + 1.55 + tickRand(i, 6) * 3.1;
+    const x = p.x - ux * span * 0.35 + (tickRand(i, 7) - 0.5) * 2.2;
+    const z = p.z - uz * span * 0.35 + (tickRand(i, 8) - 0.5) * 2.2;
+    const mesh = makeGoldTicket();
+    mesh.position.set(x, y, z);
+    scene.add(mesh);
+    tickets.push({
+      i, mesh, alive: true, collected: false,
+      x, y, z, sx: x, sy: y, sz: z,
+      vx, vy, vz, ux, uz, span,
+      cx: p.x, cy: y, cz: p.z, spin: tickRand(i, 9) * Math.PI * 2
+    });
+  }
+}
+function resetFlyTickets() {
+  for (const t of tickets) {
+    t.collected = false; t.alive = true;
+    t.x = t.sx; t.y = t.sy; t.z = t.sz;
+    t.mesh.visible = true;
+    t.mesh.position.set(t.x, t.y, t.z);
+  }
+  for (const s of sparks) scene.remove(s.mesh);
+  sparks.length = 0;
+  if (plusLayer) plusLayer.textContent = '';
+  TK.fly = 0;
+}
+function showPlusOne(pos) {
+  if (!plusLayer || !camera) return;
+  const v = pos.clone().project(camera);
+  if (v.z > 1) return;
+  const el = document.createElement('div');
+  el.className = 'skyPlus';
+  el.textContent = '+' + FLY_TICKET_VALUE;
+  el.style.left = ((v.x * 0.5 + 0.5) * innerWidth) + 'px';
+  el.style.top = ((-v.y * 0.5 + 0.5) * innerHeight) + 'px';
+  plusLayer.appendChild(el);
+  setTimeout(() => { if (el.parentNode) el.parentNode.removeChild(el); }, 900);
+}
+function spawnSparks(pos) {
+  const mat = basic(0xffe066);
+  for (let i = 0; i < 14; i++) {
+    const m = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.07, 0.07), mat);
+    m.position.copy(pos);
+    const a = Math.random() * Math.PI * 2, b = (Math.random() - 0.28) * Math.PI;
+    const sp = 3.2 + Math.random() * 6;
+    sparks.push({
+      mesh: m,
+      vx: Math.cos(a) * Math.cos(b) * sp,
+      vy: Math.sin(b) * sp + 2.4,
+      vz: Math.sin(a) * Math.cos(b) * sp,
+      life: 0.42 + Math.random() * 0.28
+    });
+    scene.add(m);
+  }
+}
+function updateSparks(dt) {
+  for (let i = sparks.length - 1; i >= 0; i--) {
+    const s = sparks[i];
+    s.life -= dt; s.vy -= 14 * dt;
+    s.mesh.position.x += s.vx * dt;
+    s.mesh.position.y += s.vy * dt;
+    s.mesh.position.z += s.vz * dt;
+    s.mesh.rotation.x += dt * 9;
+    s.mesh.scale.setScalar(Math.max(0.02, s.life * 2.4));
+    if (s.life <= 0) { scene.remove(s.mesh); sparks.splice(i, 1); }
+  }
+}
+function collectFlyTicket(t) {
+  if (!t || t.collected) return 0;
+  t.collected = true; t.alive = false; t.mesh.visible = false;
+  const pos = t.mesh.position.clone();
+  spawnSparks(pos);
+  showPlusOne(pos);
+  const n = give(FLY_TICKET_VALUE, 'fly');
+  if (n > 0) TK.fly += n;
+  hud();
+  return n;
+}
+function updateFlyTickets(dt) {
+  for (const t of tickets) {
+    if (t.collected) continue;
+    t.x += t.vx * dt; t.y += t.vy * dt; t.z += t.vz * dt;
+    const along = (t.x - t.cx) * t.ux + (t.z - t.cz) * t.uz;
+    if (along > t.span) { t.x -= t.ux * t.span * 2; t.z -= t.uz * t.span * 2; }
+    else if (along < -t.span) { t.x += t.ux * t.span * 2; t.z += t.uz * t.span * 2; }
+    if (Math.abs(t.y - t.cy) > 5.5) { t.vy *= -1; t.y = t.cy + Math.sign(t.y - t.cy) * 5.5; }
+    t.spin += dt * 3.4;
+    t.mesh.position.set(t.x, t.y, t.z);
+    t.mesh.rotation.set(0.18, t.spin, 0.12);
+    t.mesh.lookAt(t.x + t.vx, t.y, t.z + t.vz);
+    t.mesh.rotateZ(Math.sin(t.spin * 1.6) * 0.25);
+  }
+  updateSparks(dt);
+}
+function laserHitsTicket(L, t) {
+  return L.mesh.position.distanceTo(t.mesh.position) < TICKET_HIT_R;
+}
+
 function setSky() {
   const h = player.position.y, t = THREE.MathUtils.clamp(h / yOf(N), 0, 1);
   const a = new THREE.Color(0x7ec8ff), b = new THREE.Color(0xff8a4a), c = new THREE.Color(0x0a1028), d = new THREE.Color(0x03040a);
@@ -744,7 +883,17 @@ function updateCombat(dt) {
         a.alive = false; scene.remove(a.mesh); L.alive = false; scene.remove(L.mesh); break;
       }
     }
+    if (!L.alive) continue;
+    for (const t of tickets) {
+      if (t.collected) continue;
+      if (laserHitsTicket(L, t)) {
+        collectFlyTicket(t);
+        L.alive = false; scene.remove(L.mesh);
+        break;
+      }
+    }
   }
+  updateFlyTickets(dt);
   for (const s of shots) {
     if (!s.alive) continue;
     s.mesh.position.addScaledVector(s.dir, s.speed * dt); s.life -= dt;
@@ -1084,6 +1233,7 @@ function resetWorld(keepPos) {
   }
   G.hp = 3; G.energy = 1; G.iframe = 0; G.vy = G.vx = G.vz = 0; G.won = false; G.over = false;
   G.reached = 1; G.check = 1; G.platform = 1; G.cooldown = 0; G.gunAim = 0; G.gunAimT = 0; TK.run = 0; TK.awarded = Object.create(null);
+  resetFlyTickets();
   if (!keepPos) placeOn(1);
 }
 
@@ -1172,7 +1322,7 @@ function frame(now) {
   step(dt);
   renderer.render(scene, camera);
 }
-placeOn(1); updateCamera(1); setSky(); hud();
+spawnFlyTickets(); placeOn(1); updateCamera(1); setSky(); hud();
 requestAnimationFrame(frame);
 
 function sceneName() { return G.over ? 'over' : (G.run || D.on || G.mode === 'play') ? 'play' : 'title'; }
@@ -1184,7 +1334,7 @@ const api = {
   hold() { if (!(G.run && !G.over)) return false; G.hold = true; return true; },
   unhold() { G.hold = false; },
   get ready() { return true; },
-  N, R, PH, FLY, AIR_SPEED, MIN_SEP, PITCH_MIN, PITCH_MAX, GUN_AIM_TIME, GUN_REST, GUN_AIM, poseMonkeyGun, gunBarrelDir, sizeOf, offsetOf, yOf, isCheck, isSlider, hopFuel, gapYOf, gapXZOf, lookDrag, updateCamera, updateSlides, TK, D, G, player, platforms, lasers, aliens, shots, earth, world: scene, camera, renderer,
+  N, R, PH, FLY, AIR_SPEED, MIN_SEP, PITCH_MIN, PITCH_MAX, RUN_CAP, FLY_TICKETS, FLY_TICKET_VALUE, GUN_AIM_TIME, GUN_REST, GUN_AIM, poseMonkeyGun, gunBarrelDir, tickets, collectFlyTicket, resetFlyTickets, spawnFlyTickets, sizeOf, offsetOf, yOf, isCheck, isSlider, hopFuel, gapYOf, gapXZOf, lookDrag, updateCamera, updateSlides, TK, D, G, player, platforms, lasers, aliens, shots, earth, world: scene, camera, renderer,
   fly: setFly, fire, spawnAlien, placeOn, step, give,
   get platform() { return G.platform; },
   get won() { return G.won; },
@@ -1342,6 +1492,48 @@ const api = {
           player.position.y + 1.22,
           player.position.z + Math.cos(yaw) * 0.45
         );
+      }
+      setSky();
+    } else if (kind === 'tickets' || kind === 'ticketHit') {
+      placeOn(21);
+      window.__DEMO = true; D.on = false; G.hold = false;
+      bannerEl.classList.remove('on');
+      const p = platforms[20];
+      G.face = 0.35; player.rotation.y = G.face;
+      const fx = Math.sin(G.face), fz = Math.cos(G.face);
+      const rx = Math.cos(G.face), rz = -Math.sin(G.face);
+      const px = player.position.x, py = player.position.y, pz = player.position.z;
+      const show = tickets.slice(0, 4);
+      for (const t of tickets) if (show.indexOf(t) < 0) t.mesh.visible = false;
+      show.forEach((t, i) => {
+        t.collected = false; t.alive = true; t.mesh.visible = true;
+        const along = 3.8 + i * 0.85, side = (i - 1.4) * 2.15;
+        t.x = px + fx * along + rx * side;
+        t.y = py + 1.45 + (i % 2) * 0.45;
+        t.z = pz + fz * along + rz * side;
+        const dir = (i % 2 === 0) ? 1 : -1;
+        const spd = 12 + i * 0.8;
+        t.vx = rx * spd * dir; t.vy = i === 3 ? 3.2 : (i === 1 ? -1.4 : 0); t.vz = rz * spd * dir;
+        t.ux = rx * dir; t.uz = rz * dir; t.span = 16;
+        t.cx = t.x; t.cy = t.y; t.cz = t.z;
+        t.mesh.position.set(t.x, t.y, t.z);
+      });
+      G.shotLock = true;
+      camera.fov = 58; camera.updateProjectionMatrix();
+      camera.position.set(px - fx * 3.4 + rx * 1.35, py + 2.25, pz - fz * 3.4 + rz * 1.35);
+      camera.lookAt(px + fx * 3.4, py + 1.45, pz + fz * 3.4);
+      if (kind === 'ticketHit') {
+        const t = show[1];
+        t.x = px + fx * 2.15; t.y = py + 1.22; t.z = pz + fz * 2.15;
+        t.vx = rx * 7; t.vy = 0; t.vz = rz * 7;
+        t.mesh.position.set(t.x, t.y, t.z);
+        G.cooldown = 0; G.fireHeld = false;
+        if (player.userData.char === 'monkey') { G.gunAim = 1; poseMonkeyGun(1); }
+        player.updateMatrixWorld(true);
+        fire();
+        for (let i = 0; i < 8; i++) step(1 / 30);
+      } else {
+        for (let i = 0; i < 10; i++) step(1 / 30);
       }
       setSky();
     }

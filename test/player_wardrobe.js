@@ -99,12 +99,10 @@ async function opn(o) { for (let i = 0; ; i++) { try { return await open(Object.
   await page.evaluate(k => { localStorage.removeItem('galacticarcade.wardrobeMig'); localStorage.removeItem('galacticarcade.wardrobeOwned'); localStorage.setItem(k, JSON.stringify({ name: 'Dave', hat: 'party', hoodie: 'teal', fur: 'ginger', shoes: 'gold', glasses: 'round' })); }, KEY);
   await page.reload({ timeout: 120000 }); await page.waitForFunction(() => window.__gaPlayer && window.__gaPlayer.prev.root, null, { timeout: 90000 }); await page.waitForTimeout(2500);
   st = await page.evaluate(() => { const P = document.getElementById('gaP'), r = {}; P.querySelectorAll('.gaRow').forEach(x => r[x.dataset.k] = [...x.querySelectorAll('.gaO')].map(b => b.dataset.v)); const sel = {}; P.querySelectorAll('.gaO.sel').forEach(b => sel[b.closest('.gaRow').dataset.k] = b.dataset.v); return { r, sel }; });
-  chk(JSON.stringify(st.r) === JSON.stringify({ hat: ['cap', 'capblue'], hoodie: ['navy', 'red', 'green'] }), 'start screen shows only 3 hoodie colours (Dave: no other items)', st.r);
-  const inView = await page.evaluate(() => [...document.querySelectorAll('#gaP .gaO.sel')].every(b => { const r = b.getBoundingClientRect(), c = b.parentNode.getBoundingClientRect(); return r.left >= c.left - 1 && r.right <= c.right + 1; }));
-  chk(inView, 'each row is scrolled so the saved choice is visible');
-  chk(JSON.stringify(st.sel) === '{}', 'saved teal hoodie (not one of the 3): none selected', st.sel);
+  chk(JSON.stringify(st.r) === JSON.stringify({}), 'start screen has no accessory pickers', st.r);
+  chk(JSON.stringify(st.sel) === '{}', 'start screen has no selected accessory swatches', st.sel);
   const pv = await page.evaluate(() => { const r = window.__gaPlayer.prev.root, w = {}; r.traverse(x => { if (/^ga(Hat|Gl)_/.test(x.name) && x.visible) w[x.name] = 1; }); return Object.keys(w); });
-  chk(pv.length === 0, 'start preview: no hat, no eyewear (saved party/round kept)', pv);
+  chk(pv.includes('gaHat_party') && pv.includes('gaGl_round'), 'start preview wears the saved party hat and round glasses', pv);
   const fit = await page.evaluate(() => { const g = document.getElementById('gaP'); return { sh: g.scrollHeight, ch: g.clientHeight, stage: document.getElementById('gaStage').getBoundingClientRect().height }; });
   chk(fit.sh <= fit.ch + 1 && fit.stage >= 130, 'start screen fits a 412x915 phone without scrolling', fit);
   await page.touchscreen.tap(206, 400); await page.waitForTimeout(2600); await page.screenshot({ path: OUT + 'start_wardrobe_options.png' });

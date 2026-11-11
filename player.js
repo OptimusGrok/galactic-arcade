@@ -238,7 +238,7 @@
     if (cv.width !== Math.round(w * prev.r.getPixelRatio()) || cv.height !== Math.round(h * prev.r.getPixelRatio())) { prev.r.setSize(w, h, false); }
     prev.cam.aspect = w / h; var fit = Math.max(1, 0.62 / prev.cam.aspect); var alienPrev = !!(prev.root && prev.root.getObjectByName('alienBot'));
     prev.cam.position.set(0, alienPrev ? 1.40 : 1.3, (alienPrev ? 5.55 : 4.9) * fit); prev.cam.lookAt(0, alienPrev ? 1.18 : 1.02, 0); prev.cam.updateProjectionMatrix();
-    var PL = pLook(); if (wc.id === 'gaCv') { PL = Object.assign({}, PL, { glasses: 'none', hat: stHat ? PL.hat : 'none' }); }   // Dave: no hat until a cap is tapped   // Dave: no eyewear on the start screen (saved glasses kept for the game)
+    var PL = pLook();   // start screen shows the saved look; accessory picks live in wardrobe / shop
     var pk = PL.hat + PL.glasses + PL.back + PL.hoodie + (PL.char || '') + wc.id; if (prev.hat !== pk) { prev.hat = pk; applyRoot(window.__arcade.THREE, prev.root, PL); if (W.try) applyMats(PL); }   // the preview always wears the chosen hat, however the pick or load happened
     if (prev.auto && !prev.drag) prev.want += 0.006; prev.rot += (prev.want - prev.rot) * 0.15; prev.root.rotation.y = prev.rot;
     var now = performance.now(), dt = Math.min(0.25, prev.lt ? (now - prev.lt) / 1000 : 0.016); prev.lt = now;
@@ -364,7 +364,7 @@
       + '<div class="gaBox"><div id="gaWho"><div class="gaWhoH" id="gaWhoH">SELECT PLAYER</div><div class="gaWhoRow">'
       + '<button type="button" class="gaWho" data-v="monkey"><span class="gaWhoI" aria-hidden="true">🐵</span><span class="gaWhoN">MONKEY</span></button>'
       + '<button type="button" class="gaWho" data-v="alien"><span class="gaWhoI" aria-hidden="true">👽</span><span class="gaWhoN">ALIEN</span></button>'
-      + '</div></div>' + rows() + '</div>'
+      + '</div></div></div>'
       + '<button id="gaGo" hidden>PLAY</button><div id="gaHint">Type your name to play</div>';
     st.appendChild(ov); st.classList.add('ga'); var inp = ov.querySelector('#gaIn'); inp.value = P.name;
     inp.addEventListener('input', function () { var v = clean(inp.value); if (v !== inp.value) inp.value = v; P.name = v; save(); sync(); apply(); nameCheck(); });
@@ -424,7 +424,7 @@
     var i = 0; for (var j = 0; j < L.length; j++) if (L[j][0] === P[k]) i = j; pick(k, L[(i + d + L.length) % L.length][0]); }
   function play(fast) { if (!named() || !goOK() || TP.st === 'out' || nmFree !== clean(P.name).trim().toLowerCase()) return; try { if (window.__wantWide) window.__wantWide(); } catch (e) {} if (window.__gaNames) window.__gaNames.claim(P.name); musicStop(); P.name = clean(P.name).trim(); save(); apply(); var inp = document.getElementById('gaIn'); if (inp) inp.blur();
     var cv = ov && ov.querySelector('#gaCv'); if (prev.r && cv && prev.r.domElement === cv && cv.clientWidth && !fast && !window.__gaNoTp) { var done = 0, fin = function () { if (done++) return; TP.gone = true; go2(); }; tpStart('out', fin); setTimeout(function () { if (!done) { TP.st = 'idle'; TP.cb = null; fin(); } }, 2600); return; } go2(); }
-  function go2() { var b = document.getElementById('stStart'); if (!b) return; if (!stHat && P.hat !== 'none') { P.hat = 'none'; save(); apply(); } /* Dave: no cap picked = start hatless */ var ev; try { ev = new PointerEvent('pointerup', { bubbles: true, cancelable: true, pointerType: 'touch' }); } catch (e) { ev = new Event('pointerup', { bubbles: true, cancelable: true }); }
+  function go2() { var b = document.getElementById('stStart'); if (!b) return; var ev; try { ev = new PointerEvent('pointerup', { bubbles: true, cancelable: true, pointerType: 'touch' }); } catch (e) { ev = new Event('pointerup', { bubbles: true, cancelable: true }); }
     b.dispatchEvent(ev); window.__gaPlayer.started = (window.__gaPlayer.started || 0) + 1; }
   function opts() { var b = document.getElementById('stOpt'); if (!b) return; var ev; try { ev = new PointerEvent('pointerup', { bubbles: true, cancelable: true }); } catch (e) { ev = new Event('pointerup', { bubbles: true }); } b.dispatchEvent(ev); }
 
