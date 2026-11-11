@@ -3,7 +3,8 @@
 // (parent.__neonTicket) while a real credit is running; never in DEMO / WATCH.
 import * as THREE from '../vendor/three.module.js';
 
-const N = 50, GAP = 8.2, SPAN = 6.8, MIN_SEP = 3.8;
+const N = 50, AIR_SPEED = 6.2, MIN_SEP = 10;
+const PITCH_MIN = -0.22, PITCH_MAX = 1.12;
 const FLY = { drain: 0.125, fill: 0.16, min: 0.08, up: 3.4, down: 2.4 };
 const R = 0.32, PH = 1.82, HI_KEY = 'arcade_skytower_best', RUN_CAP = 20;
 const BRICKS = [0xc91a09, 0xf5cd2f, 0x0055bf, 0x237841, 0xfe8a18, 0xf4f4f4, 0x81007b, 0x078bc9];
@@ -53,15 +54,25 @@ function addJetpack(torso) {
   part(g, new THREE.BoxGeometry(0.14, 0.2, 0.05), lamb(0x303038), 0, 0, 0);
   return g;
 }
-function addGun(el) {
+function addBlaster(hand) {
   const gun = new THREE.Group(); gun.name = 'skyGun';
-  const metal = lamb(0x4a5560), glow = basic(0x48f2ff);
-  part(gun, new THREE.BoxGeometry(0.05, 0.05, 0.22), metal, 0, 0, 0.08);
-  part(gun, CYL(0.018, 0.016, 0.16, 8), metal, 0, 0, 0.22).rotation.x = Math.PI / 2;
-  part(gun, CYL(0.022, 0.022, 0.03, 8), glow, 0, 0, 0.3).rotation.x = Math.PI / 2;
-  part(gun, new THREE.BoxGeometry(0.03, 0.07, 0.04), metal, 0, -0.04, 0.02);
-  el.add(gun); gun.position.set(0.02, -0.28, 0.08); gun.rotation.set(-0.15, 0, 0);
-  return gun;
+  const metal = lamb(0x3a4558), dark = lamb(0x1a2028), glow = basic(0x48f2ff), accent = lamb(0x247888);
+  part(gun, new THREE.BoxGeometry(0.12, 0.14, 0.32), metal, 0, 0.025, 0.13);
+  part(gun, new THREE.BoxGeometry(0.09, 0.1, 0.16), dark, 0, 0.03, 0.32);
+  const barrel = part(gun, CYL(0.036, 0.03, 0.22, 8), metal, 0, 0.032, 0.48);
+  barrel.rotation.x = Math.PI / 2;
+  const ring = part(gun, CYL(0.044, 0.044, 0.04, 8), accent, 0, 0.032, 0.4);
+  ring.rotation.x = Math.PI / 2;
+  const muzzle = part(gun, CYL(0.038, 0.042, 0.05, 8), glow, 0, 0.032, 0.6);
+  muzzle.rotation.x = Math.PI / 2;
+  muzzle.name = 'skyMuzzle';
+  part(gun, new THREE.BoxGeometry(0.075, 0.16, 0.09), dark, 0, -0.09, 0.02);
+  part(gun, new THREE.BoxGeometry(0.045, 0.045, 0.07), dark, 0, -0.015, -0.07);
+  part(gun, new THREE.BoxGeometry(0.13, 0.04, 0.09), accent, 0, 0.105, 0.08);
+  hand.add(gun);
+  gun.position.set(0.02, -0.02, 0.06);
+  gun.rotation.set(0.05, 0, 0);
+  return { gun, muzzle };
 }
 
 function makeMonkey() {
@@ -119,8 +130,8 @@ function makeMonkey() {
   const band = part(neck, new THREE.TorusGeometry(0.13, 0.018, 6, 16, Math.PI * 1.15), hp, 0, -0.02, -0.03);
   band.rotation.set(Math.PI / 2 - 0.25, 0, Math.PI * 0.95);
   addJetpack(torso);
-  const gun = addGun(arms[1].el);
-  root.userData = { hips, torso, neck, head, legs, arms, gun, char: 'monkey', bot: null };
+  const blast = addBlaster(arms[1].hand);
+  root.userData = { hips, torso, neck, head, legs, arms, gun: blast.gun, muzzle: blast.muzzle, char: 'monkey', bot: null };
   return root;
 }
 
@@ -204,10 +215,12 @@ function makeAlien() {
   const botShell = lamb(0xe8eef4), botDark = lamb(0x10141a);
   part(bot, S(0.195, 16, 12), botShell);
   part(bot, S(0.16, 12, 10), botDark, 0, 0.014, 0.125, 0.88, 0.8, 0.5);
-  part(bot, S(0.088, 12, 10), cyan, 0, 0.018, 0.188);
+  const botEye = part(bot, S(0.088, 12, 10), cyan, 0, 0.018, 0.188);
+  botEye.name = 'botEye';
+  const botFlash = part(bot, S(0.14, 10, 8), basic(0xff4466, { transparent: true, opacity: 0 }), 0, 0.018, 0.24);
+  botFlash.name = 'botFlash';
   addJetpack(torso);
-  const gun = addGun(arms[1].el);
-  root.userData = { hips, torso, neck, head, legs, arms, gun, bot, char: 'alien' };
+  root.userData = { hips, torso, neck, head, legs, arms, gun: null, muzzle: null, bot, botEye, botFlash, char: 'alien' };
   return root;
 }
 
@@ -289,6 +302,13 @@ for (let i = 0; i < 48; i++) {
 }
 
 function isCheck(i) { return i === 1 || (i - 1) % 10 === 0; }
+function isSlider(i) { return i >= 4 && i < N && !isCheck(i) && (i - 4) % 3 === 0; }
+function hopFuel(from) { return 0.54 + 0.32 * ((from - 1) / Math.max(1, N - 2)); }
+function gapYOf(from) { return hopFuel(from) * (1 / FLY.drain) * FLY.up; }
+function gapXZOf(from) {
+  const wobble = 0.94 + 0.12 * (0.5 + 0.5 * Math.sin(from * 1.73));
+  return hopFuel(from) * (1 / FLY.drain) * AIR_SPEED * 0.90 * wobble;
+}
 function sizeOf(i) {
   if (i === 1) return 12;
   if (i === N) return 9.5;
@@ -296,30 +316,36 @@ function sizeOf(i) {
   // A few studs wide (about 4 down to 3), shrinking slightly toward space, always landable.
   return 3.15 - 0.75 * (i - 1) / (N - 1);
 }
-function yOf(i) { return (i - 1) * GAP; }
+function buildHeights() {
+  const h = [0];
+  for (let i = 1; i < N; i++) h.push(h[i - 1] + gapYOf(i));
+  return h;
+}
+const HEIGHTS = buildHeights();
+function yOf(i) { return HEIGHTS[i - 1]; }
 function buildOffsets() {
   const gold = Math.PI * (3 - Math.sqrt(5)), out = [{ x: 0, z: 0 }];
   let x = 0, z = 0, ang = 0.4;
   for (let i = 2; i <= N; i++) {
+    const step0 = gapXZOf(i - 1);
     let placed = false;
     for (let attempt = 0; attempt < 36 && !placed; attempt++) {
       const trial = ang + gold + attempt * 0.19 + Math.sin(i * 1.7) * 0.15;
-      const step = SPAN + Math.sin(i * 0.9) * 0.45;
-      const nx = x + Math.sin(trial) * step, nz = z + Math.cos(trial) * step;
+      const nx = x + Math.sin(trial) * step0, nz = z + Math.cos(trial) * step0;
       let ok = true;
       for (const p of out) if (Math.hypot(nx - p.x, nz - p.z) < MIN_SEP) { ok = false; break; }
       if (ok) { ang = trial; x = nx; z = nz; out.push({ x, z }); placed = true; }
     }
     if (!placed) {
-      for (const extra of [1.2, 2, 3, 4.5, 6]) {
-        const trial = ang + gold;
-        const nx = x + Math.sin(trial) * (SPAN + extra), nz = z + Math.cos(trial) * (SPAN + extra);
+      for (const extra of [1.2, 2, 3, 4.5, 6, 10]) {
+        const trial = ang + gold + extra * 0.31;
+        const nx = x + Math.sin(trial) * (step0 + extra), nz = z + Math.cos(trial) * (step0 + extra);
         let ok = true;
         for (const p of out) if (Math.hypot(nx - p.x, nz - p.z) < MIN_SEP) { ok = false; break; }
         if (ok) { ang = trial; x = nx; z = nz; out.push({ x, z }); placed = true; break; }
       }
     }
-    if (!placed) { x += SPAN; out.push({ x, z }); }
+    if (!placed) { x += step0; out.push({ x, z }); }
   }
   return out;
 }
@@ -390,6 +416,15 @@ function buildPlatform(i) {
       p.traps.push({ type: 'wind', dir, mesh: null, str: large ? 5.5 + i * 0.05 : 3.2 + i * 0.03 });
     }
   }
+  if (isSlider(i)) {
+    p.slide = {
+      axis: i % 2 ? 'x' : 'z',
+      amp: 2.2 + (i % 5) * 0.16,
+      speed: 0.55 + (i % 7) * 0.08,
+      t0: i * 0.73,
+      ox: p.x, oz: p.z, dx: 0, dz: 0
+    };
+  }
   platforms.push(p); return p;
 }
 for (let i = 1; i <= N; i++) buildPlatform(i);
@@ -408,7 +443,7 @@ const flyFx = [];
 player.traverse(o => { if (o.name === 'gaThruster') flyFx.push(o); });
 
 const lasers = [], shots = [], aliens = [];
-const laserGeo = new THREE.BoxGeometry(0.07, 0.07, 0.85), laserMat = basic(0x48f2ff);
+const laserGeo = new THREE.BoxGeometry(0.07, 0.07, 0.85), laserMat = basic(0x48f2ff), laserMatRed = basic(0xff2a33);
 const shotGeo = new THREE.SphereGeometry(0.16, 8, 6), shotMat = basic(0xff5030);
 
 const G = {
@@ -416,8 +451,8 @@ const G = {
   t: 0, energy: 1, vy: 0, vx: 0, vz: 0, air: false, thrust: false,
   face: 0, hp: 3, iframe: 0, platform: 1, reached: 1, check: 1,
   best: readBest(), cooldown: 0, fireHeld: false, flyHeld: false,
-  ix: 0, iz: 0, joy: { on: false, x: 0, y: 0, pid: -1 }, lookPid: -1, lookX: 0,
-  phase: 0, camYaw: 0, bannerT: 0
+  ix: 0, iz: 0, joy: { on: false, x: 0, y: 0, pid: -1 }, lookPid: -1, lookX: 0, lookY: 0,
+  phase: 0, camYaw: 0, camPitch: 0, shotLock: false, onPad: null, orbFlash: 0, bannerT: 0
 };
 
 const TK = { got: 0, run: 0, log: [], awarded: Object.create(null) };
@@ -598,7 +633,7 @@ function placeOn(i, jitter) {
   i = Math.max(1, Math.min(N, i | 0));
   const p = platforms[i - 1];
   player.position.set(p.x + (jitter ? (Math.random() - 0.5) * 0.4 : 0), p.top + 0.01, p.z);
-  G.vy = G.vx = G.vz = 0; G.air = false; G.thrust = false; G.platform = i;
+  G.vy = G.vx = G.vz = 0; G.air = false; G.thrust = false; G.platform = i; G.onPad = p;
   G.check = Math.max(G.check, lastCheck(i));
   if (i > G.reached) onReach(i);
   else hud();
@@ -627,7 +662,7 @@ function respawn(why) {
   const c = platforms[G.check - 1];
   player.position.set(c.x, c.top + 0.02, c.z);
   G.vy = G.vx = G.vz = 0; G.air = false; G.hp = 3; G.iframe = 1.4; G.energy = Math.max(G.energy, 0.55);
-  G.platform = G.check;
+  G.platform = G.check; G.onPad = c;
   showBanner(why === 'fall' ? 'FELL — CHECKPOINT' : 'HIT — CHECKPOINT');
 }
 
@@ -649,12 +684,30 @@ function fire() {
   if (G.cooldown > 0 || G.hold || (G.mode !== 'play' && !window.__DEMO)) return null;
   G.cooldown = 0.28;
   player.updateMatrixWorld(true);
-  const gun = player.userData.gun;
+  const u = player.userData;
   const o = new V3(), dir = new V3(Math.sin(G.face), 0.02, Math.cos(G.face));
-  if (gun) gun.getWorldPosition(o); else o.set(player.position.x, player.position.y + 1.2, player.position.z);
-  const mesh = new THREE.Mesh(laserGeo, laserMat);
+  let mat = laserMat, hue = 'cyan';
+  if (u.char === 'alien' && u.botEye) {
+    u.botEye.getWorldPosition(o);
+    o.addScaledVector(dir, 0.1);
+    mat = laserMatRed; hue = 'red';
+    G.orbFlash = 0.16;
+    if (u.bot) {
+      u.bot.rotation.x = -0.18;
+      u.bot.rotation.y = 0;
+      u.bot.rotation.z = 0;
+    }
+  } else if (u.muzzle) {
+    u.muzzle.getWorldPosition(o);
+    o.addScaledVector(dir, 0.04);
+  } else if (u.gun) {
+    u.gun.getWorldPosition(o);
+  } else {
+    o.set(player.position.x, player.position.y + 1.2, player.position.z);
+  }
+  const mesh = new THREE.Mesh(laserGeo, mat);
   mesh.position.copy(o); mesh.lookAt(o.x + dir.x, o.y + dir.y, o.z + dir.z); scene.add(mesh);
-  const L = { mesh, o, dir: dir.clone(), speed: 24, life: 1.15, alive: true };
+  const L = { mesh, o: o.clone(), dir: dir.clone(), speed: 24, life: 1.15, alive: true, color: hue };
   lasers.push(L); return L;
 }
 
@@ -759,23 +812,58 @@ function animatePlayer(dt) {
     u.legs[0].leg.rotation.x *= 0.8; u.legs[1].leg.rotation.x *= 0.8;
     u.arms[0].sh.rotation.x *= 0.8; u.arms[0].sh.rotation.z *= 0.8;
   }
-  if (u.gun) u.arms[1].el.rotation.x = -0.15;
+  if (u.char === 'monkey' && u.gun) {
+    u.arms[1].sh.rotation.x = -1.42;
+    u.arms[1].sh.rotation.y = -0.06;
+    u.arms[1].sh.rotation.z = 0.16;
+    u.arms[1].el.rotation.x = -0.06;
+    u.arms[1].el.rotation.z = 0;
+  } else if (u.gun) {
+    u.arms[1].el.rotation.x = -0.15;
+  }
   player.rotation.y = G.face;
   const on = G.thrust ? 1 : 0;
   const s = 0.78 + Math.sin(G.t * 28) * 0.22, w = 0.88 + Math.sin(G.t * 17) * 0.14;
   for (const fx of flyFx) { fx.visible = !!on; if (on) fx.scale.set(w, s, w); }
+  if (G.orbFlash > 0) G.orbFlash = Math.max(0, G.orbFlash - dt);
   if (u.bot) {
     const y0 = u.bot.userData.baseY;
+    const flash = G.orbFlash > 0 ? Math.min(1, G.orbFlash / 0.05) : 0;
     u.bot.position.x = 0.64 + Math.sin(G.t * 1.15) * 0.016;
     u.bot.position.y = y0 + Math.sin(G.t * 2.35) * 0.035;
-    u.bot.rotation.z = Math.sin(G.t * 1.9) * 0.06;
+    u.bot.rotation.x = -0.18 * flash;
+    u.bot.rotation.y = Math.sin(G.t * 0.9) * 0.12 * (1 - flash);
+    u.bot.rotation.z = Math.sin(G.t * 1.9) * 0.06 * (1 - flash);
+    if (u.botFlash) {
+      u.botFlash.material.opacity = flash * 0.95;
+      u.botFlash.scale.setScalar(1 + flash * 1.15);
+    }
+    if (u.botEye) u.botEye.scale.setScalar(1 + flash * 0.4);
   }
   if (G.iframe > 0) player.visible = Math.floor(G.t * 16) % 2 === 0; else player.visible = true;
+}
+
+function updateSlides() {
+  for (const p of platforms) {
+    const sl = p.slide;
+    if (!sl) continue;
+    const u = Math.sin(G.t * sl.speed + sl.t0) * sl.amp;
+    const nx = sl.ox + (sl.axis === 'x' ? u : 0);
+    const nz = sl.oz + (sl.axis === 'z' ? u : 0);
+    sl.dx = nx - p.x; sl.dz = nz - p.z;
+    p.x = nx; p.z = nz;
+    p.g.position.x = nx; p.g.position.z = nz;
+  }
 }
 
 function step(dt) {
   if (G.hold) return;
   dt = Math.min(0.05, dt); G.t += dt;
+  updateSlides();
+  if (!G.air && G.onPad && G.onPad.slide) {
+    player.position.x += G.onPad.slide.dx;
+    player.position.z += G.onPad.slide.dz;
+  }
   if (G.bannerT > 0) { G.bannerT -= dt; if (G.bannerT <= 0) bannerEl.classList.remove('on'); }
   if (G.iframe > 0) G.iframe -= dt;
   if (G.mode !== 'play' && !window.__DEMO) { setSky(); hud(); return; }
@@ -844,8 +932,10 @@ function step(dt) {
       if (grounded.extra.timer > 0.55) grounded.extra.falling = true;
     }
     if (grounded.p && grounded.p.i === N && !G.won) onReach(N);
+    G.onPad = grounded.p || null;
   } else {
     G.air = true; G.thrust = powered;
+    G.onPad = null;
   }
 
   const checkY = yOf(G.check);
@@ -872,12 +962,22 @@ function updateCamera(dt) {
     camera.lookAt(p.x + ux * 16, p.top - 26, p.z + uz * 16);
     return;
   }
-  const back = 5.1, height = 2.35;
+  const pitch = G.camPitch || 0;
+  const back = 5.1 + Math.max(0, pitch) * 1.6;
+  const height = 2.35 - pitch * 0.7;
+  const lookLift = 1.15 + pitch * (pitch > 0 ? 3.2 : 1.15);
   const tx = player.position.x - Math.sin(G.camYaw) * back;
   const tz = player.position.z - Math.cos(G.camYaw) * back;
   const ty = player.position.y + height;
   camera.position.lerp(new V3(tx, ty, tz), 1 - Math.exp(-dt * 5));
-  camera.lookAt(player.position.x, player.position.y + 1.15, player.position.z);
+  camera.lookAt(player.position.x, player.position.y + lookLift, player.position.z);
+}
+
+function lookDrag(dx, dy) {
+  G.camYaw -= dx * 0.0055;
+  G.camPitch -= dy * 0.0055;
+  if (G.camPitch < PITCH_MIN) G.camPitch = PITCH_MIN;
+  if (G.camPitch > PITCH_MAX) G.camPitch = PITCH_MAX;
 }
 
 function xzInside(p, x, z, extra) {
@@ -903,7 +1003,10 @@ function demoPilot(dt) {
     else { tx = px; tz = block.z + (bz >= 0 ? 1 : -1) * hs; }
     wantY = py;
   } else if (!xzInside(d, px, pz, -0.15) && py < d.top + 0.25) {
-    tx = px; tz = pz; wantY = d.top + 0.85;
+    const xzGap = Math.hypot(d.x - px, d.z - pz);
+    const climbLeft = Math.max(0, d.top + 0.7 - py);
+    if (climbLeft > xzGap * (FLY.up / AIR_SPEED)) { tx = px; tz = pz; }
+    wantY = d.top + 0.85;
   } else if (xzInside(d, px, pz, -0.15) && py < d.top - 0.05) {
     const bx = px - d.x, bz = pz - d.z, hs = d.size * 0.5 + R + 0.7;
     if (Math.abs(bx) >= Math.abs(bz)) { tx = d.x + (bx >= 0 ? 1 : -1) * hs; tz = pz; }
@@ -1002,13 +1105,13 @@ function joyClear() { G.joy.on = false; G.joy.x = G.joy.y = 0; joyKnob.style.lef
 addEventListener('pointerdown', e => {
   if (e.target.closest && e.target.closest('#flyHud')) return;
   if (e.clientX < innerWidth * 0.46) { G.joy.pid = e.pointerId; joyAt(e.clientX, e.clientY); }
-  else { G.lookPid = e.pointerId; G.lookX = e.clientX; }
+  else { G.lookPid = e.pointerId; G.lookX = e.clientX; G.lookY = e.clientY; }
 });
 addEventListener('pointermove', e => {
   if (G.joy.on && e.pointerId === G.joy.pid) joyAt(e.clientX, e.clientY);
   else if (e.pointerId === G.lookPid) {
-    G.camYaw -= (e.clientX - G.lookX) * 0.0055;
-    G.lookX = e.clientX;
+    lookDrag(e.clientX - G.lookX, e.clientY - G.lookY);
+    G.lookX = e.clientX; G.lookY = e.clientY;
   }
 });
 addEventListener('pointerup', e => { if (e.pointerId === G.joy.pid) joyClear(); if (e.pointerId === G.lookPid) G.lookPid = -1; });
@@ -1042,7 +1145,7 @@ const api = {
   hold() { if (!(G.run && !G.over)) return false; G.hold = true; return true; },
   unhold() { G.hold = false; },
   get ready() { return true; },
-  N, R, PH, FLY, GAP, SPAN, MIN_SEP, sizeOf, offsetOf, yOf, isCheck, TK, D, G, player, platforms, lasers, aliens, shots, earth, world: scene, camera, renderer,
+  N, R, PH, FLY, AIR_SPEED, MIN_SEP, PITCH_MIN, PITCH_MAX, sizeOf, offsetOf, yOf, isCheck, isSlider, hopFuel, gapYOf, gapXZOf, lookDrag, updateCamera, updateSlides, TK, D, G, player, platforms, lasers, aliens, shots, earth, world: scene, camera, renderer,
   fly: setFly, fire, spawnAlien, placeOn, step, give,
   get platform() { return G.platform; },
   get won() { return G.won; },
@@ -1129,6 +1232,58 @@ const api = {
       camera.fov = 58; camera.updateProjectionMatrix();
       camera.position.set(p.x + p.size * 0.5 + 3.6, 4.2, p.z + 3.1);
       camera.lookAt(player.position.x, p.top - p.h - 0.45, player.position.z);
+      setSky();
+    } else if (kind === 'lookup') {
+      placeOn(1);
+      window.__DEMO = false; D.on = false; G.hold = false;
+      bannerEl.classList.remove('on');
+      const p1 = platforms[0], p2 = platforms[1], p4 = platforms[3];
+      G.face = Math.atan2(p2.x - p1.x, p2.z - p1.z);
+      player.rotation.y = G.face;
+      G.camYaw = G.face; G.camPitch = 0.72;
+      for (const q of platforms) q.g.visible = q.i <= 10;
+      const yaw = Math.atan2(p2.x * 0.65 + p4.x * 0.35 - p1.x, p2.z * 0.65 + p4.z * 0.35 - p1.z);
+      camera.fov = 68; camera.updateProjectionMatrix();
+      camera.position.set(
+        p1.x - Math.sin(yaw) * 8.4 + Math.cos(yaw) * 3.8,
+        p1.top + 2.35,
+        p1.z - Math.cos(yaw) * 8.4 - Math.sin(yaw) * 3.8
+      );
+      camera.lookAt(p1.x * 0.22 + p2.x * 0.58 + p4.x * 0.2, p1.top + 6.1, p1.z * 0.22 + p2.z * 0.58 + p4.z * 0.2);
+      G.shotLock = true;
+      setSky();
+    } else if (kind === 'alienFire' || kind === 'monkeyGun') {
+      placeOn(1);
+      window.__DEMO = false; D.on = false; G.hold = false;
+      bannerEl.classList.remove('on');
+      G.face = kind === 'alienFire' ? 0.45 : 0.32;
+      player.rotation.y = G.face;
+      G.camYaw = G.face - 0.7; G.camPitch = 0.1;
+      animatePlayer(0.016);
+      player.updateMatrixWorld(true);
+      const dir = new V3(Math.sin(G.face), 0.03, Math.cos(G.face)).normalize();
+      const origin = new V3();
+      const u = player.userData;
+      if (kind === 'alienFire' && u.botEye) u.botEye.getWorldPosition(origin);
+      else if (u.muzzle) u.muzzle.getWorldPosition(origin);
+      else origin.set(player.position.x, player.position.y + 1.2, player.position.z);
+      const L = fire();
+      if (L) {
+        L.mesh.scale.set(1.12, 1.12, 2.8);
+        const half = 0.85 * 2.8 * 0.5;
+        L.mesh.position.copy(origin).addScaledVector(dir, half + 0.1);
+        L.mesh.lookAt(origin.x + dir.x * 10, origin.y + dir.y * 10, origin.z + dir.z * 10);
+      }
+      const s = Math.sin(G.face), c = Math.cos(G.face);
+      if (kind === 'alienFire') {
+        camera.fov = 52; camera.updateProjectionMatrix();
+        camera.position.set(player.position.x + c * 2.2 + s * 1.55, player.position.y + 1.55, player.position.z - s * 2.2 + c * 1.55);
+        camera.lookAt(origin.x + s * 0.25, origin.y + 0.02, origin.z + c * 0.25);
+      } else {
+        camera.fov = 50; camera.updateProjectionMatrix();
+        camera.position.set(player.position.x + c * 1.95 + s * 1.7, player.position.y + 1.36, player.position.z - s * 1.95 + c * 1.7);
+        camera.lookAt(origin.x - s * 0.05, origin.y + 0.02, origin.z - c * 0.05);
+      }
       setSky();
     }
     window.__DEMO = false; D.on = false;

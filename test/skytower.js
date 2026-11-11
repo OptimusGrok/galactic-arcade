@@ -188,61 +188,80 @@ const { open } = require('./lib'); const { helpers } = require('./cabflow');
   chk(goesUp(stick.orbitJoyUp) && goesUp(stick.orbitKeyUp), 'after orbiting the camera, stick-up and W still decrease screen y ' + JSON.stringify({ joy: stick.orbitJoyUp, key: stick.orbitKeyUp }));
   chk(goesRight(stick.orbitJoyRight) && goesRight(stick.orbitKeyRight), 'after orbiting the camera, stick-right and D still increase screen x ' + JSON.stringify({ joy: stick.orbitJoyRight, key: stick.orbitKeyRight }));
 
+  const pitch = await page.evaluate(W => {
+    const w = eval(W), S = w.__skytower;
+    S.G.camPitch = 0; S.G.camYaw = 0;
+    S.lookDrag(0, -80);
+    const afterUp = S.G.camPitch, yawAfterUp = S.G.camYaw;
+    S.lookDrag(0, -8000);
+    const atMax = S.G.camPitch;
+    S.lookDrag(0, 16000);
+    const atMin = S.G.camPitch;
+    S.G.camYaw = 0;
+    S.lookDrag(40, 0);
+    return { afterUp, yawAfterUp, atMax, atMin, yaw: S.G.camYaw, pmin: S.PITCH_MIN, pmax: S.PITCH_MAX };
+  }, W);
+  chk(pitch.afterUp > 0.3 && pitch.afterUp < pitch.pmax && Math.abs(pitch.yawAfterUp) < 1e-6,
+    'vertical swipe up tilts the camera upward ' + JSON.stringify(pitch));
+  chk(Math.abs(pitch.atMax - pitch.pmax) < 1e-6, 'pitch clamps at the upper limit ' + JSON.stringify(pitch));
+  chk(Math.abs(pitch.atMin - pitch.pmin) < 1e-6, 'pitch clamps at the lower limit ' + JSON.stringify(pitch));
+  chk(Math.abs(pitch.yaw + 40 * 0.0055) < 1e-6, 'horizontal drag still orbits yaw ' + JSON.stringify(pitch));
+
+  const gun = await page.evaluate(W => {
+    const w = eval(W), S = w.__skytower;
+    S.placeOn(1);
+    S.G.face = 0.15; S.player.rotation.y = 0.15;
+    S.G.hold = false; S.G.cooldown = 0; S.G.shotLock = true;
+    S.step(1 / 30);
+    S.player.updateMatrixWorld(true);
+    const u = S.player.userData;
+    const muz = S.player.position.clone();
+    if (u.muzzle) u.muzzle.getWorldPosition(muz);
+    const L = S.fire();
+    return {
+      char: u.char, hasGun: !!(u.gun && u.gun.visible), hasMuzzle: !!u.muzzle,
+      color: L && L.color, dist: L ? L.mesh.position.distanceTo(muz) : 99,
+      armX: u.arms[1].sh.rotation.x, hex: L && L.mesh.material.color.getHexString()
+    };
+  }, W);
+  chk(gun.char === 'monkey' && gun.hasGun && gun.hasMuzzle, 'monkey holds a visible chunky laser gun ' + JSON.stringify(gun));
+  chk(gun.color === 'cyan' && gun.dist < 0.55, 'monkey laser originates at the gun muzzle ' + JSON.stringify(gun));
+  chk(gun.armX < -0.6, 'monkey keeps the gun arm extended forward ' + JSON.stringify(gun));
+
   const layout = await page.evaluate(W => {
     const w = eval(W), S = w.__skytower;
-    const plats = S.platforms.map(p => ({ i: p.i, x: p.x, z: p.z, size: p.size, top: p.top }));
-    const gaps = [];
-    let minXZ = 1e9, maxXZ = 0, minY = 1e9, maxY = 0, minAny = 1e9;
-    for (let i = 0; i < plats.length - 1; i++) {
-      const a = plats[i], b = plats[i + 1];
-      const xz = Math.hypot(b.x - a.x, b.z - a.z), dy = b.top - a.top;
-      gaps.push({ from: a.i, to: b.i, xz: +xz.toFixed(3), dy: +dy.toFixed(3) });
-      minXZ = Math.min(minXZ, xz); maxXZ = Math.max(maxXZ, xz);
-      minY = Math.min(minY, dy); maxY = Math.max(maxY, dy);
-    }
-    for (let i = 0; i < plats.length; i++) {
-      for (let j = i + 2; j < plats.length; j++) {
-        minAny = Math.min(minAny, Math.hypot(plats[j].x - plats[i].x, plats[j].z - plats[i].z));
-      }
-    }
+    const plats = S.platforms.map(p => ({ i: p.i, x: p.x, z: p.z, size: p.size, top: p.top, slide: p.slide || null }));
     const largeI = new Set([1, 11, 21, 31, 41, 50]);
     const large = plats.filter(p => largeI.has(p.i)).map(p => p.size);
     const small = plats.filter(p => !largeI.has(p.i)).map(p => p.size);
-    const maxT = 1 / S.FLY.drain, maxClimb = S.FLY.up * maxT, maxAir = 6.2 * maxT;
+    const restOf = p => p.slide ? { x: p.slide.ox, z: p.slide.oz } : { x: p.x, z: p.z };
+    const maxT = 1 / S.FLY.drain, maxClimb = S.FLY.up * maxT, maxAir = (S.AIR_SPEED || 6.2) * maxT;
+    let minXZ = 1e9, maxXZ = 0, minY = 1e9, maxY = 0, minAny = 1e9;
     const hops = [];
-    for (let i = 1; i < S.N; i++) {
-      const dest = S.platforms[i], start = S.platforms[i - 1];
-      const needXZ = Math.hypot(dest.x - start.x, dest.z - start.z), needY = dest.top - start.top;
-      const flyT = needY / S.FLY.up + needXZ / 6.2;
-      const computed = needY < maxClimb * 0.85 && needXZ < maxAir * 0.85 && flyT < maxT * 0.85;
-      hops.push({ from: i, to: i + 1, computed, needXZ: +needXZ.toFixed(2), needY: +needY.toFixed(2), flyT: +flyT.toFixed(2) });
+    for (let i = 0; i < plats.length - 1; i++) {
+      const start = S.platforms[i], dest = S.platforms[i + 1];
+      const a = restOf(start), b = restOf(dest);
+      const centerXZ = Math.hypot(b.x - a.x, b.z - a.z), needY = dest.top - start.top;
+      const amp = (start.slide ? start.slide.amp : 0) + (dest.slide ? dest.slide.amp : 0);
+      const worstXZ = centerXZ + amp;
+      const tEff = Math.max(needY / S.FLY.up, centerXZ / (S.AIR_SPEED || 6.2));
+      const tWorst = Math.max(needY / S.FLY.up, worstXZ / (S.AIR_SPEED || 6.2));
+      const fuelEff = tEff * S.FLY.drain, fuelWorst = tWorst * S.FLY.drain;
+      const computed = fuelWorst <= 0.90 + 1e-6;
+      hops.push({
+        from: start.i, to: dest.i, computed, centerXZ: +centerXZ.toFixed(2), worstXZ: +worstXZ.toFixed(2),
+        needY: +needY.toFixed(2), fuelEff: +fuelEff.toFixed(4), fuelWorst: +fuelWorst.toFixed(4), amp: +amp.toFixed(2)
+      });
+      minXZ = Math.min(minXZ, centerXZ); maxXZ = Math.max(maxXZ, centerXZ);
+      minY = Math.min(minY, needY); maxY = Math.max(maxY, needY);
     }
-    const prevRun = S.G.run;
-    S.G.run = false; S.G.iframe = 99; S.G.shotLock = true;
-    S.placeOn(1);
-    S.G.energy = 1; S.G.vy = 0; S.G.vx = 0; S.G.vz = 0; S.G.air = false;
-    const dest = S.platforms[1], start = S.platforms[0];
-    let sanityLanded = false;
-    for (let s = 0; s < 240; s++) {
-      const px = S.player.position.x, py = S.player.position.y, pz = S.player.position.z;
-      const hx = dest.x - px, hz = dest.z - pz, hd = Math.hypot(hx, hz);
-      const spd = Math.hypot(S.G.vx, S.G.vz);
-      if (py < dest.top + 0.55) { S.G.joy.on = false; S.G.ix = 0; S.G.iz = 0; S.fly(true); }
-      else if (hd > dest.size * 0.32 && hd > 2.4) {
-        S.G.camYaw = Math.atan2(hx, hz); S.G.joy.on = true; S.G.joy.x = 0; S.G.joy.y = -1;
-        S.fly(py < dest.top + 1.1);
-      } else if (hd > dest.size * 0.32) {
-        S.G.joy.on = false; S.G.ix = 0; S.G.iz = 0; S.fly(py < dest.top + 0.9);
-      } else {
-        S.G.joy.on = false; S.G.ix = 0; S.G.iz = 0; S.fly(false);
+    for (let i = 0; i < plats.length; i++) {
+      const a = restOf(S.platforms[i]);
+      for (let j = i + 2; j < plats.length; j++) {
+        const b = restOf(S.platforms[j]);
+        minAny = Math.min(minAny, Math.hypot(b.x - a.x, b.z - a.z));
       }
-      S.step(1 / 30);
-      const hd2 = Math.hypot(dest.x - S.player.position.x, dest.z - S.player.position.z);
-      if (!S.G.air && Math.abs(S.player.position.y - dest.top) < 0.18 && hd2 < dest.size * 0.55) { sanityLanded = true; break; }
-      if (S.player.position.y < start.top - 6) break;
     }
-    hops[0].landed = sanityLanded;
-    S.G.run = prevRun; S.G.shotLock = false; S.G.iframe = 0; S.G.joy.on = false; S.G.ix = 0; S.G.iz = 0; S.fly(false);
     S.G.reached = 1; S.G.check = 1; S.G.won = false; S.G.over = false; S.G.mode = 'play';
     S.placeOn(1);
     S.G.energy = 1; S.G.hp = 3;
@@ -250,8 +269,9 @@ const { open } = require('./lib'); const { helpers } = require('./cabflow');
     for (const a of S.aliens) a.fireT = 0;
     const hp0 = S.G.hp, shots0 = S.shots.length;
     for (let i = 0; i < 150; i++) S.step(1 / 30);
+    const fuelEffs = hops.map(h => h.fuelEff), fuelWorsts = hops.map(h => h.fuelWorst);
     return {
-      n: plats.length, gap: S.GAP, span: S.SPAN,
+      n: plats.length,
       minXZ, maxXZ, minY, maxY, minAny,
       largeMin: Math.min(...large), largeMax: Math.max(...large),
       smallMin: Math.min(...small), smallMax: Math.max(...small),
@@ -259,21 +279,56 @@ const { open } = require('./lib'); const { helpers } = require('./cabflow');
       hopsFailed: hops.filter(h => !h.computed),
       hopsOk: hops.every(h => h.computed),
       hopCount: hops.length,
-      sanityLanded,
-      worstFlyT: Math.max(...hops.map(h => h.flyT)),
+      easyFuel: fuelEffs[0],
+      hardFuel: Math.max(...fuelEffs),
+      hardestWorst: Math.max(...fuelWorsts),
       shotsBefore: shots0, shotsAfter: S.shots.length, aliveShots: S.shots.filter(s => s.alive).length,
       hp0, hp1: S.G.hp, maxClimb, maxAir
     };
   }, W);
-  chk(layout.n === 50 && layout.minY > 7.5 && layout.maxY < 9 && layout.minXZ > 5.5,
-    'platforms are spread vertically and offset horizontally ' + JSON.stringify({ gap: layout.gap, minY: layout.minY, maxY: layout.maxY, minXZ: layout.minXZ, maxXZ: layout.maxXZ }));
-  chk(layout.minXZ > 3 && layout.minAny > 3.5, 'no platforms are stacked above each other (consec xz ' + layout.minXZ.toFixed(2) + ', other xz ' + layout.minAny.toFixed(2) + ')');
+  chk(layout.n === 50 && layout.minY > 13 && layout.maxY > 22 && layout.minXZ > 20,
+    'platforms use ramped hard gaps ' + JSON.stringify({ minY: layout.minY, maxY: layout.maxY, minXZ: layout.minXZ, maxXZ: layout.maxXZ }));
+  chk(layout.minXZ > 18 && layout.minAny > 8, 'no platforms are stacked above each other (consec xz ' + layout.minXZ.toFixed(2) + ', other xz ' + layout.minAny.toFixed(2) + ')');
   chk(layout.smallMax < layout.largeMin && layout.largeMin >= 9 && layout.smallMax < 3.4,
     'checkpoints stay large and the other pads are a few studs wide ' + JSON.stringify({ large: layout.large, smallMin: layout.smallMinR, smallMax: layout.smallMaxR }));
-  chk(layout.hopsOk && layout.hopCount === 49 && layout.worstFlyT < 6,
-    'every jetpack jump is reachable ' + JSON.stringify({ failed: layout.hopsFailed, maxClimb: layout.maxClimb, maxAir: layout.maxAir, sanity: layout.sanityLanded, worstFlyT: layout.worstFlyT }));
+  chk(layout.hopsOk && layout.hopCount === 49 && layout.hardestWorst <= 0.90 + 1e-6,
+    'every hop stays reachable in the worst moving-pad case (<=90% fuel) ' + JSON.stringify({ failed: layout.hopsFailed, easy: layout.easyFuel, hard: layout.hardFuel, worst: layout.hardestWorst }));
+  chk(layout.easyFuel >= 0.48 && layout.easyFuel <= 0.62,
+    'early hops cost about 50-60% fuel (' + (layout.easyFuel * 100).toFixed(1) + '%)');
+  chk(layout.hardFuel >= 0.80 && layout.hardFuel <= 0.90,
+    'the hardest hop costs about 80-90% fuel (' + (layout.hardFuel * 100).toFixed(1) + '%, worst ' + (layout.hardestWorst * 100).toFixed(1) + '%)');
   chk(layout.shotsAfter === 0 && layout.aliveShots === 0 && layout.hp1 === layout.hp0,
     'aliens no longer shoot or deal projectile damage ' + JSON.stringify({ shots: layout.shotsAfter, hp0: layout.hp0, hp1: layout.hp1 }));
+
+  const slide = await page.evaluate(W => {
+    const w = eval(W), S = w.__skytower;
+    const sliders = S.platforms.filter(p => p.slide);
+    const bad = sliders.filter(p => S.isCheck(p.i) || p.i === 1 || p.i === S.N);
+    const sl = sliders[2] || sliders[0];
+    S.placeOn(sl.i);
+    S.G.ix = 0; S.G.iz = 0; S.G.joy.on = false; S.fly(false);
+    S.G.vx = 0; S.G.vz = 0; S.G.energy = 1; S.G.hold = false; S.G.shotLock = true;
+    const px0 = S.player.position.x, pz0 = S.player.position.z;
+    const sx0 = sl.x, sz0 = sl.z;
+    let frames = 0, moved = 0;
+    for (; frames < 180; frames++) {
+      S.step(1 / 30);
+      moved = Math.hypot(sl.x - sx0, sl.z - sz0);
+      if (moved > 0.85) break;
+    }
+    const pdx = S.player.position.x - px0, pdz = S.player.position.z - pz0;
+    const sdx = sl.x - sx0, sdz = sl.z - sz0;
+    return {
+      n: sliders.length, bad: bad.map(p => p.i), i: sl.i, frames, moved,
+      carry: Math.hypot(pdx - sdx, pdz - sdz),
+      air: S.G.air, yErr: Math.abs(S.player.position.y - sl.top),
+      axes: sliders.slice(0, 8).map(p => p.slide.axis)
+    };
+  }, W);
+  chk(slide.n >= 12 && slide.bad.length === 0, 'small non-checkpoint pads slide side to side ' + JSON.stringify(slide));
+  chk(slide.moved > 0.85 && slide.carry < 0.35 && !slide.air && slide.yErr < 0.2,
+    'standing on a moving pad carries the player without falling off ' + JSON.stringify(slide));
+  chk(slide.axes.includes('x') && slide.axes.includes('z'), 'moving pads vary axis ' + JSON.stringify(slide.axes));
 
   const adv = await page.evaluate(W => {
     const w = eval(W), S = w.__skytower, p0 = S.platform;
@@ -300,6 +355,44 @@ const { open } = require('./lib'); const { helpers } = require('./cabflow');
     tickets: localStorage.getItem('neonarcade.tickets')
   }));
   chk(leak.origHi === null, 'no tickets or scores leak into a standalone / original key ' + JSON.stringify(leak));
+
+  await page.evaluate(() => {
+    localStorage.setItem('galacticarcade.player.char', 'alien');
+    try {
+      const o = JSON.parse(localStorage.getItem('galacticarcade.player') || '{}');
+      o.char = 'alien';
+      localStorage.setItem('galacticarcade.player', JSON.stringify(o));
+    } catch (e) {}
+    document.getElementById('game').contentWindow.location.reload();
+  });
+  await page.waitForFunction(W => {
+    try {
+      const w = eval(W);
+      return !!(w.__skytower && w.__skytower.ready && w.__skytower.player && w.__skytower.player.userData.char === 'alien');
+    } catch (e) { return false; }
+  }, W, { timeout: 45000 });
+  const alienFire = await page.evaluate(W => {
+    const w = eval(W), S = w.__skytower;
+    S.start();
+    S.placeOn(1);
+    S.G.face = 0.2; S.player.rotation.y = 0.2;
+    S.G.hold = false; S.G.cooldown = 0; S.G.mode = 'play'; S.G.run = true; S.G.shotLock = true;
+    S.step(1 / 30);
+    S.player.updateMatrixWorld(true);
+    const u = S.player.userData;
+    const eye = S.player.position.clone();
+    if (u.botEye) u.botEye.getWorldPosition(eye);
+    const L = S.fire();
+    return {
+      char: u.char, hasGun: !!u.gun, hasEye: !!u.botEye, hasBot: !!u.bot,
+      color: L && L.color, dist: L && u.botEye ? L.mesh.position.distanceTo(eye) : 99,
+      flash: S.G.orbFlash, hex: L && L.mesh.material.color.getHexString()
+    };
+  }, W);
+  chk(alienFire.char === 'alien' && alienFire.hasEye && alienFire.hasBot && !alienFire.hasGun,
+    'alien has a floating orb and no hand gun ' + JSON.stringify(alienFire));
+  chk(alienFire.color === 'red' && alienFire.dist < 0.6,
+    'alien FIRE is a red laser from the orb eye ' + JSON.stringify(alienFire));
 
   chk(errors.length === 0, 'no page errors ' + errors.slice(0, 4).join(' | '));
   await close(); process.exit(ok ? 0 : 1);
