@@ -5,7 +5,7 @@ import * as THREE from '../vendor/three.module.js';
 
 const N = 50, GAP = 5.4;
 const FLY = { drain: 0.125, fill: 0.16, min: 0.08, up: 3.4, down: 2.4 };
-const R = 0.32, HI_KEY = 'arcade_skytower_best', RUN_CAP = 20;
+const R = 0.32, PH = 1.82, HI_KEY = 'arcade_skytower_best', RUN_CAP = 20;
 const BRICKS = [0xc91a09, 0xf5cd2f, 0x0055bf, 0x237841, 0xfe8a18, 0xf4f4f4, 0x81007b, 0x078bc9];
 const studGeo = new THREE.CylinderGeometry(0.11, 0.11, 0.07, 7);
 const dummy = new THREE.Object3D();
@@ -381,7 +381,7 @@ const G = {
   t: 0, energy: 1, vy: 0, vx: 0, vz: 0, air: false, thrust: false,
   face: 0, hp: 3, iframe: 0, platform: 1, reached: 1, check: 1,
   best: readBest(), cooldown: 0, fireHeld: false, flyHeld: false,
-  ix: 0, iz: 0, joy: { on: false, x: 0, y: 0, pid: -1 },
+  ix: 0, iz: 0, joy: { on: false, x: 0, y: 0, pid: -1 }, lookPid: -1, lookX: 0,
   phase: 0, camYaw: 0, bannerT: 0
 };
 
@@ -480,6 +480,82 @@ function groundAt(x, z, y) {
     }
   }
   return { y: best > -1e8 ? best : null, p: hit, extra };
+}
+
+function collectSolids() {
+  const list = [];
+  for (const p of nearPlats()) {
+    const hs = p.size * 0.5;
+    list.push({ minX: p.x - hs, maxX: p.x + hs, minY: p.top - p.h, maxY: p.top, minZ: p.z - hs, maxZ: p.z + hs, p, extra: null, kind: 'pad' });
+    for (const tr of p.traps) {
+      if (tr.dead || !tr.mesh || (tr.type !== 'mover' && tr.type !== 'crumble')) continue;
+      tr.mesh.updateWorldMatrix(true, false);
+      const wp = new V3(); tr.mesh.getWorldPosition(wp);
+      const hx = tr.size * 0.5;
+      const hy = tr.type === 'mover' ? 0.2 : 0.14;
+      const hz = tr.type === 'mover' ? tr.size * 0.35 : hx;
+      list.push({ minX: wp.x - hx, maxX: wp.x + hx, minY: wp.y - hy, maxY: wp.y + hy, minZ: wp.z - hz, maxZ: wp.z + hz, p, extra: tr, kind: tr.type });
+    }
+  }
+  return list;
+}
+function xzHits(x, z, box) {
+  const cx = Math.max(box.minX, Math.min(x, box.maxX));
+  const cz = Math.max(box.minZ, Math.min(z, box.maxZ));
+  const dx = x - cx, dz = z - cz;
+  return dx * dx + dz * dz < R * R;
+}
+function resolveXZ(x, z, y, vx, vz, boxes) {
+  for (const box of boxes) {
+    if (!(y < box.maxY - 0.015 && y + PH > box.minY + 0.015)) continue;
+    const cx = Math.max(box.minX, Math.min(x, box.maxX));
+    const cz = Math.max(box.minZ, Math.min(z, box.maxZ));
+    let ex = x - cx, ez = z - cz;
+    const d = Math.hypot(ex, ez);
+    if (d > R) continue;
+    if (d < 1e-6) {
+      const pens = [
+        [x + R - box.minX, -1, 0],
+        [box.maxX - (x - R), 1, 0],
+        [z + R - box.minZ, 0, -1],
+        [box.maxZ - (z - R), 0, 1]
+      ];
+      let best = pens[0];
+      for (const q of pens) if (q[0] < best[0]) best = q;
+      x += best[1] * (best[0] + 0.002);
+      z += best[2] * (best[0] + 0.002);
+      const vn = vx * best[1] + vz * best[2];
+      if (vn < 0) { vx -= vn * best[1]; vz -= vn * best[2]; }
+    } else {
+      const nx = ex / d, nz = ez / d, pen = R - d + 0.002;
+      x += nx * pen; z += nz * pen;
+      const vn = vx * nx + vz * nz;
+      if (vn < 0) { vx -= vn * nx; vz -= vn * nz; }
+    }
+  }
+  return { x, z, vx, vz };
+}
+function resolveY(x, z, y, vy, boxes) {
+  let grounded = null;
+  for (const box of boxes) {
+    if (!xzHits(x, z, box)) continue;
+    const feet = y, head = y + PH;
+    if (head <= box.minY || feet >= box.maxY) {
+      if (vy <= 0.18 && feet <= box.maxY + 0.08 && feet >= box.maxY - 0.16 && head > box.maxY) {
+        y = box.maxY; vy = Math.min(vy, 0); grounded = box;
+      }
+      continue;
+    }
+    const penCeil = head - box.minY, penFloor = box.maxY - feet;
+    if (penCeil <= 0 || penFloor <= 0) continue;
+    if (vy > 0.08 || (vy >= -0.05 && penCeil < penFloor)) {
+      y = box.minY - PH - 0.002;
+      if (vy > 0) vy = 0;
+    } else {
+      y = box.maxY; vy = Math.min(vy, 0); grounded = box;
+    }
+  }
+  return { y, vy, grounded };
 }
 
 function lastCheck(i) { return i <= 1 ? 1 : 1 + 10 * Math.floor((i - 1) / 10); }
@@ -689,7 +765,10 @@ function step(dt) {
   const wish = Math.hypot(wx, wz);
   const speed = G.air ? 6.2 : 4.6;
   if (wish > 0.01) {
-    G.face = Math.atan2(wx, wz);
+    const target = Math.atan2(wx, wz);
+    let turn = target - G.face;
+    turn = Math.atan2(Math.sin(turn), Math.cos(turn));
+    G.face += turn * (1 - Math.exp(-dt * 12));
     G.vx += (wx / wish * speed - G.vx) * (1 - Math.exp(-dt * (G.air ? 3 : 10)));
     G.vz += (wz / wish * speed - G.vz) * (1 - Math.exp(-dt * (G.air ? 3 : 10)));
   } else {
@@ -701,27 +780,38 @@ function step(dt) {
   const request = !!(G.flyHeld), canStart = G.air || G.energy >= FLY.min;
   if (request && canStart && G.energy > 0) G.energy = Math.max(0, G.energy - FLY.drain * dt);
   const powered = request && canStart && G.energy > 0;
-  const gnd = groundAt(player.position.x, player.position.z);
   if (powered) G.vy += (FLY.up - G.vy) * (1 - Math.exp(-dt * 9));
-  else if (G.air || (gnd.y == null) || player.position.y > (gnd.y || 0) + 0.06) G.vy += (-FLY.down - G.vy) * (1 - Math.exp(-dt * 5));
+  else if (G.air) G.vy += (-FLY.down - G.vy) * (1 - Math.exp(-dt * 5));
   else G.vy = 0;
 
-  player.position.x += G.vx * dt;
-  player.position.z += G.vz * dt;
-  player.position.y += G.vy * dt;
+  const boxes = collectSolids();
+  let x = player.position.x, y = player.position.y, z = player.position.z;
+  const travel = Math.hypot(G.vx * dt, G.vy * dt, G.vz * dt);
+  const nStep = Math.max(1, Math.ceil(travel / 0.08));
+  const sdt = dt / nStep;
+  let grounded = null;
+  for (let s = 0; s < nStep; s++) {
+    x += G.vx * sdt;
+    let hit = resolveXZ(x, z, y, G.vx, G.vz, boxes); x = hit.x; z = hit.z; G.vx = hit.vx; G.vz = hit.vz;
+    z += G.vz * sdt;
+    hit = resolveXZ(x, z, y, G.vx, G.vz, boxes); x = hit.x; z = hit.z; G.vx = hit.vx; G.vz = hit.vz;
+    y += G.vy * sdt;
+    const vert = resolveY(x, z, y, G.vy, boxes); y = vert.y; G.vy = vert.vy;
+    if (vert.grounded) grounded = vert.grounded;
+  }
+  player.position.set(x, y, z);
 
-  const g2 = groundAt(player.position.x, player.position.z);
-  if (g2.y != null && player.position.y <= g2.y + 0.04 && G.vy <= 0.15) {
-    player.position.y = g2.y; G.vy = 0; G.air = false; G.thrust = false;
+  if (grounded && G.vy <= 0.15) {
+    player.position.y = grounded.maxY; G.vy = 0; G.air = false; G.thrust = false;
     G.energy = Math.min(1, G.energy + FLY.fill * dt);
-    if (g2.p && g2.p.i > G.platform) onReach(g2.p.i);
-    else if (g2.p) G.platform = Math.max(G.platform, g2.p.i);
-    if (g2.extra && g2.extra.type === 'crumble' && !g2.extra.falling) {
-      g2.extra.timer += dt;
-      g2.extra.mesh.position.x = g2.extra.ox + Math.sin(G.t * 40) * 0.03;
-      if (g2.extra.timer > 0.55) g2.extra.falling = true;
+    if (grounded.p && grounded.p.i > G.platform) onReach(grounded.p.i);
+    else if (grounded.p) G.platform = Math.max(G.platform, grounded.p.i);
+    if (grounded.extra && grounded.extra.type === 'crumble' && !grounded.extra.falling) {
+      grounded.extra.timer += dt;
+      grounded.extra.mesh.position.x = grounded.extra.ox + Math.sin(G.t * 40) * 0.03;
+      if (grounded.extra.timer > 0.55) grounded.extra.falling = true;
     }
-    if (g2.p && g2.p.i === N && !G.won) onReach(N);
+    if (grounded.p && grounded.p.i === N && !G.won) onReach(N);
   } else {
     G.air = true; G.thrust = powered;
   }
@@ -750,26 +840,53 @@ function updateCamera(dt) {
     camera.lookAt(p.x + ux * 16, p.top - 26, p.z + uz * 16);
     return;
   }
-  G.camYaw = G.face;
   const back = 5.1, height = 2.35;
-  const tx = player.position.x - Math.sin(G.face) * back;
-  const tz = player.position.z - Math.cos(G.face) * back;
+  const tx = player.position.x - Math.sin(G.camYaw) * back;
+  const tz = player.position.z - Math.cos(G.camYaw) * back;
   const ty = player.position.y + height;
   camera.position.lerp(new V3(tx, ty, tz), 1 - Math.exp(-dt * 5));
   camera.lookAt(player.position.x, player.position.y + 1.15, player.position.z);
 }
 
+function xzInside(p, x, z, extra) {
+  extra = extra || 0;
+  const hs = p.size * 0.5 + extra;
+  return Math.abs(x - p.x) <= hs && Math.abs(z - p.z) <= hs;
+}
 function demoPilot(dt) {
   const destI = Math.min(N, G.platform + ((G.energy > 0.32 || G.air) ? 1 : 0));
   const d = platforms[destI - 1];
-  const dx = d.x - player.position.x, dz = d.z - player.position.z;
+  const px = player.position.x, py = player.position.y, pz = player.position.z;
   G.joy.on = false;
-  G.face = Math.atan2(dx, dz);
-  G.camYaw = G.face;
-  G.ix = 0; G.iz = -1;
-  const needUp = d.top + 0.15 > player.position.y + 0.1;
+  let block = null;
+  for (const p of nearPlats()) {
+    if (p.top - p.h > py + 0.2 && xzInside(p, px, pz, R * 0.15) && p.top <= d.top + 0.05) {
+      if (!block || p.top < block.top) block = p;
+    }
+  }
+  let tx = d.x, tz = d.z, wantY = d.top;
+  if (block && py + PH > block.top - block.h - 0.4) {
+    const bx = px - block.x, bz = pz - block.z, hs = block.size * 0.5 + R + 0.7;
+    if (Math.abs(bx) >= Math.abs(bz)) { tx = block.x + (bx >= 0 ? 1 : -1) * hs; tz = pz; }
+    else { tx = px; tz = block.z + (bz >= 0 ? 1 : -1) * hs; }
+    wantY = py;
+  } else if (!xzInside(d, px, pz, -0.15) && py < d.top + 0.25) {
+    tx = px; tz = pz; wantY = d.top + 0.85;
+  } else if (xzInside(d, px, pz, -0.15) && py < d.top - 0.05) {
+    const bx = px - d.x, bz = pz - d.z, hs = d.size * 0.5 + R + 0.7;
+    if (Math.abs(bx) >= Math.abs(bz)) { tx = d.x + (bx >= 0 ? 1 : -1) * hs; tz = pz; }
+    else { tx = px; tz = d.z + (bz >= 0 ? 1 : -1) * hs; }
+    wantY = py;
+  }
+  const wdx = tx - px, wdz = tz - pz, wlen = Math.hypot(wdx, wdz);
+  if (wlen > 0.08) {
+    const wx = wdx / wlen, wz = wdz / wlen, c = Math.cos(G.camYaw), s = Math.sin(G.camYaw);
+    G.ix = c * wx - s * wz;
+    G.iz = -s * wx - c * wz;
+  } else { G.ix = 0; G.iz = 0; }
+  const needUp = wantY > py + 0.1;
   const low = G.energy < 0.2 && !G.air;
-  G.flyHeld = !low && (needUp || (G.air && G.energy > 0.08 && player.position.y < d.top + 1.6));
+  G.flyHeld = !low && (needUp || (G.air && G.energy > 0.08 && py < Math.max(wantY, d.top) + 1.5));
   let nearest = null, nd = 12;
   for (const a of aliens) {
     if (!a.alive) continue;
@@ -778,9 +895,9 @@ function demoPilot(dt) {
   }
   G.fireHeld = !!(nearest && nd < 14);
   if (nearest && nd < 8) G.face = Math.atan2(nearest.x - player.position.x, nearest.z - player.position.z);
-  for (const s of shots) {
-    if (!s.alive) continue;
-    if (s.mesh.position.distanceTo(player.position) < 3.2) { G.ix = 1; G.iz = 0; }
+  for (const sh of shots) {
+    if (!sh.alive) continue;
+    if (sh.mesh.position.distanceTo(player.position) < 3.2) { G.ix = 1; G.iz = 0; }
   }
 }
 
@@ -853,10 +970,17 @@ function joyClear() { G.joy.on = false; G.joy.x = G.joy.y = 0; joyKnob.style.lef
 addEventListener('pointerdown', e => {
   if (e.target.closest && e.target.closest('#flyHud')) return;
   if (e.clientX < innerWidth * 0.46) { G.joy.pid = e.pointerId; joyAt(e.clientX, e.clientY); }
+  else { G.lookPid = e.pointerId; G.lookX = e.clientX; }
 });
-addEventListener('pointermove', e => { if (G.joy.on && e.pointerId === G.joy.pid) joyAt(e.clientX, e.clientY); });
-addEventListener('pointerup', e => { if (e.pointerId === G.joy.pid) joyClear(); });
-addEventListener('pointercancel', e => { if (e.pointerId === G.joy.pid) joyClear(); });
+addEventListener('pointermove', e => {
+  if (G.joy.on && e.pointerId === G.joy.pid) joyAt(e.clientX, e.clientY);
+  else if (e.pointerId === G.lookPid) {
+    G.camYaw -= (e.clientX - G.lookX) * 0.0055;
+    G.lookX = e.clientX;
+  }
+});
+addEventListener('pointerup', e => { if (e.pointerId === G.joy.pid) joyClear(); if (e.pointerId === G.lookPid) G.lookPid = -1; });
+addEventListener('pointercancel', e => { if (e.pointerId === G.joy.pid) joyClear(); if (e.pointerId === G.lookPid) G.lookPid = -1; });
 
 addEventListener('resize', () => {
   camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix();
@@ -886,7 +1010,7 @@ const api = {
   hold() { if (!(G.run && !G.over)) return false; G.hold = true; return true; },
   unhold() { G.hold = false; },
   get ready() { return true; },
-  N, TK, D, G, player, platforms, lasers, aliens, shots, earth, world: scene, camera, renderer,
+  N, R, PH, TK, D, G, player, platforms, lasers, aliens, shots, earth, world: scene, camera, renderer,
   fly: setFly, fire, spawnAlien, placeOn, step, give,
   get platform() { return G.platform; },
   get won() { return G.won; },
@@ -938,6 +1062,20 @@ const api = {
       earth.visible = true;
       setSky();
       earth.visible = true;
+    } else if (kind === 'under') {
+      placeOn(1);
+      const p = platforms[1];
+      for (const q of platforms) q.g.visible = q.i <= 2;
+      player.position.set(p.x, p.top - p.h - PH - 0.02, p.z);
+      G.face = 0.9; player.rotation.y = G.face; G.camYaw = 0.9;
+      G.air = true; G.vy = 2.4; G.energy = 1;
+      setFly(true);
+      for (let i = 0; i < 18; i++) step(1 / 30);
+      for (const q of platforms) q.g.visible = q.i <= 2;
+      camera.fov = 58; camera.updateProjectionMatrix();
+      camera.position.set(p.x + p.size * 0.5 + 3.6, 4.2, p.z + 3.1);
+      camera.lookAt(player.position.x, p.top - p.h - 0.45, player.position.z);
+      setSky();
     }
     window.__DEMO = false; D.on = false;
     G.hold = true; G.shotLock = true;
