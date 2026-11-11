@@ -211,22 +211,50 @@ const { open } = require('./lib'); const { helpers } = require('./cabflow');
     const w = eval(W), S = w.__skytower;
     S.placeOn(1);
     S.G.face = 0.15; S.player.rotation.y = 0.15;
-    S.G.hold = false; S.G.cooldown = 0; S.G.shotLock = true;
+    S.G.hold = false; S.G.cooldown = 9; S.G.shotLock = true;
+    S.G.fireHeld = false; S.G.gunAim = 0; S.G.gunAimT = 0;
     S.step(1 / 30);
-    S.player.updateMatrixWorld(true);
     const u = S.player.userData;
+    const restX = u.arms[1].sh.rotation.x, restAim = S.G.gunAim;
+    S.G.fireHeld = true;
+    S.step(1 / 30);
+    const midX = u.arms[1].sh.rotation.x, midAim = S.G.gunAim;
+    S.G.cooldown = 0;
+    for (let i = 0; i < 16; i++) S.step(1 / 30);
+    const aimX = u.arms[1].sh.rotation.x, aimBlend = S.G.gunAim;
+    S.player.updateMatrixWorld(true);
     const muz = S.player.position.clone();
     if (u.muzzle) u.muzzle.getWorldPosition(muz);
+    S.G.cooldown = 0;
     const L = S.fire();
+    const dist = L ? L.mesh.position.distanceTo(muz) : 99;
+    const barrel = S.gunBarrelDir();
+    const shot = { x: Math.sin(S.G.face), y: 0.02, z: Math.cos(S.G.face) };
+    const sl = Math.hypot(shot.x, shot.y, shot.z) || 1;
+    const dot = (barrel.x * shot.x + barrel.y * shot.y + barrel.z * shot.z) / sl;
+    const shotAng = Math.acos(Math.min(1, Math.max(-1, dot)));
+    S.G.fireHeld = false; S.G.gunAimT = 0;
+    S.step(1 / 30);
+    const downX = u.arms[1].sh.rotation.x, downAim = S.G.gunAim;
+    for (let i = 0; i < 22; i++) S.step(1 / 30);
+    const backX = u.arms[1].sh.rotation.x;
     return {
       char: u.char, hasGun: !!(u.gun && u.gun.visible), hasMuzzle: !!u.muzzle,
-      color: L && L.color, dist: L ? L.mesh.position.distanceTo(muz) : 99,
-      armX: u.arms[1].sh.rotation.x, hex: L && L.mesh.material.color.getHexString()
+      color: L && L.color, dist,
+      hex: L && L.mesh.material.color.getHexString(),
+      restX, restAim, midX, midAim, aimX, aimBlend, downX, downAim, backX,
+      shotAng, barrel: { x: +barrel.x.toFixed(3), y: +barrel.y.toFixed(3), z: +barrel.z.toFixed(3) },
+      aimTime: S.GUN_AIM_TIME, restTarget: S.GUN_REST.shx, aimTarget: S.GUN_AIM.shx
     };
   }, W);
   chk(gun.char === 'monkey' && gun.hasGun && gun.hasMuzzle, 'monkey holds a visible chunky laser gun ' + JSON.stringify(gun));
+  chk(gun.restX > -0.45 && gun.restAim < 0.08, 'monkey keeps the gun lowered at his side when not firing ' + JSON.stringify(gun));
+  chk(gun.midAim > gun.restAim && gun.midAim < 0.95 && gun.midX < gun.restX && gun.midX > gun.aimX,
+    'monkey raises the gun smoothly rather than snapping ' + JSON.stringify(gun));
+  chk(gun.aimX < -1.0 && gun.aimBlend > 0.92, 'monkey aims the gun outward while firing ' + JSON.stringify(gun));
   chk(gun.color === 'cyan' && gun.dist < 0.55, 'monkey laser originates at the gun muzzle ' + JSON.stringify(gun));
-  chk(gun.armX < -0.6, 'monkey keeps the gun arm extended forward ' + JSON.stringify(gun));
+  chk(gun.shotAng <= 15 * Math.PI / 180, 'monkey gun barrel points within 15° of the shot direction (' + (gun.shotAng * 180 / Math.PI).toFixed(1) + '°) ' + JSON.stringify(gun));
+  chk(gun.downX > gun.aimX && gun.backX > -0.45, 'monkey lowers the gun back to his side after firing ' + JSON.stringify(gun));
 
   const layout = await page.evaluate(W => {
     const w = eval(W), S = w.__skytower;

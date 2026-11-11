@@ -452,7 +452,8 @@ const G = {
   face: 0, hp: 3, iframe: 0, platform: 1, reached: 1, check: 1,
   best: readBest(), cooldown: 0, fireHeld: false, flyHeld: false,
   ix: 0, iz: 0, joy: { on: false, x: 0, y: 0, pid: -1 }, lookPid: -1, lookX: 0, lookY: 0,
-  phase: 0, camYaw: 0, camPitch: 0, shotLock: false, onPad: null, orbFlash: 0, bannerT: 0
+  phase: 0, camYaw: 0, camPitch: 0, shotLock: false, onPad: null, orbFlash: 0, bannerT: 0,
+  gunAim: 0, gunAimT: 0
 };
 
 const TK = { got: 0, run: 0, log: [], awarded: Object.create(null) };
@@ -683,6 +684,12 @@ function bump(dx, dz, force) {
 function fire() {
   if (G.cooldown > 0 || G.hold || (G.mode !== 'play' && !window.__DEMO)) return null;
   G.cooldown = 0.28;
+  const uPre = player.userData;
+  if (uPre.char === 'monkey') {
+    G.gunAimT = GUN_AIM_TIME;
+    G.gunAim = 1;
+    poseMonkeyGun(1);
+  }
   player.updateMatrixWorld(true);
   const u = player.userData;
   const o = new V3(), dir = new V3(Math.sin(G.face), 0.02, Math.cos(G.face));
@@ -798,6 +805,38 @@ function applyWind(dt) {
   }
 }
 
+const GUN_REST = { shx: -0.12, shy: 0.04, shz: 0.26, elx: 0.22, elz: 0.06, gx: 0.78, gy: 0 };
+const GUN_AIM = { shx: -1.40, shy: 0, shz: 0.20, elx: -0.08, elz: 0, gx: 1.48, gy: -0.25 };
+const GUN_AIM_TIME = 0.35;
+function lerpNum(a, b, t) { return a + (b - a) * t; }
+function poseMonkeyGun(k) {
+  const u = player.userData;
+  if (!u || u.char !== 'monkey' || !u.gun || !u.arms || !u.arms[1]) return;
+  k = Math.max(0, Math.min(1, k));
+  const sh = u.arms[1].sh, el = u.arms[1].el;
+  sh.rotation.x = lerpNum(GUN_REST.shx, GUN_AIM.shx, k);
+  sh.rotation.y = lerpNum(GUN_REST.shy, GUN_AIM.shy, k);
+  sh.rotation.z = lerpNum(GUN_REST.shz, GUN_AIM.shz, k);
+  el.rotation.x = lerpNum(GUN_REST.elx, GUN_AIM.elx, k);
+  el.rotation.z = lerpNum(GUN_REST.elz, GUN_AIM.elz, k);
+  u.gun.rotation.x = lerpNum(GUN_REST.gx, GUN_AIM.gx, k);
+  u.gun.rotation.y = lerpNum(GUN_REST.gy, GUN_AIM.gy, k);
+}
+
+function gunBarrelDir(out) {
+  const dir = out || new V3();
+  const u = player.userData;
+  if (u && u.gun && u.muzzle) {
+    player.updateMatrixWorld(true);
+    const base = new V3();
+    u.gun.getWorldPosition(base);
+    u.muzzle.getWorldPosition(dir);
+    dir.sub(base);
+    if (dir.lengthSq() > 1e-8) return dir.normalize();
+  }
+  return dir.set(Math.sin(G.face), 0.02, Math.cos(G.face)).normalize();
+}
+
 function animatePlayer(dt) {
   const u = player.userData, spd = Math.hypot(G.vx, G.vz);
   if (!G.air && spd > 0.25) {
@@ -813,11 +852,11 @@ function animatePlayer(dt) {
     u.arms[0].sh.rotation.x *= 0.8; u.arms[0].sh.rotation.z *= 0.8;
   }
   if (u.char === 'monkey' && u.gun) {
-    u.arms[1].sh.rotation.x = -1.42;
-    u.arms[1].sh.rotation.y = -0.06;
-    u.arms[1].sh.rotation.z = 0.16;
-    u.arms[1].el.rotation.x = -0.06;
-    u.arms[1].el.rotation.z = 0;
+    if (G.gunAimT > 0) G.gunAimT = Math.max(0, G.gunAimT - dt);
+    const want = (G.fireHeld || G.gunAimT > 0) ? 1 : 0;
+    const rate = want ? 10 : 7;
+    G.gunAim += (want - G.gunAim) * (1 - Math.exp(-rate * Math.max(0, dt)));
+    poseMonkeyGun(G.gunAim);
   } else if (u.gun) {
     u.arms[1].el.rotation.x = -0.15;
   }
@@ -1044,7 +1083,7 @@ function resetWorld(keepPos) {
     if (tr.type === 'crumble') { tr.timer = 0; tr.falling = false; tr.dead = false; if (tr.mesh) { tr.mesh.visible = true; tr.mesh.position.set(tr.ox, tr.oy, tr.oz); } }
   }
   G.hp = 3; G.energy = 1; G.iframe = 0; G.vy = G.vx = G.vz = 0; G.won = false; G.over = false;
-  G.reached = 1; G.check = 1; G.platform = 1; G.cooldown = 0; TK.run = 0; TK.awarded = Object.create(null);
+  G.reached = 1; G.check = 1; G.platform = 1; G.cooldown = 0; G.gunAim = 0; G.gunAimT = 0; TK.run = 0; TK.awarded = Object.create(null);
   if (!keepPos) placeOn(1);
 }
 
@@ -1145,7 +1184,7 @@ const api = {
   hold() { if (!(G.run && !G.over)) return false; G.hold = true; return true; },
   unhold() { G.hold = false; },
   get ready() { return true; },
-  N, R, PH, FLY, AIR_SPEED, MIN_SEP, PITCH_MIN, PITCH_MAX, sizeOf, offsetOf, yOf, isCheck, isSlider, hopFuel, gapYOf, gapXZOf, lookDrag, updateCamera, updateSlides, TK, D, G, player, platforms, lasers, aliens, shots, earth, world: scene, camera, renderer,
+  N, R, PH, FLY, AIR_SPEED, MIN_SEP, PITCH_MIN, PITCH_MAX, GUN_AIM_TIME, GUN_REST, GUN_AIM, poseMonkeyGun, gunBarrelDir, sizeOf, offsetOf, yOf, isCheck, isSlider, hopFuel, gapYOf, gapXZOf, lookDrag, updateCamera, updateSlides, TK, D, G, player, platforms, lasers, aliens, shots, earth, world: scene, camera, renderer,
   fly: setFly, fire, spawnAlien, placeOn, step, give,
   get platform() { return G.platform; },
   get won() { return G.won; },
@@ -1252,14 +1291,19 @@ const api = {
       camera.lookAt(p1.x * 0.22 + p2.x * 0.58 + p4.x * 0.2, p1.top + 6.1, p1.z * 0.22 + p2.z * 0.58 + p4.z * 0.2);
       G.shotLock = true;
       setSky();
-    } else if (kind === 'alienFire' || kind === 'monkeyGun') {
+    } else if (kind === 'alienFire' || kind === 'monkeyGun' || kind === 'monkeyGunRest' || kind === 'monkeyGunAim') {
       placeOn(1);
       window.__DEMO = false; D.on = false; G.hold = false;
       bannerEl.classList.remove('on');
+      const aiming = kind === 'monkeyGun' || kind === 'monkeyGunAim' || kind === 'alienFire';
       G.face = kind === 'alienFire' ? 0.45 : 0.32;
       player.rotation.y = G.face;
       G.camYaw = G.face - 0.7; G.camPitch = 0.1;
-      animatePlayer(0.016);
+      G.fireHeld = aiming && kind !== 'alienFire';
+      G.gunAimT = (aiming && kind !== 'alienFire') ? GUN_AIM_TIME : 0;
+      G.gunAim = (aiming && kind !== 'alienFire') ? 1 : 0;
+      if (player.userData.char === 'monkey') poseMonkeyGun(G.gunAim);
+      else animatePlayer(0.016);
       player.updateMatrixWorld(true);
       const dir = new V3(Math.sin(G.face), 0.03, Math.cos(G.face)).normalize();
       const origin = new V3();
@@ -1267,7 +1311,7 @@ const api = {
       if (kind === 'alienFire' && u.botEye) u.botEye.getWorldPosition(origin);
       else if (u.muzzle) u.muzzle.getWorldPosition(origin);
       else origin.set(player.position.x, player.position.y + 1.2, player.position.z);
-      const L = fire();
+      const L = aiming ? fire() : null;
       if (L) {
         L.mesh.scale.set(1.12, 1.12, 2.8);
         const half = 0.85 * 2.8 * 0.5;
@@ -1279,10 +1323,25 @@ const api = {
         camera.fov = 52; camera.updateProjectionMatrix();
         camera.position.set(player.position.x + c * 2.2 + s * 1.55, player.position.y + 1.55, player.position.z - s * 2.2 + c * 1.55);
         camera.lookAt(origin.x + s * 0.25, origin.y + 0.02, origin.z + c * 0.25);
+      } else if (kind === 'monkeyGunRest') {
+        camera.fov = 48; camera.updateProjectionMatrix();
+        camera.position.set(player.position.x + c * 2.2 + s * 1.45, player.position.y + 1.18, player.position.z - s * 2.2 + c * 1.45);
+        camera.lookAt(player.position.x + c * 0.22 + s * 0.05, player.position.y + 0.82, player.position.z - s * 0.22 + c * 0.05);
       } else {
+        const yaw = G.face;
+        G.camYaw = yaw; G.camPitch = 0;
         camera.fov = 50; camera.updateProjectionMatrix();
-        camera.position.set(player.position.x + c * 1.95 + s * 1.7, player.position.y + 1.36, player.position.z - s * 1.95 + c * 1.7);
-        camera.lookAt(origin.x - s * 0.05, origin.y + 0.02, origin.z - c * 0.05);
+        const back = 3.35, height = 2.28, side = 1.15;
+        camera.position.set(
+          player.position.x - Math.sin(yaw) * back + Math.cos(yaw) * side,
+          player.position.y + height,
+          player.position.z - Math.cos(yaw) * back - Math.sin(yaw) * side
+        );
+        camera.lookAt(
+          player.position.x + Math.sin(yaw) * 0.45,
+          player.position.y + 1.22,
+          player.position.z + Math.cos(yaw) * 0.45
+        );
       }
       setSky();
     }
