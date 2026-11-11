@@ -31,7 +31,7 @@ const fit = () => {
   await page.waitForFunction(() => window.__arcade && window.__arcade.stats.frames > 2 && document.getElementById('gaIn'), null, { timeout: 90000 });
 
   const wide = await page.evaluate(fit);
-  chk(wide.rows === 2 && wide.n === 5 && wide.bad.length === 0 && wide.scroll <= 4 && !wide.go, 'landscape start shows both rows and every choice without scrolling or Play', wide);
+  chk(wide.rows === 0 && wide.n === 0 && wide.bad.length === 0 && wide.scroll <= 4 && !wide.go, 'landscape start shows player select without accessory rows, scrolling or Play', wide);
 
   await page.setViewportSize({ width: 390, height: 844 });
   await page.waitForTimeout(200);
@@ -41,7 +41,7 @@ const fit = () => {
   await page.setViewportSize({ width: 667, height: 375 });
   await page.waitForTimeout(250);
   const small = await page.evaluate(fit);
-  chk(small.bad.length === 0 && small.scroll <= 4 && small.n === 5, 'small landscape still fits every start control', small);
+  chk(small.bad.length === 0 && small.scroll <= 4 && small.n === 0 && small.rows === 0, 'small landscape still fits player select without accessory rows', small);
 
   await page.setViewportSize({ width: 844, height: 390 });
   await page.waitForTimeout(200);

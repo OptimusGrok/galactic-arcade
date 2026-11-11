@@ -27,12 +27,9 @@ const OUT = '/workspace/galactic-shop/shots/';
   const p0 = a.pos; await page.keyboard.type('wasd Dave Rocket 2026'); await page.waitForTimeout(2300); a = await st();   // PLAY waits 2 s after the first touch
   chk(a.go && a.val === 'wasd Dave Ro' && a.name === 'wasd Dave Ro', 'typed name (WASD letters) shows PLAY, capped at 12', a);
   chk(a.pos.join() === p0.join() && !a.dis, 'typing did not move the monkey or start the game', a.pos);
-  // choices by tapping swatches / arrows
-  // start screen has only the 3-hoodie row (Dave); hat/fur/shoes come from a saved look (wardrobe), set here via pick()
-  await tap('.gaRow[data-k=hoodie] .gaO[data-v=red]'); chk(await page.evaluate(() => document.querySelectorAll('#gaP .gaRow').length === 2 && document.querySelectorAll('#gaP .gaO').length === 5), 'start screen: 2 caps + 3 hoodie colours');
-  await tap('.gaRow[data-k=hat] .gaO[data-v=capblue]');   // a cap tap keeps the hat through PLAY (no tap = start hatless)
+  chk(await page.evaluate(() => document.querySelectorAll('#gaP .gaRow').length === 0 && document.querySelectorAll('#gaWho .gaWho').length === 2), 'start screen: player select only, no accessory rows');
   await page.evaluate(() => { localStorage.setItem('galacticarcade.wardrobeOwned', JSON.stringify(['hat:crown','hat:helmet','fur:gold','shoes:blue','fur:brown','shoes:red'])); localStorage.setItem('galacticarcade.wardrobeMig', '1'); });
-  await page.evaluate(() => { const g = window.__gaPlayer; g.pick('hat', 'crown'); g.pick('fur', 'gold'); g.pick('shoes', 'blue'); });
+  await page.evaluate(() => { const g = window.__gaPlayer; g.pick('hat', 'crown'); g.pick('hoodie', 'red'); g.pick('fur', 'gold'); g.pick('shoes', 'blue'); });
   const r0 = await page.evaluate(() => window.__gaPlayer.prev.want); await tap('#gaR'); const r1 = await page.evaluate(() => window.__gaPlayer.prev.want);
   chk(r1 - r0 > 0.7, 'right arrow rotates the preview');
   await page.waitForTimeout(800); await page.screenshot({ path: OUT + 'start_named.png' });

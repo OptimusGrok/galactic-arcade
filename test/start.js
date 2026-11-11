@@ -15,8 +15,17 @@ const PH = process.argv[2] === 'phone', sfx = PH ? '_phone' : '';
   await page.evaluate(() => { const A = window.__arcade, u = A.strikeCab.userData; window.__noAdapt = 1; A.st.fp = false; A.st.vel.set(0, 0, 0); A.monkey.position.set(u.front.x, 0, u.front.z); A.st.face = Math.atan2(u.facing.x, u.facing.z); });
   await page.waitForTimeout(700);
   const a = await S();
-  chk(a.exists && a.ga && a.st.shown && !a.st.dismissed, 'start screen (character creator) shows on load, room running behind it');
+  chk(a.exists && a.ga && a.st.shown && !a.st.dismissed, 'start screen shows on load, room running behind it');
   chk(!a.go && a.name === '', 'no name yet: PLAY hidden ("Type your name to play")');
+  const acc = await page.evaluate(() => {
+    const rows = [...document.querySelectorAll('#gaP .gaRow')].map(r => r.dataset.k);
+    const who = [...document.querySelectorAll('#gaWho .gaWho')].map(b => [b.dataset.v, b.classList.contains('sel')]);
+    const whoH = document.getElementById('gaWhoH');
+    return { rows, who, whoH: whoH && whoH.textContent.trim(), name: !!document.getElementById('gaIn'), play: !!document.getElementById('gaGo') };
+  });
+  chk(acc.rows.length === 0, 'start screen has no accessories rows ' + JSON.stringify(acc));
+  chk(acc.who.length === 2 && acc.who[0][0] === 'monkey' && acc.who[1][0] === 'alien' && acc.whoH === 'SELECT PLAYER' && acc.name && acc.play,
+    'start screen is player select plus name/PLAY ' + JSON.stringify(acc));
   chk(await page.title() === 'Galactic Arcade', 'page title is Galactic Arcade');
   await page.screenshot({ path: 'shots/start' + sfx + '.png' });
   // taps off the controls and keys do nothing
@@ -26,11 +35,12 @@ const PH = process.argv[2] === 'phone', sfx = PH ? '_phone' : '';
   let b = await S();
   chk(b.exists && !b.st.dismissed && b.mode === 'walk' && b.cs === a.cs && b.t === a.t, 'taps elsewhere / keys with no name do not start or reach the game');
   // type a name: keys go into the box, not the game
+  await page.evaluate(() => { window.__arcade.st.beamed = true; });   // keep them at the cabinet; first-Play beam-in is covered elsewhere
   await play(page, PH, 'Astro');
   b = await S();
   chk(!b.exists && b.st.dismissed && b.st.audio, 'name + PLAY dismisses it (' + b.st.how + '), audio unlocked');
   chk(b.name === 'Astro', 'name saved to galacticarcade.player (' + b.name + ')');
-  chk(JSON.stringify(b.pos) === JSON.stringify(a.pos) && b.face === a.face, 'typing (W/A/S/D in a name too) did not move the monkey');
+  chk(JSON.stringify(b.pos) === JSON.stringify(a.pos) && b.face === a.face, 'typing (W/A/S/D in a name too) did not move the monkey ' + JSON.stringify({ a: a.pos, af: a.face, b: b.pos, bf: b.face }));
   chk(b.cs === a.cs && b.cg === a.cg && b.t === a.t && b.mode === 'walk', 'no credit or ticket changed, no zoom started');
   if (PH) await page.tap('#bPlay'); else await page.keyboard.press('Enter');
   await page.waitForTimeout(400);
@@ -39,7 +49,7 @@ const PH = process.argv[2] === 'phone', sfx = PH ? '_phone' : '';
   await page.reload(); await page.waitForFunction(() => window.__arcade && window.__arcade.stats.frames > 3, null, { timeout: 60000 }); await page.waitForTimeout(1000);
   if (PH) await page.tap('#gaT'); else await page.click('#gaT'); await page.waitForTimeout(2500);   // PLAY appears 2 s after a touch (player.js)
   b = await S(); chk(b.exists && b.go && await page.evaluate(() => document.getElementById('gaIn').value) === 'Astro', 'after reload the name is filled in and PLAY is shown');
-  if (!PH) { await page.click('#gaIn'); await page.keyboard.press('Enter'); await page.waitForTimeout(900); b = await S(); chk(!b.exists && b.st.dismissed && b.mode === 'walk', 'Enter in the name box starts, and the key is not used by the game'); }
+  if (!PH) { await page.click('#gaIn'); await page.keyboard.press('Enter'); await page.waitForFunction(() => !document.getElementById('start') && window.__start && window.__start.dismissed, null, { timeout: 8000 }); b = await S(); chk(!b.exists && b.st.dismissed && b.mode === 'walk', 'Enter in the name box starts, and the key is not used by the game'); }
   chk(errors.length === 0, 'no page errors ' + errors.join(' | '));
   await o.close(); process.exit(ok ? 0 : 1);
 })();

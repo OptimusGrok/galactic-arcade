@@ -256,6 +256,75 @@ const { open } = require('./lib'); const { helpers } = require('./cabflow');
   chk(gun.shotAng <= 15 * Math.PI / 180, 'monkey gun barrel points within 15° of the shot direction (' + (gun.shotAng * 180 / Math.PI).toFixed(1) + '°) ' + JSON.stringify(gun));
   chk(gun.downX > gun.aimX && gun.backX > -0.45, 'monkey lowers the gun back to his side after firing ' + JSON.stringify(gun));
 
+  const flyTix = await page.evaluate(W => {
+    const w = eval(W), S = w.__skytower;
+    const live = S.tickets || [];
+    const heights = live.map(t => t.sy || t.y);
+    const yMin = heights.length ? Math.min.apply(null, heights) : 0;
+    const yMax = heights.length ? Math.max.apply(null, heights) : 0;
+    const p0 = S.platforms[0].top, pN = S.platforms[S.N - 1].top;
+    S.placeOn(1);
+    S.G.hold = false; S.G.shotLock = true; S.G.cooldown = 9; S.G.fireHeld = false;
+    S.G.mode = 'play'; S.G.run = true; S.G.over = false; w.__DEMO = false;
+    const before = { run: S.TK.run, fly: S.TK.fly, logN: S.TK.log.length, arcade: window.__arcade.play.tickets.total };
+    const tHit = live[0], tBump = live[1];
+    const restore = [];
+    [tHit, tBump].forEach(t => { if (t) restore.push({ t, x: t.x, y: t.y, z: t.z, vx: t.vx, vy: t.vy, vz: t.vz, vis: t.mesh.visible, collected: t.collected }); });
+    // contact: sit the player on a ticket and step without firing
+    tBump.collected = false; tBump.alive = true; tBump.mesh.visible = true;
+    tBump.x = S.player.position.x; tBump.y = S.player.position.y + 1.05; tBump.z = S.player.position.z;
+    tBump.vx = tBump.vy = tBump.vz = 0;
+    tBump.mesh.position.set(tBump.x, tBump.y, tBump.z);
+    for (let i = 0; i < 8; i++) S.step(1 / 30);
+    const afterBump = { collected: tBump.collected, run: S.TK.run, fly: S.TK.fly };
+    // laser: put a ticket on the shot line and fire
+    S.G.face = 0.2; S.player.rotation.y = 0.2;
+    S.G.cooldown = 0; S.G.fireHeld = false;
+    if (S.player.userData.char === 'monkey') { S.G.gunAim = 1; S.poseMonkeyGun(1); }
+    S.player.updateMatrixWorld(true);
+    const fx = Math.sin(S.G.face), fz = Math.cos(S.G.face);
+    tHit.collected = false; tHit.alive = true; tHit.mesh.visible = true;
+    tHit.x = S.player.position.x + fx * 2.1;
+    tHit.y = S.player.position.y + 1.22;
+    tHit.z = S.player.position.z + fz * 2.1;
+    tHit.vx = tHit.vy = tHit.vz = 0;
+    tHit.mesh.position.set(tHit.x, tHit.y, tHit.z);
+    const L = S.fire();
+    for (let i = 0; i < 12; i++) S.step(1 / 30);
+    const afterShot = {
+      collected: tHit.collected, run: S.TK.run, fly: S.TK.fly,
+      log: S.TK.log.slice(), color: L && L.color, visible: tHit.mesh.visible
+    };
+    S.G.cooldown = 0;
+    const L2 = S.fire();
+    for (let i = 0; i < 10; i++) S.step(1 / 30);
+    const afterSecond = { run: S.TK.run, fly: S.TK.fly };
+    restore.forEach(r => {
+      const t = r.t;
+      t.x = r.x; t.y = r.y; t.z = r.z; t.vx = r.vx; t.vy = r.vy; t.vz = r.vz;
+      t.collected = r.collected; t.alive = !r.collected; t.mesh.visible = r.vis;
+      t.mesh.position.set(t.x, t.y, t.z);
+    });
+    for (const L of S.lasers) { L.alive = false; try { S.world.remove(L.mesh); } catch (e) {} }
+    S.TK.run = before.run; S.TK.fly = before.fly; S.TK.log.length = before.logN;
+    window.__arcade.play.tickets.total = before.arcade;
+    try { localStorage.setItem('neonarcade.tickets', String(before.arcade)); } catch (e) {}
+    S.G.shotLock = false; S.G.cooldown = 0; S.G.fireHeld = false;
+    return {
+      n: live.length, cap: S.RUN_CAP, value: S.FLY_TICKET_VALUE, named: S.FLY_TICKETS,
+      yMin, yMax, p0, pN, before, afterBump, afterShot, afterSecond
+    };
+  }, W);
+  chk(flyTix.n === 30 && flyTix.named === 30 && flyTix.value === 1 && flyTix.cap === 50,
+    'about 30 flying tickets and a cap that fits them on top of checkpoints + win ' + JSON.stringify(flyTix));
+  chk(flyTix.yMin > flyTix.p0 && flyTix.yMax < flyTix.pN + 8, 'tickets are spread along the climb ' + JSON.stringify({ yMin: flyTix.yMin, yMax: flyTix.yMax, p0: flyTix.p0, pN: flyTix.pN }));
+  chk(!flyTix.afterBump.collected && flyTix.afterBump.fly === flyTix.before.fly && flyTix.afterBump.run === flyTix.before.run,
+    'flying into a ticket does not collect it ' + JSON.stringify(flyTix.afterBump));
+  chk(flyTix.afterShot.collected && flyTix.afterShot.color === 'cyan' && !flyTix.afterShot.visible && flyTix.afterShot.fly === flyTix.before.fly + 1 && flyTix.afterShot.run === flyTix.before.run + 1,
+    'a laser hit collects one ticket ' + JSON.stringify(flyTix.afterShot));
+  chk(flyTix.afterSecond.fly === flyTix.afterShot.fly && flyTix.afterSecond.run === flyTix.afterShot.run,
+    'a already-collected ticket is not awarded twice ' + JSON.stringify(flyTix.afterSecond));
+
   const layout = await page.evaluate(W => {
     const w = eval(W), S = w.__skytower;
     const plats = S.platforms.map(p => ({ i: p.i, x: p.x, z: p.z, size: p.size, top: p.top, slide: p.slide || null }));

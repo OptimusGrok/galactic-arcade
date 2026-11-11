@@ -7,22 +7,15 @@ let ok = true; const chk = (c, m, x) => { console.log((c ? 'PASS ' : 'FAIL ') + 
 (async () => {
   // 1) start screen: only the free options
   let o = await open({ phone: true, w: 412, h: 915, start: true }), page = o.page;
-  await page.waitForSelector('#gaP .gaRow');
-  let s = await page.evaluate(() => ({ nw: document.querySelectorAll('#gaP .gaNew,#gaP .gaLk').length, rows: [...document.querySelectorAll('#gaP .gaRow')].map(r => r.dataset.k).join(), hats: document.querySelectorAll('#gaP .gaRow[data-k=hat] .gaO').length, hoods: [...document.querySelectorAll('#gaP .gaO')].map(b => b.dataset.v).join(), gl: 0 }));
-  chk(s.nw === 0 && s.rows === 'hat,hoodie' && s.hats === 2 && s.hoods === 'cap,capblue,navy,red,green', 'start screen: red/blue cap + 3 hoodie colours', s);
+  await page.waitForSelector('#gaWho');
+  let s = await page.evaluate(() => ({ nw: document.querySelectorAll('#gaP .gaNew,#gaP .gaLk').length, rows: [...document.querySelectorAll('#gaP .gaRow')].map(r => r.dataset.k).join(), who: [...document.querySelectorAll('#gaWho .gaWho')].map(b => b.dataset.v).join() }));
+  chk(s.nw === 0 && s.rows === '' && s.who === 'monkey,alien', 'start screen: player select only, no accessory rows', s);
   await page.evaluate(() => { localStorage.removeItem('galacticarcade.wardrobeMig'); localStorage.removeItem('galacticarcade.wardrobeOwned'); localStorage.setItem('galacticarcade.player', JSON.stringify({ name: 'Dave', hat: 'capblue', hoodie: 'red', fur: 'brown', shoes: 'red', glasses: 'shades' })); }); await page.reload(); await page.waitForFunction(() => window.__gaPlayer && window.__gaPlayer.prev.root && window.__gaPlayer.prev.hat, null, { timeout: 90000 }); await page.waitForTimeout(2500);
   s = await page.evaluate(() => { const r = window.__gaPlayer.prev.root, w = []; r.traverse(x => { if (/^ga(Gl|Hat)_/.test(x.name) && x.visible) w.push(x.name); }); let cap = 0; r.traverse(x => { if (x.userData.gaCap && x.visible) cap = 1; }); return { gl: w, cap, saved: window.__gaPlayer.p.glasses, sel: [...document.querySelectorAll('#gaP .gaO.sel')].map(b => b.dataset.v).join() }; });
-  chk(s.gl.length === 0 && !s.cap && s.saved === 'shades' && s.sel === 'red', 'start monkey wears no hat or eyewear (saved shades/capblue kept), no cap selected', s);
+  chk(s.saved === 'shades' && s.gl.includes('gaHat_capblue') && s.gl.includes('gaGl_shades') && s.sel === '', 'start preview wears the saved cap and shades; no accessory swatches', s);
   if (SH) await page.screenshot({ path: OUT + 'start_no_hat.png' });
   { const r = await page.locator('#gaT').boundingBox(); await page.touchscreen.tap(r.x + 20, r.y + 10); await page.waitForTimeout(2300); }
-  s = await page.evaluate(() => { window.__gaPlayer.play(1); return JSON.parse(localStorage.getItem('galacticarcade.player')).hat; }); chk(s === 'none', 'PLAY without tapping a cap: saved hat -> none', s);
-  await page.evaluate(() => { localStorage.removeItem('galacticarcade.wardrobeMig'); localStorage.removeItem('galacticarcade.wardrobeOwned'); localStorage.setItem('galacticarcade.player', JSON.stringify({ name: 'Dave', hat: 'capblue', hoodie: 'red', fur: 'brown', shoes: 'red', glasses: 'shades' })); }); await page.reload(); await page.waitForFunction(() => window.__gaPlayer && window.__gaPlayer.prev.root && window.__gaPlayer.prev.hat, null, { timeout: 90000 }); await page.waitForTimeout(6000);
-  const tapS = async sel => { const r = await page.locator(sel).boundingBox(); await page.touchscreen.tap(r.x + r.width / 2, r.y + r.height / 2); await page.waitForTimeout(700); };
-  const hs = () => page.evaluate(() => { let h = []; window.__gaPlayer.prev.root.traverse(x => { if ((/^gaHat_/.test(x.name) || x.userData.gaCap) && x.visible) h.push(x.name || 'cap'); }); return { h, hat: window.__gaPlayer.p.hat, saved: JSON.parse(localStorage.getItem('galacticarcade.player')).hat, sel: [...document.querySelectorAll('#gaP .gaRow[data-k=hat] .sel')].length }; });
-  await tapS('#gaP .gaO[data-v=cap]'); s = await hs(); chk(s.h.join() === 'cap' && s.saved === 'cap' && s.sel === 1, 'tap red cap: worn, saved, selected', s);
-  // second tap: use DOM click so we hit the same handler (touchscreen.tap was flaky with stHat)
-  await page.evaluate(() => { const b = document.querySelector('#gaP .gaRow[data-k=hat] .gaO[data-v=cap]'); b.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window })); });
-  await page.waitForTimeout(500); s = await hs(); chk(s.h.length === 0 && s.saved === 'none' && s.sel === 0, 'tap it again: hat off (none)', s);
+  s = await page.evaluate(() => { window.__gaPlayer.play(1); return JSON.parse(localStorage.getItem('galacticarcade.player')).hat; }); chk(s === 'capblue', 'PLAY keeps the saved hat', s);
   await o.close();
   // 2a) grandfather: worn look + default fur/shoes become owned on first load after update
   o = await open({ phone: true, w: 412, h: 915 }); page = o.page; const { errors } = o;

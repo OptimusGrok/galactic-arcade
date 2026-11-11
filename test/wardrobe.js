@@ -1,5 +1,6 @@
-// t218 WARDROBE HUD button under the FLOOR & WALL box: same size, no HUD overlap, hidden in machines; tap -> __wardrobe.open()
-// (stub) or a 'Coming soon' toast, never walks / jumps; mp.js rebroadcasts the look on 'galacticarcade:look' (mpmock, no network).
+// t731 WARDROBE lives inside the FLOOR & WALLS menu (not a top-level HUD button).
+// Opening that menu shows a Wardrobe option that opens window.__wardrobe exactly as before.
+// Taps never walk / jump; mp.js rebroadcasts the look on 'galacticarcade:look' (mpmock, no network).
 // node test/wardrobe.js [phone]
 const { open } = require('./lib'); const mock = require('./mpmock');
 const PH = process.argv[2] === 'phone';
@@ -10,34 +11,68 @@ const PH = process.argv[2] === 'phone';
     await p.addInitScript(id => { window.__mpId = id; }, id); await p.addInitScript(mock); pages.push(p); await p.reload();
     await p.waitForFunction(() => window.__arcade && window.__arcade.stats.frames > 3 && window.__mp && /on|solo/.test(window.__mp.state), null, { timeout: 60000 }); return o; }
   const A = await dev('aaaa1111'), page = A.page; await page.waitForTimeout(1500);
-  const L = await page.evaluate(() => { const r = e => { const b = e.getBoundingClientRect(); return { x: b.x, y: b.y, w: b.width, h: b.height, r: b.right, b: b.bottom }; };
-    const fb = r(document.getElementById('flBtn')), wd = r(document.getElementById('wdBtn')), over = [];
-    for (const e of document.querySelectorAll('body *')) { if (e.closest('#wdBtn') || e.id === 'wdBtn' || e.closest('#start')) continue; const cs = getComputedStyle(e); if (cs.position !== 'fixed' || cs.display === 'none' || cs.visibility === 'hidden' || +cs.opacity === 0) continue;
-      const b = r(e); if (!b.w || !b.h || b.w > innerWidth * 0.9) continue; if (b.x < wd.r && b.r > wd.x && b.y < wd.b && b.b > wd.y) over.push(e.id || e.className); }
-    return { fb, wd, over, lbl: document.querySelector('#wdBtn span').textContent, icon: !!document.querySelector('#wdBtn svg') }; });
-  chk(Math.abs(L.wd.w - L.fb.w) < 1 && Math.abs(L.wd.h - L.fb.h) < 1 && Math.abs(L.wd.x - L.fb.x) < 1 && L.wd.y > L.fb.b && L.wd.y - L.fb.b <= 10, 'square button directly under the floor box, same size ' + JSON.stringify([L.fb, L.wd]));
-  chk(L.lbl === 'WARDROBE' && L.icon, 'WARDROBE label + hanger icon');
-  chk(L.over.length === 0, 'no overlap with other HUD items ' + JSON.stringify(L.over));
-  const tap = async () => { const b = await page.locator('#wdBtn').boundingBox(); if (PH) await page.touchscreen.tap(b.x + b.width / 2, b.y + b.height / 2); else await page.mouse.click(b.x + b.width / 2, b.y + b.height / 2); await page.waitForTimeout(600); };
+  const hud = await page.evaluate(() => {
+    const wd = document.getElementById('wdBtn');
+    const fl = document.getElementById('flBtn');
+    const vis = e => { if (!e) return false; const s = getComputedStyle(e), r = e.getBoundingClientRect(); return s.display !== 'none' && s.visibility !== 'hidden' && +s.opacity !== 0 && r.width > 2 && r.height > 2; };
+    const hudWards = [...document.querySelectorAll('button')].filter(b => vis(b) && /wardrobe/i.test((b.textContent || '') + (b.title || '')) && !b.closest('#opt'));
+    return { hasWd: !!wd, wdVis: vis(wd), flVis: vis(fl), hudWards: hudWards.map(b => b.id || b.className), api: !!(window.__wardrobeBtn && window.__wardrobeBtn.openFromMenu) };
+  });
+  chk(!hud.hasWd && !hud.wdVis && hud.hudWards.length === 0, 'no separate top-level wardrobe button ' + JSON.stringify(hud));
+  chk(hud.flVis && hud.api, 'walls and floor button is visible and the wardrobe menu API is ready ' + JSON.stringify(hud));
+
+  const openMenu = async () => {
+    const b = await page.locator('#flBtn').boundingBox();
+    if (PH) await page.touchscreen.tap(b.x + b.width / 2, b.y + b.height / 2);
+    else await page.mouse.click(b.x + b.width / 2, b.y + b.height / 2);
+    await page.waitForTimeout(500);
+  };
+  const closeMenu = async () => { await page.evaluate(() => { if (window.__start && window.__start.openOpt) window.__start.openOpt(false); }); await page.waitForTimeout(200); };
+  await openMenu();
+  const menu = await page.evaluate(() => {
+    const opt = document.getElementById('opt');
+    const w = document.getElementById('optWard');
+    const vis = e => { if (!e) return false; const s = getComputedStyle(e), r = e.getBoundingClientRect(); return s.display !== 'none' && s.visibility !== 'hidden' && r.width > 8 && r.height > 8; };
+    const extra = w && getComputedStyle(w, '::after').content;
+    return {
+      open: opt && opt.classList.contains('on') && vis(opt),
+      ward: w && vis(w),
+      label: w && (w.textContent || '').trim(),
+      extra: extra && extra !== 'none' ? extra : '',
+      tabs: [...document.querySelectorAll('#optTabs .flT')].map(t => t.textContent.trim())
+    };
+  });
+  chk(menu.open && menu.ward && menu.label === 'WARDROBE', 'opening the walls and floor menu shows a Wardrobe option ' + JSON.stringify(menu));
+  chk(!/🎟/.test(menu.extra || ''), 'wardrobe option does not show a ticket cost ' + JSON.stringify(menu.extra));
+  if (process.env.WD_SHOT) await page.screenshot({ path: process.env.WD_SHOT });
+
+  const tapWard = async () => {
+    const b = await page.locator('#optWard').boundingBox();
+    if (!b) throw new Error('optWard not on screen');
+    if (PH) await page.touchscreen.tap(b.x + b.width / 2, b.y + b.height / 2);
+    else await page.mouse.click(b.x + b.width / 2, b.y + b.height / 2);
+    await page.waitForTimeout(600);
+  };
   const p0 = await page.evaluate(() => { const m = window.__arcade.monkey.position; return [m.x, m.y, m.z]; });
   const real = await page.evaluate(() => !!(window.__wardrobe && window.__wardrobe.open));
-  await tap();
-  if (real) {   // player.js wardrobe present (combined build): the real panel opens
-    const op = await page.evaluate(() => !!window.__wardrobe.isOpen);
-    chk(op, 'player.js wardrobe present -> tap opens the real panel');
-    if (process.env.WD_SHOT) await page.screenshot({ path: process.env.WD_SHOT });
+  await tapWard();
+  if (real) {
+    const op = await page.evaluate(() => ({ open: !!window.__wardrobe.isOpen, menu: !!(document.getElementById('opt') && document.getElementById('opt').classList.contains('on')) }));
+    chk(op.open && !op.menu, 'Wardrobe option opens the existing wardrobe and closes the floor menu ' + JSON.stringify(op));
     await page.evaluate(() => window.__wardrobe.close()); await page.waitForTimeout(400);
   } else {
     const t = await page.evaluate(() => { const e = document.querySelector('.wdToast'); return e && e.style.display !== 'none' ? e.textContent : ''; });
-    chk(t === 'Coming soon', "no __wardrobe yet -> 'Coming soon' toast"); }
+    chk(t === 'Coming soon', "no __wardrobe yet -> 'Coming soon' toast");
+  }
   await page.evaluate(() => { window.__wdOpen = 0; window.__wardrobe = { open() { window.__wdOpen++; }, close() {} }; });
-  await tap(); await page.waitForTimeout(500);
-  const s = await page.evaluate(() => { const m = window.__arcade.monkey.position, st = window.__arcade.st; return { n: window.__wdOpen, p: [m.x, m.y, m.z], jump: !!(st && st.jump), mode: window.__arcade.play.mode }; });
-  chk(s.n === 1, 'tap calls window.__wardrobe.open() once ' + s.n);
-  chk(Math.hypot(s.p[0] - p0[0], s.p[2] - p0[2]) < 0.05 && !s.jump && s.mode === 'walk', 'taps do not walk, jump or start anything ' + JSON.stringify([p0, s]));
+  await openMenu();
+  await tapWard(); await page.waitForTimeout(500);
+  const s = await page.evaluate(() => { const m = window.__arcade.monkey.position, st = window.__arcade.st, opt = document.getElementById('opt'); return { n: window.__wdOpen, p: [m.x, m.y, m.z], jump: !!(st && st.jump), mode: window.__arcade.play.mode, menu: !!(opt && opt.classList.contains('on')) }; });
+  chk(s.n === 1, 'Wardrobe option calls window.__wardrobe.open() once ' + s.n);
+  chk(Math.hypot(s.p[0] - p0[0], s.p[2] - p0[2]) < 0.05 && !s.jump && s.mode === 'walk' && !s.menu, 'menu taps do not walk, jump or start anything ' + JSON.stringify([p0, s]));
   await page.screenshot({ path: 'shots/wardrobe_button_' + (PH ? 'phone' : 'desktop') + '.png' });
-  const hid = await page.evaluate(() => { document.body.classList.add('ingame'); const v = getComputedStyle(document.getElementById('wdBtn')).display; document.body.classList.remove('ingame'); return v; });
-  chk(hid === 'none', 'hidden inside machines (body.ingame), like the floor box');
+  const hid = await page.evaluate(() => { document.body.classList.add('ingame'); const v = getComputedStyle(document.getElementById('flBtn')).display; document.body.classList.remove('ingame'); return v; });
+  chk(hid === 'none', 'floor box (and its wardrobe option) hidden inside machines (body.ingame)');
   const B = await dev('bbbb2222'), b = B.page;
   await page.waitForFunction(() => window.__mp.peers.size === 1, null, { timeout: 15000 }).catch(() => {}); await b.waitForFunction(() => window.__mp.peers.has('aaaa1111'), null, { timeout: 15000 }).catch(() => {});
   const on = await page.evaluate(() => window.__mp.state);

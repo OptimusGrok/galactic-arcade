@@ -40,7 +40,7 @@ const CHAT = [
   { id: 'c_fav', q: "What's your favourite?",
     a: 'Hard to pick! I love Strike for the action, and Monkey Crossing when I want to hop. Ghost 256 is a classic too!' },
   { id: 'c_acc', q: 'How do accessories work?',
-    a: 'On the Accessories wall you buy hats, hoodies, fur colours, shoes, glasses and backs. Free starter picks are on the start screen; the rest need tickets!' },
+    a: 'On the Accessories wall you buy hats, hoodies, fur colours, shoes, glasses and backs. The start screen is just for picking Monkey or Alien; change your look in Accessories!' },
   { id: 'c_pool', q: "What's 8-Ball Pool?",
     a: 'There are two 8-Ball Pool tables in my shop. Walk up and tap Play Pool. Have a break from the cabinets!' },
   { id: 'c_tips', q: 'Any tips?',
