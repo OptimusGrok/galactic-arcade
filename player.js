@@ -233,11 +233,18 @@
     for (var i = 0; i < 3; i++) { var ring = new T.Mesh(new T.TorusGeometry(0.25 + i * 0.17, 0.012, 6, 48), new T.MeshBasicMaterial({ color: i === 1 ? 0xff3cf0 : 0x00e5ff, toneMapped: false })); ring.rotation.x = Math.PI / 2; ring.position.y = 0.005; s.add(ring); }
     var beam = new T.Mesh(new T.CylinderGeometry(0.62, 0.62, 2.1, 32, 1, true), new T.MeshBasicMaterial({ color: 0x2a6cff, transparent: true, opacity: 0.08, side: T.DoubleSide, depthWrite: false, blending: T.AdditiveBlending })); beam.position.y = 1.05; s.add(beam);
     applyRoot(T, prev.root); }
+  // t738u: split ACCESSORIES view frames the player (disc to hat top) to fill the tall left column
+  function splitCam(alien) { var T = window.__arcade.THREE, k = prev.hat + '|' + alien;
+    if (prev.bbK !== k) { prev.bbK = k; var ry = prev.root.rotation.y, bb = new T.Box3(), tb = new T.Box3(); prev.root.rotation.y = 0; prev.root.updateMatrixWorld(true);
+      prev.root.traverse(function (o) { if (!o.isMesh || !o.geometry) return; for (var q = o; q; q = q.parent) if (!q.visible) return; if (!o.geometry.boundingBox) o.geometry.computeBoundingBox(); tb.copy(o.geometry.boundingBox).applyMatrix4(o.matrixWorld); bb.union(tb); });
+      prev.root.rotation.y = ry; prev.root.updateMatrixWorld(true); prev.bbTop = bb.isEmpty() ? (alien ? 2.1 : 1.9) : Math.min(3, Math.max(1.2, bb.max.y)); }
+    var top = prev.bbTop + 0.06, bot = -0.08, H = top - bot, t = Math.tan(15 * Math.PI / 180), a = prev.cam.aspect;
+    var d = Math.max(H / 0.9 / (2 * t), 1.5 / 0.94 / (2 * t * a)); prev.cam.position.set(0, bot + H / 2 + 0.22, d); prev.cam.lookAt(0, bot + H / 2, 0); }
   function frame() { prev.raf = requestAnimationFrame(frame); var wc = want(); if (!wc || !prev.scene) return; if (!prev.r || prev.r.domElement !== wc) attach(wc); if (!prev.r) return; if (prev.r.getContext().isContextLost()) { if (!prev.lostAt) prev.lostAt = performance.now(); if (performance.now() - prev.lostAt > 600) { prev.lostAt = 0; remake(); } return; } prev.lostAt = 0;
     var cv = prev.r.domElement, w = cv.clientWidth, h = cv.clientHeight; if (!w || !h) return;
     if (cv.width !== Math.round(w * prev.r.getPixelRatio()) || cv.height !== Math.round(h * prev.r.getPixelRatio())) { prev.r.setSize(w, h, false); }
     prev.cam.aspect = w / h; var fit = Math.max(1, 0.62 / prev.cam.aspect); var alienPrev = !!(prev.root && prev.root.getObjectByName('alienBot'));
-    prev.cam.position.set(0, alienPrev ? 1.40 : 1.3, (alienPrev ? 5.55 : 4.9) * fit); prev.cam.lookAt(0, alienPrev ? 1.18 : 1.02, 0); prev.cam.updateProjectionMatrix();
+    if (wc.id === 'gaWCv' && W.el && W.el.classList.contains('gaSplit')) splitCam(alienPrev); else { prev.cam.position.set(0, alienPrev ? 1.40 : 1.3, (alienPrev ? 5.55 : 4.9) * fit); prev.cam.lookAt(0, alienPrev ? 1.18 : 1.02, 0); } prev.cam.updateProjectionMatrix();
     var PL = pLook();   // start screen shows the saved look; accessory picks live in wardrobe / shop
     var pk = PL.hat + PL.glasses + PL.back + PL.hoodie + (PL.char || '') + wc.id; if (prev.hat !== pk) { prev.hat = pk; applyRoot(window.__arcade.THREE, prev.root, PL); if (W.try) applyMats(PL); }   // the preview always wears the chosen hat, however the pick or load happened
     if (prev.auto && !prev.drag) prev.want += 0.006; prev.rot += (prev.want - prev.rot) * 0.15; prev.root.rotation.y = prev.rot;
@@ -341,7 +348,22 @@
     + '#gaHint{grid-column:2;grid-row:4;min-height:0;justify-self:center;font-size:11px}'
     + '.gaRow{padding:2px}.gaO{width:34px;height:28px;font-size:16px}.gaRow span{width:48px;font-size:10px}.gaAr{width:36px;height:44px;font-size:32px}'
     + '#gaWho{padding:2px 6px 2px;gap:3px}.gaWhoH{font-size:9px;letter-spacing:.16em;text-shadow:0 0 5px #00e5ff,0 0 10px #0090ff}'
-    + '.gaWhoRow{gap:6px}.gaWho{min-height:0;height:28px;flex-direction:row;gap:5px;padding:2px 8px;font-size:10px;max-width:150px;border-radius:8px}.gaWhoI{font-size:14px}}';
+    + '.gaWhoRow{gap:6px}.gaWho{min-height:0;height:28px;flex-direction:row;gap:5px;padding:2px 8px;font-size:10px;max-width:150px;border-radius:8px}.gaWhoI{font-size:14px}}'
+    // t738u: ACCESSORIES (shop) in landscape = split view: the player as big as the height allows on the left, every row on the right,
+    // icons/labels/arrows sized by wFit() (--oh/--ow/--of/--lw/--lf/--ah) so the rows fill the column. WARDROBE + portrait keep the old stack.
+    + '#gaW.gaSplit{display:grid;grid-template-columns:minmax(0,36%) minmax(0,1fr);grid-template-rows:auto minmax(0,1fr) auto auto;gap:6px 14px;padding:max(8px,env(safe-area-inset-top)) max(10px,env(safe-area-inset-right)) max(8px,env(safe-area-inset-bottom)) max(10px,env(safe-area-inset-left));overflow:hidden;align-items:stretch;justify-items:stretch}'
+    + '#gaW.gaSplit #gaWT{grid-column:1;grid-row:1;margin:0;padding:0 0 0 52px;min-height:44px;display:flex;align-items:center;justify-content:center;white-space:nowrap;font-size:clamp(18px,min(3.3vw,7.5vh),34px)}'
+    + '#gaW.gaSplit #gaWX{left:max(10px,env(safe-area-inset-left));right:auto;top:max(8px,env(safe-area-inset-top))}'
+    + '#gaW.gaSplit #gaWStage{grid-column:1;grid-row:2;min-height:0;width:100%;max-width:none}'
+    + '#gaW.gaSplit .gaAr{width:52px;height:84px;font-size:62px}#gaW.gaSplit #gaWL{left:-4px}#gaW.gaSplit #gaWR{right:-4px}'
+    + '#gaW.gaSplit #gaWBuy{grid-column:1;grid-row:3;justify-self:center;max-width:100%;box-sizing:border-box;padding:5px 8px;gap:8px;font-size:13px}#gaW.gaSplit #gaWBuyB{padding:8px 12px;font-size:15px}'
+    + '#gaW.gaSplit #gaWDone{grid-column:1;grid-row:4;justify-self:center;padding:9px 46px;font-size:clamp(18px,6.5vh,30px)}'
+    + '#gaW.gaSplit #gaWBox{grid-column:2;grid-row:1 / span 4;width:100%;max-width:none;height:100%;min-height:0;box-sizing:border-box;margin:0;padding:4px 6px;display:flex;flex-direction:column;justify-content:space-evenly;overflow-y:auto;overflow-x:hidden}'
+    + '#gaW.gaSplit .gaRow{gap:8px;padding:1px 2px}#gaW.gaSplit .gaRow span{width:var(--lw,76px);font-size:var(--lf,14px)}'
+    + '#gaW.gaSplit .gaRow .gaA{width:var(--ah,40px);height:var(--oh,56px);font-size:calc(var(--ah,40px) * .9)}'
+    + '#gaW.gaSplit .gaCh{gap:9px;padding:3px 3px 7px}'
+    + '#gaW.gaSplit .gaO{width:var(--ow,62px);height:var(--oh,56px);font-size:var(--of,30px);border-radius:12px;border-width:3px}'
+    + '#gaW.gaSplit .gaO svg{width:78%;height:auto;max-height:80%}#gaW.gaSplit .gaLk{font-size:max(11px,calc(var(--oh,56px) * .2));right:-4px;bottom:-6px;padding:2px 4px;border-radius:7px;border-width:2px}';
   var ov = null, stHat = false;   // start screen: cap picked this visit?
   function row(k, label, shop, list) { var h = '<div class="gaRow" data-k="' + k + '"><button class="gaA" data-step="-1" aria-label="previous">‹</button><span>' + label + '</span><div class="gaCh">';
     (list || (shop ? OPTS : START)[k]).forEach(function (o) { var ic = typeof o[1] === 'string', face = ic ? o[1] : ''; var bg = ic ? '' : 'background:#' + ('00000' + o[1].toString(16)).slice(-6) + ';';
@@ -378,7 +400,7 @@
   function hideCharRows(root) { if (!root) return; var alien = P.char === 'alien';
     [].forEach.call(root.querySelectorAll('.gaRow'), function (r) { if (r.dataset.k === 'hoodie' || r.dataset.k === 'fur' || r.dataset.k === 'shoes') r.hidden = alien && (root !== ov || r.dataset.k === 'hoodie'); });
     [].forEach.call(root.querySelectorAll('.gaWho'), function (b) { b.classList.toggle('sel', b.dataset.v === (P.char || 'monkey')); }); }
-  function sync(scroll) { if (W.el) { syncRows(W.el, scroll); hideCharRows(W.el); } if (!ov) return; syncRows(ov, scroll); hideCharRows(ov);
+  function sync(scroll) { if (W.el) { syncRows(W.el, scroll); hideCharRows(W.el); if (W.open) wFit(); } if (!ov) return; syncRows(ov, scroll); hideCharRows(ov);
     var free = !named() || nmFree === clean(P.name).trim().toLowerCase(), hint = ov.querySelector('#gaHint');   // unique names (names.js): PLAY waits for a free name
     ov.querySelector('#gaGo').hidden = !(named() && goOK() && free); hint.hidden = named() && (free || nmBusy); hint.textContent = named() ? (nmWhy === 'bad' ? 'Pick a different name' : 'Name taken') : 'Type your name to play'; hint.classList.toggle('gaTaken', named() && !free); }
   // unique names: debounced check as the user types; nmFree = the lower(trim) name last confirmed free
@@ -412,7 +434,14 @@
     (document.body || document.documentElement).appendChild(d); }
   function wFill() { if (!W.el) return; W.el.querySelector('#gaWBox').innerHTML = W.shop ? rows(1) : rowsLimited(); W.el.querySelector('#gaWT').textContent = W.shop ? 'ACCESSORIES' : 'WARDROBE'; }
   function wOpen(opts) { var A = window.__arcade; W.shop = !!(opts && opts.shop); wBuild(); wFill(); if (!W.el.isConnected) document.body.appendChild(W.el); W.el.hidden = false; W.el.classList.toggle('gaSt', onStart()); W.open = true; W.at = performance.now(); W.opens++; prev.auto = true; TP.gone = false; if (TP.st === 'out') { TP.st = 'idle'; TP.cb = null; } W.try = null; buyUI();
-    if (A && A.monkey && A.THREE) { apply(); buildScene(); } sync(true); if (!prev.raf) frame(); return true; }
+    if (A && A.monkey && A.THREE) { apply(); buildScene(); } sync(true); wFit(); if (!prev.raf) frame(); return true; }
+  // t738u: split ACCESSORIES layout in landscape; sizes the rows so every visible row fits the right column, as big as it allows
+  function wFit() { if (!W.el) return; var on = !!(W.shop && W.open && innerWidth > innerHeight && innerWidth >= 560); W.el.classList.toggle('gaSplit', on); if (!on) return;
+    var box = W.el.querySelector('#gaWBox'), n = [].filter.call(box.querySelectorAll('.gaRow'), function (r) { return !r.hidden; }).length || 1;
+    var oh = Math.max(40, Math.min(76, Math.floor((box.clientHeight - 10) / n) - 13)), cs = W.el.style;
+    cs.setProperty('--oh', oh + 'px'); cs.setProperty('--ow', Math.round(oh * 1.12) + 'px'); cs.setProperty('--of', Math.round(oh * 0.56) + 'px');
+    cs.setProperty('--ah', (oh >= 60 ? 46 : 40) + 'px'); cs.setProperty('--lw', (oh >= 60 ? 92 : 78) + 'px'); cs.setProperty('--lf', (oh >= 60 ? 17 : 14) + 'px'); }
+  addEventListener('resize', function () { if (W.open) wFit(); });
   function wClose() { if (!W.el || !W.open) return false; W.open = false; W.el.hidden = true; prev.drag = null; if (W.try) { W.try = null; apply(); prev.hat = null; }
     if (prev.r && prev.r.domElement.id === 'gaWCv') freeR();   // free the 2nd WebGL context for the game
     return true; }
