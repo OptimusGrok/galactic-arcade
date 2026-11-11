@@ -58,6 +58,8 @@ const { open } = require('./lib'); const { helpers } = require('./cabflow');
   await page.waitForTimeout(600);
   const g = await page.evaluate(W => { const w = eval(W), S = w.__skytower; return { scene: S.scene(), run: S.active(), demo: !!w.__DEMO, plat: S.platform, y: S.player.position.y }; }, W);
   chk(g.scene === 'play' && g.run && !g.demo, 'credit starts a real climb ' + JSON.stringify(g));
+  // random gusts are covered by their own block below; keep the physics checks deterministic
+  await page.evaluate(W => { const S = eval(W).__skytower; S.G.wind.lock = true; S.G.wind.phase = 'calm'; S.G.wind.k = 0; }, W);
 
   const flew = await page.evaluate(W => {
     const w = eval(W), S = w.__skytower, y0 = S.player.position.y;
@@ -327,10 +329,11 @@ const { open } = require('./lib'); const { helpers } = require('./cabflow');
 
   const layout = await page.evaluate(W => {
     const w = eval(W), S = w.__skytower;
-    const plats = S.platforms.map(p => ({ i: p.i, x: p.x, z: p.z, size: p.size, top: p.top, slide: p.slide || null }));
+    S.G.wind.lock = true; S.G.wind.phase = 'calm';
+    const plats = S.platforms.map(p => ({ i: p.i, x: p.x, z: p.z, size: p.size, kind: p.kind, top: p.top, slide: p.slide || null }));
     const largeI = new Set([1, 11, 21, 31, 41, 50]);
     const large = plats.filter(p => largeI.has(p.i)).map(p => p.size);
-    const small = plats.filter(p => !largeI.has(p.i)).map(p => p.size);
+    const small = plats.filter(p => !largeI.has(p.i) && p.kind === 'block').map(p => p.size);
     const restOf = p => p.slide ? { x: p.slide.ox, z: p.slide.oz } : { x: p.x, z: p.z };
     const maxT = 1 / S.FLY.drain, maxClimb = S.FLY.up * maxT, maxAir = (S.AIR_SPEED || 6.2) * maxT;
     let minXZ = 1e9, maxXZ = 0, minY = 1e9, maxY = 0, minAny = 1e9;
@@ -367,6 +370,9 @@ const { open } = require('./lib'); const { helpers } = require('./cabflow');
     const hp0 = S.G.hp, shots0 = S.shots.length;
     for (let i = 0; i < 150; i++) S.step(1 / 30);
     const fuelEffs = hops.map(h => h.fuelEff), fuelWorsts = hops.map(h => h.fuelWorst);
+    // worst gust: full strength at the top, straight against the hop, for its whole length while steering (air relax rate 3/s)
+    const Wd = S.WIND, gustA = S.windAccelAt(1, true, Wd.str1), drift = gustA / 3;
+    const windFuel = (drift * Wd.dur1 / (S.AIR_SPEED || 6.2)) * S.FLY.drain;
     return {
       n: plats.length,
       minXZ, maxXZ, minY, maxY, minAny,
@@ -380,7 +386,7 @@ const { open } = require('./lib'); const { helpers } = require('./cabflow');
       hardFuel: Math.max(...fuelEffs),
       hardestWorst: Math.max(...fuelWorsts),
       shotsBefore: shots0, shotsAfter: S.shots.length, aliveShots: S.shots.filter(s => s.alive).length,
-      hp0, hp1: S.G.hp, maxClimb, maxAir
+      hp0, hp1: S.G.hp, maxClimb, maxAir, gustA, drift, windFuel
     };
   }, W);
   chk(layout.n === 50 && layout.minY > 13 && layout.maxY > 22 && layout.minXZ > 20,
@@ -390,6 +396,8 @@ const { open } = require('./lib'); const { helpers } = require('./cabflow');
     'checkpoints stay large and the other pads are a few studs wide ' + JSON.stringify({ large: layout.large, smallMin: layout.smallMinR, smallMax: layout.smallMaxR }));
   chk(layout.hopsOk && layout.hopCount === 49 && layout.hardestWorst <= 0.90 + 1e-6,
     'every hop stays reachable in the worst moving-pad case (<=90% fuel) ' + JSON.stringify({ failed: layout.hopsFailed, easy: layout.easyFuel, hard: layout.hardFuel, worst: layout.hardestWorst }));
+  chk(layout.hardestWorst + layout.windFuel <= 1.0,
+    'worst hop + worst head-on gust still fits one tank (' + ((layout.hardestWorst + layout.windFuel) * 100).toFixed(1) + '%) ' + JSON.stringify({ gustA: +layout.gustA.toFixed(2), drift: +layout.drift.toFixed(2), windFuel: +layout.windFuel.toFixed(4) }));
   chk(layout.easyFuel >= 0.48 && layout.easyFuel <= 0.62,
     'early hops cost about 50-60% fuel (' + (layout.easyFuel * 100).toFixed(1) + '%)');
   chk(layout.hardFuel >= 0.80 && layout.hardFuel <= 0.90,
@@ -426,6 +434,92 @@ const { open } = require('./lib'); const { helpers } = require('./cabflow');
   chk(slide.moved > 0.85 && slide.carry < 0.35 && !slide.air && slide.yErr < 0.2,
     'standing on a moving pad carries the player without falling off ' + JSON.stringify(slide));
   chk(slide.axes.includes('x') && slide.axes.includes('z'), 'moving pads vary axis ' + JSON.stringify(slide.axes));
+
+  const shapes = await page.evaluate(W => {
+    const w = eval(W), S = w.__skytower;
+    S.G.wind.lock = true; S.G.wind.phase = 'calm';
+    const P = S.platforms;
+    const tiny = P.filter(p => p.kind === 'tiny'), beam = P.filter(p => p.kind === 'beam');
+    const checksBlock = P.filter(p => S.isCheck(p.i) || p.i === 1 || p.i === S.N).every(p => p.kind === 'block' && p.sx === p.sz && p.sx >= 9);
+    const tinyMax = Math.max(...tiny.map(p => Math.max(p.sx, p.sz))), tinyMin = Math.min(...tiny.map(p => Math.min(p.sx, p.sz)));
+    const beamRatio = Math.min(...beam.map(p => Math.max(p.sx, p.sz) / Math.min(p.sx, p.sz)));
+    const beamW = Math.max(...beam.map(p => Math.min(p.sx, p.sz))), beamL = Math.min(...beam.map(p => Math.max(p.sx, p.sz)));
+    const axes = Array.from(new Set(beam.map(p => p.along)));
+    const slidingOdd = P.filter(p => p.slide && p.kind !== 'block').map(p => p.i + p.kind[0]);
+    const noSpinTiny = tiny.every(p => !p.traps.some(tr => tr.type === 'spinner' || tr.type === 'wind'));
+    // drop onto a tiny pad from 2m up: lands and stays on top
+    const land = (p, ox, oz) => {
+      S.placeOn(p.i); S.G.hold = false; S.G.shotLock = true; S.fly(false); S.G.ix = S.G.iz = 0; S.G.joy.on = false;
+      if (p.slide) { p.slide.speed0 = p.slide.speed; p.slide.speed = 0; }
+      S.player.position.set(p.x + ox, p.top + 2, p.z + oz); S.G.air = true; S.G.vx = S.G.vz = S.G.vy = 0;
+      for (let i = 0; i < 70; i++) S.step(1 / 30);
+      const r = { i: p.i, kind: p.kind, air: S.G.air, onPad: S.G.onPad && S.G.onPad.i, dy: +(S.player.position.y - p.top).toFixed(3) };
+      if (p.slide) p.slide.speed = p.slide.speed0;
+      return r;
+    };
+    const t0 = tiny.find(p => !p.slide) || tiny[0], b0 = beam.find(p => !p.slide) || beam[0];
+    const bOff = 0.8 * Math.max(b0.sx, b0.sz) * 0.5;
+    const tinyLand = land(t0, 0.1, -0.1);
+    const beamEnd = land(b0, b0.along === 'x' ? bOff : 0, b0.along === 'z' ? -bOff : 0);
+    const beamMiss = land(b0, b0.along === 'x' ? 0 : 1.3, b0.along === 'z' ? 0 : 1.3);   // beside a thin beam -> falls past it
+    return { tiny: tiny.length, beam: beam.length, blocks: P.filter(p => p.kind === 'block').length, checksBlock, tinyMax, tinyMin, beamRatio, beamW, beamL, axes, slidingOdd, noSpinTiny, tinyLand, beamEnd, beamMiss };
+  }, W);
+  chk(shapes.tiny >= 5 && shapes.tinyMax <= 1.2 && shapes.tinyMin >= 0.95, 'some pads are really small (single-foot) ' + JSON.stringify({ n: shapes.tiny, min: shapes.tinyMin, max: shapes.tinyMax }));
+  chk(shapes.beam >= 5 && shapes.beamRatio >= 5 && shapes.beamW <= 1.0 && shapes.axes.length === 2, 'some pads are long thin beams in both orientations ' + JSON.stringify({ n: shapes.beam, ratio: shapes.beamRatio, w: shapes.beamW, minL: shapes.beamL, axes: shapes.axes }));
+  chk(shapes.checksBlock, 'checkpoints, start and finish stay large square pads');
+  chk(shapes.slidingOdd.length >= 2, 'sliding pads include tiny / beam shapes ' + JSON.stringify(shapes.slidingOdd));
+  chk(shapes.noSpinTiny, 'tiny pads never carry a spinner or a wind trap');
+  chk(!shapes.tinyLand.air && shapes.tinyLand.onPad === shapes.tinyLand.i && Math.abs(shapes.tinyLand.dy) < 0.05, 'a tiny pad is landable ' + JSON.stringify(shapes.tinyLand));
+  chk(!shapes.beamEnd.air && shapes.beamEnd.onPad === shapes.beamEnd.i && Math.abs(shapes.beamEnd.dy) < 0.05, 'the far end of a beam is solid ' + JSON.stringify(shapes.beamEnd));
+  chk(shapes.beamMiss.onPad !== shapes.beamMiss.i, 'beside a thin beam there is no invisible floor ' + JSON.stringify(shapes.beamMiss));
+
+  const wind = await page.evaluate(W => {
+    const w = eval(W), S = w.__skytower, Wd = S.WIND, snd = S.snd || w.__skySnd;
+    const big = S.platforms[20];
+    const reset = i => { S.placeOn(i); S.G.hold = false; S.G.shotLock = true; S.fly(false); S.G.ix = S.G.iz = 0; S.G.joy.on = false; S.G.vx = S.G.vz = 0; };
+    // natural scheduler: calm -> telegraph (warn) -> gust -> calm
+    reset(21); S.G.wind.lock = false; S.G.wind.phase = 'calm'; S.G.wind.t = 0; S.G.wind.next = 0.2;
+    const wh0 = snd ? snd.whooshes : 0; if (snd) snd.lastWhoosh = -99;
+    const seen = []; let warnForce = 0, sawStreaks = 0, hudWarn = false, hudGust = false, arrow = '';
+    for (let i = 0; i < 30 * 7; i++) {
+      S.step(1 / 30);
+      const st = S.G.wind;
+      if (seen[seen.length - 1] !== st.phase) seen.push(st.phase);
+      if (st.phase === 'warn') { warnForce = Math.max(warnForce, st.accel); hudWarn = hudWarn || w.document.getElementById('windHud').classList.contains('warn'); }
+      if (st.phase === 'gust') { hudGust = hudGust || w.document.getElementById('windHud').classList.contains('on'); arrow = w.document.getElementById('windArrow').style.transform; }
+      if (st.phase !== 'calm') sawStreaks = Math.max(sawStreaks, S.world.children.filter(o => o.renderOrder === 4 && o.visible).length);
+      if (seen.length >= 4) break;
+    }
+    const whooshed = snd ? snd.whooshes - wh0 : -1;
+    // forced full gust +x: air vs ground push
+    S.G.wind.lock = false;
+    reset(21); S.player.position.y = big.top + 6; S.G.air = true;
+    S.windGust({ dx: 1, dz: 0, str: 1, phase: 'gust', t: 1, dur: 10 });
+    const ax0 = S.player.position.x; let airA = 0;
+    for (let i = 0; i < 15; i++) { S.step(1 / 30); airA = Math.max(airA, S.G.wind.accel); }
+    const airDx = S.player.position.x - ax0;
+    reset(21); S.windGust({ dx: 1, dz: 0, str: 1, phase: 'gust', t: 1, dur: 10 });
+    const gx0 = S.player.position.x; let gA = 0;
+    for (let i = 0; i < 15; i++) { S.step(1 / 30); gA = Math.max(gA, S.G.wind.accel); }
+    const groundDx = S.player.position.x - gx0;
+    // standing still on a tiny pad through a whole full-strength gust: stays on
+    const tiny = S.platforms.filter(p => p.kind === 'tiny' && !p.slide).pop();
+    S.G.check = 1; reset(tiny.i); S.windGust({ dx: 0, dz: 1, str: 1, phase: 'gust', t: Wd.rampIn, dur: Wd.dur1 });
+    for (let i = 0; i < Math.ceil(Wd.dur1 * 30); i++) S.step(1 / 30);
+    const tinyHold = { onPad: S.G.onPad && S.G.onPad.i, i: tiny.i, air: S.G.air, off: +Math.hypot(S.player.position.x - tiny.x, S.player.position.z - tiny.z).toFixed(3) };
+    const lowA = S.windAccelAt(0, true, 1), highA = S.windAccelAt(1, true, 1);
+    S.G.wind.lock = true; S.G.wind.phase = 'calm'; S.G.wind.k = 0; S.drawWind();
+    return { seen, warnForce, sawStreaks, hudWarn, hudGust, arrow, whooshed, airA, airDx, gA, groundDx, tinyHold, lowA, highA, hudAfter: w.document.getElementById('windHud').classList.contains('on') };
+  }, W);
+  chk(wind.seen.join('>') === 'calm>warn>gust>calm', 'random gusts cycle calm > warn > gust > calm ' + JSON.stringify(wind.seen));
+  chk(wind.warnForce === 0 && wind.hudWarn && wind.sawStreaks >= 10 && wind.whooshed === 1,
+    'each gust is telegraphed first (blinking WIND arrow, streaks, one whoosh, no push yet) ' + JSON.stringify({ f: wind.warnForce, hud: wind.hudWarn, streaks: wind.sawStreaks, whoosh: wind.whooshed }));
+  chk(wind.hudGust && /rotate\(/.test(wind.arrow), 'WIND arrow shows the gust direction ' + wind.arrow);
+  chk(wind.airDx > 0.12 && wind.airA > 0, 'a gust pushes the player in the air ' + JSON.stringify({ dx: wind.airDx, a: wind.airA }));
+  chk(wind.groundDx >= 0 && wind.groundDx < wind.airDx * 0.5 && wind.gA < wind.airA * 0.5, 'ground push is much weaker than air push ' + JSON.stringify({ air: wind.airDx, ground: wind.groundDx, aAir: wind.airA, aGround: wind.gA }));
+  chk(wind.tinyHold.onPad === wind.tinyHold.i && !wind.tinyHold.air, 'a full gust does not shove you off a tiny pad while standing ' + JSON.stringify(wind.tinyHold));
+  chk(wind.highA > wind.lowA * 1.8, 'gusts ramp with height ' + JSON.stringify({ low: wind.lowA, high: wind.highA }));
+  chk(!wind.hudAfter, 'WIND indicator hides when calm');
 
   const adv = await page.evaluate(W => {
     const w = eval(W), S = w.__skytower, p0 = S.platform;

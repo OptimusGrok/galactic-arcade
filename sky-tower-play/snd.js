@@ -10,7 +10,7 @@
   const ZapGap = 0.1;
   const MusicVol = 0.26;
   const S = {
-    starts: 0, stops: 0, zaps: 0, zapCyan: 0, zapRed: 0, chimes: 0,
+    starts: 0, stops: 0, zaps: 0, zapCyan: 0, zapRed: 0, chimes: 0, whooshes: 0, lastWhoosh: -99,
     playing: false, unlocked: false, wanted: false, space: 0, lastZap: -99
   };
 
@@ -319,6 +319,24 @@
     return true;
   }
 
+  // Wind gust telegraph: filtered-noise swell (~1.9s) peaking as the push arrives. SFX bus, so MUTE silences it.
+  function whoosh(amt) {
+    if (!ensure()) return false;
+    const t = ac.currentTime;
+    if (t - S.lastWhoosh < 1.0) return false;
+    S.lastWhoosh = t; S.whooshes++;
+    applyGains();
+    const a = Math.max(0.2, Math.min(1, +amt || 0.7));
+    const src = ac.createBufferSource(); src.buffer = noiseBuf(); src.loop = true;
+    const f = ac.createBiquadFilter(); f.type = 'bandpass'; f.Q.value = 0.9;
+    f.frequency.setValueAtTime(320, t); f.frequency.exponentialRampToValueAtTime(1500, t + 1.25); f.frequency.exponentialRampToValueAtTime(500, t + 1.9);
+    const g = ac.createGain();
+    g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.11 * a, t + 1.2); g.gain.exponentialRampToValueAtTime(0.0001, t + 1.95);
+    src.connect(f); f.connect(g); g.connect(sfxG);
+    src.start(t); src.stop(t + 2.0);
+    return true;
+  }
+  S.whoosh = whoosh;
   S.unlock = unlock;
   S.start = start;
   S.stop = stop;

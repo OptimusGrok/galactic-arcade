@@ -9,6 +9,11 @@ const PITCH_MIN = -0.22, PITCH_MAX = 1.12;
 const FLY = { drain: 0.125, fill: 0.16, min: 0.08, up: 3.4, down: 2.4 };
 const R = 0.32, PH = 1.82, HI_KEY = 'arcade_skytower_best', RUN_CAP = 50;
 const FLY_TICKETS = 30, FLY_TICKET_VALUE = 1, TICKET_HIT_R = 0.82;
+// Pad shapes (non-checkpoint only): tiny single-foot pads and long thin beams.
+const PAD = { tiny0: 1.15, tiny1: 1.0, beamW: 0.95, beamL0: 6.4, beamL1: 5.4, tinyP: 0.2, beamP: 0.3 };
+// Random gusts: calm gap, telegraph (streaks + HUD arrow + whoosh), then a push. Accel in m/s^2.
+const WIND = { gap0: 6, gap1: 11, warn: 1.3, dur0: 1.8, dur1: 3.0, rampIn: 0.45, rampOut: 0.6,
+  airBase: 2.0, airTop: 2.4, ground: 0.3, str0: 0.6, str1: 1.0, fromPlat: 2 };
 const BRICKS = [0xc91a09, 0xf5cd2f, 0x0055bf, 0x237841, 0xfe8a18, 0xf4f4f4, 0x81007b, 0x078bc9];
 const studGeo = new THREE.CylinderGeometry(0.11, 0.11, 0.07, 7);
 const dummy = new THREE.Object3D();
@@ -262,6 +267,7 @@ const platEl = q('plat'), hpEl = q('hp'), bestEl = q('best'), bannerEl = q('bann
 const tixEl = q('tixHud'), plusLayer = q('plusLayer');
 const flyMeterEl = q('flyMeter'), flyBarEl = flyMeterEl.firstChild, bFly = q('bFly'), bFire = q('bFire');
 const joyEl = q('joy'), joyKnob = q('joyKnob');
+const windEl = q('windHud'), windArrow = q('windArrow');
 
 const renderer = new THREE.WebGLRenderer({ antialias: false, powerPreference: 'low-power' });
 renderer.setPixelRatio(coolOn() ? 1 : Math.min(1.5, devicePixelRatio || 1));
@@ -319,6 +325,21 @@ function sizeOf(i) {
   // A few studs wide (about 4 down to 3), shrinking slightly toward space, always landable.
   return 3.15 - 0.75 * (i - 1) / (N - 1);
 }
+function shapeOf(i) {
+  if (i <= 3 || i === N || isCheck(i)) return 'block';
+  const u = tickRand(i, 41);
+  return u < PAD.tinyP ? 'tiny' : u < PAD.tinyP + PAD.beamP ? 'beam' : 'block';
+}
+// Full x / z extents of pad i (axis-aligned; beams run along x or z).
+function dimsOf(i) {
+  const k = (i - 1) / (N - 1), kind = shapeOf(i);
+  if (kind === 'tiny') { const s = PAD.tiny0 + (PAD.tiny1 - PAD.tiny0) * k; return { kind, sx: s, sz: s }; }
+  if (kind === 'beam') {
+    const L = PAD.beamL0 + (PAD.beamL1 - PAD.beamL0) * k, along = tickRand(i, 43) < 0.5 ? 'x' : 'z';
+    return along === 'x' ? { kind, sx: L, sz: PAD.beamW, along } : { kind, sx: PAD.beamW, sz: L, along };
+  }
+  const s = sizeOf(i); return { kind, sx: s, sz: s };
+}
 function buildHeights() {
   const h = [0];
   for (let i = 1; i < N; i++) h.push(h[i - 1] + gapYOf(i));
@@ -355,13 +376,13 @@ function buildOffsets() {
 const OFFSETS = buildOffsets();
 function offsetOf(i) { return OFFSETS[i - 1]; }
 
-function addStuds(group, size, color, yTop) {
-  const mat = lamb(color);
-  const n = Math.max(2, Math.floor(size / 0.72));
-  const mesh = new THREE.InstancedMesh(studGeo, mat, n * n);
-  const origin = -((n - 1) * 0.72) / 2; let k = 0;
-  for (let i = 0; i < n; i++) for (let j = 0; j < n; j++) {
-    dummy.position.set(origin + i * 0.72, yTop + 0.035, origin + j * 0.72); dummy.rotation.set(0, 0, 0); dummy.scale.set(1, 1, 1);
+function addStuds(group, size, color, yTop, sizeZ) {
+  const mat = lamb(color), sz = sizeZ || size;
+  const nx = Math.max(1, Math.floor(size / 0.72)), nz = Math.max(1, Math.floor(sz / 0.72));
+  const mesh = new THREE.InstancedMesh(studGeo, mat, nx * nz);
+  const ox = -((nx - 1) * 0.72) / 2, oz = -((nz - 1) * 0.72) / 2; let k = 0;
+  for (let i = 0; i < nx; i++) for (let j = 0; j < nz; j++) {
+    dummy.position.set(ox + i * 0.72, yTop + 0.035, oz + j * 0.72); dummy.rotation.set(0, 0, 0); dummy.scale.set(1, 1, 1);
     dummy.updateMatrix(); mesh.setMatrixAt(k++, dummy.matrix);
   }
   mesh.count = k; mesh.instanceMatrix.needsUpdate = true; group.add(mesh); return mesh;
@@ -369,12 +390,17 @@ function addStuds(group, size, color, yTop) {
 
 const platforms = [];
 function buildPlatform(i) {
-  const off = offsetOf(i), size = sizeOf(i), y = yOf(i), col = BRICKS[(i - 1) % BRICKS.length];
+  const off = offsetOf(i), dm = dimsOf(i), y = yOf(i), col = BRICKS[(i - 1) % BRICKS.length];
+  const size = Math.max(dm.sx, dm.sz);
   const g = new THREE.Group(); g.position.set(off.x, y, off.z); scene.add(g);
-  const h = 0.55, top = h / 2;
-  const body = part(g, new THREE.BoxGeometry(size, h, size), lamb(col), 0, 0, 0);
+  const h = dm.kind === 'block' ? 0.55 : 0.45, top = h / 2;
+  const body = part(g, new THREE.BoxGeometry(dm.sx, h, dm.sz), lamb(col), 0, 0, 0);
   body.name = 'pad';
-  addStuds(g, size, col, top);
+  addStuds(g, dm.sx, col, top, dm.sz);
+  if (dm.kind === 'tiny') {   // glow rim so a one-foot pad reads from a distance
+    const rim = part(g, new THREE.BoxGeometry(dm.sx + 0.08, 0.06, dm.sz + 0.08), basic(0xffffff, { transparent: true, opacity: 0.55 }), 0, -top + 0.02, 0);
+    rim.name = 'tinyRim';
+  }
   if (isCheck(i) && i !== N) {
     const ring = part(g, new THREE.TorusGeometry(Math.max(0.9, size * 0.28), 0.05, 6, 20), basic(0xffe14a), 0, top + 0.08, 0);
     ring.rotation.x = Math.PI / 2;
@@ -387,7 +413,7 @@ function buildPlatform(i) {
     const flag = part(g, new THREE.PlaneGeometry(0.8, 0.45), basic(0xff3cf0), 0.82, top + 1.35, -0.4);
     flag.material.side = THREE.DoubleSide;
   }
-  const p = { i, g, size, x: off.x, y, z: off.z, h, top: y + top, col, traps: [], solids: [] };
+  const p = { i, g, size, sx: dm.sx, sz: dm.sz, kind: dm.kind, along: dm.along || null, x: off.x, y, z: off.z, h, top: y + top, col, traps: [], solids: [] };
   // Heavy traps only on large checkpoint pads; tiny pads keep a timed spinner or a gentle wind.
   if (i > 1 && i < N) {
     const large = isCheck(i);
@@ -397,7 +423,7 @@ function buildPlatform(i) {
       addStuds(mover, ms * 0.85, 0xff8a18, 0.2);
       p.traps.push({ type: 'mover', mesh: mover, size: ms, axis: i % 2 ? 'x' : 'z', amp: size * 0.32, speed: 0.9 + i * 0.025, t0: i * 0.4 });
     }
-    if (i >= 5 && (i % 4 === 1 || i >= 28)) {
+    if (dm.kind === 'block' && i >= 5 && (i % 4 === 1 || i >= 28)) {
       const len = size * (large ? 0.85 : 0.92);
       const bar = part(g, new THREE.BoxGeometry(len, 0.16, 0.16), lamb(0x222228), 0, top + 0.7, 0);
       part(bar, CYL(0.05, 0.05, 0.2, 8), basic(0xff3030), 0, 0, 0);
@@ -414,7 +440,7 @@ function buildPlatform(i) {
       kb.material.transparent = true; kb.material.opacity = 0.88;
       p.traps.push({ type: 'kill', mesh: kb, size: ks, axis: 'x', amp: size * 0.22, speed: 0.7 + i * 0.02, t0: i });
     }
-    if (i >= 16 && i % 5 === 0) {
+    if (dm.kind === 'block' && i >= 16 && i % 5 === 0) {
       const dir = new V3(Math.sin(i * 2.1), 0, Math.cos(i * 2.1)).normalize();
       p.traps.push({ type: 'wind', dir, mesh: null, str: large ? 5.5 + i * 0.05 : 3.2 + i * 0.03 });
     }
@@ -456,7 +482,8 @@ const G = {
   best: readBest(), cooldown: 0, fireHeld: false, flyHeld: false,
   ix: 0, iz: 0, joy: { on: false, x: 0, y: 0, pid: -1 }, lookPid: -1, lookX: 0, lookY: 0,
   phase: 0, camYaw: 0, camPitch: 0, shotLock: false, onPad: null, orbFlash: 0, bannerT: 0,
-  gunAim: 0, gunAimT: 0
+  gunAim: 0, gunAimT: 0,
+  wind: { phase: 'calm', t: 0, next: 6, dur: 2.4, dx: 1, dz: 0, str: 0, k: 0, accel: 0, gusts: 0, warns: 0, lock: false }
 };
 
 const TK = { got: 0, run: 0, fly: 0, log: [], awarded: Object.create(null) };
@@ -671,9 +698,8 @@ function updateTraps(dt) {
   for (; wi < windLines.length; wi++) windLines[wi].visible = false;
 }
 
-function padHit(p, x, z, pad) {
-  const hs = (pad || p.size) * 0.5;
-  return Math.abs(x - p.x) <= hs && Math.abs(z - p.z) <= hs;
+function padHit(p, x, z) {
+  return Math.abs(x - p.x) <= p.sx * 0.5 && Math.abs(z - p.z) <= p.sz * 0.5;
 }
 function groundAt(x, z, y) {
   if (y == null) y = player.position.y;
@@ -697,8 +723,8 @@ function groundAt(x, z, y) {
 function collectSolids() {
   const list = [];
   for (const p of nearPlats()) {
-    const hs = p.size * 0.5;
-    list.push({ minX: p.x - hs, maxX: p.x + hs, minY: p.top - p.h, maxY: p.top, minZ: p.z - hs, maxZ: p.z + hs, p, extra: null, kind: 'pad' });
+    const hx = p.sx * 0.5, hz = p.sz * 0.5;
+    list.push({ minX: p.x - hx, maxX: p.x + hx, minY: p.top - p.h, maxY: p.top, minZ: p.z - hz, maxZ: p.z + hz, p, extra: null, kind: 'pad' });
     for (const tr of p.traps) {
       if (tr.dead || !tr.mesh || (tr.type !== 'mover' && tr.type !== 'crumble')) continue;
       tr.mesh.updateWorldMatrix(true, false);
@@ -805,6 +831,7 @@ function respawn(why) {
   player.position.set(c.x, c.top + 0.02, c.z);
   G.vy = G.vx = G.vz = 0; G.air = false; G.hp = 3; G.iframe = 1.4; G.energy = Math.max(G.energy, 0.55);
   G.platform = G.check; G.onPad = c;
+  if (G.wind.phase !== 'calm') scheduleCalm(G.wind);
   showBanner(why === 'fall' ? 'FELL — CHECKPOINT' : 'HIT — CHECKPOINT');
 }
 
@@ -947,10 +974,82 @@ function trapHits() {
   }
 }
 
+// ---- random gusts (t734) ----
+const gustLines = [];
+{ const m = basic(0xe8f8ff, { transparent: true, opacity: 0, depthWrite: false });
+  for (let i = 0; i < 26; i++) {
+    const L = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.05, 1.9), m); L.visible = false; L.renderOrder = 4;
+    L.userData.seed = Math.random() * 100; scene.add(L); gustLines.push(L);
+  } }
+function heightK() { return THREE.MathUtils.clamp(player.position.y / (yOf(N) || 1), 0, 1); }
+function windAccelAt(h, air, str) { return (str == null ? 1 : str) * (WIND.airBase + WIND.airTop * h) * (air ? 1 : WIND.ground); }
+function scheduleCalm(W) { W.phase = 'calm'; W.t = 0; W.k = 0; W.next = WIND.gap0 + Math.random() * (WIND.gap1 - WIND.gap0); }
+function windGust(o) {   // start a telegraphed gust now (tests / screenshots may force direction, strength, phase)
+  o = o || {};
+  const W = G.wind, a = o.angle != null ? o.angle : Math.random() * Math.PI * 2;
+  W.dx = o.dx != null ? o.dx : Math.sin(a); W.dz = o.dz != null ? o.dz : Math.cos(a);
+  const L = Math.hypot(W.dx, W.dz) || 1; W.dx /= L; W.dz /= L;
+  W.str = o.str != null ? o.str : WIND.str0 + Math.random() * (WIND.str1 - WIND.str0);
+  W.dur = o.dur != null ? o.dur : WIND.dur0 + Math.random() * (WIND.dur1 - WIND.dur0);
+  W.phase = o.phase || 'warn'; W.t = o.t || 0; W.k = W.phase === 'gust' ? 1 : 0;
+  if (W.phase === 'warn') { W.warns++; if (window.__skySnd && window.__skySnd.whoosh) window.__skySnd.whoosh(W.str * (0.55 + 0.45 * heightK())); }
+  else W.gusts++;
+  return W;
+}
+function updateWind(dt) {
+  const W = G.wind;
+  if (W.lock) return;
+  W.t += dt;
+  if (W.phase === 'calm') {
+    W.k = 0;
+    if (G.platform >= WIND.fromPlat && !G.won && W.t >= W.next) windGust();
+  } else if (W.phase === 'warn') {
+    W.k = 0;
+    if (W.t >= WIND.warn) { W.phase = 'gust'; W.t = 0; W.gusts++; }
+  } else if (W.phase === 'gust') {
+    const up = Math.min(1, W.t / WIND.rampIn), down = Math.min(1, Math.max(0, (W.dur - W.t) / WIND.rampOut));
+    W.k = Math.min(up, down);
+    if (W.t >= W.dur) scheduleCalm(W);
+  }
+}
+function applyGust(dt) {
+  const W = G.wind;
+  W.accel = W.phase === 'gust' ? W.k * windAccelAt(heightK(), G.air, W.str) : 0;
+  if (W.accel > 0) { G.vx += W.dx * W.accel * dt; G.vz += W.dz * W.accel * dt; }
+}
+function drawWind() {
+  const W = G.wind, on = W.phase !== 'calm';
+  const op = W.phase === 'warn' ? 0.22 + 0.18 * Math.min(1, W.t / WIND.warn) : W.phase === 'gust' ? 0.25 + 0.5 * W.k : 0;
+  gustLines[0].material.opacity = op;
+  const px = player.position.x, py = player.position.y, pz = player.position.z;
+  const sp = W.phase === 'gust' ? 9 + 8 * W.k : 4;
+  const rx = -W.dz, rz = W.dx;
+  for (let i = 0; i < gustLines.length; i++) {
+    const L = gustLines[i]; L.visible = on;
+    if (!on) continue;
+    const s = L.userData.seed, span = 14;
+    const along = ((G.t * sp + s * 7.3) % span) - span / 2;
+    const side = ((s * 13.7) % 10) - 5, hgt = ((s * 3.1) % 4) - 0.6;
+    L.position.set(px + W.dx * along + rx * side, py + hgt, pz + W.dz * along + rz * side);
+    L.lookAt(L.position.x + W.dx, L.position.y, L.position.z + W.dz);
+    L.scale.z = W.phase === 'gust' ? 1 + W.k * 1.2 : 0.7;
+  }
+  if (windEl) {
+    windEl.classList.toggle('on', on);
+    windEl.classList.toggle('warn', W.phase === 'warn');
+    windEl.classList.toggle('gust', W.phase === 'gust');
+    if (on && windArrow) {
+      const fx = Math.sin(G.camYaw), fz = Math.cos(G.camYaw), rgx = -Math.cos(G.camYaw), rgz = Math.sin(G.camYaw);
+      const sx = W.dx * rgx + W.dz * rgz, sy = W.dx * fx + W.dz * fz;   // screen right / screen up
+      windArrow.style.transform = 'rotate(' + (Math.atan2(-sy, sx) * 180 / Math.PI).toFixed(1) + 'deg)';
+    }
+  }
+}
 function applyWind(dt) {
+  applyGust(dt);
   for (const p of nearPlats()) {
     for (const tr of p.traps) if (tr.type === 'wind') {
-      if (Math.abs(player.position.x - p.x) < p.size * 0.55 && Math.abs(player.position.z - p.z) < p.size * 0.55 &&
+      if (Math.abs(player.position.x - p.x) < p.sx * 0.55 && Math.abs(player.position.z - p.z) < p.sz * 0.55 &&
           player.position.y < p.top + 3 && player.position.y > p.top - 0.2) {
         G.vx += tr.dir.x * tr.str * dt; G.vz += tr.dir.z * tr.str * dt;
       }
@@ -1092,6 +1191,7 @@ function step(dt) {
     G.vx += (0 - G.vx) * (1 - Math.exp(-dt * (G.air ? 1.2 : 8)));
     G.vz += (0 - G.vz) * (1 - Math.exp(-dt * (G.air ? 1.2 : 8)));
   }
+  updateWind(dt);
   applyWind(dt);
 
   const request = !!(G.flyHeld), canStart = G.air || G.energy >= FLY.min;
@@ -1139,6 +1239,7 @@ function step(dt) {
   if (player.position.y < checkY - 8) respawn('fall');
 
   updateTraps(dt);
+  drawWind();
   trapHits();
   updateCombat(dt);
   animatePlayer(dt);
@@ -1179,8 +1280,7 @@ function lookDrag(dx, dy) {
 
 function xzInside(p, x, z, extra) {
   extra = extra || 0;
-  const hs = p.size * 0.5 + extra;
-  return Math.abs(x - p.x) <= hs && Math.abs(z - p.z) <= hs;
+  return Math.abs(x - p.x) <= p.sx * 0.5 + extra && Math.abs(z - p.z) <= p.sz * 0.5 + extra;
 }
 function demoPilot(dt) {
   const destI = Math.min(N, G.platform + ((G.energy > 0.32 || G.air) ? 1 : 0));
@@ -1195,9 +1295,9 @@ function demoPilot(dt) {
   }
   let tx = d.x, tz = d.z, wantY = d.top;
   if (block && py + PH > block.top - block.h - 0.4) {
-    const bx = px - block.x, bz = pz - block.z, hs = block.size * 0.5 + R + 0.7;
-    if (Math.abs(bx) >= Math.abs(bz)) { tx = block.x + (bx >= 0 ? 1 : -1) * hs; tz = pz; }
-    else { tx = px; tz = block.z + (bz >= 0 ? 1 : -1) * hs; }
+    const bx = px - block.x, bz = pz - block.z, hx = block.sx * 0.5 + R + 0.7, hz = block.sz * 0.5 + R + 0.7;
+    if (Math.abs(bx) / hx >= Math.abs(bz) / hz) { tx = block.x + (bx >= 0 ? 1 : -1) * hx; tz = pz; }
+    else { tx = px; tz = block.z + (bz >= 0 ? 1 : -1) * hz; }
     wantY = py;
   } else if (!xzInside(d, px, pz, -0.15) && py < d.top + 0.25) {
     const xzGap = Math.hypot(d.x - px, d.z - pz);
@@ -1205,9 +1305,9 @@ function demoPilot(dt) {
     if (climbLeft > xzGap * (FLY.up / AIR_SPEED)) { tx = px; tz = pz; }
     wantY = d.top + 0.85;
   } else if (xzInside(d, px, pz, -0.15) && py < d.top - 0.05) {
-    const bx = px - d.x, bz = pz - d.z, hs = d.size * 0.5 + R + 0.7;
-    if (Math.abs(bx) >= Math.abs(bz)) { tx = d.x + (bx >= 0 ? 1 : -1) * hs; tz = pz; }
-    else { tx = px; tz = d.z + (bz >= 0 ? 1 : -1) * hs; }
+    const bx = px - d.x, bz = pz - d.z, hx = d.sx * 0.5 + R + 0.7, hz = d.sz * 0.5 + R + 0.7;
+    if (Math.abs(bx) / hx >= Math.abs(bz) / hz) { tx = d.x + (bx >= 0 ? 1 : -1) * hx; tz = pz; }
+    else { tx = px; tz = d.z + (bz >= 0 ? 1 : -1) * hz; }
     wantY = py;
   }
   const wdx = tx - px, wdz = tz - pz, wlen = Math.hypot(wdx, wdz);
@@ -1243,6 +1343,7 @@ function resetWorld(keepPos) {
   G.hp = 3; G.energy = 1; G.iframe = 0; G.vy = G.vx = G.vz = 0; G.won = false; G.over = false;
   G.reached = 1; G.check = 1; G.platform = 1; G.cooldown = 0; G.gunAim = 0; G.gunAimT = 0; TK.run = 0; TK.awarded = Object.create(null);
   resetFlyTickets();
+  G.wind.lock = false; scheduleCalm(G.wind); drawWind();
   if (!keepPos) placeOn(1);
 }
 
@@ -1346,6 +1447,7 @@ const api = {
   unhold() { G.hold = false; },
   get ready() { return true; },
   get snd() { return window.__skySnd || null; },
+  PAD, WIND, shapeOf, dimsOf, windGust, updateWind, windAccelAt, drawWind, heightK, get wind() { return G.wind; },
   N, R, PH, FLY, AIR_SPEED, MIN_SEP, PITCH_MIN, PITCH_MAX, RUN_CAP, FLY_TICKETS, FLY_TICKET_VALUE, GUN_AIM_TIME, GUN_REST, GUN_AIM, poseMonkeyGun, gunBarrelDir, tickets, collectFlyTicket, resetFlyTickets, spawnFlyTickets, sizeOf, offsetOf, yOf, isCheck, isSlider, hopFuel, gapYOf, gapXZOf, lookDrag, updateCamera, updateSlides, TK, D, G, player, platforms, lasers, aliens, shots, earth, world: scene, camera, renderer,
   fly: setFly, fire, spawnAlien, placeOn, step, give,
   get platform() { return G.platform; },
@@ -1431,7 +1533,7 @@ const api = {
       for (let i = 0; i < 18; i++) step(1 / 30);
       for (const q of platforms) q.g.visible = q.i <= 2;
       camera.fov = 58; camera.updateProjectionMatrix();
-      camera.position.set(p.x + p.size * 0.5 + 3.6, 4.2, p.z + 3.1);
+      camera.position.set(p.x + p.sx * 0.5 + 3.6, 4.2, p.z + 3.1);
       camera.lookAt(player.position.x, p.top - p.h - 0.45, player.position.z);
       setSky();
     } else if (kind === 'lookup') {
