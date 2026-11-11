@@ -453,6 +453,75 @@ const { open } = require('./lib'); const { helpers } = require('./cabflow');
   }));
   chk(leak.origHi === null, 'no tickets or scores leak into a standalone / original key ' + JSON.stringify(leak));
 
+  const music = await page.evaluate(W => {
+    const w = eval(W), S = w.__skytower, snd = S.snd || w.__skySnd;
+    if (!snd) return { missing: true };
+    snd.stop();
+    const afterStop = { playing: !!snd.playing, stops: snd.stops };
+    snd.unlock();
+    snd.start();
+    const afterStart = { playing: !!snd.playing, starts: snd.starts, unlocked: !!snd.unlocked };
+    S.placeOn(1);
+    S.G.hold = false; S.G.shotLock = true; S.G.cooldown = 0;
+    S.G.mode = 'play'; S.G.run = true; S.G.over = false; w.__DEMO = false;
+    S.G.fireHeld = false;
+    if (S.player.userData.char === 'monkey') { S.G.gunAim = 1; S.poseMonkeyGun(1); }
+    S.player.updateMatrixWorld(true);
+    const z0 = snd.zaps, c0 = snd.zapCyan;
+    const L = S.fire();
+    const afterFire = { zaps: snd.zaps, cyan: snd.zapCyan, color: L && L.color, dZ: snd.zaps - z0, dC: snd.zapCyan - c0 };
+    const L2 = S.fire();
+    const afterRapidFire = { fired: !!L2, zaps: snd.zaps, same: snd.zaps === afterFire.zaps };
+    snd.lastZap = 0;
+    const z1 = snd.zaps;
+    snd.zap('cyan'); snd.zap('cyan');
+    const afterThrottle = { d: snd.zaps - z1 };
+    const ch0 = snd.chimes;
+    const tix = S.tickets[2];
+    w.__DEMO = true;
+    if (tix) { tix.collected = false; tix.alive = true; tix.mesh.visible = true; S.collectFlyTicket(tix); }
+    w.__DEMO = false;
+    const afterChime = { d: snd.chimes - ch0 };
+    snd.tick(0);
+    const spaceLow = snd.space;
+    snd.tick(1);
+    const spaceHigh = snd.space;
+    w.dispatchEvent(new Event('pagehide'));
+    const afterHide = { playing: !!snd.playing, stops: snd.stops };
+    snd.start();
+    const musicWas = window.__music.on;
+    window.__music.on = false;
+    snd.tick(snd.space);
+    const afterMusicOff = { playing: !!snd.playing };
+    window.__music.on = musicWas;
+    snd.start();
+    const afterMusicOn = { playing: !!snd.playing };
+    const mode0 = window.__arcade.play.mode;
+    window.__arcade.play.mode = 'zoomOut';
+    snd.tick(snd.space);
+    const afterExit = { playing: !!snd.playing };
+    window.__arcade.play.mode = mode0;
+    snd.start();
+    return {
+      afterStop, afterStart, afterFire, afterRapidFire, afterThrottle, afterChime,
+      spaceLow, spaceHigh, afterHide, afterMusicOff, afterMusicOn, afterExit
+    };
+  }, W);
+  chk(!music.missing, 'Sky Tower exposes a WebAudio snd API');
+  chk(music.afterStop && music.afterStop.playing === false, 'music stop silences the soundtrack ' + JSON.stringify(music.afterStop));
+  chk(music.afterStart && music.afterStart.playing && music.afterStart.starts > 0, 'music starts after unlock ' + JSON.stringify(music.afterStart));
+  chk(music.afterFire && music.afterFire.dZ === 1 && music.afterFire.dC === 1 && music.afterFire.color === 'cyan',
+    'monkey fire triggers the cyan blaster zap ' + JSON.stringify(music.afterFire));
+  chk(music.afterRapidFire && !music.afterRapidFire.fired && music.afterRapidFire.same,
+    'game cooldown prevents a second zap ' + JSON.stringify(music.afterRapidFire));
+  chk(music.afterThrottle && music.afterThrottle.d === 1, 'rapid zap API is throttled ' + JSON.stringify(music.afterThrottle));
+  chk(music.afterChime && music.afterChime.d === 1, 'collecting a ticket plays a chime ' + JSON.stringify(music.afterChime));
+  chk(music.spaceLow < 0.15 && music.spaceHigh > 0.85, 'soundtrack gets spacey toward the top ' + JSON.stringify({ lo: music.spaceLow, hi: music.spaceHigh }));
+  chk(music.afterHide && music.afterHide.playing === false, 'pagehide stops the soundtrack ' + JSON.stringify(music.afterHide));
+  chk(music.afterMusicOff && music.afterMusicOff.playing === false && music.afterMusicOn && music.afterMusicOn.playing,
+    'MUSIC option silences and restores the soundtrack ' + JSON.stringify({ off: music.afterMusicOff, on: music.afterMusicOn }));
+  chk(music.afterExit && music.afterExit.playing === false, 'leaving the cabinet stops the soundtrack ' + JSON.stringify(music.afterExit));
+
   await page.evaluate(() => {
     localStorage.setItem('galacticarcade.player.char', 'alien');
     try {
@@ -474,22 +543,28 @@ const { open } = require('./lib'); const { helpers } = require('./cabflow');
     S.placeOn(1);
     S.G.face = 0.2; S.player.rotation.y = 0.2;
     S.G.hold = false; S.G.cooldown = 0; S.G.mode = 'play'; S.G.run = true; S.G.shotLock = true;
+    S.G.fireHeld = false;
     S.step(1 / 30);
     S.player.updateMatrixWorld(true);
     const u = S.player.userData;
     const eye = S.player.position.clone();
     if (u.botEye) u.botEye.getWorldPosition(eye);
+    const snd = S.snd || w.__skySnd;
+    if (snd) snd.lastZap = -99;
+    const r0 = snd ? snd.zapRed : 0;
     const L = S.fire();
     return {
       char: u.char, hasGun: !!u.gun, hasEye: !!u.botEye, hasBot: !!u.bot,
       color: L && L.color, dist: L && u.botEye ? L.mesh.position.distanceTo(eye) : 99,
-      flash: S.G.orbFlash, hex: L && L.mesh.material.color.getHexString()
+      flash: S.G.orbFlash, hex: L && L.mesh.material.color.getHexString(),
+      zapRed: !!(snd && snd.zapRed > r0), zapRedN: snd && snd.zapRed
     };
   }, W);
   chk(alienFire.char === 'alien' && alienFire.hasEye && alienFire.hasBot && !alienFire.hasGun,
     'alien has a floating orb and no hand gun ' + JSON.stringify(alienFire));
   chk(alienFire.color === 'red' && alienFire.dist < 0.6,
     'alien FIRE is a red laser from the orb eye ' + JSON.stringify(alienFire));
+  chk(alienFire.zapRed, 'alien FIRE triggers the red orb zap sfx ' + JSON.stringify(alienFire));
 
   chk(errors.length === 0, 'no page errors ' + errors.slice(0, 4).join(' | '));
   await close(); process.exit(ok ? 0 : 1);

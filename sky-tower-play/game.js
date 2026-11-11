@@ -1,6 +1,7 @@
 // SKY TOWER — 3D jetpack climb, arcade copy only.
 // 50 Lego platforms from the clouds to outer space. Tickets only via TicketArt
 // (parent.__neonTicket) while a real credit is running; never in DEMO / WATCH.
+// Soundtrack + laser/ticket SFX live in snd.js (WebAudio, no files).
 import * as THREE from '../vendor/three.module.js';
 
 const N = 50, AIR_SPEED = 6.2, MIN_SEP = 10;
@@ -597,6 +598,7 @@ function collectFlyTicket(t) {
   const n = give(FLY_TICKET_VALUE, 'fly');
   if (n > 0) TK.fly += n;
   hud();
+  if (window.__skySnd) window.__skySnd.chime();
   return n;
 }
 function updateFlyTickets(dt) {
@@ -854,7 +856,9 @@ function fire() {
   const mesh = new THREE.Mesh(laserGeo, mat);
   mesh.position.copy(o); mesh.lookAt(o.x + dir.x, o.y + dir.y, o.z + dir.z); scene.add(mesh);
   const L = { mesh, o: o.clone(), dir: dir.clone(), speed: 24, life: 1.15, alive: true, color: hue };
-  lasers.push(L); return L;
+  lasers.push(L);
+  if (window.__skySnd) window.__skySnd.zap(hue);
+  return L;
 }
 
 function spawnAlien(opts) {
@@ -1045,6 +1049,11 @@ function updateSlides() {
 }
 
 function step(dt) {
+  if (window.__skySnd) {
+    const top = (platforms[N - 1] && platforms[N - 1].top) || yOf(N) || 1;
+    const h = player ? player.position.y / top : 0;
+    window.__skySnd.tick(Math.max(0, Math.min(1, h)));
+  }
   if (G.hold) return;
   dt = Math.min(0.05, dt); G.t += dt;
   updateSlides();
@@ -1241,11 +1250,13 @@ function startRun() {
   window.__DEMO = false; D.on = false; document.body.classList.remove('demo');
   G.mode = 'play'; G.run = true; G.over = false; G.won = false;
   resetWorld(false); showBanner('FLY UP!');
+  if (window.__skySnd) window.__skySnd.unlock();
 }
 function startDemo() {
   window.__DEMO = true; D.on = true; D.runs++; document.body.classList.add('demo');
   G.mode = 'play'; G.run = false; G.over = false; G.won = false;
   resetWorld(false);
+  if (window.__skySnd) window.__skySnd.unlock();
 }
 function stopDemo() {
   D.on = false; window.__DEMO = false; document.body.classList.remove('demo');
@@ -1334,6 +1345,7 @@ const api = {
   hold() { if (!(G.run && !G.over)) return false; G.hold = true; return true; },
   unhold() { G.hold = false; },
   get ready() { return true; },
+  get snd() { return window.__skySnd || null; },
   N, R, PH, FLY, AIR_SPEED, MIN_SEP, PITCH_MIN, PITCH_MAX, RUN_CAP, FLY_TICKETS, FLY_TICKET_VALUE, GUN_AIM_TIME, GUN_REST, GUN_AIM, poseMonkeyGun, gunBarrelDir, tickets, collectFlyTicket, resetFlyTickets, spawnFlyTickets, sizeOf, offsetOf, yOf, isCheck, isSlider, hopFuel, gapYOf, gapXZOf, lookDrag, updateCamera, updateSlides, TK, D, G, player, platforms, lasers, aliens, shots, earth, world: scene, camera, renderer,
   fly: setFly, fire, spawnAlien, placeOn, step, give,
   get platform() { return G.platform; },
