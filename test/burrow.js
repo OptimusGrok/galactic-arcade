@@ -30,7 +30,7 @@ const ORIG = '/workspace/burrow-buster/index.html', md5 = () => crypto.createHas
   const bk = Object.fromEntries(s.bs.map(([t, k]) => [k, t]));
   chk(s.wall === 'south' && s.idx === 4 && s.x === -8 && s.z > 11 && !s.blank, 'BURROW BUSTER replaces blank G on the south wall (x=' + s.x + ', z=' + s.z + '), the corner neighbour of SUPER PIP QUEST');
   chk(s.parts && s.joysticks === 1 && s.bad.length === 0 && s.over > 0, 'cabinet parts (marquee, dirt side art, ONE joystick, PUMP button, coin door), no body neon, wall edge glow (' + s.over + ') ' + s.bad);
-  chk(bk['2:4'] === '13' && bk['1:0'] === '11' && bk['2:2'] === 'E' && !s.bs.some(b => b[0] === 'G'), 'NUMBERS: BURROW BUSTER = 13, PIP 11, letter E stays, G retired');
+  chk(bk['2:4'] === '13' && bk['1:0'] === '11' && bk['2:2'] === '15' && !s.bs.some(b => b[0] === 'G' || b[0] === 'E'), 'NUMBERS: BURROW BUSTER = 13, PIP 11, SKY TOWER 15, letters E/G retired');
   chk(s.others.length === 0 && !s.pipOverlap && s.clawGap > 2, 'no overlap with other cabinets / the claw machine (gap ' + s.clawGap + ' m) ' + s.others);
   chk(s.frontFree && s.pathFree, 'monkey can walk up: the play spot ' + JSON.stringify(s.front) + ' and the way to it from the room centre are clear');
   // real walk: start 2.5 m in front, hold forward toward it

@@ -1,4 +1,4 @@
-// t322 ROCKFALL RUSH (#14): south wall slot 2:3 (old blank F, x=-4) between blank E and BURROW BUSTER; RPG's cabinet
+// t322 ROCKFALL RUSH (#14): south wall slot 2:3 (old blank F, x=-4) between SKY TOWER and BURROW BUSTER; RPG's cabinet
 // art (gold stony marquee, miner/boulder/diamond side art), no body neon, wall edge glow; walkable front; PLAY prompt,
 // silent DEMO, 5 tickets = 1 credit, no free start, 1 ticket per 5 diamonds + 10 for the exit (cap 40), own keys,
 // game over -> DEMO; original /workspace/boulder-dig/index.html untouched.
@@ -24,20 +24,20 @@ const ORIG = '/workspace/boulder-dig/index.html', md5 = () => crypto.createHash(
     const f = c.userData.front, frontFree = !A.blockers.some(b => b.kind !== 'plinth' && hit(b, f.x, f.z));
     const pathFree = (() => { for (let k = 0; k <= 40; k++) { const x = f.x + (0 - f.x) * k / 40, z = f.z + (6 - f.z) * k / 40; if (A.blockers.some(b => b.kind !== 'plinth' && hit(b, x, z))) return false; } return true; })();
     const mq = c.getObjectByName('marquee').material.map, sd = c.getObjectByName('sidePanelL').material.map;
-    const bb = new T.Box3().setFromObject(A.bbCab), eBlank = A.cabinets.find(k => k.userData.wall === 'south' && k.userData.index === 2);
+    const bb = new T.Box3().setFromObject(A.bbCab), eBlank = A.cabinets.find(k => k.userData.wall === 'south' && k.userData.index === 2), sky = A.skyTowerCab;
     return { wall: c.userData.wall, idx: c.userData.index, x: +c.position.x.toFixed(2), z: +c.position.z.toFixed(2), bad, over,
       blank: A.cabinets.some(k => k.position.distanceTo(c.position) < 0.5),
       joysticks: (() => { let n = 0; c.traverse(o => { if (o.name === 'joystick') n++; }); return n; })(),
       parts: ['body', 'sidePanelL', 'sidePanelR', 'trim', 'marquee', 'screen', 'joystick', 'btnBlue', 'btnRed', 'coinDoor'].every(k => c.getObjectByName(k)),
       art: [mq && mq.image && mq.image.src, sd && sd.image && sd.image.src].map(u => (u || '').split('/').pop()),
       bs, others, frontFree, pathFree, front: [f.x, f.z],
-      bbOverlap: bb.intersectsBox(box), eLetter: eBlank ? { x: +eBlank.position.x.toFixed(2), i: eBlank.userData.index } : null }; });
+      bbOverlap: bb.intersectsBox(box), eLetter: eBlank ? { x: +eBlank.position.x.toFixed(2), i: eBlank.userData.index } : null, sky: sky ? { x: +sky.position.x.toFixed(2), i: sky.userData.index } : null }; });
   const bk = Object.fromEntries(s.bs.map(([t, k]) => [k, t]));
-  chk(s.wall === 'south' && s.idx === 3 && s.x === -4 && s.z > 11 && !s.blank, 'ROCKFALL RUSH replaces blank F on the south wall (x=' + s.x + ', z=' + s.z + '), between blank E and BURROW BUSTER');
+  chk(s.wall === 'south' && s.idx === 3 && s.x === -4 && s.z > 11 && !s.blank, 'ROCKFALL RUSH replaces blank F on the south wall (x=' + s.x + ', z=' + s.z + '), between SKY TOWER and BURROW BUSTER');
   chk(s.parts && s.joysticks === 1 && s.bad.length === 0 && s.over > 0, 'cabinet parts (marquee, side art, ONE joystick, buttons, coin door), no body neon, wall edge glow (' + s.over + ') ' + s.bad);
   chk(s.art[0] === 'rf_marquee.jpg' && s.art[1] === 'rf_side.jpg', 'marquee + side art from RPG\'s mockup ' + JSON.stringify(s.art));
-  chk(bk['2:3'] === '14' && bk['2:4'] === '13' && bk['2:2'] === 'E' && !s.bs.some(b => b[0] === 'F'), 'NUMBERS: ROCKFALL RUSH = 14, BURROW BUSTER 13, letter E stays, F retired');
-  chk(s.others.length === 0 && !s.bbOverlap && s.eLetter && s.eLetter.i === 2, 'no overlap with BURROW BUSTER / other cabinets; blank E remains at index 2 ' + JSON.stringify([s.others, s.eLetter]));
+  chk(bk['2:3'] === '14' && bk['2:4'] === '13' && bk['2:2'] === '15' && !s.bs.some(b => b[0] === 'F' || b[0] === 'E'), 'NUMBERS: ROCKFALL RUSH = 14, BURROW BUSTER 13, SKY TOWER = 15, letters E/F retired');
+  chk(s.others.length === 0 && !s.bbOverlap && !s.eLetter && s.sky && s.sky.i === 2, 'no overlap with BURROW BUSTER / other cabinets; SKY TOWER replaced blank E at index 2 ' + JSON.stringify([s.others, s.eLetter, s.sky]));
   chk(s.frontFree && s.pathFree, 'monkey can walk up: the play spot ' + JSON.stringify(s.front) + ' and the way to it from the room centre are clear');
   await page.evaluate(() => { const p = window.__arcade.play; p.tickets.total = 1; localStorage.setItem('neonarcade.tickets', '1'); p.machines.rockfall.credits = 0; });
   await H.goTo('rockfallCabinet'); await page.waitForFunction(() => document.getElementById('playUI').classList.contains('on'), null, { timeout: 8000 }).catch(() => {});
