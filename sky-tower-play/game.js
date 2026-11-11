@@ -760,8 +760,11 @@ function step(dt) {
     else ix = iz = 0;
   }
   const yaw = G.camYaw;
-  const wx = ix * Math.cos(yaw) - iz * Math.sin(yaw);
-  const wz = -ix * Math.sin(yaw) - iz * Math.cos(yaw);
+  // Camera sits at (-sin yaw, -cos yaw) looking at the player, so screen-forward
+  // (stick up / W) is (+sin, +cos) and screen-right (stick right / D) is (-cos, +sin).
+  // The previous ix signs used the arcade's camera-right vector, which mirrored left/right.
+  const wx = -ix * Math.cos(yaw) - iz * Math.sin(yaw);
+  const wz = ix * Math.sin(yaw) - iz * Math.cos(yaw);
   const wish = Math.hypot(wx, wz);
   const speed = G.air ? 6.2 : 4.6;
   if (wish > 0.01) {
@@ -881,7 +884,7 @@ function demoPilot(dt) {
   const wdx = tx - px, wdz = tz - pz, wlen = Math.hypot(wdx, wdz);
   if (wlen > 0.08) {
     const wx = wdx / wlen, wz = wdz / wlen, c = Math.cos(G.camYaw), s = Math.sin(G.camYaw);
-    G.ix = c * wx - s * wz;
+    G.ix = -c * wx + s * wz;
     G.iz = -s * wx - c * wz;
   } else { G.ix = 0; G.iz = 0; }
   const needUp = wantY > py + 0.1;
@@ -1062,6 +1065,23 @@ const api = {
       earth.visible = true;
       setSky();
       earth.visible = true;
+    } else if (kind === 'joystick') {
+      placeOn(1);
+      window.__DEMO = false; D.on = false; G.hold = false;
+      bannerEl.classList.remove('on');
+      G.camYaw = 0; G.face = 0; player.rotation.y = 0;
+      G.vx = G.vz = G.vy = 0; G.air = false; G.ix = 0; G.iz = 0;
+      const p0 = player.position;
+      camera.fov = 58; camera.updateProjectionMatrix();
+      camera.position.set(p0.x, p0.y + 2.35, p0.z - 5.1);
+      camera.lookAt(p0.x, p0.y + 1.15, p0.z);
+      G.shotLock = true;
+      G.joy.on = true; G.joy.x = 1; G.joy.y = 0;
+      joyKnob.style.left = '98px'; joyKnob.style.top = '60px';
+      for (let i = 0; i < 26; i++) step(1 / 30);
+      G.joy.on = false; G.joy.x = 0; G.joy.y = 0;
+      joyKnob.style.left = '98px'; joyKnob.style.top = '60px';
+      setSky();
     } else if (kind === 'under') {
       placeOn(1);
       const p = platforms[1];

@@ -119,28 +119,75 @@ const { open } = require('./lib'); const { helpers } = require('./cabflow');
 
   const stick = await page.evaluate(W => {
     const w = eval(W), S = w.__skytower;
-    function run(sx, sy) {
+    function snapCam(yaw) {
+      const p = S.player.position, back = 5.1, height = 2.35;
+      S.G.camYaw = yaw;
+      S.camera.position.set(p.x - Math.sin(yaw) * back, p.y + height, p.z - Math.cos(yaw) * back);
+      S.camera.lookAt(p.x, p.y + 1.15, p.z);
+      S.camera.updateMatrixWorld(true);
+    }
+    function project(x, y, z) {
+      const v = S.player.position.clone().set(x, y, z);
+      v.project(S.camera);
+      return { x: (v.x * 0.5 + 0.5) * w.innerWidth, y: (-v.y * 0.5 + 0.5) * w.innerHeight };
+    }
+    function run(kind, yaw, sx, sy, ix, iz) {
       S.placeOn(1);
-      S.G.camYaw = 0; S.G.face = 0; S.G.vx = 0; S.G.vz = 0; S.G.vy = 0; S.G.air = false;
-      S.G.ix = 0; S.G.iz = 0; S.player.rotation.y = 0;
-      const x0 = S.player.position.x, z0 = S.player.position.z, yaw0 = S.G.camYaw;
+      S.G.face = 0; S.G.vx = 0; S.G.vz = 0; S.G.vy = 0; S.G.air = false;
+      S.G.ix = 0; S.G.iz = 0; S.G.joy.on = false; S.G.joy.x = 0; S.G.joy.y = 0;
+      S.player.rotation.y = 0;
+      snapCam(yaw);
+      S.G.shotLock = true;
+      const p = S.player.position, x0 = p.x, y0 = p.y, z0 = p.z, yaw0 = S.G.camYaw;
+      const s0 = project(x0, y0, z0);
       const pts = [[x0, z0]];
-      S.G.joy.on = true; S.G.joy.x = sx; S.G.joy.y = sy;
-      for (let i = 0; i < 30; i++) { S.step(1 / 30); pts.push([S.player.position.x, S.player.position.z]); }
-      S.G.joy.on = false; S.G.joy.x = 0; S.G.joy.y = 0;
-      const x1 = S.player.position.x, z1 = S.player.position.z, dx = x1 - x0, dz = z1 - z0, disp = Math.hypot(dx, dz);
+      if (kind === 'joy') { S.G.joy.on = true; S.G.joy.x = sx; S.G.joy.y = sy; }
+      else { S.G.ix = ix; S.G.iz = iz; }
+      for (let i = 0; i < 30; i++) { S.step(1 / 30); pts.push([p.x, p.z]); }
+      S.G.joy.on = false; S.G.joy.x = 0; S.G.joy.y = 0; S.G.ix = 0; S.G.iz = 0;
+      const x1 = p.x, z1 = p.z, dx = x1 - x0, dz = z1 - z0, disp = Math.hypot(dx, dz);
+      const s1 = project(x1, p.y, z1);
       let maxDev = 0;
       for (const [x, z] of pts) {
         const t = disp > 1e-6 ? ((x - x0) * dx + (z - z0) * dz) / (disp * disp) : 0;
         maxDev = Math.max(maxDev, Math.hypot(x - (x0 + t * dx), z - (z0 + t * dz)));
       }
-      return { disp, dYaw: S.G.camYaw - yaw0, maxDev, dx, dz };
+      const faceDot = disp > 1e-6 ? (Math.sin(S.G.face) * dx + Math.cos(S.G.face) * dz) / disp : 0;
+      S.G.shotLock = false;
+      return { disp, dYaw: S.G.camYaw - yaw0, maxDev, dx, dz, dsx: s1.x - s0.x, dsy: s1.y - s0.y, faceDot, s0, s1 };
     }
-    return { right: run(1, 0), up: run(0, -1) };
+    const yaw0 = 0, orbit = Math.PI / 2;
+    return {
+      joyUp: run('joy', yaw0, 0, -1, 0, 0),
+      joyDown: run('joy', yaw0, 0, 1, 0, 0),
+      joyRight: run('joy', yaw0, 1, 0, 0, 0),
+      joyLeft: run('joy', yaw0, -1, 0, 0, 0),
+      keyUp: run('key', yaw0, 0, 0, 0, -1),
+      keyDown: run('key', yaw0, 0, 0, 0, 1),
+      keyRight: run('key', yaw0, 0, 0, 1, 0),
+      keyLeft: run('key', yaw0, 0, 0, -1, 0),
+      orbitJoyUp: run('joy', orbit, 0, -1, 0, 0),
+      orbitJoyRight: run('joy', orbit, 1, 0, 0, 0),
+      orbitKeyUp: run('key', orbit, 0, 0, 0, -1),
+      orbitKeyRight: run('key', orbit, 0, 0, 1, 0)
+    };
   }, W);
-  const straight = (r, name) => r.disp > 2 && Math.abs(r.dYaw) < 0.08 && r.maxDev < 0.45;
-  chk(straight(stick.right) && stick.right.dx > 1.6, 'joystick right walks a straight camera-relative line ' + JSON.stringify(stick.right));
-  chk(straight(stick.up) && stick.up.dz > 1.6, 'joystick up walks a straight camera-relative line ' + JSON.stringify(stick.up));
+  const straight = r => r.disp > 2 && Math.abs(r.dYaw) < 0.08 && r.maxDev < 0.45 && r.faceDot > 0.85;
+  const goesUp = r => straight(r) && r.dsy < -25;
+  const goesDown = r => straight(r) && r.dsy > 25;
+  const goesRight = r => straight(r) && r.dsx > 25;
+  const goesLeft = r => straight(r) && r.dsx < -25;
+  chk(goesUp(stick.joyUp), 'joystick up walks away from the camera (screen y decreases) ' + JSON.stringify(stick.joyUp));
+  chk(goesDown(stick.joyDown), 'joystick down walks toward the camera (screen y increases) ' + JSON.stringify(stick.joyDown));
+  chk(goesRight(stick.joyRight), 'joystick right walks to screen-right (screen x increases) ' + JSON.stringify(stick.joyRight));
+  chk(goesLeft(stick.joyLeft), 'joystick left walks to screen-left (screen x decreases) ' + JSON.stringify(stick.joyLeft));
+  chk(goesUp(stick.keyUp), 'W / up-arrow walks away from the camera ' + JSON.stringify(stick.keyUp));
+  chk(goesDown(stick.keyDown), 'S / down-arrow walks toward the camera ' + JSON.stringify(stick.keyDown));
+  chk(goesRight(stick.keyRight), 'D / right-arrow walks to screen-right ' + JSON.stringify(stick.keyRight));
+  chk(goesLeft(stick.keyLeft), 'A / left-arrow walks to screen-left ' + JSON.stringify(stick.keyLeft));
+  chk(goesUp(stick.orbitJoyUp) && goesUp(stick.orbitKeyUp), 'after orbiting the camera, stick-up and W still decrease screen y ' + JSON.stringify({ joy: stick.orbitJoyUp, key: stick.orbitKeyUp }));
+  chk(goesRight(stick.orbitJoyRight) && goesRight(stick.orbitKeyRight), 'after orbiting the camera, stick-right and D still increase screen x ' + JSON.stringify({ joy: stick.orbitJoyRight, key: stick.orbitKeyRight }));
+
 
   const adv = await page.evaluate(W => {
     const w = eval(W), S = w.__skytower, p0 = S.platform;
