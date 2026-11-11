@@ -6,18 +6,26 @@
 // neonarcade.music). SFX still play when MUSIC is off. Arcade room music
 // already silences when play.mode !== 'walk', so we do not duck it further.
 // Stops on pagehide and when the parent leaves the cabinet (mode !== 'game').
+// t737u (Dave): + a RANDOM BASS line (saw + sine through a plucky low-pass) on its own
+// bus so the music high-pass doesn't thin it out. Each 16-step bar follows the chord
+// (C, G, Am, F), picks a random rhythm + note choices (root / fifth / octave / third,
+// passing note into the next bar), drops in after a random 1-2 bars and takes the odd
+// random break. Sparser, longer and softer toward space; a touch deeper at night.
 (function (global) {
   const ZapGap = 0.1;
   const MusicVol = 0.26;
   const S = {
-    starts: 0, stops: 0, zaps: 0, zapCyan: 0, zapRed: 0, chimes: 0,
-    playing: false, unlocked: false, wanted: false, space: 0, lastZap: -99
+    starts: 0, stops: 0, zaps: 0, zapCyan: 0, zapRed: 0, chimes: 0, whooshes: 0, lastWhoosh: -99,
+    playing: false, unlocked: false, wanted: false, space: 0, lastZap: -99,
+    night: 0, bassNotes: 0, bassBars: 0, bassRests: 0, bassLog: [], bassPats: []
   };
 
   let ac = null, master = null, musicG = null, sfxG = null;
   let lp = null, hp = null, delay = null, delayG = null, delayFb = null;
   let padOs = [], padG = null, shimmer = null, shimmerG = null, shimmerF = null;
   let timer = 0, nextT = 0, stepI = 0, noise = null;
+  let bassG = null, bassLP = null, bassBar = null, bassEnter = 1;
+  const BassVol = 1.0;   // relative to MusicVol (bassG mirrors musicG)
 
   function muted() {
     try { if (parent !== global && parent.__mute && parent.__mute.on) return true; } catch (e) {}
@@ -61,6 +69,10 @@
     lp.connect(delay); delay.connect(delayG); delayG.connect(master);
     delay.connect(delayFb); delayFb.connect(delay);
     sfxG.connect(master);
+    // bass bus: own gentle low-pass, skips the music high-pass; gain mirrors musicG (MUSIC / MUTE / exit)
+    bassG = ac.createGain(); bassG.gain.value = 0;
+    bassLP = ac.createBiquadFilter(); bassLP.type = 'lowpass'; bassLP.frequency.value = 900; bassLP.Q.value = 0.5;
+    bassLP.connect(bassG); bassG.connect(master);
     master.connect(ac.destination);
     return ac;
   }
@@ -123,6 +135,80 @@
   ];
   const STEP = 60 / 100 / 4;
 
+  // ---- random bass ----
+  // per chord (same order as CHORD): R root, 5 fifth, O octave, 3 third — all in C major, 55-147 Hz
+  const BNOTE = [
+    { R: 65.41, 5: 98.00, O: 130.81, 3: 82.41 },   // C
+    { R: 98.00, 5: 73.42, O: 146.83, 3: 61.74 },   // G
+    { R: 110.0, 5: 82.41, O: 55.00, 3: 65.41 },    // Am
+    { R: 87.31, 5: 65.41, O: 130.81, 3: 110.0 },   // F
+  ];
+  const SCALE = [41.20, 43.65, 49.00, 55.00, 61.74, 65.41, 73.42, 82.41, 87.31, 98.00, 110.0, 123.47, 130.81, 146.83];
+  // 16-step rhythms ('-' rest); first ones are the sparse ones used high up
+  const BPATS = [
+    'R-------5-------', 'R-------R---5---', 'R-----R---5-----', 'R---R---5---R-5-',
+    'R--R--5---R---O-', 'R-----R-5-----3-', 'R--5--R---O--5--', 'R-R---5-R---3-5-',
+  ];
+  function pick(a) { return a[(Math.random() * a.length) | 0]; }
+  function makeBassBar(bar) {
+    const sp = S.space, ci = bar % CHORD.length, nn = BNOTE[ci], next = BNOTE[(bar + 1) % CHORD.length];
+    S.bassBars++;
+    if (bar < bassEnter || (bar % 4 === 3 && Math.random() < 0.18)) { S.bassRests++; return { bar, rest: true, hits: [] }; }   // drop-in / random break
+    const pool = sp > 0.7 ? BPATS.slice(0, 2) : sp > 0.4 ? BPATS.slice(0, 5) : BPATS;
+    const pat = pick(pool), hits = [];
+    for (let k = 0; k < 16; k++) {
+      let c = pat[k]; if (c === '-') continue;
+      if (c === '5' && Math.random() < 0.25) c = 'O';
+      else if (c === 'O' && Math.random() < 0.3) c = '3';
+      let f = nn[c];
+      if (S.night > 0.6 && c === 'R' && f > 80 && Math.random() < 0.35 * S.night) f *= 0.5;   // a little deeper at night
+      hits.push({ k, f, c });
+    }
+    // passing note into the next bar's root (scale tone one step above/below)
+    if (sp < 0.7 && Math.random() < 0.55 && !hits.some(h => h.k >= 14)) {
+      const j = SCALE.reduce((b, v, i) => Math.abs(v - next.R) < Math.abs(SCALE[b] - next.R) ? i : b, 0);
+      const pj = Math.max(0, Math.min(SCALE.length - 1, j + (Math.random() < 0.5 ? -1 : 1)));
+      hits.push({ k: 14 + ((Math.random() * 2) | 0), f: SCALE[pj], c: 'p' });
+    }
+    hits.sort((a, b) => a.k - b.k);
+    for (let i = 0; i < hits.length; i++) hits[i].len = ((i + 1 < hits.length ? hits[i + 1].k : 16) - hits[i].k);
+    S.bassPats.push(pat); if (S.bassPats.length > 24) S.bassPats.shift();
+    return { bar, rest: false, pat, hits };
+  }
+  function bassNote(t, f, steps) {
+    const sp = S.space, nt = S.night;
+    const dur = Math.max(STEP * 0.8, Math.min(steps * STEP * (0.82 + sp * 0.5), 1.6));
+    const peak = 0.21 * (1 - sp * 0.3);
+    const fl = ac.createBiquadFilter(); fl.type = 'lowpass'; fl.Q.value = 3.2 - sp * 1.6;
+    const top = (760 - sp * 300 - nt * 160), floor = 150 + sp * 30;
+    fl.frequency.setValueAtTime(top, t); fl.frequency.exponentialRampToValueAtTime(floor, t + Math.min(dur, 0.35 + sp * 0.4));
+    const g = ac.createGain();
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(peak, t + 0.012);
+    const dEnd = Math.min(0.14, dur * 0.5), hEnd = Math.max(dEnd + 0.01, dur - 0.07);   // pluck, hold, short release (no clicks)
+    g.gain.exponentialRampToValueAtTime(peak * 0.55, t + dEnd);
+    g.gain.setValueAtTime(peak * 0.55, t + hEnd);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    const saw = ac.createOscillator(); saw.type = 'sawtooth'; saw.frequency.setValueAtTime(f, t);
+    const sub = ac.createOscillator(); sub.type = 'sine'; sub.frequency.setValueAtTime(f, t);
+    const subG = ac.createGain(); subG.gain.value = 0.9 + nt * 0.35;
+    saw.connect(fl); fl.connect(g); sub.connect(subG); subG.connect(g); g.connect(bassLP);
+    saw.start(t); sub.start(t); saw.stop(t + dur + 0.03); sub.stop(t + dur + 0.03);
+    S.bassNotes++; S.bassLog.push(+f.toFixed(2)); if (S.bassLog.length > 64) S.bassLog.shift();
+  }
+  function scheduleBass(t, i) {
+    const bar = (i / 16) | 0, k = i % 16;
+    if (k === 0 || !bassBar || bassBar.bar !== bar) bassBar = makeBassBar(bar);
+    if (bassBar.rest) return;
+    for (const h of bassBar.hits) if (h.k === k) bassNote(t, h.f, h.len);
+  }
+  function setNight(n) {
+    S.night = Math.max(0, Math.min(1, +n || 0));
+    if (bassLP && ac) bassLP.frequency.setTargetAtTime(900 - S.night * 220 - S.space * 200, ac.currentTime, 0.6);
+  }
+  // musicG and the bass bus always move together (MUSIC off / MUTE / exit silence both)
+  function musicGain(fn) { [musicG, bassG].forEach((g, j) => { if (g) fn(g.gain, j ? BassVol : 1); }); }
+
   function setSpace(amt) {
     S.space = Math.max(0, Math.min(1, +amt || 0));
     if (!ac || !lp) return;
@@ -135,10 +221,12 @@
     if (shimmerG) shimmerG.gain.setTargetAtTime(0.012 + sp * 0.05, t, 0.5);
     if (padG) padG.gain.setTargetAtTime(0.032 + sp * 0.028, t, 0.5);
     if (hp) hp.frequency.setTargetAtTime(70 + sp * 140, t, 0.5);
+    if (bassLP) bassLP.frequency.setTargetAtTime(900 - S.night * 220 - sp * 200, t, 0.6);
   }
 
   function scheduleNote(t, i) {
     const sp = S.space;
+    scheduleBass(t, i);
     const skip = sp > 0.65 ? (i % 4 !== 0) : sp > 0.35 ? (i % 2 !== 0) : false;
     if (!skip) {
       const f = ARP[i % ARP.length];
@@ -216,7 +304,7 @@
     if (sfxG) sfxG.gain.setTargetAtTime(muted() ? 0 : 0.72, t, 0.05);
     if (musicG && S.playing) {
       const vol = musicOn() && visible() && inCabinet() ? MusicVol : 0;
-      musicG.gain.setTargetAtTime(vol, t, 0.12);
+      musicGain((p, k) => p.setTargetAtTime(vol * k, t, 0.12));
     }
   }
 
@@ -228,11 +316,10 @@
     if (!inCabinet() || !visible() || !musicOn()) { applyGains(); return false; }
     if (S.playing) { applyGains(); return true; }
     const t = ac.currentTime;
-    musicG.gain.cancelScheduledValues(t);
-    musicG.gain.setValueAtTime(Math.max(0.0001, musicG.gain.value || 0.0001), t);
-    musicG.gain.linearRampToValueAtTime(MusicVol, t + 0.55);
+    musicGain((p, k) => { p.cancelScheduledValues(t); p.setValueAtTime(Math.max(0.0001, p.value || 0.0001), t); p.linearRampToValueAtTime(MusicVol * k, t + 0.55); });
     nextT = t + 0.05;
     stepI = 0;
+    bassBar = null; bassEnter = 1 + ((Math.random() * 2) | 0);   // bass drops in after a random 1-2 bars
     startPads();
     if (!timer) timer = setInterval(pump, 50);
     S.playing = true;
@@ -247,8 +334,7 @@
     if (!S.playing) {
       if (musicG && ac) {
         const t = ac.currentTime;
-        musicG.gain.cancelScheduledValues(t);
-        musicG.gain.setTargetAtTime(0, t, 0.05);
+        musicGain(p => { p.cancelScheduledValues(t); p.setTargetAtTime(0, t, 0.05); });
       }
       return false;
     }
@@ -258,9 +344,7 @@
     stopPads();
     if (musicG && ac) {
       const t = ac.currentTime;
-      musicG.gain.cancelScheduledValues(t);
-      musicG.gain.setValueAtTime(Math.max(0.0001, musicG.gain.value || 0.0001), t);
-      musicG.gain.linearRampToValueAtTime(0.0001, t + 0.28);
+      musicGain(p => { p.cancelScheduledValues(t); p.setValueAtTime(Math.max(0.0001, p.value || 0.0001), t); p.linearRampToValueAtTime(0.0001, t + 0.28); });
     }
     return true;
   }
@@ -319,6 +403,24 @@
     return true;
   }
 
+  // Wind gust telegraph: filtered-noise swell (~1.9s) peaking as the push arrives. SFX bus, so MUTE silences it.
+  function whoosh(amt) {
+    if (!ensure()) return false;
+    const t = ac.currentTime;
+    if (t - S.lastWhoosh < 1.0) return false;
+    S.lastWhoosh = t; S.whooshes++;
+    applyGains();
+    const a = Math.max(0.2, Math.min(1, +amt || 0.7));
+    const src = ac.createBufferSource(); src.buffer = noiseBuf(); src.loop = true;
+    const f = ac.createBiquadFilter(); f.type = 'bandpass'; f.Q.value = 0.9;
+    f.frequency.setValueAtTime(320, t); f.frequency.exponentialRampToValueAtTime(1500, t + 1.25); f.frequency.exponentialRampToValueAtTime(500, t + 1.9);
+    const g = ac.createGain();
+    g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.11 * a, t + 1.2); g.gain.exponentialRampToValueAtTime(0.0001, t + 1.95);
+    src.connect(f); f.connect(g); g.connect(sfxG);
+    src.start(t); src.stop(t + 2.0);
+    return true;
+  }
+  S.whoosh = whoosh;
   S.unlock = unlock;
   S.start = start;
   S.stop = stop;
@@ -326,6 +428,10 @@
   S.zap = zap;
   S.chime = chime;
   S.setSpace = setSpace;
+  S.setNight = setNight;
+  S.tap = () => ({ ac, bass: bassG, music: musicG, master });   // read-only nodes for level checks (tests / tuning)
+  Object.defineProperty(S, 'bassGain', { get: () => (bassG ? bassG.gain.value : 0) });
+  Object.defineProperty(S, 'musicGain', { get: () => (musicG ? musicG.gain.value : 0) });
 
   function onGesture() { unlock(); }
   ['pointerdown', 'keydown', 'touchstart'].forEach(ev => {

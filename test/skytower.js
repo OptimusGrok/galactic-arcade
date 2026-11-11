@@ -58,6 +58,8 @@ const { open } = require('./lib'); const { helpers } = require('./cabflow');
   await page.waitForTimeout(600);
   const g = await page.evaluate(W => { const w = eval(W), S = w.__skytower; return { scene: S.scene(), run: S.active(), demo: !!w.__DEMO, plat: S.platform, y: S.player.position.y }; }, W);
   chk(g.scene === 'play' && g.run && !g.demo, 'credit starts a real climb ' + JSON.stringify(g));
+  // random gusts are covered by their own block below; keep the physics checks deterministic
+  await page.evaluate(W => { const S = eval(W).__skytower; S.G.wind.lock = true; S.G.wind.phase = 'calm'; S.G.wind.k = 0; }, W);
 
   const flew = await page.evaluate(W => {
     const w = eval(W), S = w.__skytower, y0 = S.player.position.y;
@@ -327,10 +329,11 @@ const { open } = require('./lib'); const { helpers } = require('./cabflow');
 
   const layout = await page.evaluate(W => {
     const w = eval(W), S = w.__skytower;
-    const plats = S.platforms.map(p => ({ i: p.i, x: p.x, z: p.z, size: p.size, top: p.top, slide: p.slide || null }));
+    S.G.wind.lock = true; S.G.wind.phase = 'calm';
+    const plats = S.platforms.map(p => ({ i: p.i, x: p.x, z: p.z, size: p.size, kind: p.kind, top: p.top, slide: p.slide || null }));
     const largeI = new Set([1, 11, 21, 31, 41, 50]);
     const large = plats.filter(p => largeI.has(p.i)).map(p => p.size);
-    const small = plats.filter(p => !largeI.has(p.i)).map(p => p.size);
+    const small = plats.filter(p => !largeI.has(p.i) && p.kind === 'block').map(p => p.size);
     const restOf = p => p.slide ? { x: p.slide.ox, z: p.slide.oz } : { x: p.x, z: p.z };
     const maxT = 1 / S.FLY.drain, maxClimb = S.FLY.up * maxT, maxAir = (S.AIR_SPEED || 6.2) * maxT;
     let minXZ = 1e9, maxXZ = 0, minY = 1e9, maxY = 0, minAny = 1e9;
@@ -367,6 +370,9 @@ const { open } = require('./lib'); const { helpers } = require('./cabflow');
     const hp0 = S.G.hp, shots0 = S.shots.length;
     for (let i = 0; i < 150; i++) S.step(1 / 30);
     const fuelEffs = hops.map(h => h.fuelEff), fuelWorsts = hops.map(h => h.fuelWorst);
+    // worst gust: full strength at the top, straight against the hop, for its whole length while steering (air relax rate 3/s)
+    const Wd = S.WIND, gustA = S.windAccelAt(1, true, Wd.str1), drift = gustA / 3;
+    const windFuel = (drift * Wd.dur1 / (S.AIR_SPEED || 6.2)) * S.FLY.drain;
     return {
       n: plats.length,
       minXZ, maxXZ, minY, maxY, minAny,
@@ -380,7 +386,7 @@ const { open } = require('./lib'); const { helpers } = require('./cabflow');
       hardFuel: Math.max(...fuelEffs),
       hardestWorst: Math.max(...fuelWorsts),
       shotsBefore: shots0, shotsAfter: S.shots.length, aliveShots: S.shots.filter(s => s.alive).length,
-      hp0, hp1: S.G.hp, maxClimb, maxAir
+      hp0, hp1: S.G.hp, maxClimb, maxAir, gustA, drift, windFuel
     };
   }, W);
   chk(layout.n === 50 && layout.minY > 13 && layout.maxY > 22 && layout.minXZ > 20,
@@ -390,6 +396,8 @@ const { open } = require('./lib'); const { helpers } = require('./cabflow');
     'checkpoints stay large and the other pads are a few studs wide ' + JSON.stringify({ large: layout.large, smallMin: layout.smallMinR, smallMax: layout.smallMaxR }));
   chk(layout.hopsOk && layout.hopCount === 49 && layout.hardestWorst <= 0.90 + 1e-6,
     'every hop stays reachable in the worst moving-pad case (<=90% fuel) ' + JSON.stringify({ failed: layout.hopsFailed, easy: layout.easyFuel, hard: layout.hardFuel, worst: layout.hardestWorst }));
+  chk(layout.hardestWorst + layout.windFuel <= 1.0,
+    'worst hop + worst head-on gust still fits one tank (' + ((layout.hardestWorst + layout.windFuel) * 100).toFixed(1) + '%) ' + JSON.stringify({ gustA: +layout.gustA.toFixed(2), drift: +layout.drift.toFixed(2), windFuel: +layout.windFuel.toFixed(4) }));
   chk(layout.easyFuel >= 0.48 && layout.easyFuel <= 0.62,
     'early hops cost about 50-60% fuel (' + (layout.easyFuel * 100).toFixed(1) + '%)');
   chk(layout.hardFuel >= 0.80 && layout.hardFuel <= 0.90,
@@ -426,6 +434,132 @@ const { open } = require('./lib'); const { helpers } = require('./cabflow');
   chk(slide.moved > 0.85 && slide.carry < 0.35 && !slide.air && slide.yErr < 0.2,
     'standing on a moving pad carries the player without falling off ' + JSON.stringify(slide));
   chk(slide.axes.includes('x') && slide.axes.includes('z'), 'moving pads vary axis ' + JSON.stringify(slide.axes));
+
+  const shapes = await page.evaluate(W => {
+    const w = eval(W), S = w.__skytower;
+    S.G.wind.lock = true; S.G.wind.phase = 'calm';
+    const P = S.platforms;
+    const tiny = P.filter(p => p.kind === 'tiny'), beam = P.filter(p => p.kind === 'beam');
+    const checksBlock = P.filter(p => S.isCheck(p.i) || p.i === 1 || p.i === S.N).every(p => p.kind === 'block' && p.sx === p.sz && p.sx >= 9);
+    const tinyMax = Math.max(...tiny.map(p => Math.max(p.sx, p.sz))), tinyMin = Math.min(...tiny.map(p => Math.min(p.sx, p.sz)));
+    const beamRatio = Math.min(...beam.map(p => Math.max(p.sx, p.sz) / Math.min(p.sx, p.sz)));
+    const beamW = Math.max(...beam.map(p => Math.min(p.sx, p.sz))), beamL = Math.min(...beam.map(p => Math.max(p.sx, p.sz)));
+    const axes = Array.from(new Set(beam.map(p => p.along)));
+    const slidingOdd = P.filter(p => p.slide && p.kind !== 'block').map(p => p.i + p.kind[0]);
+    const noSpinTiny = tiny.every(p => !p.traps.some(tr => tr.type === 'spinner' || tr.type === 'wind'));
+    // drop onto a tiny pad from 2m up: lands and stays on top
+    const land = (p, ox, oz) => {
+      S.placeOn(p.i); S.G.hold = false; S.G.shotLock = true; S.fly(false); S.G.ix = S.G.iz = 0; S.G.joy.on = false;
+      if (p.slide) { p.slide.speed0 = p.slide.speed; p.slide.speed = 0; }
+      S.player.position.set(p.x + ox, p.top + 2, p.z + oz); S.G.air = true; S.G.vx = S.G.vz = S.G.vy = 0;
+      for (let i = 0; i < 70; i++) S.step(1 / 30);
+      const r = { i: p.i, kind: p.kind, air: S.G.air, onPad: S.G.onPad && S.G.onPad.i, dy: +(S.player.position.y - p.top).toFixed(3) };
+      if (p.slide) p.slide.speed = p.slide.speed0;
+      return r;
+    };
+    const t0 = tiny.find(p => !p.slide) || tiny[0], b0 = beam.find(p => !p.slide) || beam[0];
+    const bOff = 0.8 * Math.max(b0.sx, b0.sz) * 0.5;
+    const tinyLand = land(t0, 0.1, -0.1);
+    const beamEnd = land(b0, b0.along === 'x' ? bOff : 0, b0.along === 'z' ? -bOff : 0);
+    const beamMiss = land(b0, b0.along === 'x' ? 0 : 1.3, b0.along === 'z' ? 0 : 1.3);   // beside a thin beam -> falls past it
+    return { tiny: tiny.length, beam: beam.length, blocks: P.filter(p => p.kind === 'block').length, checksBlock, tinyMax, tinyMin, beamRatio, beamW, beamL, axes, slidingOdd, noSpinTiny, tinyLand, beamEnd, beamMiss };
+  }, W);
+  chk(shapes.tiny >= 5 && shapes.tinyMax <= 1.2 && shapes.tinyMin >= 0.95, 'some pads are really small (single-foot) ' + JSON.stringify({ n: shapes.tiny, min: shapes.tinyMin, max: shapes.tinyMax }));
+  chk(shapes.beam >= 5 && shapes.beamRatio >= 5 && shapes.beamW <= 1.0 && shapes.axes.length === 2, 'some pads are long thin beams in both orientations ' + JSON.stringify({ n: shapes.beam, ratio: shapes.beamRatio, w: shapes.beamW, minL: shapes.beamL, axes: shapes.axes }));
+  chk(shapes.checksBlock, 'checkpoints, start and finish stay large square pads');
+  chk(shapes.slidingOdd.length >= 2, 'sliding pads include tiny / beam shapes ' + JSON.stringify(shapes.slidingOdd));
+  chk(shapes.noSpinTiny, 'tiny pads never carry a spinner or a wind trap');
+  chk(!shapes.tinyLand.air && shapes.tinyLand.onPad === shapes.tinyLand.i && Math.abs(shapes.tinyLand.dy) < 0.05, 'a tiny pad is landable ' + JSON.stringify(shapes.tinyLand));
+  chk(!shapes.beamEnd.air && shapes.beamEnd.onPad === shapes.beamEnd.i && Math.abs(shapes.beamEnd.dy) < 0.05, 'the far end of a beam is solid ' + JSON.stringify(shapes.beamEnd));
+  chk(shapes.beamMiss.onPad !== shapes.beamMiss.i, 'beside a thin beam there is no invisible floor ' + JSON.stringify(shapes.beamMiss));
+
+  const wind = await page.evaluate(W => {
+    const w = eval(W), S = w.__skytower, Wd = S.WIND, snd = S.snd || w.__skySnd;
+    const big = S.platforms[20];
+    const reset = i => { S.placeOn(i); S.G.hold = false; S.G.shotLock = true; S.fly(false); S.G.ix = S.G.iz = 0; S.G.joy.on = false; S.G.vx = S.G.vz = 0; };
+    // natural scheduler: calm -> telegraph (warn) -> gust -> calm
+    reset(21); S.G.wind.lock = false; S.G.wind.phase = 'calm'; S.G.wind.t = 0; S.G.wind.next = 0.2;
+    const wh0 = snd ? snd.whooshes : 0; if (snd) snd.lastWhoosh = -99;
+    const seen = []; let warnForce = 0, sawStreaks = 0, hudWarn = false, hudGust = false, arrow = '';
+    for (let i = 0; i < 30 * 7; i++) {
+      S.step(1 / 30);
+      const st = S.G.wind;
+      if (seen[seen.length - 1] !== st.phase) seen.push(st.phase);
+      if (st.phase === 'warn') { warnForce = Math.max(warnForce, st.accel); hudWarn = hudWarn || w.document.getElementById('windHud').classList.contains('warn'); }
+      if (st.phase === 'gust') { hudGust = hudGust || w.document.getElementById('windHud').classList.contains('on'); arrow = w.document.getElementById('windArrow').style.transform; }
+      if (st.phase !== 'calm') sawStreaks = Math.max(sawStreaks, S.world.children.filter(o => o.renderOrder === 4 && o.visible).length);
+      if (seen.length >= 4) break;
+    }
+    const whooshed = snd ? snd.whooshes - wh0 : -1;
+    // forced full gust +x: air vs ground push
+    S.G.wind.lock = false;
+    reset(21); S.player.position.y = big.top + 6; S.G.air = true;
+    S.windGust({ dx: 1, dz: 0, str: 1, phase: 'gust', t: 1, dur: 10 });
+    const ax0 = S.player.position.x; let airA = 0;
+    for (let i = 0; i < 15; i++) { S.step(1 / 30); airA = Math.max(airA, S.G.wind.accel); }
+    const airDx = S.player.position.x - ax0;
+    reset(21); S.windGust({ dx: 1, dz: 0, str: 1, phase: 'gust', t: 1, dur: 10 });
+    const gx0 = S.player.position.x; let gA = 0;
+    for (let i = 0; i < 15; i++) { S.step(1 / 30); gA = Math.max(gA, S.G.wind.accel); }
+    const groundDx = S.player.position.x - gx0;
+    // standing still on a tiny pad through a whole full-strength gust: stays on
+    const tiny = S.platforms.filter(p => p.kind === 'tiny' && !p.slide).pop();
+    S.G.check = 1; reset(tiny.i); S.windGust({ dx: 0, dz: 1, str: 1, phase: 'gust', t: Wd.rampIn, dur: Wd.dur1 });
+    for (let i = 0; i < Math.ceil(Wd.dur1 * 30); i++) S.step(1 / 30);
+    const tinyHold = { onPad: S.G.onPad && S.G.onPad.i, i: tiny.i, air: S.G.air, off: +Math.hypot(S.player.position.x - tiny.x, S.player.position.z - tiny.z).toFixed(3) };
+    const lowA = S.windAccelAt(0, true, 1), highA = S.windAccelAt(1, true, 1);
+    S.G.wind.lock = true; S.G.wind.phase = 'calm'; S.G.wind.k = 0; S.drawWind();
+    return { seen, warnForce, sawStreaks, hudWarn, hudGust, arrow, whooshed, airA, airDx, gA, groundDx, tinyHold, lowA, highA, hudAfter: w.document.getElementById('windHud').classList.contains('on') };
+  }, W);
+  chk(wind.seen.join('>') === 'calm>warn>gust>calm', 'random gusts cycle calm > warn > gust > calm ' + JSON.stringify(wind.seen));
+  chk(wind.warnForce === 0 && wind.hudWarn && wind.sawStreaks >= 10 && wind.whooshed === 1,
+    'each gust is telegraphed first (blinking WIND arrow, streaks, one whoosh, no push yet) ' + JSON.stringify({ f: wind.warnForce, hud: wind.hudWarn, streaks: wind.sawStreaks, whoosh: wind.whooshed }));
+  chk(wind.hudGust && /rotate\(/.test(wind.arrow), 'WIND arrow shows the gust direction ' + wind.arrow);
+  chk(wind.airDx > 0.12 && wind.airA > 0, 'a gust pushes the player in the air ' + JSON.stringify({ dx: wind.airDx, a: wind.airA }));
+  chk(wind.groundDx >= 0 && wind.groundDx < wind.airDx * 0.5 && wind.gA < wind.airA * 0.5, 'ground push is much weaker than air push ' + JSON.stringify({ air: wind.airDx, ground: wind.groundDx, aAir: wind.airA, aGround: wind.gA }));
+  chk(wind.tinyHold.onPad === wind.tinyHold.i && !wind.tinyHold.air, 'a full gust does not shove you off a tiny pad while standing ' + JSON.stringify(wind.tinyHold));
+  chk(wind.highA > wind.lowA * 1.8, 'gusts ramp with height ' + JSON.stringify({ low: wind.lowA, high: wind.highA }));
+  chk(!wind.hudAfter, 'WIND indicator hides when calm');
+
+  // t736u: day/night cycle by height (night + moon at 10/30/50, day at 20/40, dusk/dawn half-way)
+  const sky = await page.evaluate(W => {
+    const w = eval(W), S = w.__skytower;
+    S.G.wind.lock = true; S.G.wind.phase = 'calm'; S.G.wind.k = 0;
+    const at = i => { S.G.check = 1; S.placeOn(i); S.G.hold = false; S.G.shotLock = true; S.fly(false); S.G.ix = S.G.iz = 0; S.G.joy.on = false; S.step(1 / 30); const k = S.sky, b = S.world.background;
+      return { i, level: +k.level.toFixed(3), n: +k.night.toFixed(3), phase: k.phase, sun: +k.sun.toFixed(3), moon: +k.moon.toFixed(3), stars: +k.stars.toFixed(2), mv: k.moonVisible, space: +k.space.toFixed(2), lum: +(0.3 * b.r + 0.59 * b.g + 0.11 * b.b).toFixed(3) }; };
+    const nights = [10, 30, 50].map(at), days = [20, 40].map(at), mids = [5, 15, 25, 35, 45].map(at);
+    // smooth with height: sweep from platform 1 to 50 in small height steps, sky never jumps
+    let maxStep = 0, mono = true, prevL = -1, prevN = null;
+    const y0 = S.platforms[0].top, y1 = S.platforms[S.N - 1].top;
+    for (let k = 0; k <= 2000; k++) {
+      const y = y0 + (y1 - y0) * k / 2000; S.player.position.y = y; const r = S.setSky(1 / 30);
+      if (r.level < prevL - 1e-9) mono = false; prevL = r.level;
+      if (prevN != null) maxStep = Math.max(maxStep, Math.abs(r.night - prevN)); prevN = r.night;
+    }
+    // between platform 9 and 10 (in the air) it is mid-way between their skies, not snapped to either
+    const p9 = S.platforms[8], p10 = S.platforms[9];
+    S.player.position.y = (p9.top + p10.top) / 2; const half = S.setSky(1 / 30);
+    // fall from high up: respawn at the checkpoint and the sky matches that height
+    S.G.check = 1; S.placeOn(19); S.G.hold = false; S.G.mode = 'play'; S.G.run = true; S.G.shotLock = true; S.step(1 / 30);
+    const before = { level: +S.sky.level.toFixed(2), n: +S.sky.night.toFixed(3), check: S.G.check };
+    S.player.position.y = S.platforms[S.G.check - 1].top - 9; S.G.air = true; S.G.vy = -2;
+    S.step(1 / 30);
+    const after = { level: +S.sky.level.toFixed(2), n: +S.sky.night.toFixed(3), plat: S.platform, expect: +S.nightAt(S.levelAt(S.player.position.y)).toFixed(3) };
+    return { nights, days, mids, maxStep: +maxStep.toFixed(4), mono, half: { level: +half.level.toFixed(2), n: +half.night.toFixed(3), n9: +S.nightAt(9).toFixed(3) }, before, after, cycle: S.SKY.cycle };
+  }, W);
+  console.log('sky', JSON.stringify(sky));
+  chk(sky.cycle === 10 && sky.nights.every(r => Math.abs(r.level - r.i) < 0.02 && r.n > 0.99 && r.phase === 'night' && r.sun < 0.02 && r.moon > 0.95 && r.mv && r.stars > 0.95),
+    'full night with only moonlight (no sun, moon + stars out) on platforms 10, 30 and 50 ' + JSON.stringify(sky.nights));
+  chk(sky.days.every(r => r.n < 0.01 && r.phase === 'day' && r.sun > 0.6 && r.moon < 0.01 && !r.mv && r.stars < 0.05 && r.lum > 0.2),
+    'full day again on platforms 20 and 40 ' + JSON.stringify(sky.days));
+  chk(sky.mids.every(r => r.n > 0.4 && r.n < 0.6 && r.sun > 0.15 && r.sun < 0.9) && sky.mids.map(r => r.phase).join() === 'dusk,dawn,dusk,dawn,dusk',
+    'half-way platforms 5/15/25/35/45 are dusk/dawn mid-transition ' + JSON.stringify(sky.mids.map(r => [r.i, r.n, r.phase])));
+  chk(sky.nights[0].lum < sky.mids[0].lum && sky.mids[0].lum < sky.days[0].lum + 0.2 && sky.nights[2].space > 0.95 && sky.nights[2].lum < 0.02,
+    'night sky is dark, and platform 50 blends into black space ' + JSON.stringify({ n10: sky.nights[0].lum, d5: sky.mids[0].lum, d20: sky.days[0].lum, n50: sky.nights[2].lum, space: sky.nights[2].space }));
+  chk(sky.mono && sky.maxStep < 0.01, 'the sky follows height smoothly (no snap), max step ' + sky.maxStep);
+  chk(sky.half.n > 0.8 && sky.half.n < 0.995 && sky.half.level > 9.3 && sky.half.level < 9.7, 'in the air between 9 and 10 the sky is part-way ' + JSON.stringify(sky.half));
+  chk(sky.before.check === 11 && sky.before.n < 0.05 && sky.after.plat === 11 && Math.abs(sky.after.level - 11) < 0.05 && Math.abs(sky.after.n - sky.after.expect) < 0.002 && sky.after.n > 0.95,
+    'falling from 19 respawns at checkpoint 11 and the sky matches that height (night again) ' + JSON.stringify({ before: sky.before, after: sky.after }));
 
   const adv = await page.evaluate(W => {
     const w = eval(W), S = w.__skytower, p0 = S.platform;
@@ -508,6 +642,61 @@ const { open } = require('./lib'); const { helpers } = require('./cabflow');
       spaceLow, spaceHigh, afterHide, afterMusicOff, afterMusicOn, afterExit
     };
   }, W);
+  // t737u: random bass layer under the score
+  const bass = await page.evaluate(async W => {
+    const w = eval(W), S = w.__skytower, snd = S.snd || w.__skySnd;
+    const wait = ms => new Promise(r => setTimeout(r, ms));
+    window.__music.on = true; window.__arcade.play.mode = 'game';
+    S.G.check = 1; S.placeOn(1); S.G.hold = false; S.step(1 / 30);
+    snd.stop(); snd.unlock(); snd.start();
+    const T = snd.tap(), an = T.ac.createAnalyser(); an.fftSize = 4096; T.bass.connect(an);
+    const an2 = T.ac.createAnalyser(); an2.fftSize = 4096; T.master.connect(an2);
+    const n0 = snd.bassNotes, bars0 = snd.bassBars;
+    let peakRms = 0, lowShare = 0;
+    const buf = new Float32Array(an.fftSize), fb = new Float32Array(an.frequencyBinCount);
+    for (let k = 0; k < 40; k++) {   // ~8 s of real time = 3+ bars at 100 bpm
+      await wait(200);
+      an.getFloatTimeDomainData(buf); let s2 = 0; for (const v of buf) s2 += v * v; const rms = Math.sqrt(s2 / buf.length);
+      if (rms > peakRms) {
+        peakRms = rms; an.getFloatFrequencyData(fb);
+        const hz = i => i * T.ac.sampleRate / an.fftSize; let lo = 0, all = 0;
+        for (let i = 1; i < fb.length; i++) { const e = Math.pow(10, fb[i] / 10); all += e; if (hz(i) < 300) lo += e; }
+        lowShare = lo / (all || 1);
+      }
+    }
+    const run1 = { notes: snd.bassNotes - n0, bars: snd.bassBars - bars0, log: snd.bassLog.slice(-24), pats: snd.bassPats.slice(), gain: +snd.bassGain.toFixed(3), mg: +snd.musicGain.toFixed(3), peakRms: +peakRms.toFixed(4), lowShare: +lowShare.toFixed(2), playing: snd.playing };
+    // MUSIC off: score + bass silent, nothing new scheduled, SFX still work
+    window.__music.on = false; snd.tick(snd.space); await wait(700);
+    const nOff = snd.bassNotes; await wait(900);
+    snd.lastZap = -99; const z0 = snd.zaps; snd.zap('cyan');
+    const off = { playing: snd.playing, gain: +snd.bassGain.toFixed(4), newNotes: snd.bassNotes - nOff, zapped: snd.zaps - z0 };
+    window.__music.on = true; snd.start(); await wait(400);
+    // exit the cabinet: stops at once
+    const nEx = snd.bassNotes; window.__arcade.play.mode = 'zoomOut'; snd.tick(snd.space); await wait(600);
+    const nEx2 = snd.bassNotes; await wait(900);
+    const exit = { playing: snd.playing, gain: +snd.bassGain.toFixed(4), newNotes: snd.bassNotes - nEx2 };
+    window.__arcade.play.mode = 'game';
+    // variation: many generated bars differ in rhythm / notes, and two fresh runs do not repeat
+    const fresh = async ms => { snd.stop(); snd.start(); const l0 = snd.bassNotes, p0 = snd.bassPats.length; await wait(ms); const n = snd.bassNotes - l0; return { log: snd.bassLog.slice(-n).join(), pats: snd.bassPats.slice(p0) }; };
+    const A1 = await fresh(9000), B1 = await fresh(9000);
+    const runA = A1.log, runB = B1.log;
+    const pats = new Set(A1.pats.concat(B1.pats, run1.pats)).size;
+    // high up (the game feeds height into the music every frame): only the sparse rhythms
+    S.G.check = 1; S.placeOn(47); S.G.hold = false; S.step(1 / 30);
+    const H1 = await fresh(10000), hiPats = H1.pats, hiSpace = snd.space;
+    S.G.check = 1; S.placeOn(1); S.G.hold = false; S.step(1 / 30);
+    T.bass.disconnect(an); T.master.disconnect(an2);
+    return { run1, off, exit, runA, runB, pats, hiPats, hiSpace: +hiSpace.toFixed(2), rests: snd.bassRests };
+  }, W);
+  console.log('bass', JSON.stringify(bass));
+  chk(bass.run1.playing && bass.run1.notes >= 6 && bass.run1.bars >= 3 && bass.run1.gain > 0.2 && Math.abs(bass.run1.gain - bass.run1.mg) < 0.02,
+    'random bass is scheduled with the score on the music bus ' + JSON.stringify({ notes: bass.run1.notes, bars: bass.run1.bars, gain: bass.run1.gain, music: bass.run1.mg }));
+  chk(bass.run1.peakRms > 0.01 && bass.run1.lowShare > 0.6 && bass.run1.log.every(f => f >= 30 && f <= 150),
+    'the bass is audible and low (in-key notes 30-150 Hz) ' + JSON.stringify({ rms: bass.run1.peakRms, lowShare: bass.run1.lowShare, notes: bass.run1.log }));
+  chk(bass.pats >= 3 && bass.runA.length > 0 && bass.runB.length > 0 && bass.runA !== bass.runB, 'the bass line varies between bars and between runs ' + JSON.stringify({ rhythms: bass.pats, a: bass.runA, b: bass.runB }));
+  chk(bass.hiSpace > 0.7 && bass.hiPats.length >= 1 && bass.hiPats.every(p => (p.match(/[^-]/g) || []).length <= 3), 'near space the bass thins out to sparse notes ' + JSON.stringify({ space: bass.hiSpace, pats: bass.hiPats }));
+  chk(!bass.off.playing && bass.off.gain < 0.01 && bass.off.newNotes === 0 && bass.off.zapped === 1, 'MUSIC off silences the bass too, SFX still play ' + JSON.stringify(bass.off));
+  chk(!bass.exit.playing && bass.exit.gain < 0.01 && bass.exit.newNotes === 0, 'leaving the cabinet stops the bass immediately ' + JSON.stringify(bass.exit));
   chk(!music.missing, 'Sky Tower exposes a WebAudio snd API');
   chk(music.afterStop && music.afterStop.playing === false, 'music stop silences the soundtrack ' + JSON.stringify(music.afterStop));
   chk(music.afterStart && music.afterStart.playing && music.afterStart.starts > 0, 'music starts after unlock ' + JSON.stringify(music.afterStart));

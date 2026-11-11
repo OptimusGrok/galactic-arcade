@@ -9,6 +9,11 @@ const PITCH_MIN = -0.22, PITCH_MAX = 1.12;
 const FLY = { drain: 0.125, fill: 0.16, min: 0.08, up: 3.4, down: 2.4 };
 const R = 0.32, PH = 1.82, HI_KEY = 'arcade_skytower_best', RUN_CAP = 50;
 const FLY_TICKETS = 30, FLY_TICKET_VALUE = 1, TICKET_HIT_R = 0.82;
+// Pad shapes (non-checkpoint only): tiny single-foot pads and long thin beams.
+const PAD = { tiny0: 1.15, tiny1: 1.0, beamW: 0.95, beamL0: 6.4, beamL1: 5.4, tinyP: 0.2, beamP: 0.3 };
+// Random gusts: calm gap, telegraph (streaks + HUD arrow + whoosh), then a push. Accel in m/s^2.
+const WIND = { gap0: 6, gap1: 11, warn: 1.3, dur0: 1.8, dur1: 3.0, rampIn: 0.45, rampOut: 0.6,
+  airBase: 2.0, airTop: 2.4, ground: 0.3, str0: 0.6, str1: 1.0, fromPlat: 2 };
 const BRICKS = [0xc91a09, 0xf5cd2f, 0x0055bf, 0x237841, 0xfe8a18, 0xf4f4f4, 0x81007b, 0x078bc9];
 const studGeo = new THREE.CylinderGeometry(0.11, 0.11, 0.07, 7);
 const dummy = new THREE.Object3D();
@@ -262,6 +267,7 @@ const platEl = q('plat'), hpEl = q('hp'), bestEl = q('best'), bannerEl = q('bann
 const tixEl = q('tixHud'), plusLayer = q('plusLayer');
 const flyMeterEl = q('flyMeter'), flyBarEl = flyMeterEl.firstChild, bFly = q('bFly'), bFire = q('bFire');
 const joyEl = q('joy'), joyKnob = q('joyKnob');
+const windEl = q('windHud'), windArrow = q('windArrow');
 
 const renderer = new THREE.WebGLRenderer({ antialias: false, powerPreference: 'low-power' });
 renderer.setPixelRatio(coolOn() ? 1 : Math.min(1.5, devicePixelRatio || 1));
@@ -274,7 +280,7 @@ const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x7ec8ff);
 scene.fog = new THREE.FogExp2(0x7ec8ff, 0.012);
 const camera = new THREE.PerspectiveCamera(60, innerWidth / innerHeight, 0.15, 1400);
-scene.add(new THREE.HemisphereLight(0xd8ecff, 0x8a7358, 1.25));
+const hemi = new THREE.HemisphereLight(0xd8ecff, 0x8a7358, 1.25); scene.add(hemi);
 const sun = new THREE.DirectionalLight(0xfff2d8, 1.35); sun.position.set(8, 18, 10); scene.add(sun);
 const fill = new THREE.DirectionalLight(0xb8d4ff, 0.45); fill.position.set(-8, 6, -6); scene.add(fill);
 
@@ -286,16 +292,51 @@ const starsGeo = new THREE.BufferGeometry();
   }
   starsGeo.setAttribute('position', new THREE.BufferAttribute(a, 3));
 }
-const stars = new THREE.Points(starsGeo, new THREE.PointsMaterial({ color: 0xffffff, size: 1.1, sizeAttenuation: true, transparent: true, opacity: 0 }));
+const stars = new THREE.Points(starsGeo, new THREE.PointsMaterial({ color: 0xffffff, size: 1.1, sizeAttenuation: true, transparent: true, opacity: 0, fog: false, depthWrite: false }));
 scene.add(stars);
 
-const earth = new THREE.Mesh(new THREE.SphereGeometry(90, 32, 24), new THREE.MeshLambertMaterial({ map: earthTex() }));
+// t736u (Dave): day/night cycle by height. Full night (moon only) at platform 10, day at 20, and so on every 10.
+const SKY = { cycle: 10, moonDist: 260, moonR: 9.5 };
+const moonL = new THREE.DirectionalLight(0x9fb8ff, 0); moonL.position.set(-6, 20, 8); scene.add(moonL);
+function moonTex() {
+  const c = document.createElement('canvas'); c.width = c.height = 128; const g = c.getContext('2d');
+  const gr = g.createRadialGradient(54, 50, 6, 64, 64, 62);
+  gr.addColorStop(0, '#fffef4'); gr.addColorStop(0.7, '#e9ecf2'); gr.addColorStop(1, '#c4cad8');
+  g.fillStyle = gr; g.beginPath(); g.arc(64, 64, 62, 0, 7); g.fill();
+  g.fillStyle = 'rgba(120,128,150,0.28)';
+  [[44, 46, 11], [82, 40, 7], [74, 78, 14], [40, 86, 8], [92, 70, 5], [58, 64, 5]].forEach(([x, y, r]) => { g.beginPath(); g.arc(x, y, r, 0, 7); g.fill(); });
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t;
+}
+function glowTex() {
+  const c = document.createElement('canvas'); c.width = c.height = 128; const g = c.getContext('2d');
+  const gr = g.createRadialGradient(64, 64, 0, 64, 64, 64);
+  gr.addColorStop(0, 'rgba(210,225,255,0.85)'); gr.addColorStop(0.25, 'rgba(170,195,255,0.35)'); gr.addColorStop(1, 'rgba(120,150,255,0)');
+  g.fillStyle = gr; g.fillRect(0, 0, 128, 128);
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t;
+}
+const moon = new THREE.Group(); moon.name = 'moon'; moon.visible = false; scene.add(moon);
+const moonDisc = new THREE.Sprite(new THREE.SpriteMaterial({ map: moonTex(), transparent: true, opacity: 0, fog: false, depthWrite: false }));
+moonDisc.scale.setScalar(SKY.moonR * 2); moonDisc.renderOrder = -1; moon.add(moonDisc);
+const moonGlow = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTex(), transparent: true, opacity: 0, fog: false, depthWrite: false, blending: THREE.AdditiveBlending }));
+moonGlow.scale.setScalar(SKY.moonR * 7.5); moonGlow.renderOrder = -2; moon.add(moonGlow);
+// gradient sky dome (top / horizon / below) that follows the camera, so dusk, dawn and night read like a real sky
+const skyDome = new THREE.Mesh(new THREE.SphereGeometry(600, 32, 16), new THREE.ShaderMaterial({
+  side: THREE.BackSide, depthWrite: false, depthTest: false, fog: false,
+  uniforms: { top: { value: new THREE.Color(0x4a9cf0) }, mid: { value: new THREE.Color(0x9fd6ff) }, bot: { value: new THREE.Color(0xd6ecff) } },
+  vertexShader: 'varying vec3 vD; void main(){ vD = normalize(position); gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
+  fragmentShader: 'uniform vec3 top; uniform vec3 mid; uniform vec3 bot; varying vec3 vD; void main(){ float h = vD.y; vec3 c = h > 0.0 ? mix(mid, top, pow(clamp(h * 2.2, 0.0, 1.0), 0.75)) : mix(mid, bot, pow(clamp(-h * 2.5, 0.0, 1.0), 0.6)); gl_FragColor = vec4(c, 1.0);\n#include <colorspace_fragment>\n}',
+}));
+skyDome.name = 'skyDome'; skyDome.renderOrder = -10; skyDome.frustumCulled = false; scene.add(skyDome);
+const NIGHT_TINT = [];   // unlit (basic) bits that should dim to moonlight: tiny-pad rims, clouds
+
+const earth = new THREE.Mesh(new THREE.SphereGeometry(90, 32, 24), (() => { const t = earthTex(); return new THREE.MeshLambertMaterial({ map: t, emissive: 0xffffff, emissiveMap: t, emissiveIntensity: 0 }); })());
 earth.name = 'earth'; earth.position.set(85, 28, 145); earth.rotation.set(0.22, 1.15, 0.12); earth.visible = false; scene.add(earth);
 const atmo = new THREE.Mesh(new THREE.SphereGeometry(94, 24, 16), basic(0x6ec8ff, { transparent: true, opacity: 0.18, side: THREE.BackSide, depthWrite: false }));
 earth.add(atmo);
 
 const clouds = new THREE.Group(); scene.add(clouds);
 const cloudM = basic(0xf4f8ff, { transparent: true, opacity: 0.92 });
+NIGHT_TINT.push({ m: cloudM, day: new THREE.Color(0xf4f8ff), night: new THREE.Color(0x46557e) });
 for (let i = 0; i < 48; i++) {
   const m = new THREE.Mesh(new THREE.SphereGeometry(4 + Math.random() * 6, 8, 6), cloudM);
   const a = Math.random() * Math.PI * 2, r = 6 + Math.random() * 90;
@@ -318,6 +359,21 @@ function sizeOf(i) {
   if (isCheck(i)) return 11;
   // A few studs wide (about 4 down to 3), shrinking slightly toward space, always landable.
   return 3.15 - 0.75 * (i - 1) / (N - 1);
+}
+function shapeOf(i) {
+  if (i <= 3 || i === N || isCheck(i)) return 'block';
+  const u = tickRand(i, 41);
+  return u < PAD.tinyP ? 'tiny' : u < PAD.tinyP + PAD.beamP ? 'beam' : 'block';
+}
+// Full x / z extents of pad i (axis-aligned; beams run along x or z).
+function dimsOf(i) {
+  const k = (i - 1) / (N - 1), kind = shapeOf(i);
+  if (kind === 'tiny') { const s = PAD.tiny0 + (PAD.tiny1 - PAD.tiny0) * k; return { kind, sx: s, sz: s }; }
+  if (kind === 'beam') {
+    const L = PAD.beamL0 + (PAD.beamL1 - PAD.beamL0) * k, along = tickRand(i, 43) < 0.5 ? 'x' : 'z';
+    return along === 'x' ? { kind, sx: L, sz: PAD.beamW, along } : { kind, sx: PAD.beamW, sz: L, along };
+  }
+  const s = sizeOf(i); return { kind, sx: s, sz: s };
 }
 function buildHeights() {
   const h = [0];
@@ -355,13 +411,13 @@ function buildOffsets() {
 const OFFSETS = buildOffsets();
 function offsetOf(i) { return OFFSETS[i - 1]; }
 
-function addStuds(group, size, color, yTop) {
-  const mat = lamb(color);
-  const n = Math.max(2, Math.floor(size / 0.72));
-  const mesh = new THREE.InstancedMesh(studGeo, mat, n * n);
-  const origin = -((n - 1) * 0.72) / 2; let k = 0;
-  for (let i = 0; i < n; i++) for (let j = 0; j < n; j++) {
-    dummy.position.set(origin + i * 0.72, yTop + 0.035, origin + j * 0.72); dummy.rotation.set(0, 0, 0); dummy.scale.set(1, 1, 1);
+function addStuds(group, size, color, yTop, sizeZ) {
+  const mat = lamb(color), sz = sizeZ || size;
+  const nx = Math.max(1, Math.floor(size / 0.72)), nz = Math.max(1, Math.floor(sz / 0.72));
+  const mesh = new THREE.InstancedMesh(studGeo, mat, nx * nz);
+  const ox = -((nx - 1) * 0.72) / 2, oz = -((nz - 1) * 0.72) / 2; let k = 0;
+  for (let i = 0; i < nx; i++) for (let j = 0; j < nz; j++) {
+    dummy.position.set(ox + i * 0.72, yTop + 0.035, oz + j * 0.72); dummy.rotation.set(0, 0, 0); dummy.scale.set(1, 1, 1);
     dummy.updateMatrix(); mesh.setMatrixAt(k++, dummy.matrix);
   }
   mesh.count = k; mesh.instanceMatrix.needsUpdate = true; group.add(mesh); return mesh;
@@ -369,12 +425,18 @@ function addStuds(group, size, color, yTop) {
 
 const platforms = [];
 function buildPlatform(i) {
-  const off = offsetOf(i), size = sizeOf(i), y = yOf(i), col = BRICKS[(i - 1) % BRICKS.length];
+  const off = offsetOf(i), dm = dimsOf(i), y = yOf(i), col = BRICKS[(i - 1) % BRICKS.length];
+  const size = Math.max(dm.sx, dm.sz);
   const g = new THREE.Group(); g.position.set(off.x, y, off.z); scene.add(g);
-  const h = 0.55, top = h / 2;
-  const body = part(g, new THREE.BoxGeometry(size, h, size), lamb(col), 0, 0, 0);
+  const h = dm.kind === 'block' ? 0.55 : 0.45, top = h / 2;
+  const body = part(g, new THREE.BoxGeometry(dm.sx, h, dm.sz), lamb(col), 0, 0, 0);
   body.name = 'pad';
-  addStuds(g, size, col, top);
+  addStuds(g, dm.sx, col, top, dm.sz);
+  if (dm.kind === 'tiny') {   // glow rim so a one-foot pad reads from a distance
+    const rim = part(g, new THREE.BoxGeometry(dm.sx + 0.08, 0.06, dm.sz + 0.08), basic(0xffffff, { transparent: true, opacity: 0.55 }), 0, -top + 0.02, 0);
+    rim.name = 'tinyRim';
+    NIGHT_TINT.push({ m: rim.material, day: new THREE.Color(0xffffff), night: new THREE.Color(0xa9c2ff), op: [0.55, 0.42] });
+  }
   if (isCheck(i) && i !== N) {
     const ring = part(g, new THREE.TorusGeometry(Math.max(0.9, size * 0.28), 0.05, 6, 20), basic(0xffe14a), 0, top + 0.08, 0);
     ring.rotation.x = Math.PI / 2;
@@ -387,7 +449,7 @@ function buildPlatform(i) {
     const flag = part(g, new THREE.PlaneGeometry(0.8, 0.45), basic(0xff3cf0), 0.82, top + 1.35, -0.4);
     flag.material.side = THREE.DoubleSide;
   }
-  const p = { i, g, size, x: off.x, y, z: off.z, h, top: y + top, col, traps: [], solids: [] };
+  const p = { i, g, size, sx: dm.sx, sz: dm.sz, kind: dm.kind, along: dm.along || null, x: off.x, y, z: off.z, h, top: y + top, col, traps: [], solids: [] };
   // Heavy traps only on large checkpoint pads; tiny pads keep a timed spinner or a gentle wind.
   if (i > 1 && i < N) {
     const large = isCheck(i);
@@ -397,7 +459,7 @@ function buildPlatform(i) {
       addStuds(mover, ms * 0.85, 0xff8a18, 0.2);
       p.traps.push({ type: 'mover', mesh: mover, size: ms, axis: i % 2 ? 'x' : 'z', amp: size * 0.32, speed: 0.9 + i * 0.025, t0: i * 0.4 });
     }
-    if (i >= 5 && (i % 4 === 1 || i >= 28)) {
+    if (dm.kind === 'block' && i >= 5 && (i % 4 === 1 || i >= 28)) {
       const len = size * (large ? 0.85 : 0.92);
       const bar = part(g, new THREE.BoxGeometry(len, 0.16, 0.16), lamb(0x222228), 0, top + 0.7, 0);
       part(bar, CYL(0.05, 0.05, 0.2, 8), basic(0xff3030), 0, 0, 0);
@@ -414,7 +476,7 @@ function buildPlatform(i) {
       kb.material.transparent = true; kb.material.opacity = 0.88;
       p.traps.push({ type: 'kill', mesh: kb, size: ks, axis: 'x', amp: size * 0.22, speed: 0.7 + i * 0.02, t0: i });
     }
-    if (i >= 16 && i % 5 === 0) {
+    if (dm.kind === 'block' && i >= 16 && i % 5 === 0) {
       const dir = new V3(Math.sin(i * 2.1), 0, Math.cos(i * 2.1)).normalize();
       p.traps.push({ type: 'wind', dir, mesh: null, str: large ? 5.5 + i * 0.05 : 3.2 + i * 0.03 });
     }
@@ -456,7 +518,8 @@ const G = {
   best: readBest(), cooldown: 0, fireHeld: false, flyHeld: false,
   ix: 0, iz: 0, joy: { on: false, x: 0, y: 0, pid: -1 }, lookPid: -1, lookX: 0, lookY: 0,
   phase: 0, camYaw: 0, camPitch: 0, shotLock: false, onPad: null, orbFlash: 0, bannerT: 0,
-  gunAim: 0, gunAimT: 0
+  gunAim: 0, gunAimT: 0,
+  wind: { phase: 'calm', t: 0, next: 6, dur: 2.4, dx: 1, dz: 0, str: 0, k: 0, accel: 0, gusts: 0, warns: 0, lock: false }
 };
 
 const TK = { got: 0, run: 0, fly: 0, log: [], awarded: Object.create(null) };
@@ -621,19 +684,73 @@ function laserHitsTicket(L, t) {
   return L.mesh.position.distanceTo(t.mesh.position) < TICKET_HIT_R;
 }
 
-function setSky() {
+// Continuous platform level from height: exactly i standing on platform i, fractional while flying between pads.
+function levelAt(y) {
+  if (y <= platforms[0].top) return Math.max(0, 1 + (y - platforms[0].top) / Math.max(1, platforms[1].top - platforms[0].top));
+  for (let i = 1; i < N; i++) {
+    const a = platforms[i - 1].top, b = platforms[i].top;
+    if (y < b) return i + (y - a) / Math.max(0.001, b - a);
+  }
+  return N;
+}
+// 0 = full day, 1 = full night (moon only). Cosine ease: night at 10/30/50, day at 20/40, half-way (dusk/dawn) at 5/15/25/35/45.
+function nightAt(level) { return 0.5 - 0.5 * Math.cos(Math.PI * Math.max(0, level) / SKY.cycle); }
+const C3 = (t, h, b) => [new THREE.Color(t), new THREE.Color(h), new THREE.Color(b)];   // sky [top, horizon, below]
+const SK = {
+  dayLo: C3(0x4a9cf0, 0x9fd6ff, 0xd6ecff), dayHi: C3(0x1a48b0, 0x5a9ae8, 0x9cc8f4),
+  dusk: C3(0x3a4590, 0xff8a4a, 0x7a4a6a), dawn: C3(0x5878cc, 0xffb08a, 0x9a7a9c),
+  nightLo: C3(0x030718, 0x17264f, 0x080b1a), nightHi: C3(0x010310, 0x0c1638, 0x05070f), space: C3(0x000002, 0x03040a, 0x000000),
+  sunDay: new THREE.Color(0xfff2d8), sunLow: new THREE.Color(0xffb070),
+  hSkyDay: new THREE.Color(0xd8ecff), hGndDay: new THREE.Color(0x8a7358), hSkyNight: new THREE.Color(0x4a64a8), hGndNight: new THREE.Color(0x101528),
+  fillDay: new THREE.Color(0xb8d4ff), fillNight: new THREE.Color(0x6f86c8),
+};
+const _c1 = new THREE.Color(), _c2 = new THREE.Color(), _fw = new THREE.Vector3();
+const skyU = skyDome.material.uniforms, SKY_OUT = [skyU.top.value, skyU.mid.value, skyU.bot.value];
+function angDiff(a, b) { let d = a - b; while (d > Math.PI) d -= Math.PI * 2; while (d < -Math.PI) d += Math.PI * 2; return d; }
+function setSky(dt) {
   const h = player.position.y, t = THREE.MathUtils.clamp(h / yOf(N), 0, 1);
-  const a = new THREE.Color(0x7ec8ff), b = new THREE.Color(0xff8a4a), c = new THREE.Color(0x0a1028), d = new THREE.Color(0x03040a);
-  const col = new THREE.Color();
-  if (t < 0.35) col.copy(a).lerp(b, t / 0.35);
-  else if (t < 0.65) col.copy(b).lerp(c, (t - 0.35) / 0.3);
-  else col.copy(c).lerp(d, (t - 0.65) / 0.35);
-  scene.background.copy(col); scene.fog.color.copy(col);
-  scene.fog.density = 0.012 - t * 0.0112;
-  stars.material.opacity = THREE.MathUtils.clamp((t - 0.45) / 0.35, 0, 1);
-  sun.intensity = 1.35 - t * 0.7;
+  const level = levelAt(h), n = nightAt(level);
+  const dawn = Math.floor(Math.max(0, level) / SKY.cycle) % 2 === 1;   // 10→20, 30→40 brighten (dawn); 0→10, 20→30, 40→50 darken (dusk)
+  const space = THREE.MathUtils.smoothstep(t, 0.86, 1.0);              // last few pads blend into outer space
+  const midC = dawn ? SK.dawn : SK.dusk;
+  for (let j = 0; j < 3; j++) {
+    const dayC = _c1.copy(SK.dayLo[j]).lerp(SK.dayHi[j], t), nightC = _c2.copy(SK.nightLo[j]).lerp(SK.nightHi[j], t), out = SKY_OUT[j];
+    if (n < 0.5) out.copy(dayC).lerp(midC[j], n / 0.5); else out.copy(midC[j]).lerp(nightC, (n - 0.5) / 0.5);
+    out.lerp(SK.space[j], space * (0.55 + 0.45 * n));
+  }
+  skyDome.position.copy(camera.position);
+  const col = scene.background.copy(SKY_OUT[1]);   // horizon colour: clear colour + fog, so far pads melt into the sky
+  scene.fog.color.copy(col);
+  scene.fog.density = (0.012 - t * 0.0112) * (1 - 0.35 * n);
+  // light: sun by day (warm and low at dusk/dawn), only cool moonlight at night
+  const day = 1 - n, sunK = THREE.MathUtils.smoothstep(day, 0.04, 1);
+  sun.intensity = (1.35 - t * 0.5) * sunK;
+  sun.color.copy(SK.sunLow).lerp(SK.sunDay, THREE.MathUtils.smoothstep(day, 0.35, 0.95));
+  fill.intensity = 0.45 * day + 0.12 * n; fill.color.copy(SK.fillDay).lerp(SK.fillNight, n);
+  hemi.intensity = 1.25 * day + 0.62 * n;
+  hemi.color.copy(SK.hSkyDay).lerp(SK.hSkyNight, n); hemi.groundColor.copy(SK.hGndDay).lerp(SK.hGndNight, n);
+  moonL.intensity = 1.3 * THREE.MathUtils.smoothstep(n, 0.2, 0.9);
+  for (const k of NIGHT_TINT) { k.m.color.copy(k.day).lerp(k.night, n); if (k.op) k.m.opacity = k.op[0] + (k.op[1] - k.op[0]) * n; }
+  stars.material.opacity = Math.max(THREE.MathUtils.smoothstep(n, 0.45, 0.9), space);
+  stars.position.set(player.position.x, player.position.y - 30, player.position.z);
+  // the moon hangs in the upper part of the view (eases after the camera so dragging the look feels natural)
+  camera.updateMatrixWorld(); camera.getWorldDirection(_fw);
+  const camYawNow = Math.atan2(_fw.x, _fw.z), camElNow = Math.asin(THREE.MathUtils.clamp(_fw.y, -1, 1));
+  if (G.moonYaw == null || !dt) { G.moonYaw = camYawNow; G.moonEl = camElNow; }
+  else { const k = 1 - Math.exp(-dt * 1.2); G.moonYaw += angDiff(camYawNow, G.moonYaw) * k; G.moonEl += (camElNow - G.moonEl) * k; }
+  const halfH = Math.atan(Math.tan(THREE.MathUtils.degToRad(camera.fov) / 2) * camera.aspect);
+  const yaw = G.moonYaw + Math.min(0.42, halfH * 0.55), el = G.moonEl + THREE.MathUtils.degToRad(camera.fov) * 0.3;
+  const dx = Math.sin(yaw) * Math.cos(el), dy = Math.sin(el), dz = Math.cos(yaw) * Math.cos(el);
+  moon.position.set(camera.position.x + dx * SKY.moonDist, camera.position.y + dy * SKY.moonDist, camera.position.z + dz * SKY.moonDist);
+  const mo = THREE.MathUtils.smoothstep(n, 0.25, 0.75);
+  moon.visible = mo > 0.005; moonDisc.material.opacity = mo; moonGlow.material.opacity = mo * 0.75;
+  // moonlight comes from high on the moon's side (and a touch from the camera side so lit faces read)
+  moonL.position.set(Math.sin(yaw) * 6 - Math.sin(camYawNow) * 10, 22, Math.cos(yaw) * 6 - Math.cos(camYawNow) * 10);
+  earth.material.emissiveIntensity = 0.7 * Math.max(space, THREE.MathUtils.smoothstep(t, 0.55, 1) * n);
   clouds.visible = t < 0.4;
   earth.visible = t > 0.55;
+  G.sky = { level, night: n, phase: n > 0.9 ? 'night' : n < 0.1 ? 'day' : (dawn ? 'dawn' : 'dusk'), space, sun: sun.intensity, moon: moonL.intensity, stars: stars.material.opacity, moonVisible: moon.visible };
+  return G.sky;
 }
 
 function nearPlats() {
@@ -671,9 +788,8 @@ function updateTraps(dt) {
   for (; wi < windLines.length; wi++) windLines[wi].visible = false;
 }
 
-function padHit(p, x, z, pad) {
-  const hs = (pad || p.size) * 0.5;
-  return Math.abs(x - p.x) <= hs && Math.abs(z - p.z) <= hs;
+function padHit(p, x, z) {
+  return Math.abs(x - p.x) <= p.sx * 0.5 && Math.abs(z - p.z) <= p.sz * 0.5;
 }
 function groundAt(x, z, y) {
   if (y == null) y = player.position.y;
@@ -697,8 +813,8 @@ function groundAt(x, z, y) {
 function collectSolids() {
   const list = [];
   for (const p of nearPlats()) {
-    const hs = p.size * 0.5;
-    list.push({ minX: p.x - hs, maxX: p.x + hs, minY: p.top - p.h, maxY: p.top, minZ: p.z - hs, maxZ: p.z + hs, p, extra: null, kind: 'pad' });
+    const hx = p.sx * 0.5, hz = p.sz * 0.5;
+    list.push({ minX: p.x - hx, maxX: p.x + hx, minY: p.top - p.h, maxY: p.top, minZ: p.z - hz, maxZ: p.z + hz, p, extra: null, kind: 'pad' });
     for (const tr of p.traps) {
       if (tr.dead || !tr.mesh || (tr.type !== 'mover' && tr.type !== 'crumble')) continue;
       tr.mesh.updateWorldMatrix(true, false);
@@ -805,6 +921,7 @@ function respawn(why) {
   player.position.set(c.x, c.top + 0.02, c.z);
   G.vy = G.vx = G.vz = 0; G.air = false; G.hp = 3; G.iframe = 1.4; G.energy = Math.max(G.energy, 0.55);
   G.platform = G.check; G.onPad = c;
+  if (G.wind.phase !== 'calm') scheduleCalm(G.wind);
   showBanner(why === 'fall' ? 'FELL — CHECKPOINT' : 'HIT — CHECKPOINT');
 }
 
@@ -947,10 +1064,82 @@ function trapHits() {
   }
 }
 
+// ---- random gusts (t734) ----
+const gustLines = [];
+{ const m = basic(0xe8f8ff, { transparent: true, opacity: 0, depthWrite: false });
+  for (let i = 0; i < 26; i++) {
+    const L = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.05, 1.9), m); L.visible = false; L.renderOrder = 4;
+    L.userData.seed = Math.random() * 100; scene.add(L); gustLines.push(L);
+  } }
+function heightK() { return THREE.MathUtils.clamp(player.position.y / (yOf(N) || 1), 0, 1); }
+function windAccelAt(h, air, str) { return (str == null ? 1 : str) * (WIND.airBase + WIND.airTop * h) * (air ? 1 : WIND.ground); }
+function scheduleCalm(W) { W.phase = 'calm'; W.t = 0; W.k = 0; W.next = WIND.gap0 + Math.random() * (WIND.gap1 - WIND.gap0); }
+function windGust(o) {   // start a telegraphed gust now (tests / screenshots may force direction, strength, phase)
+  o = o || {};
+  const W = G.wind, a = o.angle != null ? o.angle : Math.random() * Math.PI * 2;
+  W.dx = o.dx != null ? o.dx : Math.sin(a); W.dz = o.dz != null ? o.dz : Math.cos(a);
+  const L = Math.hypot(W.dx, W.dz) || 1; W.dx /= L; W.dz /= L;
+  W.str = o.str != null ? o.str : WIND.str0 + Math.random() * (WIND.str1 - WIND.str0);
+  W.dur = o.dur != null ? o.dur : WIND.dur0 + Math.random() * (WIND.dur1 - WIND.dur0);
+  W.phase = o.phase || 'warn'; W.t = o.t || 0; W.k = W.phase === 'gust' ? 1 : 0;
+  if (W.phase === 'warn') { W.warns++; if (window.__skySnd && window.__skySnd.whoosh) window.__skySnd.whoosh(W.str * (0.55 + 0.45 * heightK())); }
+  else W.gusts++;
+  return W;
+}
+function updateWind(dt) {
+  const W = G.wind;
+  if (W.lock) return;
+  W.t += dt;
+  if (W.phase === 'calm') {
+    W.k = 0;
+    if (G.platform >= WIND.fromPlat && !G.won && W.t >= W.next) windGust();
+  } else if (W.phase === 'warn') {
+    W.k = 0;
+    if (W.t >= WIND.warn) { W.phase = 'gust'; W.t = 0; W.gusts++; }
+  } else if (W.phase === 'gust') {
+    const up = Math.min(1, W.t / WIND.rampIn), down = Math.min(1, Math.max(0, (W.dur - W.t) / WIND.rampOut));
+    W.k = Math.min(up, down);
+    if (W.t >= W.dur) scheduleCalm(W);
+  }
+}
+function applyGust(dt) {
+  const W = G.wind;
+  W.accel = W.phase === 'gust' ? W.k * windAccelAt(heightK(), G.air, W.str) : 0;
+  if (W.accel > 0) { G.vx += W.dx * W.accel * dt; G.vz += W.dz * W.accel * dt; }
+}
+function drawWind() {
+  const W = G.wind, on = W.phase !== 'calm';
+  const op = W.phase === 'warn' ? 0.22 + 0.18 * Math.min(1, W.t / WIND.warn) : W.phase === 'gust' ? 0.25 + 0.5 * W.k : 0;
+  gustLines[0].material.opacity = op;
+  const px = player.position.x, py = player.position.y, pz = player.position.z;
+  const sp = W.phase === 'gust' ? 9 + 8 * W.k : 4;
+  const rx = -W.dz, rz = W.dx;
+  for (let i = 0; i < gustLines.length; i++) {
+    const L = gustLines[i]; L.visible = on;
+    if (!on) continue;
+    const s = L.userData.seed, span = 14;
+    const along = ((G.t * sp + s * 7.3) % span) - span / 2;
+    const side = ((s * 13.7) % 10) - 5, hgt = ((s * 3.1) % 4) - 0.6;
+    L.position.set(px + W.dx * along + rx * side, py + hgt, pz + W.dz * along + rz * side);
+    L.lookAt(L.position.x + W.dx, L.position.y, L.position.z + W.dz);
+    L.scale.z = W.phase === 'gust' ? 1 + W.k * 1.2 : 0.7;
+  }
+  if (windEl) {
+    windEl.classList.toggle('on', on);
+    windEl.classList.toggle('warn', W.phase === 'warn');
+    windEl.classList.toggle('gust', W.phase === 'gust');
+    if (on && windArrow) {
+      const fx = Math.sin(G.camYaw), fz = Math.cos(G.camYaw), rgx = -Math.cos(G.camYaw), rgz = Math.sin(G.camYaw);
+      const sx = W.dx * rgx + W.dz * rgz, sy = W.dx * fx + W.dz * fz;   // screen right / screen up
+      windArrow.style.transform = 'rotate(' + (Math.atan2(-sy, sx) * 180 / Math.PI).toFixed(1) + 'deg)';
+    }
+  }
+}
 function applyWind(dt) {
+  applyGust(dt);
   for (const p of nearPlats()) {
     for (const tr of p.traps) if (tr.type === 'wind') {
-      if (Math.abs(player.position.x - p.x) < p.size * 0.55 && Math.abs(player.position.z - p.z) < p.size * 0.55 &&
+      if (Math.abs(player.position.x - p.x) < p.sx * 0.55 && Math.abs(player.position.z - p.z) < p.sz * 0.55 &&
           player.position.y < p.top + 3 && player.position.y > p.top - 0.2) {
         G.vx += tr.dir.x * tr.str * dt; G.vz += tr.dir.z * tr.str * dt;
       }
@@ -1053,6 +1242,7 @@ function step(dt) {
     const top = (platforms[N - 1] && platforms[N - 1].top) || yOf(N) || 1;
     const h = player ? player.position.y / top : 0;
     window.__skySnd.tick(Math.max(0, Math.min(1, h)));
+    if (window.__skySnd.setNight && G.sky) window.__skySnd.setNight(G.sky.night);
   }
   if (G.hold) return;
   dt = Math.min(0.05, dt); G.t += dt;
@@ -1063,7 +1253,7 @@ function step(dt) {
   }
   if (G.bannerT > 0) { G.bannerT -= dt; if (G.bannerT <= 0) bannerEl.classList.remove('on'); }
   if (G.iframe > 0) G.iframe -= dt;
-  if (G.mode !== 'play' && !window.__DEMO) { setSky(); hud(); return; }
+  if (G.mode !== 'play' && !window.__DEMO) { setSky(dt); hud(); return; }
 
   if (window.__DEMO) demoPilot(dt);
 
@@ -1092,6 +1282,7 @@ function step(dt) {
     G.vx += (0 - G.vx) * (1 - Math.exp(-dt * (G.air ? 1.2 : 8)));
     G.vz += (0 - G.vz) * (1 - Math.exp(-dt * (G.air ? 1.2 : 8)));
   }
+  updateWind(dt);
   applyWind(dt);
 
   const request = !!(G.flyHeld), canStart = G.air || G.energy >= FLY.min;
@@ -1139,11 +1330,12 @@ function step(dt) {
   if (player.position.y < checkY - 8) respawn('fall');
 
   updateTraps(dt);
+  drawWind();
   trapHits();
   updateCombat(dt);
   animatePlayer(dt);
   updateCamera(dt);
-  setSky();
+  setSky(dt);
   hud();
 }
 
@@ -1179,8 +1371,7 @@ function lookDrag(dx, dy) {
 
 function xzInside(p, x, z, extra) {
   extra = extra || 0;
-  const hs = p.size * 0.5 + extra;
-  return Math.abs(x - p.x) <= hs && Math.abs(z - p.z) <= hs;
+  return Math.abs(x - p.x) <= p.sx * 0.5 + extra && Math.abs(z - p.z) <= p.sz * 0.5 + extra;
 }
 function demoPilot(dt) {
   const destI = Math.min(N, G.platform + ((G.energy > 0.32 || G.air) ? 1 : 0));
@@ -1195,9 +1386,9 @@ function demoPilot(dt) {
   }
   let tx = d.x, tz = d.z, wantY = d.top;
   if (block && py + PH > block.top - block.h - 0.4) {
-    const bx = px - block.x, bz = pz - block.z, hs = block.size * 0.5 + R + 0.7;
-    if (Math.abs(bx) >= Math.abs(bz)) { tx = block.x + (bx >= 0 ? 1 : -1) * hs; tz = pz; }
-    else { tx = px; tz = block.z + (bz >= 0 ? 1 : -1) * hs; }
+    const bx = px - block.x, bz = pz - block.z, hx = block.sx * 0.5 + R + 0.7, hz = block.sz * 0.5 + R + 0.7;
+    if (Math.abs(bx) / hx >= Math.abs(bz) / hz) { tx = block.x + (bx >= 0 ? 1 : -1) * hx; tz = pz; }
+    else { tx = px; tz = block.z + (bz >= 0 ? 1 : -1) * hz; }
     wantY = py;
   } else if (!xzInside(d, px, pz, -0.15) && py < d.top + 0.25) {
     const xzGap = Math.hypot(d.x - px, d.z - pz);
@@ -1205,9 +1396,9 @@ function demoPilot(dt) {
     if (climbLeft > xzGap * (FLY.up / AIR_SPEED)) { tx = px; tz = pz; }
     wantY = d.top + 0.85;
   } else if (xzInside(d, px, pz, -0.15) && py < d.top - 0.05) {
-    const bx = px - d.x, bz = pz - d.z, hs = d.size * 0.5 + R + 0.7;
-    if (Math.abs(bx) >= Math.abs(bz)) { tx = d.x + (bx >= 0 ? 1 : -1) * hs; tz = pz; }
-    else { tx = px; tz = d.z + (bz >= 0 ? 1 : -1) * hs; }
+    const bx = px - d.x, bz = pz - d.z, hx = d.sx * 0.5 + R + 0.7, hz = d.sz * 0.5 + R + 0.7;
+    if (Math.abs(bx) / hx >= Math.abs(bz) / hz) { tx = d.x + (bx >= 0 ? 1 : -1) * hx; tz = pz; }
+    else { tx = px; tz = d.z + (bz >= 0 ? 1 : -1) * hz; }
     wantY = py;
   }
   const wdx = tx - px, wdz = tz - pz, wlen = Math.hypot(wdx, wdz);
@@ -1243,6 +1434,7 @@ function resetWorld(keepPos) {
   G.hp = 3; G.energy = 1; G.iframe = 0; G.vy = G.vx = G.vz = 0; G.won = false; G.over = false;
   G.reached = 1; G.check = 1; G.platform = 1; G.cooldown = 0; G.gunAim = 0; G.gunAimT = 0; TK.run = 0; TK.awarded = Object.create(null);
   resetFlyTickets();
+  G.wind.lock = false; scheduleCalm(G.wind); drawWind();
   if (!keepPos) placeOn(1);
 }
 
@@ -1346,6 +1538,8 @@ const api = {
   unhold() { G.hold = false; },
   get ready() { return true; },
   get snd() { return window.__skySnd || null; },
+  PAD, WIND, shapeOf, dimsOf, windGust, updateWind, windAccelAt, drawWind, heightK, get wind() { return G.wind; },
+  SKY, levelAt, nightAt, setSky, skyDome, get sky() { return G.sky; }, moon, moonL, sun, hemi, stars,
   N, R, PH, FLY, AIR_SPEED, MIN_SEP, PITCH_MIN, PITCH_MAX, RUN_CAP, FLY_TICKETS, FLY_TICKET_VALUE, GUN_AIM_TIME, GUN_REST, GUN_AIM, poseMonkeyGun, gunBarrelDir, tickets, collectFlyTicket, resetFlyTickets, spawnFlyTickets, sizeOf, offsetOf, yOf, isCheck, isSlider, hopFuel, gapYOf, gapXZOf, lookDrag, updateCamera, updateSlides, TK, D, G, player, platforms, lasers, aliens, shots, earth, world: scene, camera, renderer,
   fly: setFly, fire, spawnAlien, placeOn, step, give,
   get platform() { return G.platform; },
@@ -1431,7 +1625,7 @@ const api = {
       for (let i = 0; i < 18; i++) step(1 / 30);
       for (const q of platforms) q.g.visible = q.i <= 2;
       camera.fov = 58; camera.updateProjectionMatrix();
-      camera.position.set(p.x + p.size * 0.5 + 3.6, 4.2, p.z + 3.1);
+      camera.position.set(p.x + p.sx * 0.5 + 3.6, 4.2, p.z + 3.1);
       camera.lookAt(player.position.x, p.top - p.h - 0.45, player.position.z);
       setSky();
     } else if (kind === 'lookup') {
