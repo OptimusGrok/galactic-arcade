@@ -1,12 +1,12 @@
 // t635u/t639u/t641u/t644u/t700u (Dave): light-grey Grok, natural walk+look, hands on controls, centred WATCH,
-// SHOP+CHAT near him, male voice 1 clips, WATCH overlay, two-cab 20-ticket run + floating counter.
+// male voice 1 clip, WATCH overlay, two-cab 20-ticket run + floating counter.
+// t736u (Dave): in the arcade Grok only ever says "Hi im Grok" (once, on arrival). No other lines, no CHAT, no SHOP buttons.
 // Lazy from shop.js; no Arcade edits. Grok's tickets never touch the player's.
 import { buildGrokClerk } from './shop.js';
 
-const HI = "Hi! I'm Grok! Watch this!";
-const CHEER = 'Nice!';
-const TWENTY_NEXT = 'Twenty tickets! On to the next one!';
-const TWENTY_DONE = "Twenty tickets! That's me done!";
+// t736u (Dave): exactly this wording, no apostrophe. It is the ONLY thing he says in the arcade.
+const HI = 'Hi im Grok';
+const HI_CLIP = 'hi_im_grok';   // sfx/grok/hi_im_grok.mp3 (GuyNeural, voice 1)
 const PLAY_S = 60;             // safety cap per machine (~20 tickets @ 2.5s)
 const APPEAR_AFTER = 30;       // seconds after the player is actually in the arcade (start dismissed and entry beam finished)
 const LOOK_NEED = 0.5;
@@ -19,42 +19,6 @@ const LOOK_AROUND_S = 3.4;
 const TIX_GOAL = 20;
 const TIX_EVERY = 2.5;          // seconds per Grok ticket during play
 const TIX_EVERY_FAST = 0.12;
-
-const REMARKS = [
-  'Ooh, close one!', "This one's my favourite!", 'Watch the combo!', 'Easy peasy!',
-  "Ha! Got them!", "Don't blink!", 'Expert mode engaged!', 'Tickets incoming!',
-  'Smooth moves!', 'I could do this all day!',
-];
-const IDLE_LINES = [
-  'Come say hi!', 'Wanna chat?', "The prize shop's open anytime!", 'Pull up a cabinet and watch!',
-];
-const CHAT = [
-  { id: 'c_what', q: 'What is Galactic Arcade?',
-    a: 'Galactic Arcade is a neon arcade you walk around in. Grab tickets from the cabinets, then teleport to my prize shop!' },
-  { id: 'c_tickets', q: 'How do tickets work?',
-    a: 'Most games cost 5 tickets for one credit. The claw machine is just 1 ticket a drop. Win games to earn more tickets!' },
-  { id: 'c_shop', q: "What's in the prize shop?",
-    a: 'My prize shop has big plushies, toys, boxed sets and lollies. Spend tickets at the hologram counter. Accessories cost 1 or 5 tickets on the wall!' },
-  { id: 'c_games', q: 'Tell me about the games',
-    a: "We've got Strike, Ghost 256, Berserker, Monkey Crossing, Orc Attack, Cybercity, Blaster, Super Pip Quest, Burrow Buster, Rockfall Rush, Sky Tower, Nova Tether, Mars Roadster, the claw machine, and Dead Signal next door!" },
-  { id: 'c_fav', q: "What's your favourite?",
-    a: 'Hard to pick! I love Strike for the action, and Monkey Crossing when I want to hop. Ghost 256 is a classic too!' },
-  { id: 'c_acc', q: 'How do accessories work?',
-    a: 'On the Accessories wall you buy hats, hoodies, fur colours, shoes, glasses and backs. The start screen is just for picking Monkey or Alien; change your look in Accessories!' },
-  { id: 'c_pool', q: "What's 8-Ball Pool?",
-    a: 'There are two 8-Ball Pool tables in my shop. Walk up and tap Play Pool. Have a break from the cabinets!' },
-  { id: 'c_tips', q: 'Any tips?',
-    a: 'Face a cabinet until PLAY shows, spend tickets for credit, then dive in. Hang around after you arrive and I might pop in to play!' },
-];
-
-const CLIP = {
-  hi: 'hi', cheer: 'cheer', twenty: 'twenty', twenty_done: 'twenty_done',
-  r01: 'r01', r02: 'r02', r03: 'r03', r04: 'r04', r05: 'r05',
-  r06: 'r06', r07: 'r07', r08: 'r08', r09: 'r09', r10: 'r10',
-  idle01: 'idle01', idle02: 'idle02', idle03: 'idle03', idle04: 'idle04',
-};
-const REMARK_CLIPS = ['r01','r02','r03','r04','r05','r06','r07','r08','r09','r10'];
-const IDLE_CLIPS = ['idle01','idle02','idle03','idle04'];
 
 function clipUrl(id) {
   try { return new URL('./sfx/grok/' + id + '.mp3', import.meta.url).href; }
@@ -117,7 +81,7 @@ export function setupGrokVisit({ scene, tp, play, monkey, camera, st } = {}) {
       .then(buf => { bufs[id] = buf; }).catch(() => { bufs[id] = false; });
   }
   function queueClips() {
-    const ids = ['hi','cheer','twenty','twenty_done', ...REMARK_CLIPS, ...IDLE_CLIPS, ...CHAT.map(c => c.id)];
+    const ids = [HI_CLIP];
     const seen = Object.create(null);
     warmQ = [];
     for (const id of ids) { if (seen[id] || bufs[id] || bufs[id] === false || bufs[id] === null) continue; seen[id] = 1; warmQ.push(id); }
@@ -160,7 +124,9 @@ export function setupGrokVisit({ scene, tp, play, monkey, camera, st } = {}) {
       setTimeout(() => go().then(res, rej), 700);
     }));
   }
+  // t736u: the only line. say() refuses anything that isn't HI so no stray speech can creep back in.
   function say(text, clipId) {
+    if (text !== HI) return;
     talkT = Math.max(1.2, text.length * 0.055); happyT = talkT + 1.0; api.said.push(text);
     if (muted()) return;
     stopVoice();
@@ -187,7 +153,7 @@ export function setupGrokVisit({ scene, tp, play, monkey, camera, st } = {}) {
     ready: true, state: 'idle', lookCount: 0, looks: 0, started: 0, finished: 0, said: [],
     cab: null, reason: null, fallAt: 1e9, sessT: 0, force: false,
     appearAfter: APPEAR_AFTER, entryT: 0, due: false, visited: false, rng: null,
-    near: false, chatOpen: false, watchOpen: false, remarks: 0,
+    near: false, watchOpen: false,
     tickets: 0, machinesDone: 0, tixGoal: TIX_GOAL,   // Grok's own winnings (never touch player tickets)
     start(reason = 'debug') { if (api.state !== 'idle' && api.state !== 'done') return false; api.force = true; api.reason = reason; begin(reason); return true; },
     get grok() { return grok; }, get pad() { return pad; }, get arms() { return arms; }, get legs() { return legs; }, get head() { return head; },
@@ -233,7 +199,7 @@ export function setupGrokVisit({ scene, tp, play, monkey, camera, st } = {}) {
       if (tp && tp.where !== 1) return true;
       if (tp && tp.locked) return true;
       if (window.__shop && window.__shop.open) return true;
-      if (api.chatOpen || api.watchOpen) return true;
+      if (api.watchOpen) return true;
       if (window.__wardrobe && window.__wardrobe.isOpen) return true;
       if (document.querySelector('#inv.on')) return true;
       if (document.querySelector('#holo.on')) return true;
@@ -278,7 +244,7 @@ export function setupGrokVisit({ scene, tp, play, monkey, camera, st } = {}) {
 
   let phaseT = 0, from = new THREE.Vector3(), to = new THREE.Vector3(), fromYaw = 0, toYaw = 0;
   let cab = null, joy = null, btns = [], joyBase = null, btnBase = [];
-  let playDur = PLAY_S, remarkAt = 0, idleLineAt = 0;
+  let playDur = PLAY_S;
   let lookYawT = 0;
   let nextTixAt = 0, tixHudAt = 0, scrubAt = 0, ikFrame = 0;
   const _aimL = new THREE.Vector3(), _aimR = new THREE.Vector3();
@@ -397,7 +363,6 @@ export function setupGrokVisit({ scene, tp, play, monkey, camera, st } = {}) {
     const every = (api.fast || api.reason === 'test') ? TIX_EVERY_FAST : TIX_EVERY;
     nextTixAt = t + every;
     playDur = api.fast || api.reason === 'test' ? 4 : PLAY_S;
-    remarkAt = t + 8 + Math.random() * 5;
     api.state = 'play'; phaseT = 0;
   }
 
@@ -410,10 +375,7 @@ export function setupGrokVisit({ scene, tp, play, monkey, camera, st } = {}) {
     if (api.tickets >= TIX_GOAL) {
       resetControls();
       api.machinesDone++;
-      const more = api.machinesDone < 2 && pickCab(cab);
-      if (more) say(TWENTY_NEXT, 'twenty');
-      else say(TWENTY_DONE, 'twenty_done');
-      // also fire a short Nice! cheer after the twenty line settles in non-fast
+      // t736u: silent cheer pose (no 'Twenty tickets!' lines)
       happyT = Math.max(happyT, 1.2);
       api.state = 'cheer'; phaseT = 0;
       watchB.classList.remove('on'); if (api.watchOpen) closeWatch();
@@ -658,27 +620,9 @@ export function setupGrokVisit({ scene, tp, play, monkey, camera, st } = {}) {
     });
   }
 
-  // ---- UI: SHOP + CHAT near Grok, WATCH beside PLAY ----
+  // ---- UI: WATCH beside PLAY (t736u: no SHOP/CHAT buttons and no chat overlay near Grok) ----
   const css = document.createElement('style');
   css.textContent =
-    '#gvBtns{position:fixed;left:50%;bottom:calc(88px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);z-index:28;display:none;gap:12px;align-items:center;pointer-events:none}' +
-    '#gvBtns.on{display:flex}' +
-    '#gvShop,#gvChat{pointer-events:auto;min-width:128px;height:56px;padding:0 24px;border-radius:28px;border:3px solid #00e5ff;background:#021a22f2;color:#dffbff;font:900 20px/1 "Courier New",monospace;letter-spacing:.14em;box-shadow:0 0 18px #00e5ffcc,inset 0 0 12px #00e5ff55;text-shadow:0 0 8px #00e5ff;cursor:pointer;touch-action:manipulation}' +
-    '#gvChat{border-color:#c9a0ff;background:#1a0833f2;box-shadow:0 0 18px #b07cffcc,inset 0 0 12px #b07cff55;text-shadow:0 0 8px #c9a0ff;color:#f0e6ff}' +
-    '#gvShop:active,#gvChat:active{transform:scale(.95)}' +
-    '#gvChatOv{position:fixed;inset:0;z-index:42;display:none;align-items:flex-end;justify-content:center;padding-bottom:max(18px,env(safe-area-inset-bottom));background:#10081ecc;touch-action:pan-y}' +
-    '#gvChatOv.on{display:flex}' +
-    '#gvChatP{width:min(94vw,440px);max-height:min(72vh,580px);display:flex;flex-direction:column;border-radius:16px;border:2px solid #c9a0ff;background:linear-gradient(#b07cff33,#3d1a7a44);box-shadow:0 0 28px #b07cffaa,inset 0 0 22px #b07cff44;color:#f5eaff;font:700 14px "Courier New",monospace;overflow:hidden;backdrop-filter:blur(3px)}' +
-    '#gvChatP:before{content:"";position:absolute;inset:0;pointer-events:none;background:repeating-linear-gradient(0deg,#e0c8ff18 0 1px,transparent 1px 4px)}' +
-    '#gvChatHd{display:flex;align-items:center;justify-content:space-between;padding:12px 14px;border-bottom:1px solid #c9a0ff77;position:relative}' +
-    '#gvChatHd b{font:900 18px "Courier New",monospace;letter-spacing:.14em;color:#f0e6ff;text-shadow:0 0 8px #c9a0ff}' +
-    '#gvChatX{width:40px;height:40px;border-radius:50%;border:2px solid #c9a0ff;background:#1a083399;color:#f0e6ff;font:700 18px sans-serif;cursor:pointer}' +
-    '#gvChatLog{flex:1;overflow-y:auto;padding:12px 14px;display:flex;flex-direction:column;gap:10px;-webkit-overflow-scrolling:touch}' +
-    '.gvMsg{align-self:flex-start;max-width:92%;padding:10px 12px;border-radius:12px;border:1px solid #c9a0ff66;background:#2a1055aa;line-height:1.35;text-shadow:0 0 6px #b07cff}' +
-    '.gvMsg.me{align-self:flex-end;background:#00e5ff22;border-color:#6ff6ff66;color:#dffcff}' +
-    '#gvChips{display:flex;flex-wrap:wrap;gap:8px;padding:10px 12px 14px;border-top:1px solid #c9a0ff55}' +
-    '.gvChip{padding:8px 12px;border-radius:16px;border:1.5px solid #c9a0ff;background:#2a1055cc;color:#f0e6ff;font:800 12px/1.2 Arial,sans-serif;cursor:pointer;touch-action:manipulation}' +
-    '.gvChip:active{transform:scale(.96)}' +
     '#gvWatch{position:fixed;left:50%;top:calc(50% + 118px);transform:translate(-50%,0) scale(.92);z-index:7;display:none;width:min(78vw,240px);max-width:calc(100vw - 24px);margin:0;padding:12px 22px 11px;border-radius:12px;border:3px solid #00e5ff;background:linear-gradient(#062a36f2,#021018f2);color:#dffbff;font:900 clamp(18px,4.6vw,28px)/1 "Courier New",monospace;letter-spacing:.12em;box-shadow:0 0 14px #00e5ffaa,inset 0 0 10px #00e5ff44;text-shadow:0 0 8px #00e5ff;cursor:pointer;touch-action:manipulation;opacity:0;pointer-events:none;transition:opacity .3s ease,transform .3s ease;box-sizing:border-box;text-align:center}' +
     '#gvWatch.on{display:block;opacity:1;pointer-events:auto;transform:translate(-50%,0) scale(1)}' +
     '#gvWatchOv{position:fixed;inset:0;z-index:130;display:none;background:#000}' +
@@ -689,17 +633,6 @@ export function setupGrokVisit({ scene, tp, play, monkey, camera, st } = {}) {
     '#gvWatchBadge{position:absolute;left:50%;top:calc(10px + env(safe-area-inset-top));transform:translateX(-50%);z-index:2;padding:6px 14px;border-radius:999px;border:2px solid #00e5ffaa;background:#021018cc;color:#dffbff;font:800 12px/1 "Courier New",monospace;letter-spacing:.14em;pointer-events:none}' +
     '#gvWatchX{position:absolute;right:calc(10px + env(safe-area-inset-right));top:calc(10px + env(safe-area-inset-top));z-index:2;width:46px;height:46px;border-radius:23px;border:2px solid #fff8;background:#000a;color:#fff;font:900 22px/1 Arial,sans-serif;cursor:pointer}';
   document.head.appendChild(css);
-
-  const btnsRow = document.createElement('div'); btnsRow.id = 'gvBtns';
-  btnsRow.innerHTML = '<button id="gvShop" type="button">SHOP</button><button id="gvChat" type="button">CHAT</button>';
-  document.body.appendChild(btnsRow);
-  const shopB = btnsRow.querySelector('#gvShop'), chatB = btnsRow.querySelector('#gvChat');
-
-  const chatOv = document.createElement('div'); chatOv.id = 'gvChatOv';
-  chatOv.innerHTML = '<div id="gvChatP" style="position:relative"><div id="gvChatHd"><div><b>GROK CHAT</b><div style="font-size:11px;opacity:.7;letter-spacing:.08em">HOLOGRAM LINK</div></div><button id="gvChatX" aria-label="Close">✕</button></div><div id="gvChatLog"></div><div id="gvChips"></div></div>';
-  document.body.appendChild(chatOv);
-  const chatLog = chatOv.querySelector('#gvChatLog'), chatChips = chatOv.querySelector('#gvChips');
-  chatChips.innerHTML = CHAT.map(c => `<button class="gvChip" data-cid="${c.id}" type="button">${c.q}</button>`).join('');
 
   const watchB = document.createElement('button'); watchB.id = 'gvWatch'; watchB.type = 'button'; watchB.textContent = 'WATCH';
   // fixed, centred just below the PLAY card cluster — fully on-screen at 360-430px, never overlaps PLAY
@@ -795,34 +728,9 @@ export function setupGrokVisit({ scene, tp, play, monkey, camera, st } = {}) {
 
   function showNear(on) {
     api.near = !!on;
-    const playCard = !!(document.getElementById('playUI') && document.getElementById('playUI').classList.contains('on'));
-    // hide SHOP/CHAT while the PLAY+WATCH card is up so nothing overlaps
-    btnsRow.classList.toggle('on', !!on && !api.chatOpen && !api.watchOpen && !playCard && !(window.__shop && window.__shop.open));
   }
   function hideUI() {
-    showNear(false); closeChat(); closeWatch(); watchB.classList.remove('on'); showTixHud(false);
-  }
-
-  function openChat() {
-    if (api.chatOpen) return;
-    api.chatOpen = true; chatOv.classList.add('on'); btnsRow.classList.remove('on');
-    if (chatLog.childElementCount === 0) {
-      const m = document.createElement('div'); m.className = 'gvMsg';
-      m.textContent = "Hey! Ask me anything about Galactic Arcade."; chatLog.appendChild(m);
-      say("Hey! Ask me anything about Galactic Arcade.", "hi");
-    }
-    const k = A().keys; if (k) for (const c in k) k[c] = false;
-  }
-  function closeChat() {
-    if (!api.chatOpen) return;
-    api.chatOpen = false; chatOv.classList.remove('on'); stopVoice();
-  }
-  function askChat(id) {
-    const c = CHAT.find(x => x.id === id); if (!c) return;
-    const me = document.createElement('div'); me.className = 'gvMsg me'; me.textContent = c.q; chatLog.appendChild(me);
-    const ans = document.createElement('div'); ans.className = 'gvMsg'; ans.textContent = c.a; chatLog.appendChild(ans);
-    chatLog.scrollTop = chatLog.scrollHeight;
-    say(c.a, c.id);
+    showNear(false); closeWatch(); watchB.classList.remove('on'); showTixHud(false);
   }
 
   function openWatch() {
@@ -929,15 +837,9 @@ export function setupGrokVisit({ scene, tp, play, monkey, camera, st } = {}) {
     ctx.restore();
   }
 
-  shopB.addEventListener('pointerup', e => { e.stopPropagation(); try { window.__shop && window.__shop.openShop && window.__shop.openShop(); } catch (err) {} });
-  chatB.addEventListener('pointerup', e => { e.stopPropagation(); openChat(); });
-  chatOv.querySelector('#gvChatX').addEventListener('pointerup', e => { e.stopPropagation(); closeChat(); });
-  chatOv.addEventListener('pointerup', e => { if (e.target === chatOv) closeChat(); });
-  chatChips.addEventListener('pointerup', e => { const b = e.target.closest && e.target.closest('[data-cid]'); if (!b) return; e.stopPropagation(); askChat(b.dataset.cid); });
   watchB.addEventListener('pointerup', e => { e.stopPropagation(); openWatch(); });
   watchOv.querySelector('#gvWatchX').addEventListener('pointerup', e => { e.stopPropagation(); closeWatch(); });
   addEventListener('keydown', e => {
-    if (api.chatOpen && (e.code === 'Escape' || e.code === 'Backspace')) { closeChat(); e.stopImmediatePropagation(); }
     if (api.watchOpen && (e.code === 'Escape' || e.code === 'Backspace')) { closeWatch(); e.stopImmediatePropagation(); }
   }, true);
   addEventListener('resize', () => { if (api.watchOpen) sizeWatch(); });
@@ -996,11 +898,6 @@ export function setupGrokVisit({ scene, tp, play, monkey, camera, st } = {}) {
     if (grok.visible && api.state !== 'idle' && api.state !== 'done' && api.state !== 'leave' && api.state !== 'arrive') {
       const near = playerNearGrok() && !busy() && !api.watchOpen;
       showNear(near);
-      if (near && api.state !== 'play' && phaseT > 1 && t > idleLineAt && !talkT && !api.chatOpen) {
-        idleLineAt = t + 12 + Math.random() * 8;
-        const i = (Math.random() * IDLE_LINES.length) | 0;
-        say(IDLE_LINES[i], IDLE_CLIPS[i]);
-      }
     } else if (api.state === 'idle' || api.state === 'done') {
       showNear(false);
     }
@@ -1009,9 +906,7 @@ export function setupGrokVisit({ scene, tp, play, monkey, camera, st } = {}) {
     if (api.state === 'play' && cab) {
       const playOn = document.getElementById('playUI') && document.getElementById('playUI').classList.contains('on');
       const nearCab = playerNearCab() || playOn;
-      watchB.classList.toggle('on', nearCab && !api.watchOpen && !api.chatOpen && !(window.__shop && window.__shop.open));
-      // keep SHOP/CHAT tucked away whenever PLAY card or WATCH is up
-      if (playOn || api.watchOpen) btnsRow.classList.remove('on');
+      watchB.classList.toggle('on', nearCab && !api.watchOpen && !(window.__shop && window.__shop.open));
       if (api.watchOpen) drawWatchFrame();
     } else {
       watchB.classList.remove('on');
@@ -1038,7 +933,7 @@ export function setupGrokVisit({ scene, tp, play, monkey, camera, st } = {}) {
       powerPad(1 - k * 0.7);
       if (k >= 1) {
         grok.scale.setScalar(SCALE); powerPad(0); fx.stop();
-        say(HI, 'hi'); api.state = 'greet'; phaseT = 0;
+        say(HI, HI_CLIP); api.state = 'greet'; phaseT = 0;
       }
       return;
     }
@@ -1136,11 +1031,6 @@ export function setupGrokVisit({ scene, tp, play, monkey, camera, st } = {}) {
         awardTicket();
       }
       if (t >= tixHudAt) { tixHudAt = t + 0.12; placeTixHud(); }
-      if (t >= remarkAt && !talkT && api.tickets < TIX_GOAL) {
-        remarkAt = t + 10 + Math.random() * 5;
-        const i = (Math.random() * REMARKS.length) | 0;
-        say(REMARKS[i], REMARK_CLIPS[i]); api.remarks++;
-      }
       // safety: if somehow stuck past playDur without 20, force the cheer path
       if (api.state === 'play' && phaseT >= playDur && api.tickets < TIX_GOAL) {
         api.tickets = TIX_GOAL - 1; awardTicket();

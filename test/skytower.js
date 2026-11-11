@@ -521,6 +521,46 @@ const { open } = require('./lib'); const { helpers } = require('./cabflow');
   chk(wind.highA > wind.lowA * 1.8, 'gusts ramp with height ' + JSON.stringify({ low: wind.lowA, high: wind.highA }));
   chk(!wind.hudAfter, 'WIND indicator hides when calm');
 
+  // t736u: day/night cycle by height (night + moon at 10/30/50, day at 20/40, dusk/dawn half-way)
+  const sky = await page.evaluate(W => {
+    const w = eval(W), S = w.__skytower;
+    S.G.wind.lock = true; S.G.wind.phase = 'calm'; S.G.wind.k = 0;
+    const at = i => { S.G.check = 1; S.placeOn(i); S.G.hold = false; S.G.shotLock = true; S.fly(false); S.G.ix = S.G.iz = 0; S.G.joy.on = false; S.step(1 / 30); const k = S.sky, b = S.world.background;
+      return { i, level: +k.level.toFixed(3), n: +k.night.toFixed(3), phase: k.phase, sun: +k.sun.toFixed(3), moon: +k.moon.toFixed(3), stars: +k.stars.toFixed(2), mv: k.moonVisible, space: +k.space.toFixed(2), lum: +(0.3 * b.r + 0.59 * b.g + 0.11 * b.b).toFixed(3) }; };
+    const nights = [10, 30, 50].map(at), days = [20, 40].map(at), mids = [5, 15, 25, 35, 45].map(at);
+    // smooth with height: sweep from platform 1 to 50 in small height steps, sky never jumps
+    let maxStep = 0, mono = true, prevL = -1, prevN = null;
+    const y0 = S.platforms[0].top, y1 = S.platforms[S.N - 1].top;
+    for (let k = 0; k <= 2000; k++) {
+      const y = y0 + (y1 - y0) * k / 2000; S.player.position.y = y; const r = S.setSky(1 / 30);
+      if (r.level < prevL - 1e-9) mono = false; prevL = r.level;
+      if (prevN != null) maxStep = Math.max(maxStep, Math.abs(r.night - prevN)); prevN = r.night;
+    }
+    // between platform 9 and 10 (in the air) it is mid-way between their skies, not snapped to either
+    const p9 = S.platforms[8], p10 = S.platforms[9];
+    S.player.position.y = (p9.top + p10.top) / 2; const half = S.setSky(1 / 30);
+    // fall from high up: respawn at the checkpoint and the sky matches that height
+    S.G.check = 1; S.placeOn(19); S.G.hold = false; S.G.mode = 'play'; S.G.run = true; S.G.shotLock = true; S.step(1 / 30);
+    const before = { level: +S.sky.level.toFixed(2), n: +S.sky.night.toFixed(3), check: S.G.check };
+    S.player.position.y = S.platforms[S.G.check - 1].top - 9; S.G.air = true; S.G.vy = -2;
+    S.step(1 / 30);
+    const after = { level: +S.sky.level.toFixed(2), n: +S.sky.night.toFixed(3), plat: S.platform, expect: +S.nightAt(S.levelAt(S.player.position.y)).toFixed(3) };
+    return { nights, days, mids, maxStep: +maxStep.toFixed(4), mono, half: { level: +half.level.toFixed(2), n: +half.night.toFixed(3), n9: +S.nightAt(9).toFixed(3) }, before, after, cycle: S.SKY.cycle };
+  }, W);
+  console.log('sky', JSON.stringify(sky));
+  chk(sky.cycle === 10 && sky.nights.every(r => Math.abs(r.level - r.i) < 0.02 && r.n > 0.99 && r.phase === 'night' && r.sun < 0.02 && r.moon > 0.95 && r.mv && r.stars > 0.95),
+    'full night with only moonlight (no sun, moon + stars out) on platforms 10, 30 and 50 ' + JSON.stringify(sky.nights));
+  chk(sky.days.every(r => r.n < 0.01 && r.phase === 'day' && r.sun > 0.6 && r.moon < 0.01 && !r.mv && r.stars < 0.05 && r.lum > 0.2),
+    'full day again on platforms 20 and 40 ' + JSON.stringify(sky.days));
+  chk(sky.mids.every(r => r.n > 0.4 && r.n < 0.6 && r.sun > 0.15 && r.sun < 0.9) && sky.mids.map(r => r.phase).join() === 'dusk,dawn,dusk,dawn,dusk',
+    'half-way platforms 5/15/25/35/45 are dusk/dawn mid-transition ' + JSON.stringify(sky.mids.map(r => [r.i, r.n, r.phase])));
+  chk(sky.nights[0].lum < sky.mids[0].lum && sky.mids[0].lum < sky.days[0].lum + 0.2 && sky.nights[2].space > 0.95 && sky.nights[2].lum < 0.02,
+    'night sky is dark, and platform 50 blends into black space ' + JSON.stringify({ n10: sky.nights[0].lum, d5: sky.mids[0].lum, d20: sky.days[0].lum, n50: sky.nights[2].lum, space: sky.nights[2].space }));
+  chk(sky.mono && sky.maxStep < 0.01, 'the sky follows height smoothly (no snap), max step ' + sky.maxStep);
+  chk(sky.half.n > 0.8 && sky.half.n < 0.995 && sky.half.level > 9.3 && sky.half.level < 9.7, 'in the air between 9 and 10 the sky is part-way ' + JSON.stringify(sky.half));
+  chk(sky.before.check === 11 && sky.before.n < 0.05 && sky.after.plat === 11 && Math.abs(sky.after.level - 11) < 0.05 && Math.abs(sky.after.n - sky.after.expect) < 0.002 && sky.after.n > 0.95,
+    'falling from 19 respawns at checkpoint 11 and the sky matches that height (night again) ' + JSON.stringify({ before: sky.before, after: sky.after }));
+
   const adv = await page.evaluate(W => {
     const w = eval(W), S = w.__skytower, p0 = S.platform;
     S.placeOn(12);

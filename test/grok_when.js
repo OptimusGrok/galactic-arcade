@@ -189,13 +189,13 @@ const chk = (c, m, x) => { console.log((c ? 'PASS ' : 'FAIL ') + m + (x !== unde
       db: +Math.hypot(farB.userData.front.x - V.pad.x, farB.userData.front.z - V.pad.z).toFixed(2),
       span: +Math.hypot(farA.userData.front.x - farB.userData.front.x, farA.userData.front.z - farB.userData.front.z).toFixed(2),
       mid, machinesDone: V.machinesDone, state: V.state, player: A.play.tickets.total, tix0,
-      said: (V.said || []).filter(s => /twenty/i.test(s)),
+      said: (V.said || []).slice(),
       clipped, trail: trail.length, visitsLeft, legs: legs.map(l => l.cab),
     };
   });
   console.log('run', JSON.stringify(run));
   chk(run.da > 12 && run.db > 10 && run.span > 8 && run.mid.cab === run.farA && run.machinesDone >= 2 && run.state === 'done', 'a far-to-far visit plays 20 then 20 and leaves', run);
-  chk(run.player === run.tix0 && run.player === 40 && run.said.length >= 2 && run.visitsLeft.length === 0, 'player tickets stay put and visitor mode turns back off', run);
+  chk(run.player === run.tix0 && run.player === 40 && run.said.length >= 1 && run.said.every(x => x === 'Hi im Grok') && run.visitsLeft.length === 0, 'player tickets stay put and visitor mode turns back off', run);
   chk(run.clipped === 0 && run.trail > 8, 'the walk stays out of cabinets and walls', { clipped: run.clipped, trail: run.trail, legs: run.legs });
 
   const timing = await page.evaluate(() => {

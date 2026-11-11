@@ -280,13 +280,41 @@ const fs = require('fs');
     if (V.state !== 'done') V.skipTo('done');
     return {
       cab1, after1, machinesDone: V.machinesDone, finished: V.finished,
-      player: A.play.tickets.total, state: V.state, said: (V.said || []).filter(s => /twenty|nice/i.test(s)).slice(-4),
+      player: A.play.tickets.total, state: V.state, said: (V.said || []).slice(),
+      clips: performance.getEntriesByType('resource').map(e => e.name).filter(n => /sfx\/grok\//.test(n)).map(n => n.split('/').pop().split('?')[0]),
     };
   });
   console.log('fin', JSON.stringify(fin));
   chk(fin.machinesDone >= 2, 'played two machines got ' + fin.machinesDone);
   chk(fin.player === playerT0, 'player tickets still unchanged');
-  chk(fin.said.length >= 1, 'twenty cheer said');
+  chk(fin.said.length >= 1 && fin.said.every(x => x === 'Hi im Grok'), 't736u: the whole two-machine visit, Grok only ever says "Hi im Grok" ' + JSON.stringify(fin.said));
+  chk(fin.clips.every(c => c === 'hi_im_grok.mp3'), 'only the "Hi im Grok" voice clip is ever loaded ' + JSON.stringify(Array.from(new Set(fin.clips))));
+
+  // t736u: standing right next to Grok (greet / look / play / cheer) never shows CHAT or SHOP buttons, a chat panel, or extra lines
+  const near = await page.evaluate(() => {
+    const V = window.__grokVisit, A = window.__arcade, Sh = window.__shop;
+    V.said.length = 0; V.fast = false;
+    if (V.state === 'idle' || V.state === 'done') V.start('debug');
+    const seen = { btns: 0, chatOv: 0, anyChatShop: 0, near: 0, tpAtCab: 0, other: {}, states: new Set() };
+    for (let i = 0; i < 30 * 90 && V.state !== 'done'; i++) {
+      if (V.grok.visible) { A.monkey.position.set(V.grok.position.x + 0.9, 0, V.grok.position.z + 0.4); }
+      Sh.update(1 / 30);
+      seen.states.add(V.state); if (V.near) seen.near++;
+      if (document.getElementById('gvBtns') || document.getElementById('gvShop') || document.getElementById('gvChat')) seen.btns++;
+      if (document.getElementById('gvChatOv') || document.querySelector('.gvChip, .gvMsg')) seen.chatOv++;
+      // not Grok's, and they stay: the teleport pad's SHOP/ARCADE button (#tpBtn), the prize-shop counter (#shopBtn), the multiplayer bar's player chat (#mpChatB)
+      const vis = Array.from(document.querySelectorAll('button')).filter(b => b.offsetParent && /^(CHAT|SHOP)$/i.test((b.textContent || '').trim()));
+      for (const b of vis) { seen.other[b.id || '?'] = (seen.other[b.id || '?'] || 0) + 1; }
+      if (vis.some(b => !['tpBtn', 'shopBtn', 'mpChatB'].includes(b.id))) seen.anyChatShop++;
+      if (V.state === 'play' && vis.some(b => b.id === 'tpBtn')) seen.tpAtCab++;
+    }
+    if (V.state !== 'done') V.skipTo('done');
+    return { said: V.said.slice(), btns: seen.btns, chatOv: seen.chatOv, anyChatShop: seen.anyChatShop, other: seen.other, tpAtCab: seen.tpAtCab, near: seen.near, states: Array.from(seen.states), chatOpen: V.chatOpen };
+  });
+  console.log('near', JSON.stringify(near));
+  chk(near.near > 60 && near.states.includes('greet') && near.states.includes('play'), 'player stood next to Grok through greet + play ' + JSON.stringify({ near: near.near, states: near.states }));
+  chk(near.said.length === 1 && near.said[0] === 'Hi im Grok', 'a full real-time visit: exactly one line, "Hi im Grok" ' + JSON.stringify(near.said));
+  chk(near.btns === 0 && near.chatOv === 0 && near.anyChatShop === 0 && near.chatOpen === undefined, 'no CHAT / SHOP buttons or chat panel near Grok ' + JSON.stringify(near));
 
   // WATCH button still present when near cab during play
   await page.evaluate(() => {

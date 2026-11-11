@@ -280,7 +280,7 @@ const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x7ec8ff);
 scene.fog = new THREE.FogExp2(0x7ec8ff, 0.012);
 const camera = new THREE.PerspectiveCamera(60, innerWidth / innerHeight, 0.15, 1400);
-scene.add(new THREE.HemisphereLight(0xd8ecff, 0x8a7358, 1.25));
+const hemi = new THREE.HemisphereLight(0xd8ecff, 0x8a7358, 1.25); scene.add(hemi);
 const sun = new THREE.DirectionalLight(0xfff2d8, 1.35); sun.position.set(8, 18, 10); scene.add(sun);
 const fill = new THREE.DirectionalLight(0xb8d4ff, 0.45); fill.position.set(-8, 6, -6); scene.add(fill);
 
@@ -292,16 +292,51 @@ const starsGeo = new THREE.BufferGeometry();
   }
   starsGeo.setAttribute('position', new THREE.BufferAttribute(a, 3));
 }
-const stars = new THREE.Points(starsGeo, new THREE.PointsMaterial({ color: 0xffffff, size: 1.1, sizeAttenuation: true, transparent: true, opacity: 0 }));
+const stars = new THREE.Points(starsGeo, new THREE.PointsMaterial({ color: 0xffffff, size: 1.1, sizeAttenuation: true, transparent: true, opacity: 0, fog: false, depthWrite: false }));
 scene.add(stars);
 
-const earth = new THREE.Mesh(new THREE.SphereGeometry(90, 32, 24), new THREE.MeshLambertMaterial({ map: earthTex() }));
+// t736u (Dave): day/night cycle by height. Full night (moon only) at platform 10, day at 20, and so on every 10.
+const SKY = { cycle: 10, moonDist: 260, moonR: 9.5 };
+const moonL = new THREE.DirectionalLight(0x9fb8ff, 0); moonL.position.set(-6, 20, 8); scene.add(moonL);
+function moonTex() {
+  const c = document.createElement('canvas'); c.width = c.height = 128; const g = c.getContext('2d');
+  const gr = g.createRadialGradient(54, 50, 6, 64, 64, 62);
+  gr.addColorStop(0, '#fffef4'); gr.addColorStop(0.7, '#e9ecf2'); gr.addColorStop(1, '#c4cad8');
+  g.fillStyle = gr; g.beginPath(); g.arc(64, 64, 62, 0, 7); g.fill();
+  g.fillStyle = 'rgba(120,128,150,0.28)';
+  [[44, 46, 11], [82, 40, 7], [74, 78, 14], [40, 86, 8], [92, 70, 5], [58, 64, 5]].forEach(([x, y, r]) => { g.beginPath(); g.arc(x, y, r, 0, 7); g.fill(); });
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t;
+}
+function glowTex() {
+  const c = document.createElement('canvas'); c.width = c.height = 128; const g = c.getContext('2d');
+  const gr = g.createRadialGradient(64, 64, 0, 64, 64, 64);
+  gr.addColorStop(0, 'rgba(210,225,255,0.85)'); gr.addColorStop(0.25, 'rgba(170,195,255,0.35)'); gr.addColorStop(1, 'rgba(120,150,255,0)');
+  g.fillStyle = gr; g.fillRect(0, 0, 128, 128);
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t;
+}
+const moon = new THREE.Group(); moon.name = 'moon'; moon.visible = false; scene.add(moon);
+const moonDisc = new THREE.Sprite(new THREE.SpriteMaterial({ map: moonTex(), transparent: true, opacity: 0, fog: false, depthWrite: false }));
+moonDisc.scale.setScalar(SKY.moonR * 2); moonDisc.renderOrder = -1; moon.add(moonDisc);
+const moonGlow = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTex(), transparent: true, opacity: 0, fog: false, depthWrite: false, blending: THREE.AdditiveBlending }));
+moonGlow.scale.setScalar(SKY.moonR * 7.5); moonGlow.renderOrder = -2; moon.add(moonGlow);
+// gradient sky dome (top / horizon / below) that follows the camera, so dusk, dawn and night read like a real sky
+const skyDome = new THREE.Mesh(new THREE.SphereGeometry(600, 32, 16), new THREE.ShaderMaterial({
+  side: THREE.BackSide, depthWrite: false, depthTest: false, fog: false,
+  uniforms: { top: { value: new THREE.Color(0x4a9cf0) }, mid: { value: new THREE.Color(0x9fd6ff) }, bot: { value: new THREE.Color(0xd6ecff) } },
+  vertexShader: 'varying vec3 vD; void main(){ vD = normalize(position); gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
+  fragmentShader: 'uniform vec3 top; uniform vec3 mid; uniform vec3 bot; varying vec3 vD; void main(){ float h = vD.y; vec3 c = h > 0.0 ? mix(mid, top, pow(clamp(h * 2.2, 0.0, 1.0), 0.75)) : mix(mid, bot, pow(clamp(-h * 2.5, 0.0, 1.0), 0.6)); gl_FragColor = vec4(c, 1.0);\n#include <colorspace_fragment>\n}',
+}));
+skyDome.name = 'skyDome'; skyDome.renderOrder = -10; skyDome.frustumCulled = false; scene.add(skyDome);
+const NIGHT_TINT = [];   // unlit (basic) bits that should dim to moonlight: tiny-pad rims, clouds
+
+const earth = new THREE.Mesh(new THREE.SphereGeometry(90, 32, 24), (() => { const t = earthTex(); return new THREE.MeshLambertMaterial({ map: t, emissive: 0xffffff, emissiveMap: t, emissiveIntensity: 0 }); })());
 earth.name = 'earth'; earth.position.set(85, 28, 145); earth.rotation.set(0.22, 1.15, 0.12); earth.visible = false; scene.add(earth);
 const atmo = new THREE.Mesh(new THREE.SphereGeometry(94, 24, 16), basic(0x6ec8ff, { transparent: true, opacity: 0.18, side: THREE.BackSide, depthWrite: false }));
 earth.add(atmo);
 
 const clouds = new THREE.Group(); scene.add(clouds);
 const cloudM = basic(0xf4f8ff, { transparent: true, opacity: 0.92 });
+NIGHT_TINT.push({ m: cloudM, day: new THREE.Color(0xf4f8ff), night: new THREE.Color(0x46557e) });
 for (let i = 0; i < 48; i++) {
   const m = new THREE.Mesh(new THREE.SphereGeometry(4 + Math.random() * 6, 8, 6), cloudM);
   const a = Math.random() * Math.PI * 2, r = 6 + Math.random() * 90;
@@ -400,6 +435,7 @@ function buildPlatform(i) {
   if (dm.kind === 'tiny') {   // glow rim so a one-foot pad reads from a distance
     const rim = part(g, new THREE.BoxGeometry(dm.sx + 0.08, 0.06, dm.sz + 0.08), basic(0xffffff, { transparent: true, opacity: 0.55 }), 0, -top + 0.02, 0);
     rim.name = 'tinyRim';
+    NIGHT_TINT.push({ m: rim.material, day: new THREE.Color(0xffffff), night: new THREE.Color(0xa9c2ff), op: [0.55, 0.42] });
   }
   if (isCheck(i) && i !== N) {
     const ring = part(g, new THREE.TorusGeometry(Math.max(0.9, size * 0.28), 0.05, 6, 20), basic(0xffe14a), 0, top + 0.08, 0);
@@ -648,19 +684,73 @@ function laserHitsTicket(L, t) {
   return L.mesh.position.distanceTo(t.mesh.position) < TICKET_HIT_R;
 }
 
-function setSky() {
+// Continuous platform level from height: exactly i standing on platform i, fractional while flying between pads.
+function levelAt(y) {
+  if (y <= platforms[0].top) return Math.max(0, 1 + (y - platforms[0].top) / Math.max(1, platforms[1].top - platforms[0].top));
+  for (let i = 1; i < N; i++) {
+    const a = platforms[i - 1].top, b = platforms[i].top;
+    if (y < b) return i + (y - a) / Math.max(0.001, b - a);
+  }
+  return N;
+}
+// 0 = full day, 1 = full night (moon only). Cosine ease: night at 10/30/50, day at 20/40, half-way (dusk/dawn) at 5/15/25/35/45.
+function nightAt(level) { return 0.5 - 0.5 * Math.cos(Math.PI * Math.max(0, level) / SKY.cycle); }
+const C3 = (t, h, b) => [new THREE.Color(t), new THREE.Color(h), new THREE.Color(b)];   // sky [top, horizon, below]
+const SK = {
+  dayLo: C3(0x4a9cf0, 0x9fd6ff, 0xd6ecff), dayHi: C3(0x1a48b0, 0x5a9ae8, 0x9cc8f4),
+  dusk: C3(0x3a4590, 0xff8a4a, 0x7a4a6a), dawn: C3(0x5878cc, 0xffb08a, 0x9a7a9c),
+  nightLo: C3(0x030718, 0x17264f, 0x080b1a), nightHi: C3(0x010310, 0x0c1638, 0x05070f), space: C3(0x000002, 0x03040a, 0x000000),
+  sunDay: new THREE.Color(0xfff2d8), sunLow: new THREE.Color(0xffb070),
+  hSkyDay: new THREE.Color(0xd8ecff), hGndDay: new THREE.Color(0x8a7358), hSkyNight: new THREE.Color(0x4a64a8), hGndNight: new THREE.Color(0x101528),
+  fillDay: new THREE.Color(0xb8d4ff), fillNight: new THREE.Color(0x6f86c8),
+};
+const _c1 = new THREE.Color(), _c2 = new THREE.Color(), _fw = new THREE.Vector3();
+const skyU = skyDome.material.uniforms, SKY_OUT = [skyU.top.value, skyU.mid.value, skyU.bot.value];
+function angDiff(a, b) { let d = a - b; while (d > Math.PI) d -= Math.PI * 2; while (d < -Math.PI) d += Math.PI * 2; return d; }
+function setSky(dt) {
   const h = player.position.y, t = THREE.MathUtils.clamp(h / yOf(N), 0, 1);
-  const a = new THREE.Color(0x7ec8ff), b = new THREE.Color(0xff8a4a), c = new THREE.Color(0x0a1028), d = new THREE.Color(0x03040a);
-  const col = new THREE.Color();
-  if (t < 0.35) col.copy(a).lerp(b, t / 0.35);
-  else if (t < 0.65) col.copy(b).lerp(c, (t - 0.35) / 0.3);
-  else col.copy(c).lerp(d, (t - 0.65) / 0.35);
-  scene.background.copy(col); scene.fog.color.copy(col);
-  scene.fog.density = 0.012 - t * 0.0112;
-  stars.material.opacity = THREE.MathUtils.clamp((t - 0.45) / 0.35, 0, 1);
-  sun.intensity = 1.35 - t * 0.7;
+  const level = levelAt(h), n = nightAt(level);
+  const dawn = Math.floor(Math.max(0, level) / SKY.cycle) % 2 === 1;   // 10→20, 30→40 brighten (dawn); 0→10, 20→30, 40→50 darken (dusk)
+  const space = THREE.MathUtils.smoothstep(t, 0.86, 1.0);              // last few pads blend into outer space
+  const midC = dawn ? SK.dawn : SK.dusk;
+  for (let j = 0; j < 3; j++) {
+    const dayC = _c1.copy(SK.dayLo[j]).lerp(SK.dayHi[j], t), nightC = _c2.copy(SK.nightLo[j]).lerp(SK.nightHi[j], t), out = SKY_OUT[j];
+    if (n < 0.5) out.copy(dayC).lerp(midC[j], n / 0.5); else out.copy(midC[j]).lerp(nightC, (n - 0.5) / 0.5);
+    out.lerp(SK.space[j], space * (0.55 + 0.45 * n));
+  }
+  skyDome.position.copy(camera.position);
+  const col = scene.background.copy(SKY_OUT[1]);   // horizon colour: clear colour + fog, so far pads melt into the sky
+  scene.fog.color.copy(col);
+  scene.fog.density = (0.012 - t * 0.0112) * (1 - 0.35 * n);
+  // light: sun by day (warm and low at dusk/dawn), only cool moonlight at night
+  const day = 1 - n, sunK = THREE.MathUtils.smoothstep(day, 0.04, 1);
+  sun.intensity = (1.35 - t * 0.5) * sunK;
+  sun.color.copy(SK.sunLow).lerp(SK.sunDay, THREE.MathUtils.smoothstep(day, 0.35, 0.95));
+  fill.intensity = 0.45 * day + 0.12 * n; fill.color.copy(SK.fillDay).lerp(SK.fillNight, n);
+  hemi.intensity = 1.25 * day + 0.62 * n;
+  hemi.color.copy(SK.hSkyDay).lerp(SK.hSkyNight, n); hemi.groundColor.copy(SK.hGndDay).lerp(SK.hGndNight, n);
+  moonL.intensity = 1.3 * THREE.MathUtils.smoothstep(n, 0.2, 0.9);
+  for (const k of NIGHT_TINT) { k.m.color.copy(k.day).lerp(k.night, n); if (k.op) k.m.opacity = k.op[0] + (k.op[1] - k.op[0]) * n; }
+  stars.material.opacity = Math.max(THREE.MathUtils.smoothstep(n, 0.45, 0.9), space);
+  stars.position.set(player.position.x, player.position.y - 30, player.position.z);
+  // the moon hangs in the upper part of the view (eases after the camera so dragging the look feels natural)
+  camera.updateMatrixWorld(); camera.getWorldDirection(_fw);
+  const camYawNow = Math.atan2(_fw.x, _fw.z), camElNow = Math.asin(THREE.MathUtils.clamp(_fw.y, -1, 1));
+  if (G.moonYaw == null || !dt) { G.moonYaw = camYawNow; G.moonEl = camElNow; }
+  else { const k = 1 - Math.exp(-dt * 1.2); G.moonYaw += angDiff(camYawNow, G.moonYaw) * k; G.moonEl += (camElNow - G.moonEl) * k; }
+  const halfH = Math.atan(Math.tan(THREE.MathUtils.degToRad(camera.fov) / 2) * camera.aspect);
+  const yaw = G.moonYaw + Math.min(0.42, halfH * 0.55), el = G.moonEl + THREE.MathUtils.degToRad(camera.fov) * 0.3;
+  const dx = Math.sin(yaw) * Math.cos(el), dy = Math.sin(el), dz = Math.cos(yaw) * Math.cos(el);
+  moon.position.set(camera.position.x + dx * SKY.moonDist, camera.position.y + dy * SKY.moonDist, camera.position.z + dz * SKY.moonDist);
+  const mo = THREE.MathUtils.smoothstep(n, 0.25, 0.75);
+  moon.visible = mo > 0.005; moonDisc.material.opacity = mo; moonGlow.material.opacity = mo * 0.75;
+  // moonlight comes from high on the moon's side (and a touch from the camera side so lit faces read)
+  moonL.position.set(Math.sin(yaw) * 6 - Math.sin(camYawNow) * 10, 22, Math.cos(yaw) * 6 - Math.cos(camYawNow) * 10);
+  earth.material.emissiveIntensity = 0.7 * Math.max(space, THREE.MathUtils.smoothstep(t, 0.55, 1) * n);
   clouds.visible = t < 0.4;
   earth.visible = t > 0.55;
+  G.sky = { level, night: n, phase: n > 0.9 ? 'night' : n < 0.1 ? 'day' : (dawn ? 'dawn' : 'dusk'), space, sun: sun.intensity, moon: moonL.intensity, stars: stars.material.opacity, moonVisible: moon.visible };
+  return G.sky;
 }
 
 function nearPlats() {
@@ -1162,7 +1252,7 @@ function step(dt) {
   }
   if (G.bannerT > 0) { G.bannerT -= dt; if (G.bannerT <= 0) bannerEl.classList.remove('on'); }
   if (G.iframe > 0) G.iframe -= dt;
-  if (G.mode !== 'play' && !window.__DEMO) { setSky(); hud(); return; }
+  if (G.mode !== 'play' && !window.__DEMO) { setSky(dt); hud(); return; }
 
   if (window.__DEMO) demoPilot(dt);
 
@@ -1244,7 +1334,7 @@ function step(dt) {
   updateCombat(dt);
   animatePlayer(dt);
   updateCamera(dt);
-  setSky();
+  setSky(dt);
   hud();
 }
 
@@ -1448,6 +1538,7 @@ const api = {
   get ready() { return true; },
   get snd() { return window.__skySnd || null; },
   PAD, WIND, shapeOf, dimsOf, windGust, updateWind, windAccelAt, drawWind, heightK, get wind() { return G.wind; },
+  SKY, levelAt, nightAt, setSky, skyDome, get sky() { return G.sky; }, moon, moonL, sun, hemi, stars,
   N, R, PH, FLY, AIR_SPEED, MIN_SEP, PITCH_MIN, PITCH_MAX, RUN_CAP, FLY_TICKETS, FLY_TICKET_VALUE, GUN_AIM_TIME, GUN_REST, GUN_AIM, poseMonkeyGun, gunBarrelDir, tickets, collectFlyTicket, resetFlyTickets, spawnFlyTickets, sizeOf, offsetOf, yOf, isCheck, isSlider, hopFuel, gapYOf, gapXZOf, lookDrag, updateCamera, updateSlides, TK, D, G, player, platforms, lasers, aliens, shots, earth, world: scene, camera, renderer,
   fly: setFly, fire, spawnAlien, placeOn, step, give,
   get platform() { return G.platform; },
