@@ -163,6 +163,7 @@
 
   function pump() {
     if (!ac || !S.playing) return;
+    if (!inCabinet() || !visible() || !musicOn()) { stop({ keepWant: inCabinet() }); return; }
     const ahead = ac.currentTime + 0.22;
     let guard = 0;
     while (nextT < ahead && guard++ < 16) {

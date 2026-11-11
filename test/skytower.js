@@ -467,6 +467,7 @@ const { open } = require('./lib'); const { helpers } = require('./cabflow');
     S.G.fireHeld = false;
     if (S.player.userData.char === 'monkey') { S.G.gunAim = 1; S.poseMonkeyGun(1); }
     S.player.updateMatrixWorld(true);
+    snd.lastZap = -99;
     const z0 = snd.zaps, c0 = snd.zapCyan;
     const L = S.fire();
     const afterFire = { zaps: snd.zaps, cyan: snd.zapCyan, color: L && L.color, dZ: snd.zaps - z0, dC: snd.zapCyan - c0 };
