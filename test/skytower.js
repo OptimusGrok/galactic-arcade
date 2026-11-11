@@ -188,6 +188,92 @@ const { open } = require('./lib'); const { helpers } = require('./cabflow');
   chk(goesUp(stick.orbitJoyUp) && goesUp(stick.orbitKeyUp), 'after orbiting the camera, stick-up and W still decrease screen y ' + JSON.stringify({ joy: stick.orbitJoyUp, key: stick.orbitKeyUp }));
   chk(goesRight(stick.orbitJoyRight) && goesRight(stick.orbitKeyRight), 'after orbiting the camera, stick-right and D still increase screen x ' + JSON.stringify({ joy: stick.orbitJoyRight, key: stick.orbitKeyRight }));
 
+  const layout = await page.evaluate(W => {
+    const w = eval(W), S = w.__skytower;
+    const plats = S.platforms.map(p => ({ i: p.i, x: p.x, z: p.z, size: p.size, top: p.top }));
+    const gaps = [];
+    let minXZ = 1e9, maxXZ = 0, minY = 1e9, maxY = 0, minAny = 1e9;
+    for (let i = 0; i < plats.length - 1; i++) {
+      const a = plats[i], b = plats[i + 1];
+      const xz = Math.hypot(b.x - a.x, b.z - a.z), dy = b.top - a.top;
+      gaps.push({ from: a.i, to: b.i, xz: +xz.toFixed(3), dy: +dy.toFixed(3) });
+      minXZ = Math.min(minXZ, xz); maxXZ = Math.max(maxXZ, xz);
+      minY = Math.min(minY, dy); maxY = Math.max(maxY, dy);
+    }
+    for (let i = 0; i < plats.length; i++) {
+      for (let j = i + 2; j < plats.length; j++) {
+        minAny = Math.min(minAny, Math.hypot(plats[j].x - plats[i].x, plats[j].z - plats[i].z));
+      }
+    }
+    const largeI = new Set([1, 11, 21, 31, 41, 50]);
+    const large = plats.filter(p => largeI.has(p.i)).map(p => p.size);
+    const small = plats.filter(p => !largeI.has(p.i)).map(p => p.size);
+    const maxT = 1 / S.FLY.drain, maxClimb = S.FLY.up * maxT, maxAir = 6.2 * maxT;
+    const hops = [];
+    for (let i = 1; i < S.N; i++) {
+      const dest = S.platforms[i], start = S.platforms[i - 1];
+      const needXZ = Math.hypot(dest.x - start.x, dest.z - start.z), needY = dest.top - start.top;
+      const flyT = needY / S.FLY.up + needXZ / 6.2;
+      const computed = needY < maxClimb * 0.85 && needXZ < maxAir * 0.85 && flyT < maxT * 0.85;
+      hops.push({ from: i, to: i + 1, computed, needXZ: +needXZ.toFixed(2), needY: +needY.toFixed(2), flyT: +flyT.toFixed(2) });
+    }
+    const prevRun = S.G.run;
+    S.G.run = false; S.G.iframe = 99; S.G.shotLock = true;
+    S.placeOn(1);
+    S.G.energy = 1; S.G.vy = 0; S.G.vx = 0; S.G.vz = 0; S.G.air = false;
+    const dest = S.platforms[1], start = S.platforms[0];
+    let sanityLanded = false;
+    for (let s = 0; s < 240; s++) {
+      const px = S.player.position.x, py = S.player.position.y, pz = S.player.position.z;
+      const hx = dest.x - px, hz = dest.z - pz, hd = Math.hypot(hx, hz);
+      const spd = Math.hypot(S.G.vx, S.G.vz);
+      if (py < dest.top + 0.55) { S.G.joy.on = false; S.G.ix = 0; S.G.iz = 0; S.fly(true); }
+      else if (hd > dest.size * 0.32 && hd > 2.4) {
+        S.G.camYaw = Math.atan2(hx, hz); S.G.joy.on = true; S.G.joy.x = 0; S.G.joy.y = -1;
+        S.fly(py < dest.top + 1.1);
+      } else if (hd > dest.size * 0.32) {
+        S.G.joy.on = false; S.G.ix = 0; S.G.iz = 0; S.fly(py < dest.top + 0.9);
+      } else {
+        S.G.joy.on = false; S.G.ix = 0; S.G.iz = 0; S.fly(false);
+      }
+      S.step(1 / 30);
+      const hd2 = Math.hypot(dest.x - S.player.position.x, dest.z - S.player.position.z);
+      if (!S.G.air && Math.abs(S.player.position.y - dest.top) < 0.18 && hd2 < dest.size * 0.55) { sanityLanded = true; break; }
+      if (S.player.position.y < start.top - 6) break;
+    }
+    hops[0].landed = sanityLanded;
+    S.G.run = prevRun; S.G.shotLock = false; S.G.iframe = 0; S.G.joy.on = false; S.G.ix = 0; S.G.iz = 0; S.fly(false);
+    S.G.reached = 1; S.G.check = 1; S.G.won = false; S.G.over = false; S.G.mode = 'play';
+    S.placeOn(1);
+    S.G.energy = 1; S.G.hp = 3;
+    for (let i = 0; i < 4; i++) S.spawnAlien({ x: S.player.position.x + 2.4 + i * 0.4, y: S.player.position.y + 1.25, z: S.player.position.z + 0.2, r: 0.15 });
+    for (const a of S.aliens) a.fireT = 0;
+    const hp0 = S.G.hp, shots0 = S.shots.length;
+    for (let i = 0; i < 150; i++) S.step(1 / 30);
+    return {
+      n: plats.length, gap: S.GAP, span: S.SPAN,
+      minXZ, maxXZ, minY, maxY, minAny,
+      largeMin: Math.min(...large), largeMax: Math.max(...large),
+      smallMin: Math.min(...small), smallMax: Math.max(...small),
+      large, smallMinR: +Math.min(...small).toFixed(3), smallMaxR: +Math.max(...small).toFixed(3),
+      hopsFailed: hops.filter(h => !h.computed),
+      hopsOk: hops.every(h => h.computed),
+      hopCount: hops.length,
+      sanityLanded,
+      worstFlyT: Math.max(...hops.map(h => h.flyT)),
+      shotsBefore: shots0, shotsAfter: S.shots.length, aliveShots: S.shots.filter(s => s.alive).length,
+      hp0, hp1: S.G.hp, maxClimb, maxAir
+    };
+  }, W);
+  chk(layout.n === 50 && layout.minY > 7.5 && layout.maxY < 9 && layout.minXZ > 5.5,
+    'platforms are spread vertically and offset horizontally ' + JSON.stringify({ gap: layout.gap, minY: layout.minY, maxY: layout.maxY, minXZ: layout.minXZ, maxXZ: layout.maxXZ }));
+  chk(layout.minXZ > 3 && layout.minAny > 3.5, 'no platforms are stacked above each other (consec xz ' + layout.minXZ.toFixed(2) + ', other xz ' + layout.minAny.toFixed(2) + ')');
+  chk(layout.smallMax < layout.largeMin && layout.largeMin >= 9 && layout.smallMax < 3.4,
+    'checkpoints stay large and the other pads are a few studs wide ' + JSON.stringify({ large: layout.large, smallMin: layout.smallMinR, smallMax: layout.smallMaxR }));
+  chk(layout.hopsOk && layout.hopCount === 49 && layout.worstFlyT < 6,
+    'every jetpack jump is reachable ' + JSON.stringify({ failed: layout.hopsFailed, maxClimb: layout.maxClimb, maxAir: layout.maxAir, sanity: layout.sanityLanded, worstFlyT: layout.worstFlyT }));
+  chk(layout.shotsAfter === 0 && layout.aliveShots === 0 && layout.hp1 === layout.hp0,
+    'aliens no longer shoot or deal projectile damage ' + JSON.stringify({ shots: layout.shotsAfter, hp0: layout.hp0, hp1: layout.hp1 }));
 
   const adv = await page.evaluate(W => {
     const w = eval(W), S = w.__skytower, p0 = S.platform;
