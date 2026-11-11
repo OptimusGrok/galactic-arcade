@@ -642,6 +642,61 @@ const { open } = require('./lib'); const { helpers } = require('./cabflow');
       spaceLow, spaceHigh, afterHide, afterMusicOff, afterMusicOn, afterExit
     };
   }, W);
+  // t737u: random bass layer under the score
+  const bass = await page.evaluate(async W => {
+    const w = eval(W), S = w.__skytower, snd = S.snd || w.__skySnd;
+    const wait = ms => new Promise(r => setTimeout(r, ms));
+    window.__music.on = true; window.__arcade.play.mode = 'game';
+    S.G.check = 1; S.placeOn(1); S.G.hold = false; S.step(1 / 30);
+    snd.stop(); snd.unlock(); snd.start();
+    const T = snd.tap(), an = T.ac.createAnalyser(); an.fftSize = 4096; T.bass.connect(an);
+    const an2 = T.ac.createAnalyser(); an2.fftSize = 4096; T.master.connect(an2);
+    const n0 = snd.bassNotes, bars0 = snd.bassBars;
+    let peakRms = 0, lowShare = 0;
+    const buf = new Float32Array(an.fftSize), fb = new Float32Array(an.frequencyBinCount);
+    for (let k = 0; k < 40; k++) {   // ~8 s of real time = 3+ bars at 100 bpm
+      await wait(200);
+      an.getFloatTimeDomainData(buf); let s2 = 0; for (const v of buf) s2 += v * v; const rms = Math.sqrt(s2 / buf.length);
+      if (rms > peakRms) {
+        peakRms = rms; an.getFloatFrequencyData(fb);
+        const hz = i => i * T.ac.sampleRate / an.fftSize; let lo = 0, all = 0;
+        for (let i = 1; i < fb.length; i++) { const e = Math.pow(10, fb[i] / 10); all += e; if (hz(i) < 300) lo += e; }
+        lowShare = lo / (all || 1);
+      }
+    }
+    const run1 = { notes: snd.bassNotes - n0, bars: snd.bassBars - bars0, log: snd.bassLog.slice(-24), pats: snd.bassPats.slice(), gain: +snd.bassGain.toFixed(3), mg: +snd.musicGain.toFixed(3), peakRms: +peakRms.toFixed(4), lowShare: +lowShare.toFixed(2), playing: snd.playing };
+    // MUSIC off: score + bass silent, nothing new scheduled, SFX still work
+    window.__music.on = false; snd.tick(snd.space); await wait(700);
+    const nOff = snd.bassNotes; await wait(900);
+    snd.lastZap = -99; const z0 = snd.zaps; snd.zap('cyan');
+    const off = { playing: snd.playing, gain: +snd.bassGain.toFixed(4), newNotes: snd.bassNotes - nOff, zapped: snd.zaps - z0 };
+    window.__music.on = true; snd.start(); await wait(400);
+    // exit the cabinet: stops at once
+    const nEx = snd.bassNotes; window.__arcade.play.mode = 'zoomOut'; snd.tick(snd.space); await wait(600);
+    const nEx2 = snd.bassNotes; await wait(900);
+    const exit = { playing: snd.playing, gain: +snd.bassGain.toFixed(4), newNotes: snd.bassNotes - nEx2 };
+    window.__arcade.play.mode = 'game';
+    // variation: many generated bars differ in rhythm / notes, and two fresh runs do not repeat
+    const fresh = async ms => { snd.stop(); snd.start(); const l0 = snd.bassNotes, p0 = snd.bassPats.length; await wait(ms); const n = snd.bassNotes - l0; return { log: snd.bassLog.slice(-n).join(), pats: snd.bassPats.slice(p0) }; };
+    const A1 = await fresh(9000), B1 = await fresh(9000);
+    const runA = A1.log, runB = B1.log;
+    const pats = new Set(A1.pats.concat(B1.pats, run1.pats)).size;
+    // high up (the game feeds height into the music every frame): only the sparse rhythms
+    S.G.check = 1; S.placeOn(47); S.G.hold = false; S.step(1 / 30);
+    const H1 = await fresh(10000), hiPats = H1.pats, hiSpace = snd.space;
+    S.G.check = 1; S.placeOn(1); S.G.hold = false; S.step(1 / 30);
+    T.bass.disconnect(an); T.master.disconnect(an2);
+    return { run1, off, exit, runA, runB, pats, hiPats, hiSpace: +hiSpace.toFixed(2), rests: snd.bassRests };
+  }, W);
+  console.log('bass', JSON.stringify(bass));
+  chk(bass.run1.playing && bass.run1.notes >= 6 && bass.run1.bars >= 3 && bass.run1.gain > 0.2 && Math.abs(bass.run1.gain - bass.run1.mg) < 0.02,
+    'random bass is scheduled with the score on the music bus ' + JSON.stringify({ notes: bass.run1.notes, bars: bass.run1.bars, gain: bass.run1.gain, music: bass.run1.mg }));
+  chk(bass.run1.peakRms > 0.01 && bass.run1.lowShare > 0.6 && bass.run1.log.every(f => f >= 30 && f <= 150),
+    'the bass is audible and low (in-key notes 30-150 Hz) ' + JSON.stringify({ rms: bass.run1.peakRms, lowShare: bass.run1.lowShare, notes: bass.run1.log }));
+  chk(bass.pats >= 3 && bass.runA.length > 0 && bass.runB.length > 0 && bass.runA !== bass.runB, 'the bass line varies between bars and between runs ' + JSON.stringify({ rhythms: bass.pats, a: bass.runA, b: bass.runB }));
+  chk(bass.hiSpace > 0.7 && bass.hiPats.length >= 1 && bass.hiPats.every(p => (p.match(/[^-]/g) || []).length <= 3), 'near space the bass thins out to sparse notes ' + JSON.stringify({ space: bass.hiSpace, pats: bass.hiPats }));
+  chk(!bass.off.playing && bass.off.gain < 0.01 && bass.off.newNotes === 0 && bass.off.zapped === 1, 'MUSIC off silences the bass too, SFX still play ' + JSON.stringify(bass.off));
+  chk(!bass.exit.playing && bass.exit.gain < 0.01 && bass.exit.newNotes === 0, 'leaving the cabinet stops the bass immediately ' + JSON.stringify(bass.exit));
   chk(!music.missing, 'Sky Tower exposes a WebAudio snd API');
   chk(music.afterStop && music.afterStop.playing === false, 'music stop silences the soundtrack ' + JSON.stringify(music.afterStop));
   chk(music.afterStart && music.afterStart.playing && music.afterStart.starts > 0, 'music starts after unlock ' + JSON.stringify(music.afterStart));

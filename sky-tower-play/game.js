@@ -1242,6 +1242,7 @@ function step(dt) {
     const top = (platforms[N - 1] && platforms[N - 1].top) || yOf(N) || 1;
     const h = player ? player.position.y / top : 0;
     window.__skySnd.tick(Math.max(0, Math.min(1, h)));
+    if (window.__skySnd.setNight && G.sky) window.__skySnd.setNight(G.sky.night);
   }
   if (G.hold) return;
   dt = Math.min(0.05, dt); G.t += dt;
