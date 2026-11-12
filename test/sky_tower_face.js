@@ -1,4 +1,4 @@
-// t748u: SKY TOWER — the TITAN face greets every real climb with a booming "Show me what you got".
+// t748u: SKY TOWER — the TITAN face greets every real climb with a booming "Can you make it to the top?".
 // Appears only when a climb starts (not on the title / DEMO attract), is huge, looks at the player, keeps its
 // distance, rises with the player, weaves around, mouth moves; voice plays once per climb, MUTE silences it.
 // Existing climb / fly / fire / tickets still work. 844x390, no screenshots unless FACE_SHOTS=dir.
@@ -22,13 +22,13 @@ const SHOTS = process.env.FACE_SHOTS || '';
   await page.evaluate(() => window.__demo.start()); await run(20); s = await st(); chk(!s.on && !s.vis, 'DEMO attract (lobby cabinet): no TITAN', s);
   await page.evaluate(() => window.__demo.stop());
   await page.waitForFunction(() => window.__skySnd.voiceReady, null, { timeout: 20000 }).catch(() => {});
-  s = await st(); chk(s.ready && s.env > 40 && !s.err, 'voice buffer shipped + decoded offline-capable (sfx/sky_face.mp3), loudness envelope', { ready: s.ready, env: s.env, err: s.err });
+  s = await st(); chk(s.ready && s.env > 40 && !s.err, 'voice buffer shipped + decoded offline-capable (sfx/sky_face_top.mp3), loudness envelope', { ready: s.ready, env: s.env, err: s.err });
   // start the climb
   await page.evaluate(() => window.__skytower.start()); await run(1); s = await st();
   chk(s.on && s.vis && s.scene === 'play', 'climb starts: TITAN appears at once', s);
   const opens = await page.evaluate(() => { const A = window.__skytower, F = A.face, m = []; for (let i = 0; i < 90; i++) { A.step(1 / 30); m.push(F.open); } return { max: Math.max(...m), min: Math.min(...m.slice(30)) }; });
   s = await st();
-  chk(s.spoke === 1 && s.plays === 1 && s.muted === 0, 'booms "Show me what you got" once at the start', { spoke: s.spoke, plays: s.plays });
+  chk(s.spoke === 1 && s.plays === 1 && s.muted === 0, 'booms "Can you make it to the top?" once at the start', { spoke: s.spoke, plays: s.plays });
   chk(opens.max > 0.5, 'mouth opens and closes with the words', opens);
   chk(s.scale > 0.95 && s.worldR >= 5, 'huge: ~' + (s.worldR * 2).toFixed(1) + ' m tall face', { scale: s.scale, worldR: s.worldR });
   // on screen, looking at the player, standoff kept

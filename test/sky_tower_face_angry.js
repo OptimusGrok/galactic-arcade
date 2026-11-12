@@ -54,6 +54,14 @@ let ok = true; const chk = (c, m, x) => { console.log((c ? 'PASS ' : 'FAIL ') + 
     return { name: H.name, parts: cols.length, minC: +minC.toFixed(2), spikes: H.children.filter(m => m.geometry && m.geometry.type === 'ConeGeometry').length }; });
   chk(hair.name === 'skyFaceHair' && hair.parts >= 40 && hair.spikes >= 30 && hair.minC > 0.6 && s.teal === 0, 'wild white mad-scientist hair (white/grey-white, ' + hair.spikes + ' spikes + puffs), no teal flame crown', Object.assign({ teal: s.teal }, hair));
   chk(!s.vein, 'no forehead vein exists on the face', { vein: s.vein });
+  // t760u: Viking helmet on the TITAN, with the wild hair still poking out around / under it
+  const helm = await page.evaluate(() => { const F = window.__skytower.face, H = F.helmet; if (!H) return null; let tubes = 0, tori = 0, dome = 0, guard = !!F.head.getObjectByName('skyFaceNoseGuard'); const P = new (F.root.position.constructor)();
+    H.traverse(m => { if (!m.geometry) return; const t = m.geometry.type; if (t === 'TubeGeometry') tubes++; if (t === 'TorusGeometry') tori++; if (t === 'SphereGeometry' && m.geometry.parameters.thetaLength < 2) dome++; });
+    F.root.updateMatrixWorld(true); const hy = H.getWorldPosition(P).clone(), rim = []; F.head.worldToLocal(hy);
+    let below = 0; F.hair.children.forEach(m => { if (m.position.y < 0.75) below++; });
+    return { parent: H.parent === F.head, tubes, tori, dome, guard, rimY: +hy.y.toFixed(2), hairBelow: below, hairN: F.hair.children.length, steel: H.children[0].material.color.getHexString() }; });
+  chk(helm && helm.parent && helm.tubes === 2 && helm.tori >= 4 && helm.dome >= 1 && helm.guard && helm.hairBelow >= 30 && helm.rimY > 0.4, 'Viking helmet on the face: steel dome + rim band + bands, two curved horns, nose guard; wild hair pokes out under it', helm);
+
   // DEMO attract: no face to hit
   await page.evaluate(() => window.__demo.start()); await steps(10);
   let r = await page.evaluate(() => { const A = window.__skytower, F = A.face, V = A.player.position.constructor; return { hit: F.hit(new V(0, 0, 0), new V(0, 500, 0)), on: F.on }; });
@@ -64,7 +72,7 @@ let ok = true; const chk = (c, m, x) => { console.log((c ? 'PASS ' : 'FAIL ') + 
   r = await shoot(); await steps(3); s = await st();
   chk(r.fired && r.color === 'cyan' && r.hit && !r.alive && !r.inScene, 'monkey cyan laser hits the face and the bolt is spent on it', r);
   chk(s.ang > 0.8 && s.brow > 0.3 && s.green < 0.15 && !s.vein, 'hit 1: ANGRY (red flush, V brows) and no forehead vein', s);
-  chk(s.cycle === 1 && s.act === 'hey-quiet' && s.by.show === 1 && s.spoke === 1 && s.line === 'show' && s.by.hey === 0, 'hit 1 lands during "Show me what you got": opening plays on untouched, no "hey" over it', s);
+  chk(s.cycle === 1 && s.act === 'hey-quiet' && s.by.show === 1 && s.spoke === 1 && s.line === 'show' && s.by.hey === 0, 'hit 1 lands during "Can you make it to the top?": opening plays on untouched, no "hey" over it', s);
   chk(s.tk === 0 && s.fly === 0 && s.hp === 3, 'hitting the face: no tickets, no damage', s);
   await steps(120); await page.waitForTimeout(3400); await steps(20);
   s = await st(); chk(s.ang < 0.05 && !s.speaking && s.skin === 'ff8f3f' && s.brow < 0 && !s.vein, 'anger eases back to the normal face', s);
