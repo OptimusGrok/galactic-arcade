@@ -151,6 +151,12 @@ body.ingame #mpPill,body.ingame #mpBar,body.ingame #mpChat,body.ingame #mpTags,b
   const TB = new THREE.Box3(), GBV = new THREE.Vector3();
   function topOf(g) { g.updateMatrixWorld(true); let top = -1e9; const seen = o => { for (let q = o; q && q !== g; q = q.parent) if (!q.visible) return false; return true; };
     g.traverse(o => { if (o.isMesh && o.geometry && seen(o)) { TB.setFromObject(o); if (TB.max.y > top) top = TB.max.y; } }); return top > -1e8 ? Math.max(1.75, top - g.position.y + 0.12) : 1.75; }
+  // t741u laser pistol shots (roomfire.js): cosmetic bolts only, ~3/s max per player, drawn on everyone else's screen; no hits, no PVP
+  let zapAt = 0; const zapIn = new Map(), num3 = a => Array.isArray(a) && a.length === 3 && a.every(v => typeof v === 'number' && isFinite(v) && Math.abs(v) < 500);
+  M.zap = (o, d, c) => { const now = performance.now(); if (now - zapAt < 200 || !num3(o) || !num3(d)) return false; zapAt = now;
+    const r = v => Math.round(v * 1000) / 1000, ok = send('zap', { i: id, o: o.map(r), d: d.map(r), c: c === 'red' ? 'red' : 'cyan' }); if (ok) M.zapSent = (M.zapSent || 0) + 1; return ok; };
+  function onZap(pl) { if (!pl || !pl.i || pl.i === id || !M.peers.has(pl.i) || !num3(pl.o) || !num3(pl.d)) return; const now = performance.now(); if (now - (zapIn.get(pl.i) || 0) < 150) return; zapIn.set(pl.i, now); M.recv++;
+    M.zapRecv = (M.zapRecv || 0) + 1; try { if (window.__roomFire) window.__roomFire.spawn(pl.o, pl.d, pl.c === 'red' ? 'red' : 'cyan', true); } catch (e) {} }
   function onLook(pl) { if (!pl || !pl.i || pl.i === id || !pl.look || typeof pl.look !== 'object') return; const p = M.peers.get(pl.i); if (!p) return; M.recv++;
     paint(p, { look: pl.look }); if (pl.name) { p.name = String(pl.name).slice(0, 14); p.tag.textContent = p.name; } }
   function peer(pid, meta) { let p = M.peers.get(pid);
@@ -208,7 +214,7 @@ body.ingame #mpPill,body.ingame #mpBar,body.ingame #mpChat,body.ingame #mpTags,b
       M.joins = (M.joins || 0) + 1;
       ch.on('presence', { event: 'sync' }, onSync)
         .on('broadcast', { event: 'st' }, m => onState(m && m.payload)).on('broadcast', { event: 'chat' }, m => onChat(m && m.payload)).on('broadcast', { event: 'emo' }, m => onEmo(m && m.payload))
-        .on('broadcast', { event: 'look' }, m => onLook(m && m.payload))
+        .on('broadcast', { event: 'look' }, m => onLook(m && m.payload)).on('broadcast', { event: 'zap' }, m => onZap(m && m.payload))
         .on('broadcast', { event: 'bye' }, m => { if (m && m.payload) drop(m.payload.i); });
       // peek at presence before taking a seat: if 10 are already in, stay solo without counting as an 11th
       ch.subscribe(async status => {

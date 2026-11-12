@@ -396,6 +396,7 @@ if (document.getElementById('flBtn')) flBtnInit(); else document.addEventListene
 <script src="pa.js"></script>
 <script type="module" src="main.js"></script>
 <script src="inventory.js"></script>
+<script src="roomfire.js"></script>
 <script>/* FAST LOAD (t229): register the service worker (its install pre-caches ~7 MB) only after the room is drawing and things settle, so it never competes with the first load */
 if('serviceWorker' in navigator&&location.protocol!=='file:'){(function(){var done=0,reg=function(){if(done)return;done=1;navigator.serviceWorker.register('sw.js').catch(function(){});};
 var t=setInterval(function(){var A=window.__arcade;if(A&&A.stats&&A.stats.frames>30){clearInterval(t);setTimeout(reg,6000);}},250);setTimeout(reg,45000);})();}</script>
