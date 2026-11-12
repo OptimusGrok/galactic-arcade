@@ -56,11 +56,73 @@ function paintMarquee(g, w, h) {
   g.fillStyle = '#ffe14a'; g.fillText('SKY TOWER', w / 2, h / 2);
 }
 
+// ---- t754u: LIVE view of the climb being played at this cabinet (watchers in the room) ----
+// Drawn from the players' own sky packets (position, camera yaw, nearby platforms, the TITAN, its eye lasers, HP),
+// in the player's camera direction, centred on the first player at the machine. The second climber (shared race) is
+// drawn in the same view when in range, otherwise an arrow at the edge; a race bar on the right shows both heights.
+const SLOT_COL = ['#7ff6ff', '#ff7ad9'];
+const hex = n => '#' + (n >>> 0).toString(16).padStart(6, '0').slice(-6);
+export function drawLive(g, W, H, feed, t, live) {
+  const F = feed[0], s = F.s, cy = s.cy || 0, fx = Math.sin(cy), fz = Math.cos(cy), rx = -fz, rz = fx;   // camera forward / right
+  // a schematic of the real tower: height to scale (about three platforms on screen), sideways squeezed (tanh) so the
+  // neighbouring platforms of the spiral stay in view; depth only shrinks things a little
+  const ppm = H / 56, cxs = W / 2, cys = H * 0.62;
+  const proj = (x, y, z) => { const dx = x - s.x, dz = z - s.z, d = dx * fx + dz * fz, k = Math.max(0.6, Math.min(1.4, 30 / (30 + d))); return { x: cxs - W * 0.42 * Math.tanh((dx * rx + dz * rz) / 24), y: cys - (y - s.y) * ppm, k, d }; };
+  // sky by the climber's own day/night
+  const n = s.nt || 0, sky = g.createLinearGradient(0, 0, 0, H);
+  sky.addColorStop(0, n > 0.5 ? '#02040e' : '#2a6ad8'); sky.addColorStop(0.6, n > 0.5 ? '#0c1638' : '#7cc0ff'); sky.addColorStop(1, n > 0.5 ? '#17264f' : '#d8ecff');
+  g.fillStyle = sky; g.fillRect(0, 0, W, H);
+  if (n > 0.3) { g.fillStyle = '#fff'; for (let i = 0; i < 28; i++) { g.globalAlpha = (0.3 + (i % 4) * 0.15) * n; g.fillRect((i * 53) % W, (i * 29) % H, 2, 2); } g.globalAlpha = 1; }
+  const items = [];
+  for (const q of (s.pd || [])) { const [i, x, z, top, sx, sz, col] = q, P = proj(x, top, z); items.push({ d: P.d, f() { const w = Math.max(22, Math.min(90, Math.max(sx, sz) * 7 * P.k)), h = 9 * P.k; brickFill(g, P.x - w / 2, P.y, w, h, hex(col)); g.fillStyle = '#0008'; g.font = 'bold 9px "Courier New", monospace'; g.textAlign = 'center'; g.fillText(String(i), P.x, P.y + h - 2); } }); }
+  if (s.fc) { const [x, y, z, ang, chg, open] = s.fc, P = proj(x, y, z); items.push({ d: P.d, f() { drawTitan(g, P.x, P.y, 30 * P.k, ang, chg, open, t); } }); }
+  feed.forEach((c, j) => { const q = c.s, P = proj(q.x, q.y, q.z); items.push({ d: P.d - 0.01, f() {
+    if (P.y < -10 || P.y > H + 10) { const up = P.y < 0, ax = Math.max(14, Math.min(W - 40, P.x)), ay = up ? 46 : H - 14; g.fillStyle = SLOT_COL[j % 2]; g.beginPath(); g.moveTo(ax, ay + (up ? -8 : 8)); g.lineTo(ax - 7, ay); g.lineTo(ax + 7, ay); g.fill(); g.font = 'bold 10px "Courier New", monospace'; g.textAlign = 'center'; g.fillText(c.name.toUpperCase().slice(0, 10), ax, ay + (up ? 12 : -10)); return; }
+    drawClimber(g, P.x, P.y, P.k, q, t, SLOT_COL[j % 2], c.name); } }); });
+  for (const b of (s.bm || [])) { const [x, y, z, dx, dy, dz] = b, A = proj(x, y, z), B = proj(x - dx * 4.2, y - dy * 4.2, z - dz * 4.2); items.push({ d: A.d - 0.02, f() { g.strokeStyle = '#ff2a1a'; g.lineCap = 'round'; g.lineWidth = 5 * A.k; g.beginPath(); g.moveTo(B.x, B.y); g.lineTo(A.x, A.y); g.stroke(); g.strokeStyle = '#ffd0c0'; g.lineWidth = 1.5; g.stroke(); } }); }
+  items.sort((a, b) => b.d - a.d); for (const it of items) it.f();
+  // HUD: LIVE tag, each climber's platform + hearts, race bar
+  g.textAlign = 'left'; g.font = 'bold 13px "Courier New", monospace';
+  g.fillStyle = '#000a'; g.fillRect(0, 0, W, 18 + feed.length * 15);
+  g.fillStyle = Math.floor(t * 2) % 2 ? '#ff3030' : '#ff7070'; g.beginPath(); g.arc(10, 10, 4.5, 0, 7); g.fill();
+  g.fillStyle = '#ffe14a'; g.fillText(feed.length > 1 ? 'LIVE RACE' : 'LIVE', 19, 14);
+  g.textAlign = 'right'; g.fillText('SKY TOWER', W - 6, 14); g.textAlign = 'left';
+  feed.forEach((c, j) => { const q = c.s; g.fillStyle = SLOT_COL[j % 2]; g.fillText(c.name.toUpperCase().slice(0, 10) + ' ' + q.p + '/50', 6, 29 + j * 15); g.fillStyle = '#ff4060'; g.fillText('♥'.repeat(q.h) + (q.w ? '  TOP!' : ''), 150, 29 + j * 15); });
+  const bx = W - 10, by0 = 26 + feed.length * 15, by1 = H - 12; g.fillStyle = '#0007'; g.fillRect(bx - 3, by0, 6, by1 - by0);
+  feed.forEach((c, j) => { const yy = by1 - (by1 - by0) * Math.min(1, (c.s.p - 1) / 49); g.fillStyle = SLOT_COL[j % 2]; g.beginPath(); g.arc(bx, yy, 5, 0, 7); g.fill(); });
+  const won = feed.find(c => c.s.w);
+  if (won) { g.textAlign = 'center'; g.font = '900 20px "Courier New", monospace'; g.lineWidth = 5; g.strokeStyle = '#3a0800'; const m = won.name.toUpperCase().slice(0, 10) + ' MADE IT!'; g.strokeText(m, W / 2, H * 0.4); g.fillStyle = '#ffe14a'; g.fillText(m, W / 2, H * 0.4); }
+  live.names = feed.map(c => c.name); live.focus = F.id; live.pads = (s.pd || []).length; live.titan = !!s.fc; live.beams = (s.bm || []).length;
+}
+function drawTitan(g, x, y, r, ang, chg, open, t) {
+  g.fillStyle = '#f4f4f0'; for (let i = 0; i < 9; i++) { const a = Math.PI * (0.05 + i * 0.1125), rr = r * (0.42 + ((i * 37) % 5) * 0.06); g.beginPath(); g.arc(x + Math.cos(a) * r * 0.85, y - Math.sin(a) * r * 0.8, rr, 0, 7); g.fill(); }
+  const sk = ang > 0.3 ? '#e2452a' : '#ff9a3a'; g.fillStyle = sk; g.beginPath(); g.ellipse(x, y, r, r * 1.02, 0, 0, 7); g.fill();
+  const ey = y - r * 0.18, ex = r * 0.36, er = r * 0.17; for (const sgn of [-1, 1]) { g.fillStyle = '#fff'; g.beginPath(); g.ellipse(x + sgn * ex, ey, er, er * (ang > 0.3 ? 0.55 : 1), 0, 0, 7); g.fill(); g.fillStyle = chg ? '#ff1a1a' : '#111'; g.beginPath(); g.arc(x + sgn * ex, ey, er * 0.5, 0, 7); g.fill();
+    g.strokeStyle = '#3a1406'; g.lineWidth = Math.max(2, r * 0.09); g.beginPath(); g.moveTo(x + sgn * (ex + er), ey - er * 1.5 + (ang > 0.3 ? -r * 0.06 : 0)); g.lineTo(x + sgn * (ex - er), ey - er * 1.5 + (ang > 0.3 ? r * 0.1 : 0)); g.stroke(); }
+  g.fillStyle = '#3a0a06'; g.beginPath(); g.ellipse(x, y + r * 0.45, r * (ang > 0.3 ? 0.42 : 0.3), Math.max(2, r * (0.06 + open * 0.2)), 0, 0, 7); g.fill();
+}
+function drawClimber(g, px, py, k, q, t, tagCol, name) {
+  const alien = q.c === 'alien', s = 1.4 * k; g.save(); g.translate(px, py); g.scale(s, s);
+  if (q.f) { g.fillStyle = '#ff9a1a'; g.globalAlpha = 0.85 + Math.sin(t * 30) * 0.1; g.beginPath(); g.moveTo(-6, 2); g.lineTo(-3, 16); g.lineTo(-1, 2); g.fill(); g.beginPath(); g.moveTo(6, 2); g.lineTo(3, 16); g.lineTo(1, 2); g.fill(); g.globalAlpha = 1; }
+  g.fillStyle = alien ? '#9aa5ab' : '#4e2a14'; g.beginPath(); g.arc(0, -16, 7, 0, 7); g.fill();
+  if (alien) { g.fillStyle = '#000'; g.beginPath(); g.ellipse(-3, -17, 2.4, 1.4, 0.3, 0, 7); g.fill(); g.beginPath(); g.ellipse(3, -17, 2.4, 1.4, -0.3, 0, 7); g.fill(); }
+  else { g.fillStyle = '#e8c49a'; g.beginPath(); g.ellipse(0, -14, 4, 3, 0, 0, 7); g.fill(); }
+  g.fillStyle = alien ? '#237841' : '#1d2452'; g.fillRect(-6, -9, 12, 12);
+  g.fillStyle = '#b8c0cc'; g.fillRect(-8, -4, 4, 8); g.fillRect(4, -4, 4, 8);
+  g.restore();
+  g.font = 'bold 10px "Courier New", monospace'; g.textAlign = 'center'; g.fillStyle = '#000a'; const tw = Math.min(70, name.length * 6.4 + 8); g.fillRect(px - tw / 2, py - 32 * s - 10, tw, 12); g.fillStyle = tagCol; g.fillText(name.toUpperCase().slice(0, 10), px, py - 32 * s);
+}
+
 function attract(W, H) {
   const c = document.createElement('canvas'); c.width = W; c.height = H; const g = c.getContext('2d');
   const tex = new THREE.CanvasTexture(c); tex.colorSpace = THREE.SRGBColorSpace;
   const visit = { on: false };
+  const live = { on: false, frames: 0, names: [], focus: null };
   function draw(t) {
+    // t754u: someone is playing at this cabinet -> show THEIR climb live (from the room's sky packets), not the attract loop
+    let feed = null; try { const M = window.__mp; feed = M && M.sky && M.sky.feed ? M.sky.feed('skytower') : null; } catch (e) {}
+    if (feed && feed.length) { drawLive(g, W, H, feed, t, live); live.on = true; live.frames++; tex.needsUpdate = true; return; }
+    live.on = false; live.names = []; live.focus = null;
     const sky = g.createLinearGradient(0, 0, 0, H);
     const k = (Math.sin(t * 0.15) + 1) * 0.5;
     sky.addColorStop(0, k > 0.55 ? '#050816' : '#3a1a60');
@@ -112,7 +174,7 @@ function attract(W, H) {
     }
     tex.needsUpdate = true;
   }
-  draw(0); return { tex, draw, visit };
+  draw(0); return { tex, draw, visit, live };
 }
 
 export function buildSkyTowerCabinet() {
@@ -164,6 +226,6 @@ export function buildSkyTowerCabinet() {
   for (const z of [-0.06, 0.06]) door.add(new THREE.Mesh(new THREE.BoxGeometry(0.022, 0.06, 0.04).translate(0.006, 0.1, z), slot));
   const glow = new THREE.PointLight(0x70c8ff, 0.5, 2.4, 1.6); glow.name = 'screenGlow';
   glow.position.set(sf.mid[0] + sf.n.x * 0.45, sf.mid[1] - 0.15, 0); g.add(glow);
-  g.userData = { screen: g.getObjectByName('screen'), glow, tick: at.draw, visit: at.visit, aspect: sw / sh };
+  g.userData = { screen: g.getObjectByName('screen'), glow, tick: at.draw, visit: at.visit, live: at.live, aspect: sw / sh };
   return g;
 }

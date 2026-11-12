@@ -234,6 +234,9 @@
     HAT3D.forEach(function (k) { h[k].visible = lk.hat === k; }); for (var g in h.gl) h.gl[g].visible = lk.glasses === g; skFit(h.gl.skull, root); for (var b in h.bk) h.bk[b].visible = lk.back === b;
     var bp = cap.parent.parent && cap.parent.parent.parent && cap.parent.parent.parent.getObjectByName('backpack'); if (bp) bp.visible = !lk.back || lk.back === 'none'; applyHand(T, root, lk); }   // Dave: a back item replaces Arcade's backpack (straps stay)
   // for Arcade's mp.js (optional): dress any monkey root (e.g. a remote one whose materials keep userData.orig) in a look object
+  // t753u: original-colour -> look-colour map (hoodie / fur / shoes / alien suit) so Sky Tower can paint a rival's look on its own rig
+  function colorMap(lk) { var map = {}; if (!lk) return map; var ho = find(HOOD_ALL, lk.hoodie), fu = find(FUR, lk.fur), sh = find(SHOE, lk.shoes), su = find(OPTS.suit, lk.suit);
+    map[0x1d2452] = ho[1]; map[0x141a3a] = ho[2]; map[0x4e2a14] = fu[1]; map[0xd9a779] = fu[2]; map[0x8a1e2c] = sh[1]; map[0xf1e8d6] = sh[2]; map[0x5a636e] = su[1]; map[0x3c434c] = su[2]; map[0x6a3a9a] = su[3]; return map; }
   function dress(root, lk) { var A = window.__arcade; if (!A || !root || !lk) return; var T = A.THREE, map = {}, ho = find(HOOD_ALL, lk.hoodie), fu = find(FUR, lk.fur), sh = find(SHOE, lk.shoes);
     map[0x1d2452] = ho[1]; map[0x141a3a] = ho[2]; map[0x4e2a14] = fu[1]; map[0xd9a779] = fu[2]; map[0x8a1e2c] = sh[1]; map[0xf1e8d6] = sh[2]; var su = find(OPTS.suit, lk.suit); map[0x5a636e] = su[1]; map[0x3c434c] = su[2]; map[0x6a3a9a] = su[3]; map[0x8b959e] = su[4];
     root.traverse(function (o) { if (!o.isMesh || !o.material || !o.material.color) return; var u = o.material.userData, or = u.orig != null ? u.orig : u.gaOrig; if (or != null && map[or] != null) o.material.color.setHex(map[or]); });
@@ -506,7 +509,7 @@
   function wClose() { if (!W.el || !W.open) return false; W.open = false; W.el.hidden = true; W.el.classList.remove('gaSplit'); prev.drag = null; if (W.try) { W.try = null; apply(); prev.hat = null; }
     if (prev.r && prev.r.domElement.id === 'gaWCv') freeR();   // free the 2nd WebGL context for the game
     return true; }
-  window.__wardrobe = { open: wOpen, close: wClose, applyRemote: function (root, lk) { dress(root, lk); }, get isOpen() { return W.open; }, get el() { return W.el; } };
+  window.__wardrobe = { open: wOpen, close: wClose, applyRemote: function (root, lk) { dress(root, lk); }, colorMap: function (lk) { return colorMap(lk); }, get isOpen() { return W.open; }, get el() { return W.el; } };
   function step(k, d, shop) { var L; if (W.open && !W.shop) L = OPTS[k].filter(function (a) { return isStart(k, a[0]) || has(k, a[0]); });
     else if (shop && !onStart()) {   // t744u: Accessories ‹ › walk EVERY tile (locked ones are tried on with the BUY bar) and scroll it into view
       L = OPTS[k]; var cur = W.try && W.try.k === k ? W.try.v : P[k], ci = 0; for (var q = 0; q < L.length; q++) if (L[q][0] === cur) ci = q;

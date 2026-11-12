@@ -735,6 +735,7 @@ export function setupGrokVisit({ scene, tp, play, monkey, camera, st } = {}) {
 
   function openWatch() {
     if (api.watchOpen || !cab) return;
+    try { const P = A().play, nn = P && P.near ? P.near() : null; if (nn && nn !== cab.name && !api._forceWatch) { api.watchWrongCab = (api.watchWrongCab || 0) + 1; return; } } catch (e) {}   // t755u: never open another machine's game
     api.watchOpen = true; api.watchExpert = true; watchOv.classList.add('on');
     try { window.__watchExpert = true; } catch (e) {}
     try { const th = document.getElementById('turnHint'); if (th) { api._turnHintWas = th.classList.contains('on'); th.classList.remove('on'); } } catch (e) {}
@@ -904,8 +905,11 @@ export function setupGrokVisit({ scene, tp, play, monkey, camera, st } = {}) {
 
     // WATCH button: when Grok is playing AND player is at that cabinet (PLAY would show)
     if (api.state === 'play' && cab) {
-      const playOn = document.getElementById('playUI') && document.getElementById('playUI').classList.contains('on');
-      const nearCab = playerNearCab() || playOn;
+      // t755u: the PLAY prompt only counts when it is for GROK'S cabinet. It used to count at ANY machine, so standing at
+      // Rock Fall while Grok played Monkey Crossing showed WATCH and opened Monkey Crossing.
+      const P = A().play, nearName = P && P.near ? P.near() : null;
+      const playOn = document.getElementById('playUI') && document.getElementById('playUI').classList.contains('on') && nearName === cab.name;
+      const nearCab = (playerNearCab() && (!nearName || nearName === cab.name)) || playOn;
       watchB.classList.toggle('on', nearCab && !api.watchOpen && !(window.__shop && window.__shop.open));
       if (api.watchOpen) drawWatchFrame();
     } else {

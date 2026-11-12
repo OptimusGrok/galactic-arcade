@@ -69,7 +69,7 @@ let ok = true; const chk = (c, m, x) => { console.log((c ? 'PASS ' : 'FAIL ') + 
   await steps(120); await page.waitForTimeout(3400); await steps(20);
   s = await st(); chk(s.ang < 0.05 && !s.speaking && s.skin === 'ff8f3f' && s.brow < 0 && !s.vein, 'anger eases back to the normal face', s);
   // HIT 2: eye lasers, standing still -> 1 heart
-  r = await shoot(); s = await st(); chk(r.hit && s.cycle === 2 && s.act === 'beam' && s.ang > 0.5 && !s.vein, 'hit 2: angry + charges the eye lasers (no "hey")', s);
+  r = await shoot(); await page.evaluate(() => { const A = window.__skytower; for (let i = 0; i < 3; i++) A.step(1 / 60); }); s = await st(); chk(r.hit && s.cycle === 2 && s.act === 'beam' && s.ang > 0.5 && !s.vein, 'hit 2: angry + charges the eye lasers (no "hey")', s);
   let b = await beams(false); s = await st();
   chk(b.fired === 2 && b.n === 2 && b.fromEyes.every(d => d < 1.5) && b.red.every(c => c === 'ff2418') && b.thick >= 0.2 && b.glow >= 0.5, 'two THICK red lasers, one from each eye', b);
   chk(b.aim.every(d => d > 0.999) && b.travel > 1, 'aimed at the player with a fair ' + b.travel + ' s travel time', b);

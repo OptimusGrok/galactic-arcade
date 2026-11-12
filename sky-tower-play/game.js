@@ -3,7 +3,8 @@
 // (parent.__neonTicket) while a real credit is running; never in DEMO / WATCH.
 // Soundtrack + laser/ticket SFX live in snd.js (WebAudio, no files).
 import * as THREE from '../vendor/three.module.js';
-import { createFace } from './face.js';   // t748u: the TITAN face ("Show me what you got")
+import { createFace } from './face.js';
+import { createRivals } from './rivals.js';   // t753u: two players at the cabinet share the climb   // t748u: the TITAN face ("Show me what you got")
 
 const N = 50, AIR_SPEED = 6.2, MIN_SEP = 10;
 const PITCH_MIN = -0.22, PITCH_MAX = 1.12;
@@ -505,6 +506,7 @@ const windLines = [];
 
 const player = (readChar() === 'alien' ? makeAlien() : makeMonkey());
 const face = createFace(scene);
+const SHOT = { n: 0, v: null };   // t753u: my last laser (for the other climber's screen, cosmetic)
 scene.add(player);
 const flyFx = [];
 player.traverse(o => { if (o.name === 'gaThruster') flyFx.push(o); });
@@ -525,6 +527,17 @@ const G = {
 };
 
 const TK = { got: 0, run: 0, fly: 0, log: [], awarded: Object.create(null) };
+const rivals = createRivals({ scene, makeMonkey, makeAlien, player, G, N, banner: t => showBanner(t), live: liveExtra });
+// t754u: what a watcher's cabinet screen in the room needs to draw this climb live (small; pads only every few packets)
+const r2l = v => Math.round(v * 100) / 100;
+function liveExtra(withPads) {
+  const o = { cy: r2l(G.camYaw || 0), nt: r2l((G.sky && G.sky.night) || 0) };
+  if (face.on && face.shown && face.root.visible) { const q = face.root.position; o.fc = [r2l(q.x), r2l(q.y), r2l(q.z), r2l(face.ang || 0), face.charge > 0 || face.glowT > 0 ? 1 : 0, r2l(face.open || 0)]; }
+  const bm = []; for (const b of eyeBeams) if (b.alive && bm.length < 4) { const q = b.mesh.position; bm.push([r2l(q.x), r2l(q.y), r2l(q.z), r2l(b.dir.x), r2l(b.dir.y), r2l(b.dir.z)]); }
+  if (bm.length) o.bm = bm;
+  if (withPads) { const pd = [], c = Math.max(1, G.platform | 0); for (let i = Math.max(1, c - 2); i <= Math.min(N, c + 4); i++) { const p = platforms[i - 1]; if (!p) continue; const gp = p.g.position; pd.push([i, r2l(gp.x), r2l(gp.z), r2l(p.top), r2l(p.sx), r2l(p.sz), p.col | 0]); } o.pd = pd; }
+  return o;
+}
 function quiet() { return !!window.__DEMO || G.mode !== 'play' || !G.run || G.hold; }
 function give(n, why) {
   if (window.__DEMO || !G.run || G.over) return 0;
@@ -914,7 +927,7 @@ function onReach(i) {
 function finish() {
   if (G.won) return;
   G.won = true; G.over = true; G.run = false; G.thrust = false;
-  showBanner('YOU MADE IT!\nEARTH BELOW', true);
+  showBanner(rivals.myWin() || 'YOU MADE IT!\nEARTH BELOW', true);   // t753u: race result when someone else is climbing too
   G.best = N; if (!window.__DEMO) saveBest(N);
 }
 
@@ -977,6 +990,7 @@ function fire() {
   const L = { mesh, o: o.clone(), dir: dir.clone(), speed: 24, life: 1.15, alive: true, color: hue };
   lasers.push(L);
   if (window.__skySnd) window.__skySnd.zap(hue);
+  { const q = v => Math.round(v * 1000) / 1000; SHOT.n++; SHOT.v = [q(o.x), q(o.y), q(o.z), q(dir.x), q(dir.y), q(dir.z), hue === 'red' ? 1 : 0]; }
   return L;
 }
 
@@ -1386,6 +1400,7 @@ function step(dt) {
   animatePlayer(dt);
   updateCamera(dt);
   face.update(dt, { pos: player.position, camYaw: G.camYaw, won: G.won, hold: G.hold });
+  rivals.update(dt, SHOT);
   setSky(dt);
   hud();
 }
@@ -1492,7 +1507,7 @@ function resetWorld(keepPos) {
 function startRun() {
   window.__DEMO = false; D.on = false; document.body.classList.remove('demo');
   G.mode = 'play'; G.run = true; G.over = false; G.won = false;
-  resetWorld(false); showBanner('FLY UP!');
+  resetWorld(false); showBanner('FLY UP!'); rivals.reset();
   face.start({ pos: player.position, camYaw: G.camYaw });   // the TITAN pops in and booms its line
   if (window.__skySnd) window.__skySnd.unlock();
 }
@@ -1591,7 +1606,7 @@ const api = {
   unhold() { G.hold = false; },
   get ready() { return true; },
   get snd() { return window.__skySnd || null; },
-  face, eyeBeams, BEAM_STATS, BEAM_SPEED, fireEyeBeams,
+  face, rivals, SHOT, eyeBeams, BEAM_STATS, BEAM_SPEED, fireEyeBeams, liveExtra,
   PAD, WIND, shapeOf, dimsOf, windGust, updateWind, windAccelAt, drawWind, heightK, get wind() { return G.wind; },
   SKY, levelAt, nightAt, setSky, skyDome, get sky() { return G.sky; }, moon, moonL, sun, hemi, stars,
   N, R, PH, FLY, AIR_SPEED, MIN_SEP, PITCH_MIN, PITCH_MAX, RUN_CAP, FLY_TICKETS, FLY_TICKET_VALUE, GUN_AIM_TIME, GUN_REST, GUN_AIM, poseMonkeyGun, gunBarrelDir, tickets, collectFlyTicket, resetFlyTickets, spawnFlyTickets, sizeOf, offsetOf, yOf, isCheck, isSlider, hopFuel, gapYOf, gapXZOf, lookDrag, updateCamera, updateSlides, TK, D, G, player, platforms, lasers, aliens, shots, earth, world: scene, camera, renderer,
