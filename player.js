@@ -15,7 +15,7 @@
   // shop-only items (t606u): bought for tickets in the in-game wardrobe (shop's wardrobe corner), never listed on the start screen.
   // Each entry: [id, icon(, hex1, hex2 for hoodies)]; price per row in PRICE. Ownership: 'galacticarcade.wardrobeOwned' = ["hat:tophat", ...].
   var NEW = { hat: [['tophat', '🎩'], ['wizard', '🧙'], ['viking', '🛡️'], ['chef', '👨\u200d🍳'], ['bunny', '🐰'], ['propeller', '🚁']],
-    glasses: [['monocle', '🧐'], ['heart', '💗'], ['star', '⭐'], ['3d', '<b style="font:900 13px Arial"><span style="color:#ff3030">3</span><span style="color:#30c8ff">D</span></b>'], ['mustache', '🥸'], ['mask', '🥷'], ['skull', '💀']],
+    glasses: [['monocle', '🧐'], ['heart', '💗'], ['star', '⭐'], ['3d', '<b style="font:900 13px Arial"><span style="color:#ff3030">3</span><span style="color:#30c8ff">D</span></b>'], ['mustache', '🥸'], ['mask', '🥷'], ['skull', '<svg viewBox="0 0 40 44" width="34" height="37"><path d="M20 2C9 2 3 10 3 19c0 6 3 10 7 12v6c0 2 2 4 4 4h12c2 0 4-2 4-4v-6c4-2 7-6 7-12C37 10 31 2 20 2z" fill="#efe5c9" stroke="#2a221c" stroke-width="2"/><path d="M9 18c1-4 5-6 9-4 1 3-1 8-5 8-3 0-4-2-4-4zM31 18c-1-4-5-6-9-4-1 3 1 8 5 8 3 0 4-2 4-4z" fill="#0c0910"/><path d="M20 23l-3 6h6z" fill="#0c0910"/><path d="M12 33h16M15 31v5M20 31v5M25 31v5" stroke="#2a221c" stroke-width="1.6"/></svg>']],
     back: [['jetpack', '🚀'], ['cape', '🦸'], ['wings', '🪽'], ['batwings', '🦇']],
     hand: [['pistol', '<svg viewBox="0 0 44 28" width="36" height="23"><rect x="4" y="5" width="26" height="10" rx="2" fill="#3a4558"/><rect x="26" y="7" width="9" height="6" fill="#1a2028"/><rect x="35" y="7.5" width="6" height="5" rx="1.5" fill="#48f2ff"/><rect x="8" y="2" width="12" height="4" fill="#247888"/><path d="M9 15h8l-2 11H7z" fill="#1a2028"/><circle cx="41" cy="10" r="3.4" fill="#48f2ff" opacity=".45"/></svg>']],
     hoodie: [['galaxy', 0x2a1470, 0x160a40], ['lime', 0x86e02a, 0x4a8a10], ['maroon', 0x6e1430, 0x3c0818], ['sky', 0x6cc8ff, 0x2a7ab8]] };
@@ -24,6 +24,7 @@
   var START = { hat: [HATS[0], HATS[1]], hoodie: [HOOD[0], HOOD[1], HOOD[3]] };   // + Dave: red (pink 'cap') or blue cap   // t: Dave "start screen only 3 hoodie colours, no other items" (navy default, red, green)
   var START_IDS = {}; for (var sk in START) { START_IDS[sk] = {}; START[sk].forEach(function (a) { START_IDS[sk][a[0]] = 1; }); }
   for (var bk in BASE) OPTS[bk] = BASE[bk].concat(NEW[bk] || []); OPTS.back = BACK.concat(NEW.back); OPTS.hand = HAND.concat(NEW.hand);
+  (function () { var G = OPTS.glasses, i = G.findIndex(function (o) { return o[0] === 'skull'; }); if (i > 1) G.splice(1, 0, G.splice(i, 1)[0]); })();   // t743u: SKULL MASK is the first glasses/face tile after ✕ (seen without scrolling)
   var HATS_ALL = OPTS.hat, GLAS_ALL = OPTS.glasses, HOOD_ALL = OPTS.hoodie;
   function isNew(k, v) { return !!(NEW[k] && NEW[k].some(function (a) { return a[0] === v; })); }
   function isStart(k, v) { return !!(START_IDS[k] && START_IDS[k][v]); }
@@ -155,14 +156,34 @@
     g = G.mustache = grp(T, head, 'gaGl_mustache'); var mu = std(T, 0x2a160a, { roughness: 0.9 }); [-1, 1].forEach(function (sd) { m = add(g, new T.SphereGeometry(0.045, 10, 6), mu, 0.045 * sd, 0.085, 0.27, 1.3, 0.45, 0.6); m.rotation.z = 0.35 * sd; });
     g = G.mask = grp(T, head, 'gaGl_mask'); var mk = std(T, 0x18181e, { roughness: 0.8, side: T.DoubleSide }); add(g, new T.CylinderGeometry(0.205, 0.205, 0.065, 20, 1, true), mk, 0, 0.17, 0);
     [-1, 1].forEach(function (sd) { m = add(g, new T.BoxGeometry(0.03, 0.12, 0.01), mk, 0.05 * sd, 0.15, -0.21); m.rotation.z = 0.4 * sd; });
-    // t741u skull mask: white arcade skull shell over the face (front half, top of the head + ears stay fur), dark sockets, nose, stitched grin
-    g = G.skull = grp(T, head, 'gaGl_skull'); var bone = std(T, 0xf2ecdc, { roughness: 0.55, side: T.DoubleSide }), sock = std(T, 0x15101c, { roughness: 0.9 });
-    add(g, new T.SphereGeometry(0.21, 22, 14, 0, Math.PI, 0.42, 2.25), bone, 0, 0.155, 0.012, 1, 1, 1.16);
-    add(g, new T.SphereGeometry(0.16, 18, 10, 0, Math.PI, 1.6, 1.0), bone, 0, 0.13, 0.03, 0.92, 1, 1.32);   // cheek / jaw block
-    [-1, 1].forEach(function (sd) { m = add(g, new T.SphereGeometry(0.052, 14, 10), sock, 0.071 * sd, 0.178, 0.222, 1.12, 1.18, 0.5); m.rotation.z = -0.25 * sd; });
-    m = add(g, new T.ConeGeometry(0.022, 0.036, 3), sock, 0, 0.122, 0.25, 1, 1, 0.5); m.rotation.z = Math.PI;
-    add(g, new T.BoxGeometry(0.15, 0.008, 0.012), sock, 0, 0.074, 0.243);
-    [-2, -1, 0, 1, 2].forEach(function (i) { add(g, new T.BoxGeometry(0.006, 0.034, 0.012), sock, i * 0.026, 0.074, 0.243 - Math.abs(i) * 0.006); });
+    // t743u skull mask (Dave's mockup): sculpted ivory skull face plate — cranium plate over brow/face (top fur + ears stay), brow ridges, big dark
+    // almond sockets, cheekbones, triangular nose cavity, upper/lower teeth with a stitched gap, mandible + chin, dark strap with side clips; thin
+    // dark back-face outline so it reads as a separate mask (also on the alien's round grey head). Per-character fit in applyRoot (gaSkFit).
+    g = G.skull = grp(T, head, 'gaGl_skull');
+    var bone = std(T, 0xeee4ca, { roughness: 0.5 }), boneD = std(T, 0xcfc3a4, { roughness: 0.6 }), sock = std(T, 0x0c0910, { roughness: 0.95 }),
+      edge = new T.MeshBasicMaterial({ color: 0x2a221c, side: T.BackSide }), strap = std(T, 0x23212a, { roughness: 0.8 }), clip = std(T, 0x9aa0a8, { metalness: 0.6, roughness: 0.35 });
+    var CZ = 0.012, SZ = 1.14, R = 0.205, fz = function (x, y) { var dx = x, dy = y - 0.155, q = R * R - dx * dx - dy * dy; return CZ + (q > 0 ? Math.sqrt(q) : 0) * SZ; };   // front surface depth
+    var shell = function (r, cy, cz, sz, p0, pl, t0, tl, mat, rows) { return add(g, new T.SphereGeometry(r, 32, rows || 20, p0, pl, t0, tl), mat, 0, cy, cz, 1, 1, sz); };
+    var outl = function (mesh) { var o = new T.Mesh(mesh.geometry, edge); o.position.copy(mesh.position); o.scale.copy(mesh.scale).multiplyScalar(1.035); o.renderOrder = -1; g.add(o); return o; };
+    var FRONT0 = Math.PI / 2 - 1.12, FRONTL = 2.24;   // +-64 deg around the face: monkey ears (x +-0.2) stay out
+    m = shell(R, 0.155, CZ, SZ, FRONT0, FRONTL, 0.5, 1.45, bone); outl(m);                     // cranium / face plate: forehead down to the upper teeth
+    var MY = 0.07, MZ = 0.128, MR = 0.136, MSY = 0.86, MSZ = 1.0, mz = function (x, y) { var ex = x / MR, ey = (y - MY) / (MR * MSY), q = 1 - ex * ex - ey * ey; return MZ + MR * MSZ * (q > 0 ? Math.sqrt(q) : 0); };
+    m = add(g, new T.SphereGeometry(MR, 28, 16, Math.PI / 2 - 1.35, 2.7, 0.75, 2.25), bone, 0, MY, MZ, 1, MSY, MSZ); outl(m);   // jaw / mandible plate: encloses the monkey muzzle, chin below the teeth
+    [-1, 1].forEach(function (sd) {
+      m = add(g, new T.SphereGeometry(0.06, 16, 10), bone, 0.072 * sd, 0.226, fz(0.072, 0.226) - 0.016, 1.25, 0.38, 0.45); m.rotation.z = -0.22 * sd;   // brow ridge
+      m = add(g, new T.SphereGeometry(0.056, 20, 14), sock, 0.073 * sd, 0.17, fz(0.073, 0.17) - 0.012, 1.1, 1.22, 0.5); m.rotation.z = 0.38 * sd;      // big almond socket
+      m = add(g, new T.SphereGeometry(0.036, 14, 10), bone, 0.112 * sd, 0.118, fz(0.112, 0.118) - 0.024, 1.3, 0.7, 0.5);                           // cheekbone
+      add(g, new T.SphereGeometry(0.02, 10, 8), boneD, 0.135 * sd, 0.07, fz(0.135, 0.07) - 0.012, 0.8, 1.3, 0.5);                                   // jaw hinge shadow
+      add(g, new T.BoxGeometry(0.02, 0.028, 0.034), clip, 0.176 * sd, 0.215, 0.07).name = 'gaSkClip';                                                                 // grey side clip (mockup)
+    });
+    add(g, new T.CylinderGeometry(0.175, 0.175, 0.026, 28, 1, true, 0.35, Math.PI * 2 - 0.7), new T.MeshStandardMaterial({ color: 0x23212a, roughness: 0.8, side: T.DoubleSide }), 0, 0.215, 0).name = 'gaSkStrap';   // strap round the sides + back (front gap under the plate)
+    var nose = new T.Shape(); nose.moveTo(0, 0.026); nose.lineTo(0.017, -0.006); nose.quadraticCurveTo(0.012, -0.016, 0.002, -0.01); nose.lineTo(0, -0.012); nose.lineTo(-0.002, -0.01); nose.quadraticCurveTo(-0.012, -0.016, -0.017, -0.006); nose.closePath();
+    add(g, new T.ShapeGeometry(nose), new T.MeshBasicMaterial({ color: 0x0c0910, side: T.DoubleSide }), 0, 0.122, Math.max(fz(0, 0.122), mz(0, 0.122)) + 0.002);           // triangular nose cavity
+    var tz = function (x, y) { return mz(x, y) + 0.005; };
+    for (var ti = -3; ti <= 3; ti++) { var tx = ti * 0.0205, tt = add(g, new T.BoxGeometry(0.018, 0.022, 0.014), bone, tx, 0.0885, tz(tx, 0.0885) - 0.005); tt.rotation.y = tx * 4;
+      tt = add(g, new T.BoxGeometry(0.018, 0.02, 0.014), bone, tx, 0.0655, tz(tx, 0.0655) - 0.005); tt.rotation.y = tx * 4;
+      tt = add(g, new T.BoxGeometry(0.0215, 0.05, 0.01), sock, tx, 0.077, tz(tx, 0.077) - 0.009); tt.rotation.y = tx * 4;   // dark mouth behind each tooth (follows the jaw curve)
+      tt = add(g, new T.BoxGeometry(0.0215, 0.0035, 0.012), sock, tx, 0.077, tz(tx, 0.077) + 0.0015); tt.rotation.y = tx * 4; }   // upper + lower teeth, stitched gap line
     // backs & extras: on the torso (head.parent.parent), behind the shoulders (-z)
     var torso = head.parent && head.parent.parent || head; torso.children.filter(function (o) { return /^gaBk/.test(o.name); }).forEach(function (o) { torso.remove(o); });
     var B = {}; Object.defineProperty(h, 'bk', { value: B, enumerable: false, configurable: true }); var bg = function (n) { var q = new T.Group(); q.name = 'gaBk_' + n; q.T = T; q.position.set(0, 0.3, -0.2); torso.add(q); return q; };
@@ -203,8 +224,11 @@
   function applyHand(T, root, lk) { var on = lk.hand === 'pistol', alien = !!root.getObjectByName('alienBot'), pg = pistolOf(T, root), bg = botGunOf(T, root);
     if (pg) pg.visible = on && !alien; if (bg) bg.visible = on && alien; }
   var HAT3D = ['capblue', 'crown', 'helmet', 'beanie', 'cowboy', 'party', 'pirate', 'halo', 'headphones'].concat(NEW.hat.map(function (a) { return a[0]; }));
+  function skFit(sk, root) { if (!sk || !sk.visible) return; var al = !!(root && root.userData && root.userData.char === 'alien'), f = al ? SKFIT.alien : SKFIT.monkey;   // t743u per-character fit
+    sk.position.set(0, f.y, f.z); sk.scale.set(f.s, f.s * f.sy, f.s); sk.children.forEach(function (c) { if (c.name === 'gaSkStrap') c.scale.set(f.band, 1, f.band); if (c.name === 'gaSkClip') c.position.x = Math.sign(c.position.x) * 0.176 * f.band; }); }
+  var SKFIT = { monkey: { y: 0, z: 0, s: 1, sy: 1, band: 1 }, alien: { y: 0.012, z: -0.02, s: 1.0, sy: 1.0, band: 1.1 } };
   function applyRoot(T, root, lk) { lk = lk || P; var cap = capOf(root); if (!cap) return; var h = hatMeshes(T, cap); cap.visible = lk.hat === 'cap';
-    HAT3D.forEach(function (k) { h[k].visible = lk.hat === k; }); for (var g in h.gl) h.gl[g].visible = lk.glasses === g; for (var b in h.bk) h.bk[b].visible = lk.back === b;
+    HAT3D.forEach(function (k) { h[k].visible = lk.hat === k; }); for (var g in h.gl) h.gl[g].visible = lk.glasses === g; skFit(h.gl.skull, root); for (var b in h.bk) h.bk[b].visible = lk.back === b;
     var bp = cap.parent.parent && cap.parent.parent.parent && cap.parent.parent.parent.getObjectByName('backpack'); if (bp) bp.visible = !lk.back || lk.back === 'none'; applyHand(T, root, lk); }   // Dave: a back item replaces Arcade's backpack (straps stay)
   // for Arcade's mp.js (optional): dress any monkey root (e.g. a remote one whose materials keep userData.orig) in a look object
   function dress(root, lk) { var A = window.__arcade; if (!A || !root || !lk) return; var T = A.THREE, map = {}, ho = find(HOOD_ALL, lk.hoodie), fu = find(FUR, lk.fur), sh = find(SHOE, lk.shoes);
@@ -480,7 +504,10 @@
     return true; }
   window.__wardrobe = { open: wOpen, close: wClose, applyRemote: function (root, lk) { dress(root, lk); }, get isOpen() { return W.open; }, get el() { return W.el; } };
   function step(k, d, shop) { var L; if (W.open && !W.shop) L = OPTS[k].filter(function (a) { return isStart(k, a[0]) || has(k, a[0]); });
-    else if (shop && !onStart()) L = OPTS[k].filter(function (a) { return has(k, a[0]); });
+    else if (shop && !onStart()) {   // t744u: Accessories ‹ › walk EVERY tile (locked ones are tried on with the BUY bar) and scroll it into view
+      L = OPTS[k]; var cur = W.try && W.try.k === k ? W.try.v : P[k], ci = 0; for (var q = 0; q < L.length; q++) if (L[q][0] === cur) ci = q;
+      var nv = L[(ci + d + L.length) % L.length][0]; if (has(k, nv)) pick(k, nv); else tryOn(k, nv);
+      try { var tb = W.el && W.el.querySelector('.gaRow[data-k="' + k + '"] .gaO[data-v="' + nv + '"]'); if (tb) tb.scrollIntoView({ inline: 'center', block: 'nearest' }); } catch (e) {} return; }
     else if (shop) L = (BASE[k] || OPTS[k]).filter(function (a) { return has(k, a[0]); });
     else L = START[k].filter(function (a) { return has(k, a[0]); });
     var i = 0; for (var j = 0; j < L.length; j++) if (L[j][0] === P[k]) i = j; pick(k, L[(i + d + L.length) % L.length][0]); }

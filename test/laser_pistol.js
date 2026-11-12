@@ -34,6 +34,17 @@ const sideCam = (page, alien) => page.evaluate(alien => { const A = window.__arc
   chk(s.rows === 'hat,glasses,back,hand,hoodie,fur,shoes', 'ACCESSORIES lists a HAND row after BACK', s.rows);
   chk(s.skull === '🔒5' && s.pistol === '🔒5' && s.pS === 5 && s.pP === 5, 'skull mask (GLASSES & FACE) and laser pistol (HAND) are 5 tickets each', s);
   chk(JSON.stringify(s.pOld) === '[5,5,1]', 'existing prices unchanged (ninja mask 5, jetpack 5, crown 1)', s.pOld);
+  // t743u/t744u: skull is the first tile after ✕ in GLASSES & FACE, fully on screen with no scrolling, with a skull SVG icon
+  s = await page.evaluate(() => { const r = document.querySelector('#gaW .gaRow[data-k=glasses]'), tiles = [...r.querySelectorAll('.gaO')], b = tiles[1].getBoundingClientRect(), ch = r.querySelector('.gaCh').getBoundingClientRect();
+    return { order: tiles.slice(0, 3).map(t => t.dataset.v).join(), vis: b.left >= ch.left - 1 && b.right <= ch.right + 1 && b.top >= 0 && b.bottom <= innerHeight, svg: !!tiles[1].querySelector('svg') }; });
+  chk(s.order.startsWith('none,skull,') && s.vis && s.svg, 'skull mask is the first tile after ✕, visible at 844x390 without scrolling, skull icon', s);
+  // Accessories ‹ › reach locked for-sale items (try-on + BUY bar), not just owned ones
+  await page.evaluate(() => document.querySelector('#gaW .gaRow[data-k=glasses] .gaA[data-step="1"]').scrollIntoView({ block: 'nearest' }));
+  await tapEl(page, '#gaW .gaRow[data-k=glasses] .gaA[data-step="1"]'); await page.waitForTimeout(300);
+  s = await page.evaluate(() => ({ tr: window.__gaPlayer.wardrobe.try, buy: !document.getElementById('gaWBuy').hidden, g: window.__gaPlayer.p.glasses }));
+  chk(s.tr && s.tr.k === 'glasses' && s.tr.v === 'skull' && s.buy && s.g === 'none', 'GLASSES › arrow tries on the locked skull mask (BUY bar)', s);
+  await tapEl(page, '#gaW .gaRow[data-k=glasses] .gaA[data-step="-1"]'); await page.waitForTimeout(300);
+  s = await page.evaluate(() => ({ tr: window.__gaPlayer.wardrobe.try, g: window.__gaPlayer.p.glasses })); chk(!s.tr && s.g === 'none', '‹ back to ✕ clears the try-on', s);
   // try on the skull: live preview, BUY 5
   await page.evaluate(() => document.querySelector('#gaW .gaRow[data-k=glasses] .gaO[data-v=skull]').scrollIntoView({ inline: 'center', block: 'nearest' })); await page.waitForTimeout(200);
   await tapEl(page, '#gaW .gaRow[data-k=glasses] .gaO[data-v=skull]'); await page.waitForTimeout(500);
