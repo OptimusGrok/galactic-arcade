@@ -29,7 +29,7 @@ async function opn(o) { for (let i = 0; ; i++) { try { return await open(Object.
   await page.evaluate(() => window.__wardrobe.open({ shop: true })); await page.waitForFunction(() => window.__gaPlayer.prev.r && window.__gaPlayer.prev.r.domElement.id === 'gaWCv', null, { timeout: 30000 }).catch(() => {}); await page.waitForTimeout(1000);
   st = await page.evaluate(() => { const e = document.getElementById('gaW'), r = e.getBoundingClientRect(); return { open: window.__wardrobe.isOpen, vis: getComputedStyle(e).display !== 'none', w: r.width, h: r.height, rows: [...e.querySelectorAll('.gaRow')].map(x => x.dataset.k), done: !!e.querySelector('#gaWDone'), prev: !!(window.__gaPlayer.prev.r && window.__gaPlayer.prev.r.domElement.id === 'gaWCv'), title: e.querySelector('#gaWT').textContent }; });
   chk(st.open && st.vis && st.w >= 400 && st.h >= 900, 'open({shop:true}): full-screen panel shown', st);
-  chk(st.title === 'ACCESSORIES' && st.rows.join() === 'hat,glasses,back,hoodie,fur,shoes' && st.done, 'accessories panel has all rows + DONE', st.rows);
+  chk(st.title === 'ACCESSORIES' && st.rows.join() === 'hat,glasses,back,hand,hoodie,fur,shoes' && st.done, 'accessories panel has all rows + DONE', st.rows);
   chk(st.prev, 'live preview renders in the panel');
   const f0 = await page.evaluate(() => window.__arcade.stats.frames); await page.waitForTimeout(4000); const f1 = await page.evaluate(() => window.__arcade.stats.frames);
   chk(f1 > f0, 'game keeps running while open', { f0, f1 });
@@ -74,7 +74,7 @@ async function opn(o) { for (let i = 0; ; i++) { try { return await open(Object.
     const h = cap.parent.userData.gaHats, vis = []; for (const k in h) if (k !== 'gl' && h[k].visible) vis.push(k); for (const k in h.gl) if (h.gl[k].visible) vis.push('gl:' + k);
     const dup = cap.parent.children.filter(o => /^ga/.test(o.name)).length, localH = A.monkey.getObjectByName('gaHat_pirate').visible;
     A.scene && A.scene.remove(g); return { vis, capVis: cap.visible, hood, dup, localH, saveSame: localStorage.getItem('galacticarcade.player') === before, localSame: JSON.stringify(window.__gaPlayer.p) === loc }; });
-  chk(rem.vis.join() === 'pirate,gl:visor' && !rem.capVis && rem.hood === 0xff7a1a && rem.dup === 24 && !rem.localH && rem.saveSame && rem.localSame, 'applyRemote dresses another monkey root only, no save', rem);
+  chk(rem.vis.join() === 'pirate,gl:visor' && !rem.capVis && rem.hood === 0xff7a1a && rem.dup === 25 && !rem.localH && rem.saveSame && rem.localSame, 'applyRemote dresses another monkey root only, no save', rem);
   // screenshot: wardrobe open with a nice look
   await page.evaluate(() => { const g = window.__gaPlayer; g.pick('hat', 'cowboy'); g.pick('glasses', 'shades'); g.pick('hoodie', 'purple'); g.pick('fur', 'brown'); g.pick('shoes', 'white'); });
   await page.waitForTimeout(2500); await page.screenshot({ path: OUT + 'wardrobe_open.png' });

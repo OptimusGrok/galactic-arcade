@@ -941,7 +941,7 @@ export function setupShop({ scene, tp, play, monkey, camera, st } = {}) {
     a.hand.visible = true; a.hand.scale.set(1, 1, 1); a.hand.rotation.set(0, 0, 0);
     for (let i = 0; i < a.hand.children.length; i++) {
       const ch = a.hand.children[i];
-      if (ch.name === 'heldPrize' || ch.userData.id) continue;   // never touch the mounted prize
+      if (ch.name === 'heldPrize' || ch.userData.id || /^ga/.test(ch.name)) continue;   // never touch the mounted prize (or player.js's laser pistol 'gaPistol', t741u)
       ch.visible = true; if (ch.userData._hs) ch.scale.copy(ch.userData._hs); else ch.scale.set(1, 1, 1);
     }
   }
@@ -949,7 +949,7 @@ export function setupShop({ scene, tp, play, monkey, camera, st } = {}) {
     // tuck finger meshes only — heldPrize is a hand child and must keep full scale
     for (let i = 0; i < a.hand.children.length; i++) {
       const ch = a.hand.children[i];
-      if (ch.name === 'heldPrize' || ch.userData.id) continue;
+      if (ch.name === 'heldPrize' || ch.userData.id || /^ga/.test(ch.name)) continue;
       if (!ch.userData._hs) ch.userData._hs = ch.scale.clone();
       ch.scale.setScalar(0.28); ch.visible = true;
     }

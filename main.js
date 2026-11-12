@@ -807,7 +807,7 @@ function makeMonkey() { // "Arcade Kid": cartoon monkey, no tail, pink cap, tie-
     part(el, S(0.08, 12, 10), navy, 0, 0, 0);
     part(el, CYL(0.078, 0.068, 0.24, 14), navy, 0, -0.12, 0);
     part(el, CYL(0.066, 0.06, 0.05, 14), rib, 0, -0.26, 0);
-    const hand = part(el, S(0.058, 14, 10), tan, 0, -0.32, 0.01, 0.8, 1.05, 1);
+    const hand = part(el, S(0.058, 14, 10), tan, 0, -0.32, 0.01, 0.8, 1.05, 1); hand.name = sd > 0 ? 'handR' : 'handL';   // t741u: player.js puts the laser pistol in 'handR'
     part(hand, S(0.022, 8, 6), tan, -0.035 * sd, 0.01, 0.035, 1, 1.6, 1);   // thumb
     for (let f = 0; f < 3; f++) part(hand, CYL(0.013, 0.012, 0.06, 6), tan, (f - 1) * 0.024, -0.06, 0.012);
     arms.push({ sh, el, hand, sd });
@@ -962,7 +962,7 @@ function makeAlien() { // chibi grey alien: huge spherical head (~37% of height)
     part(el, CAP(0.07, 0.1, 12, 24), gun, 0, -0.06, 0);                    // matching forearm radius, overlaps the upper arm
     part(el, CYL(0.072, 0.072, 0.042, 18), cyanG, 0, -0.175, 0);
     part(el, CYL(0.076, 0.076, 0.012, 18), cyan, 0, -0.175, 0);
-    const hand = part(el, S(0.05, 16, 14), glove, 0, -0.24, 0.016, 1.1, 0.82, 1.15);
+    const hand = part(el, S(0.05, 16, 14), glove, 0, -0.24, 0.016, 1.1, 0.82, 1.15); hand.name = sd > 0 ? 'handR' : 'handL';
     part(hand, CAP(0.016, 0.03, 6, 10), glove, -0.04 * sd, 0.0, 0.03);    // thumb
     for (let f = 0; f < 4; f++) part(hand, CAP(0.014, 0.036, 6, 10), glove, (f - 1.5) * 0.018, -0.044, 0.014);
     arms.push({ sh, el, hand, sd });
@@ -981,7 +981,7 @@ function makeAlien() { // chibi grey alien: huge spherical head (~37% of height)
   const aura = part(bot, S(0.214, 20, 16), new THREE.MeshBasicMaterial({ color: 0x44e8ff, transparent: true, opacity: 0.14, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false }));
   aura.renderOrder = 2;
   part(bot, S(0.16, 24, 18), botDark, 0, 0.014, 0.125, 0.88, 0.8, 0.5);
-  part(bot, S(0.088, 24, 18), cyanG, 0, 0.018, 0.188);
+  part(bot, S(0.088, 24, 18), cyanG, 0, 0.018, 0.188).name = 'botEye';   // t741u: the robot's lasers leave from here (roomfire.js)
   part(bot, S(0.04, 14, 12), new THREE.MeshBasicMaterial({ color: 0xd8ffff, toneMapped: false }), 0, 0.026, 0.228);
   part(bot, new THREE.TorusGeometry(0.09, 0.011, 8, 24), cyanG, 0, 0.018, 0.18);
   for (const sd of [-1, 1]) {
@@ -1659,6 +1659,7 @@ function frame(now) {
   if (tp && !st.beamed && window.__start && window.__start.dismissed && !(window.__skipStart && !window.__beamTest)) { st.beamed = true; const b = beamSpot(); tp.beamIn(b.x, b.z); }   // t282u: once per session, first Play
   if (tp) tp.update(Math.min(gap / 1000, 0.05), !!document.querySelector('#bPack.on') && !document.querySelector('#inv.on'));
   if (window.__camOverride) { const o = window.__camOverride; camera.position.set(...o.pos); camera.lookAt(...o.at); if (!o.showMonkey) monkey.visible = false; } // screenshots / tests
+  if (window.__roomFire) window.__roomFire.update(Math.min(gap / 1000, 0.05));   // t741u laser pistol: arm pose + lasers, after the walk animation
   const draw = !PS.on || (now - PS.lastDraw) >= (1000 / Math.max(1, PS.fps)) - 0.75;   // power-save: skip GPU frames; movement above already used real dt
   camera.updateMatrixWorld();
   { // run each cabinet screen only when that cabinet is near and in view

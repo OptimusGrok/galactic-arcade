@@ -46,7 +46,7 @@ const tapEl = async (page, sel) => { const r = await page.locator(sel).first().b
     await setup(page, ch, ['hat:crown', 'glasses:shades', 'back:wings', 'hoodie:navy', 'fur:brown', 'shoes:red']); await T(page, 20);
     await toIsland(page); chk(await islandOpen(page), ch + ': the island ACCESSORIES button opens the panel');
     let m = await measure(page);
-    const nRows = ch === 'alien' ? 3 : 6;
+    const nRows = ch === 'alien' ? 4 : 7;   // + HAND row (t741u)
     chk(m.split && m.title === 'ACCESSORIES' && m.rows.split(',').length === nRows, ch + ': ACCESSORIES opens in the split layout with ' + nRows + ' rows', { split: m.split, rows: m.rows });
     chk(m.cv.r <= m.box.x && m.cv.x < m.vw * 0.1 && m.box.r > m.vw * 0.9, ch + ': preview on the left, rows on the right, no overlap', { cv: m.cv, box: m.box });
     chk(m.cv.h >= m.vh * 0.6 && m.cv.h >= OLD.cvH * 1.6 && m.cv.w >= 260, ch + ': preview tall (>=60% of the screen)', { w: Math.round(m.cv.w), h: Math.round(m.cv.h), old: OLD.cvH });

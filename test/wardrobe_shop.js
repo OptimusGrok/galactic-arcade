@@ -39,7 +39,7 @@ let ok = true; const chk = (c, m, x) => { console.log((c ? 'PASS ' : 'FAIL ') + 
   await T(4); await page.evaluate(() => window.__wardrobe.open({ shop: true })); await page.waitForTimeout(1500);
   s = await page.evaluate(() => { const e = document.getElementById('gaW'); const lk1 = e.querySelector('.gaRow[data-k=hat] .gaO[data-v=crown] .gaLk'); const lkN = e.querySelector('.gaRow[data-k=hat] .gaO[data-v=tophat] .gaLk');
     return { title: e.querySelector('#gaWT').textContent, rows: [...e.querySelectorAll('.gaRow')].map(r => r.dataset.k).join(), locked: e.querySelectorAll('.gaNew:not(.own)').length, crown: lk1 && lk1.textContent, tophat: lkN && lkN.textContent, pCrown: window.__gaPlayer.priceOf('hat','crown'), pTop: window.__gaPlayer.priceOf('hat','tophat'), pCap: window.__gaPlayer.priceOf('hat','cap') }; });
-  chk(s.title === 'ACCESSORIES' && s.rows === 'hat,glasses,back,hoodie,fur,shoes' && s.locked >= 40 && s.crown === '🔒1' && s.tophat === '🔒5' && s.pCrown === 1 && s.pTop === 5 && s.pCap === 0, 'accessories: full rows, 1-ticket base + priced NEW', s);
+  chk(s.title === 'ACCESSORIES' && s.rows === 'hat,glasses,back,hand,hoodie,fur,shoes' && s.locked >= 40 && s.crown === '🔒1' && s.tophat === '🔒5' && s.pCrown === 1 && s.pTop === 5 && s.pCap === 0, 'accessories: full rows, 1-ticket base + priced NEW', s);
   if (SH) await page.screenshot({ path: OUT + 'accessories_prices.png' });
   const tap = async sel => { const b = await page.locator(sel).first(); await b.scrollIntoViewIfNeeded(); const r = await b.boundingBox(); await page.touchscreen.tap(r.x + r.width / 2, r.y + r.height / 2); await page.waitForTimeout(400); };
   await tap('#gaW .gaRow[data-k=back] .gaO[data-v=jetpack]');
