@@ -993,12 +993,60 @@ function spawnAlien(opts) {
   a.mesh.position.set(a.x, a.y, a.z); scene.add(a.mesh); aliens.push(a); return a;
 }
 
+const _lp = new V3(), _bp = new V3(), _pc = new V3();
+// t751u: the TITAN's eye lasers — every 2nd hit on the face, one THICK red beam from each eye, aimed where the player
+// is when it fires (no homing), slow enough to dodge. A beam that connects costs one heart (hurt() = 1 heart with
+// i-frames, so both beams together still cost only 1). Beams never touch tickets, pads or aliens.
+const BEAM_SPEED = 15, BEAM_LIFE = 3.4, BEAM_R = 0.85, BEAM_LEN = 4.2;
+const eyeBeams = [];
+const beamGeo = new THREE.CylinderGeometry(0.24, 0.24, BEAM_LEN, 10, 1, false).rotateX(Math.PI / 2);
+const beamGlowGeo = new THREE.CylinderGeometry(0.55, 0.55, BEAM_LEN * 1.06, 12, 1, true).rotateX(Math.PI / 2);
+const beamMat = basic(0xff2418, { fog: false }), beamGlowMat = basic(0xff3020, { fog: false, transparent: true, opacity: 0.32, depthWrite: false, blending: THREE.AdditiveBlending });
+const BEAM_STATS = { fired: 0, hits: 0, misses: 0 };
+function fireEyeBeams(eyes) {
+  if (!G.run || G.won || G.mode !== 'play' || window.__DEMO) return 0;
+  const tgt = new V3(player.position.x, player.position.y + 1.0, player.position.z);
+  for (const e of eyes) {
+    const dir = tgt.clone().sub(e).normalize();
+    const g = new THREE.Group(); g.add(new THREE.Mesh(beamGeo, beamMat)); g.add(new THREE.Mesh(beamGlowGeo, beamGlowMat));
+    g.position.copy(e).addScaledVector(dir, BEAM_LEN * 0.5); g.lookAt(g.position.clone().add(dir)); scene.add(g);
+    eyeBeams.push({ mesh: g, dir, speed: BEAM_SPEED, life: BEAM_LIFE, alive: true, o: e.clone() });
+    BEAM_STATS.fired++;
+  }
+  if (window.__skySnd && window.__skySnd.beam) window.__skySnd.beam();
+  return eyes.length;
+}
+face.onBeam = fireEyeBeams;
+function clearEyeBeams() { for (const b of eyeBeams) scene.remove(b.mesh); eyeBeams.length = 0; }
+function segDist(a, b, p) {   // distance from point p to segment ab
+  const abx = b.x - a.x, aby = b.y - a.y, abz = b.z - a.z, l2 = abx * abx + aby * aby + abz * abz || 1;
+  const t = Math.max(0, Math.min(1, ((p.x - a.x) * abx + (p.y - a.y) * aby + (p.z - a.z) * abz) / l2));
+  return Math.hypot(a.x + abx * t - p.x, a.y + aby * t - p.y, a.z + abz * t - p.z);
+}
+function updateEyeBeams(dt) {
+  for (let i = eyeBeams.length - 1; i >= 0; i--) {
+    const b = eyeBeams[i];
+    _bp.copy(b.mesh.position).addScaledVector(b.dir, BEAM_LEN * 0.5);   // leading tip before the move
+    b.mesh.position.addScaledVector(b.dir, b.speed * dt); b.life -= dt;
+    const tip = b.mesh.position.clone().addScaledVector(b.dir, BEAM_LEN * 0.5);
+    _pc.set(player.position.x, player.position.y + 0.95, player.position.z);
+    if (b.alive && !G.won && segDist(_bp, tip, _pc) < BEAM_R) {
+      b.alive = false; BEAM_STATS.hits++; hurt(b.dir.x, b.dir.z);
+    }
+    if (!b.alive || b.life <= 0) { if (b.alive) BEAM_STATS.misses++; scene.remove(b.mesh); eyeBeams.splice(i, 1); }
+  }
+}
 function updateCombat(dt) {
+  updateEyeBeams(dt);
   if (G.cooldown > 0) G.cooldown -= dt;
   if (G.fireHeld && G.cooldown <= 0) fire();
   for (const L of lasers) {
     if (!L.alive) continue;
+    _lp.copy(L.mesh.position);
     L.mesh.position.addScaledVector(L.dir, L.speed * dt); L.life -= dt;
+    // t749u: the TITAN face is a target (swept test so a fast bolt can't tunnel through); the bolt is spent on it,
+    // it makes the face angry and never gives tickets or touches the player
+    { const at = face.hit(_lp, L.mesh.position); if (at) { L.alive = false; scene.remove(L.mesh); face.shot(at); continue; } }
     if (L.life <= 0) { L.alive = false; scene.remove(L.mesh); continue; }
     for (const a of aliens) {
       if (!a.alive) continue;
@@ -1428,7 +1476,7 @@ function demoPilot(dt) {
 }
 
 function resetWorld(keepPos) {
-  for (const L of lasers) scene.remove(L.mesh); lasers.length = 0;
+  for (const L of lasers) scene.remove(L.mesh); lasers.length = 0; clearEyeBeams();
   for (const s of shots) scene.remove(s.mesh); shots.length = 0;
   for (const a of aliens) scene.remove(a.mesh); aliens.length = 0;
   for (const p of platforms) for (const tr of p.traps) {
@@ -1543,7 +1591,7 @@ const api = {
   unhold() { G.hold = false; },
   get ready() { return true; },
   get snd() { return window.__skySnd || null; },
-  face,
+  face, eyeBeams, BEAM_STATS, BEAM_SPEED, fireEyeBeams,
   PAD, WIND, shapeOf, dimsOf, windGust, updateWind, windAccelAt, drawWind, heightK, get wind() { return G.wind; },
   SKY, levelAt, nightAt, setSky, skyDome, get sky() { return G.sky; }, moon, moonL, sun, hemi, stars,
   N, R, PH, FLY, AIR_SPEED, MIN_SEP, PITCH_MIN, PITCH_MAX, RUN_CAP, FLY_TICKETS, FLY_TICKET_VALUE, GUN_AIM_TIME, GUN_REST, GUN_AIM, poseMonkeyGun, gunBarrelDir, tickets, collectFlyTicket, resetFlyTickets, spawnFlyTickets, sizeOf, offsetOf, yOf, isCheck, isSlider, hopFuel, gapYOf, gapXZOf, lookDrag, updateCamera, updateSlides, TK, D, G, player, platforms, lasers, aliens, shots, earth, world: scene, camera, renderer,

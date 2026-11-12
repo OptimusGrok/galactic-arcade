@@ -15,7 +15,7 @@
   const ZapGap = 0.1;
   const MusicVol = 0.26;
   const S = {
-    starts: 0, stops: 0, zaps: 0, zapCyan: 0, zapRed: 0, chimes: 0, whooshes: 0, lastWhoosh: -99,
+    starts: 0, stops: 0, zaps: 0, zapCyan: 0, zapRed: 0, beams: 0, beamsMuted: 0, chimes: 0, whooshes: 0, lastWhoosh: -99,
     playing: false, unlocked: false, wanted: false, space: 0, lastZap: -99,
     night: 0, bassNotes: 0, bassBars: 0, bassRests: 0, bassLog: [], bassPats: []
   };
@@ -393,6 +393,20 @@
     return true;
   }
 
+  // t751u: the TITAN's eye lasers — a fat, low "BWAAAM" (two detuned saws sweeping down + a noise crack), on the SFX
+  // bus so MUTE silences it like every other zap
+  function beam() {
+    if (muted()) { S.beamsMuted++; return false; }
+    if (!ensure()) return false;
+    if (ac.state === 'suspended') { const p = ac.resume(); if (p && p.catch) p.catch(() => {}); }
+    const now = ac.currentTime;
+    S.beams++;
+    osc('sawtooth', 330, now, 0.55, 0.11, sfxG, 70);
+    osc('sawtooth', 336, now, 0.55, 0.08, sfxG, 72);
+    osc('sine', 150, now, 0.6, 0.18, sfxG, 45);
+    burst(now, 0.09, 0.07, sfxG, 600);
+    return true;
+  }
   function chime() {
     if (!ensure()) return false;
     if (ac.state === 'suspended') { const p = ac.resume(); if (p && p.catch) p.catch(() => {}); }
@@ -423,40 +437,55 @@
     return true;
   }
   // t748u TITAN voice: "Show me what you got" — a shipped, pre-rendered booming take (../sfx/sky_face.mp3, deep voice +
-  // sub-octave layer + short hall echo, peak ~-1 dB) played once per climb through its own gain. MUTE = silent (counted).
-  // voiceEnv = loudness per 30 ms (0..1) so the face's mouth moves with the words (also when muted).
+  // sub-octave layer + short hall echo, peak ~-0.4 dB) played once per climb through its own gain. MUTE = silent (counted).
+  // t749u: second line "Hey, watch it!" (../sfx/sky_face_hey.mp3, same voice + same chain, matched loudness) when the
+  // player shoots the TITAN. Both lines share one voice gain + one source: a line never overlaps another (the
+  // "hey" line is refused while any line is still playing — the face's cooldown handles the retry logic).
+  // voiceEnv(s) = loudness per 30 ms (0..1) so the face's mouth moves with the words (also when muted).
   const VoiceVol = 0.95;
-  let voiceBuf = null, voiceRaw = null, voiceG = null, voiceSrc = null, voicePend = 0;
+  const LINES = { show: { url: '../sfx/sky_face.mp3' }, hey: { url: '../sfx/sky_face_hey.mp3' } };
+  let voiceG = null, voiceSrc = null, voiceLine = '';
   S.voicePlays = 0; S.voiceMuted = 0; S.voiceEnv = null; S.voiceDur = 0; S.voiceErr = '';
-  try { fetch('../sfx/sky_face.mp3').then(r => r.ok ? r.arrayBuffer() : Promise.reject(new Error('http ' + r.status))).then(b => { voiceRaw = b; decodeVoice(); }).catch(e => { S.voiceErr = String(e && e.message || e); }); } catch (e) { S.voiceErr = 'fetch'; }
-  function decodeVoice() {
-    if (voiceBuf || !voiceRaw) return;
-    const done = buf => { voiceBuf = buf; S.voiceDur = buf.duration; const d = buf.getChannelData(0), n = Math.round(buf.sampleRate * 0.03), env = []; let mx = 0;
+  S.voiceEnvs = {}; S.voiceDurs = {}; S.voicePlaysBy = { show: 0, hey: 0 }; S.voiceMutedBy = { show: 0, hey: 0 }; S.voiceBusy = 0;
+  for (const k in LINES) { const L = LINES[k]; L.buf = null; L.raw = null; L.pend = 0;
+    try { fetch(L.url).then(r => r.ok ? r.arrayBuffer() : Promise.reject(new Error('http ' + r.status))).then(b => { L.raw = b; decodeLine(k); }).catch(e => { S.voiceErr = k + ': ' + String(e && e.message || e); }); } catch (e) { S.voiceErr = 'fetch'; } }
+  function decodeVoice() { for (const k in LINES) decodeLine(k); }
+  function decodeLine(k) {
+    const L = LINES[k];
+    if (L.buf || !L.raw || L.busy) return;
+    const done = buf => { L.buf = buf; L.busy = false; const d = buf.getChannelData(0), n = Math.round(buf.sampleRate * 0.03), env = []; let mx = 0;
       for (let i = 0; i < d.length; i += n) { let q = 0; const e = Math.min(d.length, i + n); for (let j = i; j < e; j++) q += d[j] * d[j]; const v = Math.sqrt(q / Math.max(1, e - i)); env.push(v); if (v > mx) mx = v; }
-      S.voiceEnv = env.map(v => Math.min(1, Math.pow(v / (mx || 1), 0.7) * 1.1));
-      if (voicePend && performance.now() - voicePend < 4000) { voicePend = 0; voice(); } };
+      S.voiceEnvs[k] = env.map(v => Math.min(1, Math.pow(v / (mx || 1), 0.7) * 1.1)); S.voiceDurs[k] = buf.duration;
+      if (k === 'show') { S.voiceEnv = S.voiceEnvs.show; S.voiceDur = buf.duration; }
+      if (L.pend && performance.now() - L.pend < (k === 'show' ? 4000 : 600)) { L.pend = 0; voice(k); } };
+    const fail = () => { L.busy = false; S.voiceErr = k + ': decode'; };
     try {
-      const raw = voiceRaw.slice(0);
-      if (ac) { const p = ac.decodeAudioData(raw, done, () => { S.voiceErr = 'decode'; }); if (p && p.catch) p.catch(() => {}); return; }
+      const raw = L.raw.slice(0);
+      if (ac) { L.busy = true; const p = ac.decodeAudioData(raw, done, fail); if (p && p.catch) p.catch(() => {}); return; }
       const OAC = global.OfflineAudioContext || global.webkitOfflineAudioContext;   // decode early, before the first gesture
-      if (OAC) { const o = new OAC(1, 44100, 44100); const p = o.decodeAudioData(raw, done, () => { S.voiceErr = 'decode'; }); if (p && p.catch) p.catch(() => {}); }
-    } catch (e) { S.voiceErr = 'decode'; }
+      if (OAC) { L.busy = true; const o = new OAC(1, 44100, 44100); const p = o.decodeAudioData(raw, done, fail); if (p && p.catch) p.catch(() => {}); }
+    } catch (e) { fail(); }
   }
-  function voice() {
-    if (muted()) { S.voiceMuted++; return false; }
+  function voice(k) {
+    k = LINES[k] ? k : 'show';
+    const L = LINES[k];
+    if (k !== 'show' && voiceSrc) { S.voiceBusy++; return false; }   // never talk over itself
+    if (muted()) { S.voiceMuted++; S.voiceMutedBy[k]++; return false; }
     if (!ensure()) return false;
     if (ac.state === 'suspended') { const p = ac.resume(); if (p && p.catch) p.catch(() => {}); }
-    if (!voiceBuf) { voicePend = performance.now(); decodeVoice(); return false; }   // plays as soon as it is decoded (if within 4 s)
+    if (!L.buf) { L.pend = performance.now(); decodeLine(k); return false; }   // plays as soon as it is decoded
     if (!voiceG) { voiceG = ac.createGain(); voiceG.connect(master); }
     if (voiceSrc) { try { voiceSrc.stop(); } catch (e) {} }
-    const t = ac.currentTime, src = ac.createBufferSource(); src.buffer = voiceBuf; src.connect(voiceG);
+    const t = ac.currentTime, src = ac.createBufferSource(); src.buffer = L.buf; src.connect(voiceG);
     voiceG.gain.cancelScheduledValues(t); voiceG.gain.setValueAtTime(VoiceVol, t);
-    src.start(t); voiceSrc = src; src.onended = () => { if (voiceSrc === src) voiceSrc = null; applyGains(); }; applyGains();
-    S.voicePlays++;
+    src.start(t); voiceSrc = src; voiceLine = k; src.onended = () => { if (voiceSrc === src) { voiceSrc = null; voiceLine = ''; } applyGains(); }; applyGains();
+    S.voicePlays++; S.voicePlaysBy[k]++;
     return true;
   }
   S.voice = voice;
-  Object.defineProperty(S, 'voiceReady', { get: () => !!voiceBuf });
+  Object.defineProperty(S, 'voiceReady', { get: () => !!LINES.show.buf });
+  Object.defineProperty(S, 'heyReady', { get: () => !!LINES.hey.buf });
+  Object.defineProperty(S, 'voiceLine', { get: () => (voiceSrc ? voiceLine : '') });
   Object.defineProperty(S, 'voiceGain', { get: () => (voiceG ? voiceG.gain.value : 0) });
   Object.defineProperty(S, 'voiceOn', { get: () => !!voiceSrc });
   S.whoosh = whoosh;
@@ -465,6 +494,7 @@
   S.stop = stop;
   S.tick = tick;
   S.zap = zap;
+  S.beam = beam;
   S.chime = chime;
   S.setSpace = setSpace;
   S.setNight = setNight;
