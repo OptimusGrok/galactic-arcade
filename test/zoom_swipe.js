@@ -46,6 +46,8 @@ const { open } = require('./lib');
     for (let i = 0; i < 10; i++) A.tickZoom(0.1);
     const held = { dist: +A.st.dist.toFixed(3), k: +A.zoomHold.k.toFixed(3), yaw: +A.st.yaw.toFixed(4), saved: localStorage.getItem(A.zoom.key) };
     b.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, cancelable: true, pointerId: 11, pointerType: 'touch', clientX: cx, clientY: cy }));
+    // t756u: held to full = locked; a tap releases it
+    if (A.zoomHold.lock) for (const t of ['pointerdown', 'pointerup']) b.dispatchEvent(new PointerEvent(t, { bubbles: true, cancelable: true, pointerId: 119, pointerType: 'touch', clientX: cx, clientY: cy }));
     const off = !A.zoomHold.on;
     for (let i = 0; i < 10; i++) A.tickZoom(0.1);
     return {
@@ -154,6 +156,8 @@ const { open } = require('./lib');
     fire('touchend', [{ id: 52, x: 200, y: 180 }], [{ id: 51, x: jx, y: jy - 140 }]);
     fire('touchend', [{ id: 51, x: jx, y: jy - 140 }]);
     b.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, cancelable: true, pointerId: 12, pointerType: 'touch', clientX: zx, clientY: zy }));
+    // t756u: held to full = locked; a tap releases it
+    if (A.zoomHold.lock) for (const t of ['pointerdown', 'pointerup']) b.dispatchEvent(new PointerEvent(t, { bubbles: true, cancelable: true, pointerId: 129, pointerType: 'touch', clientX: zx, clientY: zy }));
     for (let i = 0; i < 10; i++) A.tickZoom(0.1);
     out.back = +A.st.dist.toFixed(3);
     return out;
@@ -182,6 +186,8 @@ const { open } = require('./lib');
     for (let i = 0; i < 10; i++) A.tickZoom(0.1);
     const held = +A.st.dist.toFixed(3);
     b.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, cancelable: true, pointerId: 13, pointerType: 'touch', clientX: cx, clientY: cy }));
+    // t756u: held to full = locked; a tap releases it
+    if (A.zoomHold.lock) for (const t of ['pointerdown', 'pointerup']) b.dispatchEvent(new PointerEvent(t, { bubbles: true, cancelable: true, pointerId: 139, pointerType: 'touch', clientX: cx, clientY: cy }));
     for (let i = 0; i < 10; i++) A.tickZoom(0.1);
     const cv = A.renderer.domElement;
     const fire = (type, pts, rest) => {

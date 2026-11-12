@@ -207,6 +207,8 @@ export function setupPlay(A) {
   }
   function start(m) {
     if (P.mode !== 'walk') { P.blocked++; return; }
+    // t753u: two players max at one machine (they stand side by side); a third waits / watches
+    try { const M = window.__mp; if (M && M.state === 'on' && M.cabFull && M.cabFull(m.key)) { P.blocked++; P.fullBlocked = (P.fullBlocked || 0) + 1; if (M.flash) M.flash('2 players max at this machine - wait for a spot', 2500); return; } } catch (e) {}
     P.cur = m; refresh(); ui.classList.remove('on'); if (m.onStart) m.onStart();
     P.zooms++;
     if (m.prep) { P.mode = 'prep'; P.t = 0; P.pcam = null; P.cam0 = camera.position.clone(); P.look0 = monkey.position.clone().setY(1.25); m.anim('on', 0); }   // walk-up + headset on first, then zoomIn()
@@ -352,6 +354,6 @@ export function setupPlay(A) {
     return P.mode === 'game';
   };
   Object.defineProperty(P, 'credits', { get: () => MACHINES.strike.credits });   // back-compat for the STRIKE test
-  P.press = press; P.exit = exit; P.tryPlay = tryPlay; P.insertTicket = insertTicket; P.toDemo = toDemo; P.near = () => near && near.cab.name;
+  P.press = press; P.start = start; P.exit = exit; P.tryPlay = tryPlay; P.insertTicket = insertTicket; P.toDemo = toDemo; P.near = () => near && near.cab.name;
   return P;
 }

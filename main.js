@@ -1149,10 +1149,12 @@ cv.addEventListener('touchend', endTouch); cv.addEventListener('touchcancel', en
 // Hold-to-zoom button (Dave): sits just left of the backpack. Hold eases the camera in toward
 // DIST_MIN over ~0.7 s; let go and it eases back to the normal portrait/landscape default. Never saved.
 const ZOOM_HOLD_T = 0.7;
-const zoomHold = { on: false, k: 0 };
+// t756u (Dave): hold all the way to FULL zoom and lifting the finger keeps it LOCKED there (button stays lit, label
+// LOCKED); a tap on ZOOM while locked releases it and eases back out. Let go before full = zooms back out as before.
+const zoomHold = { on: false, k: 0, lock: false, tapRel: false, locks: 0, releases: 0 };
 const zoomCss = document.createElement('style');
 zoomCss.textContent = '#bZoom{position:fixed;right:calc(max(4px,env(safe-area-inset-right)) + 108px);bottom:calc(max(4px,env(safe-area-inset-bottom)) + 24px);z-index:24;width:56px;height:56px;border-radius:50%;padding:0;display:none;flex-direction:column;align-items:center;justify-content:center;gap:1px;border:2px solid #00e5ffaa;background:#0a0612ee;color:#dffbff;box-shadow:0 0 12px #00e5ff66,inset 0 0 10px #00e5ff33;cursor:pointer;touch-action:none;-webkit-tap-highlight-color:transparent;user-select:none;-webkit-user-select:none}'
-  + '#bZoom.on{display:flex}#bZoom.held,#bZoom:active{border-color:#ffe08a;box-shadow:0 0 16px #ffb00099,inset 0 0 12px #ffb00044;transform:scale(.96)}'
+  + '#bZoom.on{display:flex}#bZoom.locked{border-color:#ffe08a;box-shadow:0 0 14px #ffb000aa,inset 0 0 10px #ffb00055}#bZoom.locked span{color:#ffe08a}#bZoom.held,#bZoom:active{border-color:#ffe08a;box-shadow:0 0 16px #ffb00099,inset 0 0 12px #ffb00044;transform:scale(.96)}'
   + '#bZoom svg{width:22px;height:22px;display:block;filter:drop-shadow(0 0 4px #00e5ff)}#bZoom span{font:900 8px/1 "Courier New",monospace;letter-spacing:.08em;color:#dffbff}'
   + 'body.ingame #bZoom{display:none!important}';
 document.head.appendChild(zoomCss);
@@ -1160,14 +1162,26 @@ const bZoom = document.createElement('button'); bZoom.id = 'bZoom'; bZoom.type =
 bZoom.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="#dffbff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.2"/><path d="M15.2 15.2L21 21"/><path d="M10.5 7.6v5.8M7.6 10.5h5.8"/></svg><span>ZOOM</span>';
 document.body.appendChild(bZoom);
 function zoomStopEv(e) { e.stopPropagation(); if (e.cancelable) e.preventDefault(); }
-bZoom.addEventListener('pointerdown', e => { zoomStopEv(e); try { bZoom.setPointerCapture(e.pointerId); } catch (err) {} zoomHold.on = true; bZoom.classList.add('held'); });
-bZoom.addEventListener('pointerup', e => { zoomStopEv(e); zoomHold.on = false; bZoom.classList.remove('held'); });
-bZoom.addEventListener('pointercancel', () => { zoomHold.on = false; bZoom.classList.remove('held'); });
+const zoomLabel = bZoom.querySelector('span');
+function zoomSetLock(on) {
+  zoomHold.lock = !!on; bZoom.classList.toggle('locked', zoomHold.lock);
+  if (zoomLabel) zoomLabel.textContent = zoomHold.lock ? 'LOCKED' : 'ZOOM';
+  const t = zoomHold.lock ? 'Zoom locked - tap to release' : 'Hold to zoom in'; bZoom.title = t; bZoom.setAttribute('aria-label', t);
+}
+function zoomRelease() { zoomHold.on = false; zoomHold.tapRel = false; bZoom.classList.remove('held'); if (zoomHold.lock) { zoomSetLock(false); zoomHold.releases++; } }
+bZoom.addEventListener('pointerdown', e => { zoomStopEv(e); try { bZoom.setPointerCapture(e.pointerId); } catch (err) {}
+  if (zoomHold.lock) { zoomRelease(); zoomHold.tapRel = true; return; }   // tap while locked: release, ease back out
+  zoomHold.on = true; bZoom.classList.add('held'); });
+bZoom.addEventListener('pointerup', e => { zoomStopEv(e);
+  if (zoomHold.tapRel) { zoomHold.tapRel = false; return; }   // the lift of the releasing tap
+  if (zoomHold.on && zoomHold.k >= 1) { bZoom.classList.remove('held'); zoomSetLock(true); zoomHold.locks++; return; }   // held to FULL: stays locked (on stays true)
+  zoomHold.on = false; bZoom.classList.remove('held'); });
+bZoom.addEventListener('pointercancel', () => { if (zoomHold.tapRel) { zoomHold.tapRel = false; return; } if (zoomHold.on && zoomHold.k >= 1) { bZoom.classList.remove('held'); zoomSetLock(true); zoomHold.locks++; return; } zoomHold.on = false; bZoom.classList.remove('held'); });
 for (const ev of ['touchstart', 'touchend', 'mousedown', 'mouseup', 'click']) bZoom.addEventListener(ev, zoomStopEv);
 function syncZoomBtn() {
   const pack = document.getElementById('bPack'), show = !!(pack && pack.classList.contains('on'));
   bZoom.classList.toggle('on', show);
-  if (!show && zoomHold.on) { zoomHold.on = false; bZoom.classList.remove('held'); }
+  if (!show && (zoomHold.on || zoomHold.lock)) zoomRelease();   // button hidden (a game, menus): drop the hold / lock
 }
 function tickZoom(dt) {
   const goal = zoomHold.on ? 1 : 0;
@@ -1676,7 +1690,7 @@ function frame(now) {
     if (now - (frame.attT || 0) > nearMs) { frame.attT = now; for (const c of [berserkerCab, monkeyCab, orcCab, novaCab, cyberCab, blasterCab, pipCab, roadsterCab, clawCab, bbCab, rockfallCab, skyTowerCab]) {
       if (!(vis(c) && !(c.userData.visit && c.userData.visit.on))) continue;
       if (PS.on && camera.position.distanceTo(c.userData.centre) > PS.cabNear && (now - (c.userData._psTick || 0) < PS.cabFarMs)) continue;
-      c.userData._psTick = now; c.userData.tick(now / 1000); } }
+      c.userData._psTick = now; c.userData.tick(now / 1000); liveBadge(c); } }
     strikeCab.userData.glow.intensity = demo.running ? 1.2 + Math.sin(now * 0.013) * 0.08 + Math.sin(now * 0.031) * 0.06 : 0.6;
     ghostCab.userData.glow.intensity = ghostDemo.running ? 1.1 + Math.sin(now * 0.017) * 0.08 : 0.5;
   }
@@ -1693,6 +1707,20 @@ function frame(now) {
   requestAnimationFrame(frame);
 }
 function stepClock(dt) { st.t += dt; }
+// t754u: someone else is playing this machine. Sky Tower draws their climb live (skytowercab.js); the other cabinets'
+// games cannot stream their screens yet, so their attract gets a LIVE strip naming who is playing it.
+function liveBadge(c) {
+  const u = c.userData; if (c === skyTowerCab) return;
+  const M = window.__mp; if (!M || !M.cabLive || typeof play === 'undefined' || !play.machines) { u.liveBadge = null; return; }
+  if (u._mkey === undefined) { const m = Object.values(play.machines).find(q => q.cab === c); u._mkey = m ? m.key : null; }
+  const names = u._mkey ? M.cabLive(u._mkey) : []; if (!names.length) { u.liveBadge = null; return; }
+  const mat = u.screen && u.screen.material, map = mat && (mat.map || mat.emissiveMap), img = map && map.image;
+  if (!img || !img.getContext) return; const g = img.getContext('2d'), W = img.width, H = img.height, h = Math.max(16, Math.round(H * 0.08));
+  const txt = 'LIVE · ' + names.slice(0, 2).map(n => String(n).toUpperCase().slice(0, 10)).join(' + ') + ' PLAYING';
+  g.save(); g.fillStyle = '#000c'; g.fillRect(0, 0, W, h); g.fillStyle = (performance.now() / 500 | 0) % 2 ? '#ff3030' : '#ff7070'; g.beginPath(); g.arc(h * 0.5, h * 0.5, h * 0.22, 0, 7); g.fill();
+  g.fillStyle = '#ffe14a'; g.font = 'bold ' + Math.round(h * 0.62) + 'px "Courier New", monospace'; g.textAlign = 'left'; g.textBaseline = 'middle'; g.fillText(txt, h * 0.9, h * 0.54, W - h * 1.2); g.restore();
+  map.needsUpdate = true; u.liveBadge = txt;
+}
 function arcadePause(on) { paused = on; if (!on && !rafOn) { rafOn = true; last = performance.now(); requestAnimationFrame(frame); } }
 const play = setupPlay({ camera, monkey, dsCab, roadsterCab, strikeCab, ghostCab, berserkerCab, monkeyCab, orcCab, novaCab, cyberCab, blasterCab, pipCab, clawCab, bbCab, rockfallCab, skyTowerCab, st, pause(on) { paused = on; if (!on && !rafOn) { rafOn = true; last = performance.now(); requestAnimationFrame(frame); } } });
 shield = setupShield({ scene, play, st, monkey, HALF, DOOR_W, DOOR_H });

@@ -96,6 +96,7 @@ body.ingame #mpPill,body.ingame #mpBar,body.ingame #mpChat,body.ingame #mpTags,b
     const list = el('div', { style: 'margin-top:6px;max-height:120px;overflow:auto' }, nameP);
     for (const p of M.peers.values()) { const r = el('div', { textContent: (M.muted.has(p.id) ? '🔇 ' : '') + p.name, style: 'cursor:pointer;padding:2px 0' }, list); r.onclick = () => { toggleMute(p.id); showName(true); }; }
     el('button', { textContent: 'CLOSE' }, nameP).onclick = () => showName(false); nameP.classList.add('on'); }
+  M.flash = (t, ms) => flash(t, ms);
   M.showName = showName; M.setName = v => { name = fallback = v; LSs('neonarcade.mpName', v); track(); };
   pill.addEventListener('click', e => { e.stopPropagation(); showName(!nameP.classList.contains('on')); });
   let flashT = 0; function flash(t, ms) { note.textContent = t; note.style.display = 'block'; clearTimeout(flashT); if (ms !== 0) flashT = setTimeout(() => { note.style.display = M.full ? 'block' : 'none'; if (M.full) note.textContent = 'Room full, playing solo'; }, ms || 2500); }
@@ -113,7 +114,10 @@ body.ingame #mpPill,body.ingame #mpBar,body.ingame #mpChat,body.ingame #mpTags,b
     if (st.fly && st.fly.air) return st.fly.thrust ? 'fly' : 'glide';   // same position packet; 'fly' is powered exhaust, 'glide' is the unpowered descent pose
     if (st.jump) return 'jump'; return st.speed > 0.15 ? 'walk' : 'idle'; }
   const r2 = v => Math.round(v * 100) / 100;
-  function snap() { const p = monkey.position; return { i: id, x: r2(p.x), y: r2(p.y), z: r2(p.z), r: Math.round(monkey.rotation.y * 100) / 100, m: roomOf(p), a: animOf(), gb: window.__minigolf && window.__minigolf.ballSnap ? window.__minigolf.ballSnap() : undefined }; }   // t275u gb: my golf ball while putting
+  // t753u cabinet presence: when I start a machine, remember when (wall clock) so every client orders the two players at a cabinet the same way
+  let playKey = '', playSince = 0;
+  function myPlay() { const a = animOf(), k = /^play:/.test(a) ? a.slice(5) : ''; if (k !== playKey) { playKey = k; playSince = k ? Date.now() : 0; } return k; }
+  function snap() { const p = monkey.position, a = animOf(); myPlay(); return { i: id, x: r2(p.x), y: r2(p.y), z: r2(p.z), r: Math.round(monkey.rotation.y * 100) / 100, m: roomOf(p), a, ps: playKey ? playSince : undefined, gb: window.__minigolf && window.__minigolf.ballSnap ? window.__minigolf.ballSnap() : undefined }; }   // t275u gb: my golf ball while putting
   let ch = null, lib = null, client = null, lastSent = '', lastAt = 0, sendTimer = 0, joinedAt = 0, retry = 0, retryT = 0, joinT = 0, gen = 0;
   function send(event, payload) { if (!ch || M.state !== 'on') return false; try { const r = ch.send({ type: 'broadcast', event, payload }); if (r && r.catch) r.catch(() => {}); } catch (e) { return false; } M.sent++; M.bytes += JSON.stringify(payload).length; return true; }
   function tick() { if (M.state !== 'on') return; const s = snap(), j = JSON.stringify(s), now = performance.now();
@@ -162,14 +166,58 @@ body.ingame #mpPill,body.ingame #mpBar,body.ingame #mpChat,body.ingame #mpTags,b
   function peer(pid, meta) { let p = M.peers.get(pid);
     if (!p) { const g = makeMonkey(); g.name = 'remoteMonkey_' + pid; own(g); scene.add(g); g.visible = false;
       const tag = el('div', { className: 'mpTag' }, tags); tag.addEventListener('click', e => { e.stopPropagation(); toggleMute(pid); });
-      p = { id: pid, name: 'Monkey', g, tag, cur: null, tgt: null, a: 'idle', m: 'room1', last: performance.now(), phase: 0, bub: {}, kind: 'monkey' }; M.peers.set(pid, p); }
+      p = { id: pid, name: 'Monkey', g, tag, cur: null, tgt: null, a: 'idle', m: 'room1', last: performance.now(), phase: 0, phase0: (parseInt(pid.slice(-3), 36) || 0) % 7, bub: {}, kind: 'monkey' }; M.peers.set(pid, p); }
     if (meta) paint(p, meta); else if (!p.lookKey) paint(p, { hue: 0 }); if (meta && meta.name) p.name = String(meta.name).slice(0, 14); p.tag.textContent = p.name; p.tag.classList.toggle('mute', M.muted.has(pid)); return p; }
-  function drop(pid) { const p = M.peers.get(pid); if (!p) return; if (p.ball) { scene.remove(p.ball); p.ball.geometry.dispose(); p.ball.material.dispose(); } scene.remove(p.g); p.g.traverse(o => { if (o.isMesh) o.material.dispose(); }); p.tag.remove(); for (const k in p.bub) p.bub[k].el.remove(); M.peers.delete(pid); }
+  function drop(pid) { const p = M.peers.get(pid); if (!p) return; if (p.ball) { scene.remove(p.ball); p.ball.geometry.dispose(); p.ball.material.dispose(); } scene.remove(p.g); p.g.traverse(o => { if (o.isMesh) o.material.dispose(); }); p.tag.remove(); for (const k in p.bub) p.bub[k].el.remove(); M.peers.delete(pid); skyIn.delete(pid); }
   function toggleMute(pid) { if (M.muted.has(pid)) M.muted.delete(pid); else M.muted.add(pid); LSs('neonarcade.mpMuted', JSON.stringify([...M.muted])); const p = M.peers.get(pid); if (p) { p.tag.classList.toggle('mute', M.muted.has(pid)); if (M.muted.has(pid)) clearBub(p, 'chat'); } renderLog(); }
   M.toggleMute = toggleMute;
   function onState(s) { if (!s || s.i === id || typeof s.x !== 'number') return; M.recv++; const p = peer(s.i); p.last = performance.now();
     p.tgt = { x: s.x, y: s.y || 0, z: s.z, r: s.r || 0 }; if (!p.cur) p.cur = Object.assign({}, p.tgt); p.a = String(s.a || 'idle'); p.m = String(s.m || 'room1');
-    p.gb = Array.isArray(s.gb) && s.gb.length === 3 && s.gb.every(Number.isFinite) ? s.gb : null; }
+    p.gb = Array.isArray(s.gb) && s.gb.length === 3 && s.gb.every(Number.isFinite) ? s.gb : null; p.ps = Number.isFinite(s.ps) ? s.ps : 0; }
+  // ---------- t753u: cabinet presence ----------
+  // A player inside a machine still stands in front of it for everyone else, in Grok's playing pose (leaning in, one hand
+  // circling the stick, the other tapping buttons). Two at one machine stand side by side: the one who started first
+  // shifts to their left, the second takes the right; when one leaves the other glides back to the centre. Max 2 per machine.
+  // Every client works the slots out itself from the room state ('play:<key>' + start time), so all screens agree.
+  const STAND_BACK = 0.42, SIDE = 0.4, CAB_MAX = 2;
+  function cabOf(key) { const m = play && play.machines && play.machines[key]; return m && m.cab && m.cab.userData && m.cab.userData.front ? m.cab : null; }
+  function atCab(key) { const L = [], now = performance.now();
+    if (myPlay() === key) L.push({ id, ps: playSince });
+    for (const p of M.peers.values()) if (p.a === 'play:' + key && now - p.last < 10000) L.push({ id: p.id, ps: p.ps || 0 });
+    L.sort((a, b) => (a.ps || 9e15) - (b.ps || 9e15) || (a.id < b.id ? -1 : 1)); return L; }
+  function slotOf(key, pid) { const cab = cabOf(key); if (!cab) return null; const L = atCab(key).slice(0, CAB_MAX), i = L.findIndex(q => q.id === pid); if (i < 0) return null;
+    const f = cab.userData.front, fc = cab.userData.facing || { x: 0, z: -1 }, lx = fc.z, lz = -fc.x, off = L.length === 2 ? (i === 0 ? SIDE : -SIDE) : 0;   // (lx, lz) = the player's left
+    return { x: f.x - fc.x * STAND_BACK + lx * off, z: f.z - fc.z * STAND_BACK + lz * off, r: Math.atan2(fc.x, fc.z), i, n: L.length }; }
+  M.cabPlayers = key => atCab(key).map(q => q.id); M.cabCount = key => atCab(key).length; M.cabFull = key => atCab(key).filter(q => q.id !== id).length >= CAB_MAX; M.slotOf = slotOf; M.CAB_MAX = CAB_MAX;
+  function playPose(p, u, g, t) {   // Grok's cabinet pose (grokvisit.js animatePlay), on the monkey / alien rig
+    p.posed = true; g.rotation.x = 0.07; g.rotation.y += Math.sin(t * 1.3 + p.phase0) * 0.04;
+    if (u.legs) { u.legs[0].leg.rotation.x = 0; u.legs[1].leg.rotation.x = 0; }
+    if (u.arms && u.arms.length > 1) { const S = u.arms[0], B = u.arms[1];
+      S.sh.rotation.x = -1.18 + Math.sin(t * 6.2) * 0.08; S.sh.rotation.z = -S.sd * 0.24 + Math.cos(t * 4.8) * 0.07; S.el.rotation.x = -0.45;   // stick hand circles
+      B.sh.rotation.x = -1.16 - Math.max(0, Math.sin(t * 14 + p.phase0)) * 0.12; B.sh.rotation.z = -B.sd * 0.24; B.el.rotation.x = -0.5 - Math.max(0, Math.sin(t * 14 + p.phase0)) * 0.12; }   // button hand taps
+    if (u.head) u.head.rotation.x = 0.04 + Math.sin(t * 2) * 0.03; }
+  function unpose(p, u, g) { p.posed = false; g.rotation.x = 0; if (u.arms) for (const a of u.arms) { a.sh.rotation.z = 0; a.el.rotation.x = 0; } if (u.head) u.head.rotation.x = 0; }
+  // ---------- t753u: Sky Tower shared climb relay (the cabinet iframe talks through parent.__mp.sky) ----------
+  const skyIn = new Map(); let skyAt = 0;
+  const fin = v => typeof v === 'number' && isFinite(v) && Math.abs(v) < 1e5;
+  M.sky = { peers: skyIn,
+    send(s) { const now = performance.now(); if (now - skyAt < 90 || !s || !fin(s.x) || !fin(s.y) || !fin(s.z)) return false; skyAt = now;
+      const ok = send('sky', Object.assign({ i: id }, s)); if (ok) M.skySent = (M.skySent || 0) + 1; return ok; },
+    who(pid) { const p = M.peers.get(pid); return p ? { name: p.name, look: p.look || null, a: p.a } : null; },
+    rivals() { const now = performance.now(), out = []; for (const [pid, r] of skyIn) { const p = M.peers.get(pid); if (!p || now - r.at > 2500 || p.a !== 'play:skytower') continue; out.push({ id: pid, s: r.s, at: r.at, name: p.name, look: p.look || null }); } return out; } };
+  function onSky(pl) { if (!pl || !pl.i || pl.i === id || !M.peers.has(pl.i) || !fin(pl.x) || !fin(pl.y) || !fin(pl.z)) return; M.recv++; M.skyRecv = (M.skyRecv || 0) + 1;
+    const s = { x: pl.x, y: pl.y, z: pl.z, r: fin(pl.r) ? pl.r : 0, p: Math.max(1, Math.min(99, pl.p | 0)), h: Math.max(0, Math.min(3, pl.h | 0)), w: pl.w ? 1 : 0, wt: fin(pl.wt) ? pl.wt : 0, f: pl.f ? 1 : 0, a: pl.a ? 1 : 0, c: pl.c === 'alien' ? 'alien' : 'monkey', run: pl.run ? 1 : 0,
+      zn: pl.zn | 0, z0: Array.isArray(pl.z0) && pl.z0.length === 7 && pl.z0.every(v => typeof v === 'number' && isFinite(v)) ? pl.z0 : null,
+      cy: fin(pl.cy) ? pl.cy : 0, nt: fin(pl.nt) ? Math.max(0, Math.min(1, pl.nt)) : 0, fc: nums(pl.fc, 6), bm: lists(pl.bm, 4, 6) };   // t754u: live cabinet screen
+    const old = skyIn.get(pl.i), pd = lists(pl.pd, 10, 7);
+    s.pd = pd || (old && old.s.pd) || null;   // platforms come every few packets: keep the last set
+    skyIn.set(pl.i, { s, at: performance.now() }); }
+  function nums(a, n) { return Array.isArray(a) && a.length === n && a.every(v => typeof v === 'number' && isFinite(v) && Math.abs(v) <= 0xffffff) ? a : null; }   // (brick colours are 24-bit ints)
+  function lists(a, max, n) { if (!Array.isArray(a) || !a.length || a.length > max) return null; for (const b of a) if (!nums(b, n)) return null; return a; }
+  // t754u: who is playing Sky Tower at its cabinet right now (live climbs to draw on the screen), in slot order
+  M.sky.feed = (key) => { const now = performance.now(), out = []; for (const [pid, r] of skyIn) { const p = M.peers.get(pid); if (!p || now - r.at > 2500 || p.a !== 'play:' + key || !r.s.run) continue; const sl = slotOf(key, pid); out.push({ id: pid, name: p.name || 'Player', s: r.s, slot: sl ? sl.i : 0, look: p.look || null }); } return out.sort((a, b) => a.slot - b.slot); };
+  // every machine: names of the other players at it (for a LIVE badge on cabinets that cannot stream their game)
+  M.cabLive = (key) => { const out = []; for (const p of M.peers.values()) if (p.a === 'play:' + key) out.push(p.name || 'Player'); return out; };
   // ---------- bubbles (emotes / chat), chat log ----------
   const me = { g: monkey, bub: {}, id };
   function bubble(p, kind, text, ms) { clearBub(p, kind); const b = el('div', { className: 'mpBub' + (kind === 'emo' ? ' emo' : ''), textContent: text }, tags); p.bub[kind] = { el: b, until: performance.now() + ms }; }
@@ -214,7 +262,7 @@ body.ingame #mpPill,body.ingame #mpBar,body.ingame #mpChat,body.ingame #mpTags,b
       M.joins = (M.joins || 0) + 1;
       ch.on('presence', { event: 'sync' }, onSync)
         .on('broadcast', { event: 'st' }, m => onState(m && m.payload)).on('broadcast', { event: 'chat' }, m => onChat(m && m.payload)).on('broadcast', { event: 'emo' }, m => onEmo(m && m.payload))
-        .on('broadcast', { event: 'look' }, m => onLook(m && m.payload)).on('broadcast', { event: 'zap' }, m => onZap(m && m.payload))
+        .on('broadcast', { event: 'look' }, m => onLook(m && m.payload)).on('broadcast', { event: 'zap' }, m => onZap(m && m.payload)).on('broadcast', { event: 'sky' }, m => onSky(m && m.payload))
         .on('broadcast', { event: 'bye' }, m => { if (m && m.payload) drop(m.payload.i); });
       // peek at presence before taking a seat: if 10 are already in, stay solo without counting as an 11th
       ch.subscribe(async status => {
@@ -254,19 +302,22 @@ body.ingame #mpPill,body.ingame #mpBar,body.ingame #mpChat,body.ingame #mpTags,b
   function frame(now) { if (document.hidden) { lt = now; requestAnimationFrame(frame); return; } const dt = Math.min(0.1, (now - lt) / 1000); lt = now; const k = 1 - Math.exp(-dt * 12);
     for (const p of M.peers.values()) {
       if (now - p.last > 10000 && p.cur) { p.g.visible = false; p.tag.style.display = 'none'; continue; }   // went quiet: hide until it speaks again
-      if (!p.cur) continue; const c = p.cur, t = p.tgt, ox = c.x, oz = c.z;
+      if (!p.cur) continue; const slot = /^play:/.test(p.a) ? slotOf(p.a.slice(5), p.id) : null; p.slot = slot;
+      if (slot) p.tgt = { x: slot.x, y: 0, z: slot.z, r: slot.r };   // stand in front of the machine they are playing
+      const c = p.cur, t = p.tgt, ox = c.x, oz = c.z;
       c.x += (t.x - c.x) * k; c.y += (t.y - c.y) * k; c.z += (t.z - c.z) * k; let dr = ((t.r - c.r + Math.PI) % (2 * Math.PI) + 2 * Math.PI) % (2 * Math.PI) - Math.PI; c.r += dr * k;
       if (Math.hypot(t.x - c.x, t.z - c.z) > 6) Object.assign(c, t);   // big jump (respawn / teleport arrival): snap
       const g = p.g; g.position.set(c.x, c.y, c.z); g.rotation.y = c.r;
       if (p.a !== p.fxA) { const was = p.fxA; p.fxA = p.a; p.fxT = now; const T = getTp && getTp(); if (p.a === 'bin' && was !== 'bin') { p.binT = now; M.beamIns = (M.beamIns || 0) + 1; if (T && T.beamAt) try { T.beamAt(t.x, t.z, 1.9); } catch (e) {} }   // t282u: they just pressed Play
         else if (T && T.fxAt && ((p.a === 'tpo' && was !== 'tpo') || p.a === 'tpi')) try { T.fxAt(t.x, t.z, p.a === 'tpo'); } catch (e) {} }   // t233: see them beam out / in
-      const fa = (now - (p.fxT || 0)) / 1000, tp = p.a === 'tp' || (p.a === 'tpo' && fa > 2.7) || (p.a === 'tpi' && fa < 0.25), ghost = /^(play|seat):/.test(p.a); g.visible = !tp && p.a !== 'pre';
+      const fa = (now - (p.fxT || 0)) / 1000, tp = p.a === 'tp' || (p.a === 'tpo' && fa > 2.7) || (p.a === 'tpi' && fa < 0.25), ghost = /^seat:/.test(p.a) || (/^play:/.test(p.a) && !slot); g.visible = !tp && p.a !== 'pre';
       if (p.binT !== undefined) { if (p.s0 === undefined) p.s0 = g.scale.x; const u = Math.min(1, (now - p.binT) / 1500); if (u < 0.12) g.visible = false; const e = 1 - Math.pow(1 - u, 3); g.scale.set(p.s0 * (0.35 + 0.65 * e), p.s0 * e, p.s0 * (0.35 + 0.65 * e)); if (u >= 1) { g.scale.setScalar(p.s0); p.binT = undefined; } }   // t282u: scale/stretch in under the column
       if (ghost !== !!p.ghost) { p.ghost = ghost; g.traverse(o => { if (o.isMesh) { o.material.transparent = ghost; o.material.opacity = ghost ? 0.45 : 1; } }); }
       const sp = Math.hypot(c.x - ox, c.z - oz) / Math.max(dt, 1e-3), u = g.userData; p.phase += dt * (sp > 0.1 ? 3 + sp * 2.1 : 0);
       if (u.legs) { const fly = p.a === 'fly' || p.a === 'glide', amp = fly ? 0 : Math.min(1, sp / 2.4) * 0.6, s = Math.sin(p.phase);
         u.legs[0].leg.rotation.x = fly ? 0.45 : s * amp; u.legs[1].leg.rotation.x = fly ? 0.45 : -s * amp;
         if (u.arms) { u.arms[0].sh.rotation.x = fly ? -0.85 : -s * amp * 0.8; u.arms[1].sh.rotation.x = fly ? -0.85 : s * amp * 0.8; } }
+      if (slot) playPose(p, u, g, now / 1000); else if (p.posed) unpose(p, u, g);
       if (u.tail) { const tk = 0.15 + Math.min(1, sp / 2.4) * 0.35 + (p.a === 'jump' || p.a === 'fly' || p.a === 'glide' ? 0.4 : 0); u.tail.rotation.z = Math.sin(now / 625 + p.phase) * tk; const seat = /^seat:/.test(p.a), backOn = !!(p.look && p.look.back && p.look.back !== 'none'); u.tail.visible = !seat && !!u.tail.children.length; u.pack.visible = !seat && !backOn; }
       if (u.bot && window.__arcade && window.__arcade.tickBot) window.__arcade.tickBot(u, now / 1000);
       if (p.flameA !== p.a) { p.flameA = p.a; if (!(p.thG && p.thG.parent)) { p.th = []; const pack = p.g.getObjectByName('gaBk_jetpack'); p.thG = pack || null;
