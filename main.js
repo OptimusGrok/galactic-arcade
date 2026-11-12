@@ -977,6 +977,8 @@ function makeAlien() { // chibi grey alien: huge spherical head (~37% of height)
   const bot = new THREE.Group(); bot.name = 'alienBot'; bot.position.set(0.64, 0.52, -0.16); bot.userData.baseY = 0.52; torso.add(bot);
   const botShell = mk(0xe8eef4, { roughness: 0.28, metalness: 0.48, emissive: 0x2a3848, emissiveIntensity: 0.18 });
   const botDark = mk(0x10141a, { roughness: 0.22, metalness: 0.45 });
+  // t746u: the robot keeps its own grey trim (own colours, never matched by the SUIT COLOUR recolour in player.js)
+  const botTrim = mk(0x5a636f, { roughness: 0.48, metalness: 0.28, emissive: 0x141820, emissiveIntensity: 0.08 }), botTrimD = mk(0x3c434d, { roughness: 0.52, metalness: 0.24 });
   part(bot, S(0.195, 32, 24), botShell);
   const aura = part(bot, S(0.214, 20, 16), new THREE.MeshBasicMaterial({ color: 0x44e8ff, transparent: true, opacity: 0.14, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false }));
   aura.renderOrder = 2;
@@ -987,10 +989,10 @@ function makeAlien() { // chibi grey alien: huge spherical head (~37% of height)
   for (const sd of [-1, 1]) {
     const ear = part(bot, CYL(0.05, 0.05, 0.03, 16), botShell, 0.182 * sd, 0.016, 0);
     ear.rotation.z = Math.PI / 2;
-    const rim = part(bot, new THREE.TorusGeometry(0.05, 0.008, 8, 16), gunD, 0.198 * sd, 0.016, 0);
+    const rim = part(bot, new THREE.TorusGeometry(0.05, 0.008, 8, 16), botTrimD, 0.198 * sd, 0.016, 0);
     rim.rotation.y = Math.PI / 2;
   }
-  part(bot, CYL(0.012, 0.01, 0.1, 8), gun, 0, 0.25, 0);
+  part(bot, CYL(0.012, 0.01, 0.1, 8), botTrim, 0, 0.25, 0);
   part(bot, S(0.03, 12, 10), botShell, 0, 0.31, 0);
   const tail = new THREE.Group(); tail.name = 'tail'; tail.visible = false; hips.add(tail);
   root.userData = { hips, torso, neck, head, legs, arms, phone, pcv, ptex, pack, tail, bot, char: 'alien' };
