@@ -82,13 +82,16 @@ const tapEl = async (page, sel) => { const r = await page.locator(sel).first().b
     s = await page.evaluate(([k, v]) => ({ p: window.__gaPlayer.p[k], own: window.__gaPlayer.owned().includes(k + ':' + v), t: window.__arcade.play.tickets.total, buy: !document.getElementById('gaWBuy').hidden, sel: !!document.querySelector('#gaW .gaRow[data-k=' + k + '] .gaO.sel[data-v=' + v + ']'), own2: !!document.querySelector('#gaW .gaRow[data-k=' + k + '] .gaO.own[data-v=' + v + ']') }), [k, v]);
     chk(s.p === v && s.own && s.t < 20 && !s.buy && s.sel && s.own2, ch + ': BUY spends tickets, equips, marks selected + owned', s);
     // unequip / re-equip an owned item (back row)
+    await page.evaluate(() => document.querySelector('#gaW .gaRow[data-k=back] .gaO[data-v=none]').scrollIntoView({ block: 'nearest', inline: 'center' })); await page.waitForTimeout(300);
     await tapEl(page, '#gaW .gaRow[data-k=back] .gaO[data-v=none]'); let bk = await page.evaluate(() => window.__gaPlayer.p.back);
+    await page.evaluate(() => document.querySelector('#gaW .gaRow[data-k=back] .gaO[data-v=wings]').scrollIntoView({ block: 'nearest', inline: 'center' })); await page.waitForTimeout(300);
     await tapEl(page, '#gaW .gaRow[data-k=back] .gaO[data-v=wings]'); let bk2 = await page.evaluate(() => window.__gaPlayer.p.back);
     chk(bk === 'none' && bk2 === 'wings', ch + ': unequip + re-equip wings', [bk, bk2]); d = await drawn(page); chk(d.ok, ch + ': player still drawn after buying / equipping', d);
-    // row arrow still steps through owned items
-    const st0 = await page.evaluate(() => window.__gaPlayer.p.glasses); await tapEl(page, '#gaW .gaRow[data-k=glasses] .gaA[data-step="1"]'); const st1 = await page.evaluate(() => window.__gaPlayer.p.glasses);
-    await tapEl(page, '#gaW .gaRow[data-k=glasses] .gaA[data-step="-1"]'); const st2 = await page.evaluate(() => window.__gaPlayer.p.glasses);
-    chk(st1 !== st0 && st2 === st0, ch + ': row arrows step through owned glasses', [st0, st1, st2]);
+    // row arrows step tile by tile (t744u: locked for-sale tiles are tried on too) and back again
+    const cur = () => page.evaluate(() => { const G = window.__gaPlayer, t = G.wardrobe.try; return t && t.k === 'glasses' ? t.v : G.p.glasses; });
+    const st0 = await cur(); await tapEl(page, '#gaW .gaRow[data-k=glasses] .gaA[data-step="1"]'); const st1 = await cur();
+    await tapEl(page, '#gaW .gaRow[data-k=glasses] .gaA[data-step="-1"]'); const st2 = await cur();
+    chk(st1 !== st0 && st2 === st0, ch + ': row arrows step through the glasses tiles', [st0, st1, st2]);
     await page.evaluate(() => { const p = window.__gaPlayer.prev; p.auto = false; p.want = p.rot = 0.5; }); await page.waitForTimeout(900);
     if (SH) await page.screenshot({ path: OUT + (ch === 'monkey' ? 'ga-accessories-layout.png' : 'ga-accessories-layout-alien.png') });
     await tapEl(page, '#gaWDone');
