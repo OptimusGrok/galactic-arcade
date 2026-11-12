@@ -211,7 +211,8 @@
   function mkR(cv) { var A = window.__arcade, T = A.THREE; try { prev.r = new T.WebGLRenderer({ canvas: cv, alpha: true, antialias: false, powerPreference: 'low-power' }); } catch (e) { prev.r = null; return false; }
     prev.r.setPixelRatio(Math.min(1.5, devicePixelRatio || 1)); prev.r.outputColorSpace = T.SRGBColorSpace; prev.r.toneMapping = A.renderer.toneMapping; prev.r.toneMappingExposure = A.renderer.toneMappingExposure;
     try { if (prev.r.debug) prev.r.debug.checkShaderErrors = false; } catch (e) {}   // t635u perf (Arcade): skip sync shader-error checks on the preview
-    try { if (prev.r.compileAsync && prev.scene && prev.cam) prev.r.compileAsync(prev.scene, prev.cam); } catch (e) {}
+    // t739u: compile() not compileAsync(): its 10 ms isReady() poll threw ("reading 'isReady'") once the preview renderer was freed on close
+    try { if (prev.scene && prev.cam) prev.r.compile(prev.scene, prev.cam); } catch (e) {}
     cv.addEventListener('webglcontextlost', function (e) { e.preventDefault(); prev.lost = (prev.lost || 0) + 1; setTimeout(function () { if (prev.r && prev.r.domElement === cv) remake(); }, 300); }, { once: true });
     return true; }
   function remake() { var old = prev.r && prev.r.domElement, n = document.createElement('canvas'); n.id = (old && old.id) || 'gaCv'; try { prev.r.dispose(); } catch (e) {} prev.r = null;
@@ -329,7 +330,7 @@
     + '#gaHint.gaTaken{color:#ff5a7a;font-weight:900}#gaGo[hidden]{display:none}#gaGo:not([hidden]){animation:gaPop .45s cubic-bezier(.2,1.6,.4,1) both}@keyframes gaPop{0%{opacity:0;transform:scale(.6)}100%{opacity:1;transform:scale(1)}}#gaHint{flex:none;font:700 12px system-ui;color:#ffd0fa;opacity:.85;min-height:48px;display:flex;align-items:center}#gaHint[hidden]{display:none}'
     + '#start.ga #stBtns{display:none!important}#start.ga #stBox{visibility:hidden}'
     + '#gaW{position:fixed;inset:0;z-index:2147483000;display:flex;flex-direction:column;align-items:center;gap:6px;box-sizing:border-box;padding:max(10px,env(safe-area-inset-top)) 10px max(12px,env(safe-area-inset-bottom));font-family:"Courier New",monospace;color:#fff;touch-action:pan-y;overflow-y:auto;'
-    + 'background:radial-gradient(ellipse at 20% 30%,#5a1f8fcc,transparent 55%),radial-gradient(ellipse at 85% 45%,#7a2bb0aa,transparent 50%),radial-gradient(ellipse at 50% 90%,#1d2a8aaa,transparent 60%),#070214f2}#gaW[hidden]{display:none}'
+    + 'background:radial-gradient(ellipse at 20% 30%,#5a1f8fcc,transparent 55%),radial-gradient(ellipse at 85% 45%,#7a2bb0aa,transparent 50%),radial-gradient(ellipse at 50% 90%,#1d2a8aaa,transparent 60%),#070214f2}#gaW[hidden]{display:none!important}'   // t739u: !important, else #gaW.gaSplit{display:grid} beat [hidden] and the closed panel stayed on screen over the game
     + '#gaWT{flex:none;margin-top:14px;font:900 clamp(26px,8.5vw,44px)/1 "Arial Black",Impact,sans-serif;letter-spacing:.08em;color:#ffd0fa;text-shadow:0 0 6px #ff3cf0,0 0 18px #ff3cf0,0 0 34px #c000ff}'
     + '#gaWStage{position:relative;flex:1 1 auto;min-height:150px;width:100%;max-width:460px}#gaWCv{position:absolute;inset:0;width:100%;height:100%;touch-action:none;cursor:grab}'
     + '#gaWDone{flex:none;font:900 clamp(22px,7vw,32px)/1 "Arial Black",Impact,sans-serif;letter-spacing:.1em;color:#dffbff;padding:12px 48px;border-radius:14px;border:3px solid #00e5ff;background:linear-gradient(#0c1a3aee,#050a1aee);text-shadow:0 0 8px #00e5ff;box-shadow:0 0 18px #00e5ffaa;cursor:pointer}'
@@ -349,8 +350,8 @@
     + '.gaRow{padding:2px}.gaO{width:34px;height:28px;font-size:16px}.gaRow span{width:48px;font-size:10px}.gaAr{width:36px;height:44px;font-size:32px}'
     + '#gaWho{padding:2px 6px 2px;gap:3px}.gaWhoH{font-size:9px;letter-spacing:.16em;text-shadow:0 0 5px #00e5ff,0 0 10px #0090ff}'
     + '.gaWhoRow{gap:6px}.gaWho{min-height:0;height:28px;flex-direction:row;gap:5px;padding:2px 8px;font-size:10px;max-width:150px;border-radius:8px}.gaWhoI{font-size:14px}}'
-    // t738u: ACCESSORIES (shop) in landscape = split view: the player as big as the height allows on the left, every row on the right,
-    // icons/labels/arrows sized by wFit() (--oh/--ow/--of/--lw/--lf/--ah) so the rows fill the column. WARDROBE + portrait keep the old stack.
+    // t738u/t739u: ACCESSORIES (shop) and WARDROBE in landscape = split view: the player as big as the height allows on the left, every row on the right,
+    // icons/labels/arrows sized by wFit() (--oh/--ow/--of/--lw/--lf/--ah) so the rows fill the column. Portrait keeps the old stack.
     + '#gaW.gaSplit{display:grid;grid-template-columns:minmax(0,36%) minmax(0,1fr);grid-template-rows:auto minmax(0,1fr) auto auto;gap:6px 14px;padding:max(8px,env(safe-area-inset-top)) max(10px,env(safe-area-inset-right)) max(8px,env(safe-area-inset-bottom)) max(10px,env(safe-area-inset-left));overflow:hidden;align-items:stretch;justify-items:stretch}'
     + '#gaW.gaSplit #gaWT{grid-column:1;grid-row:1;margin:0;padding:0 0 0 52px;min-height:44px;display:flex;align-items:center;justify-content:center;white-space:nowrap;font-size:clamp(18px,min(3.3vw,7.5vh),34px)}'
     + '#gaW.gaSplit #gaWX{left:max(10px,env(safe-area-inset-left));right:auto;top:max(8px,env(safe-area-inset-top))}'
@@ -435,14 +436,14 @@
   function wFill() { if (!W.el) return; W.el.querySelector('#gaWBox').innerHTML = W.shop ? rows(1) : rowsLimited(); W.el.querySelector('#gaWT').textContent = W.shop ? 'ACCESSORIES' : 'WARDROBE'; }
   function wOpen(opts) { var A = window.__arcade; W.shop = !!(opts && opts.shop); wBuild(); wFill(); if (!W.el.isConnected) document.body.appendChild(W.el); W.el.hidden = false; W.el.classList.toggle('gaSt', onStart()); W.open = true; W.at = performance.now(); W.opens++; prev.auto = true; TP.gone = false; if (TP.st === 'out') { TP.st = 'idle'; TP.cb = null; } W.try = null; buyUI();
     if (A && A.monkey && A.THREE) { apply(); buildScene(); } sync(true); wFit(); if (!prev.raf) frame(); return true; }
-  // t738u: split ACCESSORIES layout in landscape; sizes the rows so every visible row fits the right column, as big as it allows
-  function wFit() { if (!W.el) return; var on = !!(W.shop && W.open && innerWidth > innerHeight && innerWidth >= 560); W.el.classList.toggle('gaSplit', on); if (!on) return;
+  // t738u/t739u: split ACCESSORIES + WARDROBE layout in landscape; sizes the rows so every visible row fits the right column, as big as it allows
+  function wFit() { if (!W.el) return; var on = !!(W.open && innerWidth > innerHeight && innerWidth >= 560); W.el.classList.toggle('gaSplit', on); if (!on) return;
     var box = W.el.querySelector('#gaWBox'), n = [].filter.call(box.querySelectorAll('.gaRow'), function (r) { return !r.hidden; }).length || 1;
     var oh = Math.max(40, Math.min(76, Math.floor((box.clientHeight - 10) / n) - 13)), cs = W.el.style;
     cs.setProperty('--oh', oh + 'px'); cs.setProperty('--ow', Math.round(oh * 1.12) + 'px'); cs.setProperty('--of', Math.round(oh * 0.56) + 'px');
     cs.setProperty('--ah', (oh >= 60 ? 46 : 40) + 'px'); cs.setProperty('--lw', (oh >= 60 ? 92 : 78) + 'px'); cs.setProperty('--lf', (oh >= 60 ? 17 : 14) + 'px'); }
   addEventListener('resize', function () { if (W.open) wFit(); });
-  function wClose() { if (!W.el || !W.open) return false; W.open = false; W.el.hidden = true; prev.drag = null; if (W.try) { W.try = null; apply(); prev.hat = null; }
+  function wClose() { if (!W.el || !W.open) return false; W.open = false; W.el.hidden = true; W.el.classList.remove('gaSplit'); prev.drag = null; if (W.try) { W.try = null; apply(); prev.hat = null; }
     if (prev.r && prev.r.domElement.id === 'gaWCv') freeR();   // free the 2nd WebGL context for the game
     return true; }
   window.__wardrobe = { open: wOpen, close: wClose, applyRemote: function (root, lk) { dress(root, lk); }, get isOpen() { return W.open; }, get el() { return W.el; } };
