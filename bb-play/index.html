@@ -212,6 +212,7 @@ function resize(){
  s=Math.max(s,0.25);S=s;VW=vw/s;VH=vh/s;
  if(HUDSIDE){FX=(VW-FW)/2;FY=(VH-GH)/2;HX=FX-132;HY=FY;HW=124;HH=170;}
  else{FX=(VW-FW)/2;FY=port?HUDH:(VH-FH)/2+HUDH;HX=FX;HY=FY-HUDH;HW=FW;HH=HUDH;}
+ if(window.__gaTop){const o=window.__gaTop/s;if(HUDSIDE)HY=Math.max(HY,o);else if(HX*s<130){FY+=o;HY+=o;}}   // t757u: HUD below the arcade close X
  const dpr=Math.min(devicePixelRatio||1,2),bw=Math.min(Math.round(vw*dpr),2400);K=bw/VW;
  cv.width=bw;cv.height=Math.round(VH*K);cv.style.width=vw+'px';cv.style.height=vh+'px';
  const fx=FX*s,fw=FW*s,mini=document.getElementById('mini'),P=64,rm=vw-fx-fw;

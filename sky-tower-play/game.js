@@ -4,7 +4,7 @@
 // Soundtrack + laser/ticket SFX live in snd.js (WebAudio, no files).
 import * as THREE from '../vendor/three.module.js';
 import { createFace } from './face.js';
-import { createRivals } from './rivals.js';   // t753u: two players at the cabinet share the climb   // t748u: the TITAN face ("Show me what you got")
+import { createRivals } from './rivals.js';   // t753u: two players at the cabinet share the climb   // t748u: the TITAN face ("Can you make it to the top?")
 
 const N = 50, AIR_SPEED = 6.2, MIN_SEP = 10;
 const PITCH_MIN = -0.22, PITCH_MAX = 1.12;

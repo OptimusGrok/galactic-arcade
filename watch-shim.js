@@ -1,5 +1,14 @@
 // Watch / demo isolation for arcade play copies (?watch=1 or ?demo=1).
 // Memory-only storage, no score/name network posts, early __DEMO so TicketArt never pays out.
+// t757u: inside the arcade's play frame the shell's close X (+ ticket pill) sits tight in the top-left corner, so the
+// game keeps its top-left HUD below that strip: html.gaCab, CSS var --gaTop and window.__gaTop (CSS px).
+(function () {
+  try {
+    if (window.frameElement && window.frameElement.id === 'game' && window.parent && window.parent.__arcade) {
+      window.__gaTop = 46; var de = document.documentElement; de.classList.add('gaCab'); de.style.setProperty('--gaTop', '46px');
+    }
+  } catch (e) {}
+})();
 (function () {
   try {
     var q = String(location.search || '');

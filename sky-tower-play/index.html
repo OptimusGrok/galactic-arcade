@@ -64,6 +64,8 @@ body.demo #hp,body.demo #best{opacity:.35}
 #windHud.gust{border-color:#e8f8ff;box-shadow:0 0 12px #4ac8ffaa}
 #windArrow{display:inline-block;font-size:18px;line-height:1;transition:transform .15s}
 @keyframes windBlink{50%{opacity:.35}}
+/* t757u: arcade close X tight top-left: hearts + tickets sit below it */
+html.gaCab #hp{top:calc(max(8px,env(safe-area-inset-top)) + var(--gaTop))}@media (max-width:480px){html.gaCab #plat{top:calc(max(8px,env(safe-area-inset-top)) + var(--gaTop))}}html.gaCab #tixHud{top:calc(max(36px,calc(env(safe-area-inset-top) + 28px)) + var(--gaTop))}
 </style>
 </head>
 <body>

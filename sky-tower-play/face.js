@@ -1,5 +1,5 @@
 // SKY TOWER (t748u): the TITAN — a massive floating cartoon face that greets every climb with a booming
-// "Show me what you got". Original design: sunset-orange giant (t751u: wild white mad-scientist hair), big white eyes,
+// "Can you make it to the top?". Original design: sunset-orange giant (t751u: wild white mad-scientist hair), big white eyes,
 // heavy brows, round nose, rosy cheeks and a wide toothy mouth. One procedural Three.js group (~40 meshes,
 // shared geometries, Lambert), fog-free so it reads at a distance.
 // Behaviour: pops in when a real climb starts (never in the lobby / DEMO attract), floats up with the player,
@@ -11,6 +11,7 @@
 // ../sfx/sky_face_hey.mp3), even hits charge the eyes red and game.js fires a thick red laser from EACH eye at the
 // player (1 heart if it connects, dodgeable). Hits come from game.js (F.hit(prev, now) = swept laser vs head + hair).
 // t751u: wild white mad-scientist hair replaces the old teal flame crown.
+// t760u: a Viking helmet (steel dome, riveted rim, curved horns, nose guard) with the wild hair poking out under it.
 import * as THREE from '../vendor/three.module.js';
 
 const SCALE = 5.4, MIN_D = 18, D0 = 27;
@@ -31,24 +32,68 @@ export function createFace(scene) {
   add(head, sph, skin, 0, 0, 0, 1, 1.08, 0.94);
   add(head, sphLo, skinD, 0, -0.62, 0.18, 0.78, 0.42, 0.7);                   // chunky chin / jaw shadow
   [-1, 1].forEach(sd => { add(head, sphLo, skin, 1.0 * sd, 0.02, -0.05, 0.2, 0.3, 0.16); add(head, sphLo, skinD, 1.04 * sd, 0.02, 0.0, 0.1, 0.17, 0.08); });   // ears
-  // t751u wild white mad-scientist hair: a bald-ish dome with huge frizzy puffs over the ears and back, and a
-  // messy fan of upright / sideways spikes (seeded, so every climb gets the same do)
+  // t751u wild white mad-scientist hair — t760u: now under a Viking helmet, so the frizz lives where it pokes out:
+  // big puffs over the ears and the back of the neck, a messy fan of spikes bursting out under the rim at the sides /
+  // back, and a few wisps at the temples (seeded, so every climb gets the same do)
   const hairG = new THREE.Group(); hairG.name = 'skyFaceHair'; head.add(hairG);
   { let sd = 7; const rnd = () => (sd = (sd * 16807) % 2147483647) / 2147483647;
     const up = V(0, 1, 0), dir = V(0, 0, 0), q = new THREE.Quaternion();
-    // puffs: side tufts (Einstein / mad-scientist), back of the head, a wispy forelock tuft
-    [[-0.98, 0.5, -0.2, 0.42], [0.98, 0.5, -0.2, 0.42], [-1.12, 0.12, -0.3, 0.34], [1.12, 0.12, -0.3, 0.34], [-0.7, 0.85, -0.55, 0.42], [0.7, 0.85, -0.55, 0.42],
-     [0, 0.95, -0.75, 0.48], [-0.35, 1.05, -0.3, 0.36], [0.35, 1.05, -0.3, 0.36], [0, 0.45, -0.95, 0.42], [-0.8, -0.15, -0.55, 0.3], [0.8, -0.15, -0.55, 0.3]]
+    const spike = (bx, by, bz, len, w, mat) => { const c = add(hairG, cone, mat, bx + dir.x * len * 0.45, by + dir.y * len * 0.45, bz + dir.z * len * 0.45, w, len, w * (0.9 + 0.2 * rnd()));
+      q.setFromUnitVectors(up, dir); c.quaternion.copy(q); c.rotateY(rnd() * 3); return c; };
+    // puffs: side tufts (Einstein / mad-scientist) bulging out under the rim, back of the head / neck
+    [[-0.98, 0.5, -0.2, 0.42], [0.98, 0.5, -0.2, 0.42], [-1.12, 0.12, -0.3, 0.34], [1.12, 0.12, -0.3, 0.34], [0, 0.4, -0.95, 0.44], [-0.8, -0.15, -0.55, 0.3], [0.8, -0.15, -0.55, 0.3], [-0.55, 0.3, -0.85, 0.36], [0.55, 0.3, -0.85, 0.36]]
       .forEach(([x, y, z, r], i) => add(hairG, sphLo, i % 3 ? hair : hairD, x, y, z, r * (1.05 + 0.2 * rnd()), r * (0.85 + 0.2 * rnd()), r));
-    // spikes: cones fanned out from the scalp, longer at the sides / top, a few flicked forward
+    // spikes: fanned out from under the helmet rim, sides to back (never over the eyes / brows), flicking up and out
     for (let i = 0; i < 30; i++) {
-      const th = -1.45 + 2.9 * (i / 29) + (rnd() - 0.5) * 0.22, ph = 0.25 + rnd() * 0.95;   // around the head (side to side), and up/back
-      dir.set(Math.sin(th) * 1.05, Math.cos(th) * 0.9 + 0.25 * rnd(), -0.12 - 0.45 * rnd() * ph).normalize();
-      const base = V(dir.x * 0.82, 0.3 + dir.y * 0.66, dir.z * 0.6 - 0.12), len = 0.6 + 0.55 * rnd() + 0.3 * Math.abs(Math.sin(th));
-      const c = add(hairG, cone, i % 2 ? hair : hairD, base.x + dir.x * len * 0.45, base.y + dir.y * len * 0.45, base.z + dir.z * len * 0.45, 0.16 + 0.08 * rnd(), len, 0.16 + 0.08 * rnd());
-      q.setFromUnitVectors(up, dir); c.quaternion.copy(q); c.rotateY(rnd() * 3); }
-    for (let i = 0; i < 5; i++) { const x = (i - 2) * 0.17, c = add(hairG, cone, hair, x, 0.98, 0.32 - Math.abs(x) * 0.3, 0.09, 0.42 + 0.15 * rnd(), 0.09);   // frizzy forelock
-      c.rotation.set(0.75 + 0.3 * rnd(), 0, -x * 1.8 + (rnd() - 0.5) * 0.6); } }
+      const s = i % 2 ? 1 : -1, ph = 0.95 + 2.15 * rnd(), y = 0.08 + 0.5 * rnd();   // azimuth from the front (rad), height on the head
+      dir.set(s * Math.sin(ph), 0.3 + 0.65 * rnd(), Math.cos(ph) - 0.15).normalize();
+      spike(s * Math.sin(ph) * 0.9, y, Math.cos(ph) * 0.84 - 0.05, 0.5 + 0.6 * rnd() + 0.2 * Math.abs(Math.sin(ph)), 0.15 + 0.08 * rnd(), i % 3 ? hair : hairD); }
+    // temple wisps: short tufts curling out sideways from under the front of the rim
+    for (let i = 0; i < 6; i++) { const s = i % 2 ? 1 : -1, k = (i >> 1) / 2;
+      dir.set(s * (0.85 + 0.1 * rnd()), -0.05 + 0.4 * rnd(), 0.35 - 0.3 * k).normalize();
+      spike(s * (0.72 + 0.12 * k), 0.68 + 0.06 * rnd(), 0.46 - 0.22 * k, 0.32 + 0.18 * rnd(), 0.08 + 0.03 * rnd(), hair); } }
+  // t760u VIKING HELMET (original design): rounded steel dome tipped back so the rim rides above the brows at the
+  // front and drops over the hair at the back, a riveted iron rim band, a front-to-back ridge + an ear-to-ear band,
+  // two curved ivory horns in steel collars and a slim nose guard. Its own materials, so the angry red flush stays
+  // on the skin and the helmet reads the same calm or furious.
+  const helm = new THREE.Group(); helm.name = 'skyFaceHelmet'; head.add(helm);
+  { const steel = new THREE.MeshPhongMaterial({ color: 0xa7b0ba, emissive: 0x262b32, specular: 0xffffff, shininess: 70, fog: false }),
+      iron = new THREE.MeshPhongMaterial({ color: 0x6d7682, emissive: 0x1a1e24, specular: 0xc8d0d8, shininess: 45, fog: false }),
+      rivet = new THREE.MeshPhongMaterial({ color: 0xdfe5ea, emissive: 0x3a3f46, specular: 0xffffff, shininess: 90, fog: false }),
+      inner = lam(0x24262c), horn = new THREE.MeshPhongMaterial({ color: 0xf2e7c9, emissive: 0x4a3f2a, specular: 0x777060, shininess: 25, fog: false }),
+      hornTip = new THREE.MeshPhongMaterial({ color: 0x8a7a5a, emissive: 0x2a2214, specular: 0x555040, shininess: 20, fog: false });
+    const RX = 1.04, RY = 0.98, RZ = 0.9;   // dome radii
+    helm.position.set(0, 0.6, -0.05); helm.rotation.x = -0.3;
+    const dome = new THREE.SphereGeometry(1, 40, 18, 0, Math.PI * 2, 0, Math.PI / 2);
+    add(helm, dome, steel, 0, 0, 0, RX, RY, RZ);
+    add(helm, dome, new THREE.MeshLambertMaterial({ color: 0x24262c, side: THREE.BackSide, fog: false }), 0, 0, 0, RX * 0.985, RY * 0.98, RZ * 0.985);   // dark inside under the rim
+    const rimG = new THREE.TorusGeometry(1, 0.085, 10, 56); rimG.rotateX(Math.PI / 2);
+    add(helm, rimG, iron, 0, 0.02, 0, RX + 0.02, 1, RZ + 0.02);
+    const arc = new THREE.TorusGeometry(1, 0.055, 8, 32, Math.PI);   // half ring in XY (x = cos, y = sin)
+    add(helm, arc, iron, 0, 0, 0, RX + 0.012, RY + 0.012, 1);                                              // ear-to-ear band
+    const ridgeG = arc.clone(); ridgeG.rotateY(Math.PI / 2); add(helm, ridgeG, iron, 0, 0, 0, 1, RY + 0.02, RZ + 0.02);   // front-to-back ridge
+    add(helm, sphLo, iron, 0, RY + 0.01, 0, 0.12, 0.06, 0.12);                                             // crown boss
+    const rv = (x, y, z, r) => add(helm, sphLo, rivet, x, y, z, r, r, r);
+    for (let i = 0; i < 18; i++) { const a = (i / 18) * Math.PI * 2; rv(Math.sin(a) * (RX + 0.1), 0.02, Math.cos(a) * (RZ + 0.1), 0.045); }   // rim rivets
+    for (const a of [0.42, 0.8, 1.18, Math.PI - 1.18, Math.PI - 0.8, Math.PI - 0.42]) {                     // band + ridge rivets
+      rv(Math.cos(a) * (RX + 0.06), Math.sin(a) * (RY + 0.06), 0, 0.035); rv(0, Math.sin(a) * (RY + 0.06), Math.cos(a) * (RZ + 0.06), 0.035); }
+    // horns: tapered tubes along a curve (out, then sweeping up and a touch forward), steel collar at the root
+    const hornPath = sd => new THREE.CatmullRomCurve3([V(0.88 * sd, 0.3, 0.06), V(1.28 * sd, 0.46, 0.14), V(1.58 * sd, 0.82, 0.24), V(1.66 * sd, 1.28, 0.34), V(1.56 * sd, 1.62, 0.4)]);
+    const taper = (path, r0, r1, segs, rad) => { const g = new THREE.TubeGeometry(path, segs, 1, rad, false), P = g.attributes.position, c = V(0, 0, 0), v = V(0, 0, 0);
+      for (let i = 0; i <= segs; i++) { const u = i / segs, rr = r0 + (r1 - r0) * Math.pow(u, 0.9); path.getPointAt(u, c);
+        for (let j = 0; j <= rad; j++) { const k = i * (rad + 1) + j; v.fromBufferAttribute(P, k).sub(c).multiplyScalar(rr).add(c); P.setXYZ(k, v.x, v.y, v.z); } }
+      g.computeVertexNormals(); return g; };
+    [-1, 1].forEach(sd => { const path = hornPath(sd);
+      add(helm, taper(path, 0.2, 0.05, 28, 12), horn);
+      const tip = add(helm, cone, hornTip, 0, 0, 0, 0.1, 0.22, 0.1); const e = path.getPointAt(1), t = path.getTangentAt(1);
+      tip.position.copy(e).addScaledVector(t, 0.09); tip.quaternion.setFromUnitVectors(V(0, 1, 0), t);
+      const col = add(helm, new THREE.TorusGeometry(0.2, 0.06, 8, 20), iron, 0, 0, 0); const b = path.getPointAt(0.06), bt = path.getTangentAt(0.06);
+      col.position.copy(b); col.quaternion.setFromUnitVectors(V(0, 0, 1), bt);
+      [0, 1, 2, 3].forEach(i => { const a = i * Math.PI / 2 + 0.4, o = V(Math.cos(a), Math.sin(a), 0).multiplyScalar(0.25).applyQuaternion(col.quaternion); rv(b.x + o.x, b.y + o.y, b.z + o.z, 0.03); }); });
+    // nose guard: slim iron strip from the rim down between the eyes, flared tip (head space, so it sits on the face)
+    const ng = add(head, new THREE.BoxGeometry(0.12, 0.5, 0.06), iron, 0, 0.6, 0.86); ng.rotation.x = -0.2; ng.name = 'skyFaceNoseGuard';
+    const ngT = add(head, new THREE.BoxGeometry(0.17, 0.08, 0.065), iron, 0, 0.36, 0.91); ngT.rotation.x = -0.2;
+    add(head, sphLo, rivet, 0, 0.74, 0.9, 0.035, 0.035, 0.035); add(head, sphLo, rivet, 0, 0.5, 0.94, 0.03, 0.03, 0.03); }
   // eyes: white balls with blue iris + pupil on a pivot that aims at the player
   const eyes = [], brows = [];
   [-1, 1].forEach(sd => {
@@ -82,11 +127,11 @@ export function createFace(scene) {
   pow.visible = false; pow.renderOrder = 6; scene.add(pow);
   const _a = V(0, 0, 0), _b = V(0, 0, 0), _c = V(0, 0, 0);
   // hit volumes in head-local units (before SCALE): skull (+ears, nose) and the flame crown
-  const VOLS = [{ c: V(0, -0.04, 0.04), r: V(1.18, 1.16, 1.06) }, { c: V(0, 0.72, -0.32), r: V(1.62, 1.08, 1.12) }];   // skull, wild hair mass
+  const VOLS = [{ c: V(0, -0.04, 0.04), r: V(1.18, 1.16, 1.06) }, { c: V(0, 0.72, -0.32), r: V(1.62, 1.08, 1.12) }, { c: V(0, 1.45, -0.12), r: V(1.85, 0.62, 0.6) }];   // skull, wild hair mass + helmet, Viking horns
   function inside(q) { for (const v of VOLS) { const x = (q.x - v.c.x) / v.r.x, y = (q.y - v.c.y) / v.r.y, z = (q.z - v.c.z) / v.r.z; if (x * x + y * y + z * z <= 1) return true; } return false; }
 
   const F = {
-    root, head, mouth, eyes, brows, hair: hairG, on: false, shown: false, t: 0, pop: 0, appearAt: -1, spoke: 0, speakT: -1, speaking: false, open: 0,
+    root, head, mouth, eyes, brows, hair: hairG, helmet: helm, on: false, shown: false, t: 0, pop: 0, appearAt: -1, spoke: 0, speakT: -1, speaking: false, open: 0,
     dist: 0, yaw: 0, side: 1, leave: 0, env: null, envDt: 0.03, lookErr: 0, eyeErr: 0, runs: 0,
     ang: 0, angryT: 0, hits: 0, heys: 0, heyBlocked: 0, lastHit: -1e9, cycle: 0, beams: 0, charge: 0, glowT: 0, onBeam: null, line: '', shake: 0, powT: 0, hitPos: null, lastAct: '',
     SCALE, MIN_D, D0, ANGRY_T, HIT_DEBOUNCE, CHARGE_T, VOLS,
@@ -157,7 +202,7 @@ export function createFace(scene) {
       if (F.speakT >= 0) { F.speakT -= dt; if (F.speakT < 0) { F.speakT = -1; F.say(); } }
       let o = 0.06 + 0.04 * Math.sin(F.t * 1.7);
       if (F.speaking) { F.sayK += dt; const k = F.sayK; const i = Math.floor(k / F.envDt);   // game time (pauses with the game; ~real time while playing)
-        const mime = F.line === 'hey' ? 1.3 : 2.6;
+        const mime = F.line === 'hey' ? 1.3 : 2.4;
         if (F.env && i < F.env.length) o = F.env[i]; else if (!F.env && k < mime) o = 0.5 + 0.5 * Math.abs(Math.sin(k * 7.5)); else { F.speaking = false; F.line = ''; } }
       // anger: snaps in, holds ANGRY_T after the last hit, then eases back
       if (F.angryT > 0) { F.angryT -= dt; F.ang += (1 - F.ang) * (1 - Math.exp(-dt * 16)); } else F.ang += (0 - F.ang) * (1 - Math.exp(-dt * 2.6));

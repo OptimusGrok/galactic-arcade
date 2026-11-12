@@ -2440,6 +2440,7 @@ const App = {
     const k = cssW / W; this.view = { left, top, w: cssW, h: cssH, scale: k, oy: this.oy };
     const sa = document.getElementById('sa'); let si = { t: 0, r: 0, b: 0, l: 0 };
     if (sa) { const cs = getComputedStyle(sa), px = v => (parseFloat(v) || 0); si = { t: px(cs.paddingTop), r: px(cs.paddingRight), b: px(cs.paddingBottom), l: px(cs.paddingLeft) }; }
+    si.t += window.__gaTop || 0;   // t757u: HUD (and < TITLE) below the arcade close X
     this.safe = { t: Math.ceil((si.t - top) / k), r: Math.ceil((si.r - left) / k), b: Math.ceil((si.b - top) / k), l: Math.ceil((si.l - left) / k) };
     this.hudR = this.touchMode ? Math.ceil(46 / k) : 0;
     if (this.scene && this.scene.kind === 'level') this.scene.snapCam();

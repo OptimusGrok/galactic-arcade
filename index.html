@@ -88,7 +88,7 @@ body.ingame #ui{top:calc(max(10px,env(safe-area-inset-top)) + 58px)}
 #hint{font:600 11px system-ui;color:#fff8;letter-spacing:.06em}
 #game{position:fixed;inset:0;width:100vw;height:100vh;height:100dvh;border:0;z-index:20;background:#000;opacity:0;transition:opacity .45s ease}
 #game.on{opacity:1}
-#bExit{position:fixed;top:calc(max(10px,env(safe-area-inset-top)) + 54px);left:max(8px,env(safe-area-inset-left));z-index:24;width:38px;height:38px;border-radius:50%;border:1px solid #fff5;background:#000a;color:#fff;font:700 18px system-ui;display:none;cursor:pointer}
+#bExit{position:fixed;top:max(4px,env(safe-area-inset-top));left:max(4px,env(safe-area-inset-left));z-index:24;width:38px;height:38px;border-radius:50%;border:1px solid #fff5;background:#000a;color:#fff;font:700 18px system-ui;display:none;cursor:pointer}
 #over{position:fixed;inset:0;z-index:22;display:none;align-items:center;justify-content:center;font:900 clamp(34px,8vw,64px) 'Courier New',monospace;color:#ff3b3b;text-shadow:0 0 14px #ff2050;background:#0008;letter-spacing:.1em}
 #tix{position:fixed;top:max(8px,env(safe-area-inset-top));left:max(8px,env(safe-area-inset-left));z-index:23;font:700 13px 'Courier New',monospace;color:#ffe08a;background:#0a0612cc;border:1px solid #ffb00066;border-radius:8px;padding:5px 9px;letter-spacing:.08em;text-shadow:0 0 6px #ffb000;cursor:pointer;display:flex;align-items:center;gap:6px;touch-action:none;user-select:none;-webkit-user-select:none}
 #lavaFx{position:fixed;inset:0;z-index:30;pointer-events:none;opacity:0;background:radial-gradient(circle at 50% 62%,#ffb02088,#ff4a0a66 45%,#80100044 80%)}
@@ -129,13 +129,10 @@ body.ingame #flBtn,body.ingame #wdBtn{display:none}
 #opt.game #optNote{display:block}
 #optNote.need{color:#ff5a6e;animation:shk .35s}
 @keyframes shk{25%{transform:translateX(-6px)}75%{transform:translateX(6px)}}
-#tix.ingame{top:calc(max(10px,env(safe-area-inset-top)) + 100px);opacity:.85}
+body.ingame #turnHint{top:calc(max(8px,env(safe-area-inset-top)) + 46px)}#tix.ingame{top:calc(max(4px,env(safe-area-inset-top)) + 5px);left:calc(max(4px,env(safe-area-inset-left)) + 46px);opacity:.85}   /* t757u: close X tight top-left, ticket pill beside it; games keep their HUD below this 46px strip (watch-shim.js: html.gaCab / --gaTop) */
 #vix{position:fixed;box-sizing:border-box;top:max(8px,env(safe-area-inset-top));left:calc(max(8px,env(safe-area-inset-left)) + 112px);z-index:23;font:700 13px 'Courier New',monospace;color:#e2e8ee;background:#0a0612cc;border:1px solid #c8a06a88;border-radius:8px;padding:5px 9px;display:flex;align-items:center;gap:6px;cursor:pointer;text-shadow:0 0 6px #c8a06a}
 #vix.ingame{opacity:.85}
 /* BERSERKER: its level / wave text runs under the top-left, so the close button + counters sit below it */
-body[data-cab=berserker] #bExit{top:calc(max(10px,env(safe-area-inset-top)) + 92px)}body[data-cab=berserker] #tix.ingame{top:calc(max(10px,env(safe-area-inset-top)) + 138px)}
-body[data-cab=roadster] #bExit{top:calc(max(10px,env(safe-area-inset-top)) + 92px)}
-body[data-cab=roadster] #tix.ingame{top:calc(max(10px,env(safe-area-inset-top)) + 138px)}
 #dCost{font:900 clamp(14px,3.6vw,20px)/1 'Courier New',monospace;color:#ffe08a;letter-spacing:.12em;text-shadow:0 0 8px #ffb000;background:#0009;padding:6px 10px;border-radius:8px}
 .ntoast{position:fixed;left:50%;bottom:22%;transform:translateX(-50%);z-index:45;font:900 16px 'Courier New',monospace;color:#fff;background:#a01010e6;border:2px solid #ffb0a0;border-radius:10px;padding:10px 16px;letter-spacing:.08em;pointer-events:none;white-space:nowrap}
 .vpop{position:fixed;left:50%;top:42%;transform:translate(-50%,-50%);z-index:46;display:flex;flex-direction:column;align-items:center;gap:10px;pointer-events:none;animation:vpop 3.2s ease-out forwards}
