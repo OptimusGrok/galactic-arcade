@@ -3,6 +3,7 @@
 // (parent.__neonTicket) while a real credit is running; never in DEMO / WATCH.
 // Soundtrack + laser/ticket SFX live in snd.js (WebAudio, no files).
 import * as THREE from '../vendor/three.module.js';
+import { createFace } from './face.js';   // t748u: the TITAN face ("Show me what you got")
 
 const N = 50, AIR_SPEED = 6.2, MIN_SEP = 10;
 const PITCH_MIN = -0.22, PITCH_MAX = 1.12;
@@ -503,6 +504,7 @@ const windLines = [];
   for (let i = 0; i < 14; i++) { const L = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.08, 1.6), m); L.visible = false; scene.add(L); windLines.push(L); } }
 
 const player = (readChar() === 'alien' ? makeAlien() : makeMonkey());
+const face = createFace(scene);
 scene.add(player);
 const flyFx = [];
 player.traverse(o => { if (o.name === 'gaThruster') flyFx.push(o); });
@@ -1335,6 +1337,7 @@ function step(dt) {
   updateCombat(dt);
   animatePlayer(dt);
   updateCamera(dt);
+  face.update(dt, { pos: player.position, camYaw: G.camYaw, won: G.won, hold: G.hold });
   setSky(dt);
   hud();
 }
@@ -1442,18 +1445,20 @@ function startRun() {
   window.__DEMO = false; D.on = false; document.body.classList.remove('demo');
   G.mode = 'play'; G.run = true; G.over = false; G.won = false;
   resetWorld(false); showBanner('FLY UP!');
+  face.start({ pos: player.position, camYaw: G.camYaw });   // the TITAN pops in and booms its line
   if (window.__skySnd) window.__skySnd.unlock();
 }
 function startDemo() {
   window.__DEMO = true; D.on = true; D.runs++; document.body.classList.add('demo');
   G.mode = 'play'; G.run = false; G.over = false; G.won = false;
+  face.stop();   // attract mode: no TITAN
   resetWorld(false);
   if (window.__skySnd) window.__skySnd.unlock();
 }
 function stopDemo() {
   D.on = false; window.__DEMO = false; document.body.classList.remove('demo');
   G.flyHeld = G.fireHeld = false; G.ix = G.iz = 0;
-  if (!G.run) { G.mode = 'title'; resetWorld(false); }
+  if (!G.run) { G.mode = 'title'; face.stop(); resetWorld(false); }
 }
 
 const D = { on: false, runs: 0, start: startDemo, stop: stopDemo };
@@ -1538,6 +1543,7 @@ const api = {
   unhold() { G.hold = false; },
   get ready() { return true; },
   get snd() { return window.__skySnd || null; },
+  face,
   PAD, WIND, shapeOf, dimsOf, windGust, updateWind, windAccelAt, drawWind, heightK, get wind() { return G.wind; },
   SKY, levelAt, nightAt, setSky, skyDome, get sky() { return G.sky; }, moon, moonL, sun, hemi, stars,
   N, R, PH, FLY, AIR_SPEED, MIN_SEP, PITCH_MIN, PITCH_MAX, RUN_CAP, FLY_TICKETS, FLY_TICKET_VALUE, GUN_AIM_TIME, GUN_REST, GUN_AIM, poseMonkeyGun, gunBarrelDir, tickets, collectFlyTicket, resetFlyTickets, spawnFlyTickets, sizeOf, offsetOf, yOf, isCheck, isSlider, hopFuel, gapYOf, gapXZOf, lookDrag, updateCamera, updateSlides, TK, D, G, player, platforms, lasers, aliens, shots, earth, world: scene, camera, renderer,

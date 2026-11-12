@@ -56,6 +56,7 @@
     const AC = global.AudioContext || global.webkitAudioContext;
     if (!AC) return null;
     ac = new AC();
+    setTimeout(() => { try { decodeVoice(); } catch (e) {} }, 0);
     master = ac.createGain(); master.gain.value = 1;
     musicG = ac.createGain(); musicG.gain.value = 0;
     sfxG = ac.createGain(); sfxG.gain.value = 0.72;
@@ -302,8 +303,9 @@
     if (!ac) return;
     const t = ac.currentTime;
     if (sfxG) sfxG.gain.setTargetAtTime(muted() ? 0 : 0.72, t, 0.05);
+    if (voiceG && muted()) voiceG.gain.setTargetAtTime(0, t, 0.03);   // MUTE mid-line silences the TITAN too
     if (musicG && S.playing) {
-      const vol = musicOn() && visible() && inCabinet() ? MusicVol : 0;
+      const vol = musicOn() && visible() && inCabinet() ? MusicVol * (voiceSrc ? 0.4 : 1) : 0;   // ducked under the TITAN's line
       musicGain((p, k) => p.setTargetAtTime(vol * k, t, 0.12));
     }
   }
@@ -420,6 +422,43 @@
     src.start(t); src.stop(t + 2.0);
     return true;
   }
+  // t748u TITAN voice: "Show me what you got" — a shipped, pre-rendered booming take (../sfx/sky_face.mp3, deep voice +
+  // sub-octave layer + short hall echo, peak ~-1 dB) played once per climb through its own gain. MUTE = silent (counted).
+  // voiceEnv = loudness per 30 ms (0..1) so the face's mouth moves with the words (also when muted).
+  const VoiceVol = 0.95;
+  let voiceBuf = null, voiceRaw = null, voiceG = null, voiceSrc = null, voicePend = 0;
+  S.voicePlays = 0; S.voiceMuted = 0; S.voiceEnv = null; S.voiceDur = 0; S.voiceErr = '';
+  try { fetch('../sfx/sky_face.mp3').then(r => r.ok ? r.arrayBuffer() : Promise.reject(new Error('http ' + r.status))).then(b => { voiceRaw = b; decodeVoice(); }).catch(e => { S.voiceErr = String(e && e.message || e); }); } catch (e) { S.voiceErr = 'fetch'; }
+  function decodeVoice() {
+    if (voiceBuf || !voiceRaw) return;
+    const done = buf => { voiceBuf = buf; S.voiceDur = buf.duration; const d = buf.getChannelData(0), n = Math.round(buf.sampleRate * 0.03), env = []; let mx = 0;
+      for (let i = 0; i < d.length; i += n) { let q = 0; const e = Math.min(d.length, i + n); for (let j = i; j < e; j++) q += d[j] * d[j]; const v = Math.sqrt(q / Math.max(1, e - i)); env.push(v); if (v > mx) mx = v; }
+      S.voiceEnv = env.map(v => Math.min(1, Math.pow(v / (mx || 1), 0.7) * 1.1));
+      if (voicePend && performance.now() - voicePend < 4000) { voicePend = 0; voice(); } };
+    try {
+      const raw = voiceRaw.slice(0);
+      if (ac) { const p = ac.decodeAudioData(raw, done, () => { S.voiceErr = 'decode'; }); if (p && p.catch) p.catch(() => {}); return; }
+      const OAC = global.OfflineAudioContext || global.webkitOfflineAudioContext;   // decode early, before the first gesture
+      if (OAC) { const o = new OAC(1, 44100, 44100); const p = o.decodeAudioData(raw, done, () => { S.voiceErr = 'decode'; }); if (p && p.catch) p.catch(() => {}); }
+    } catch (e) { S.voiceErr = 'decode'; }
+  }
+  function voice() {
+    if (muted()) { S.voiceMuted++; return false; }
+    if (!ensure()) return false;
+    if (ac.state === 'suspended') { const p = ac.resume(); if (p && p.catch) p.catch(() => {}); }
+    if (!voiceBuf) { voicePend = performance.now(); decodeVoice(); return false; }   // plays as soon as it is decoded (if within 4 s)
+    if (!voiceG) { voiceG = ac.createGain(); voiceG.connect(master); }
+    if (voiceSrc) { try { voiceSrc.stop(); } catch (e) {} }
+    const t = ac.currentTime, src = ac.createBufferSource(); src.buffer = voiceBuf; src.connect(voiceG);
+    voiceG.gain.cancelScheduledValues(t); voiceG.gain.setValueAtTime(VoiceVol, t);
+    src.start(t); voiceSrc = src; src.onended = () => { if (voiceSrc === src) voiceSrc = null; applyGains(); }; applyGains();
+    S.voicePlays++;
+    return true;
+  }
+  S.voice = voice;
+  Object.defineProperty(S, 'voiceReady', { get: () => !!voiceBuf });
+  Object.defineProperty(S, 'voiceGain', { get: () => (voiceG ? voiceG.gain.value : 0) });
+  Object.defineProperty(S, 'voiceOn', { get: () => !!voiceSrc });
   S.whoosh = whoosh;
   S.unlock = unlock;
   S.start = start;
