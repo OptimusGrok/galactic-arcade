@@ -163,6 +163,8 @@ body.touch .opt{min-height:44px}body.touch .opt input[type=checkbox]{width:26px;
 #obj{left:calc(96px + var(--sl))!important;max-width:calc(100vw - 236px)!important}   /* clear of the arcade home + ticket chips */
 #bRetry,#bDeathQuit,#bRestart,#bQuit,#bEndCredits{display:none!important}
 html.dsDemo .menu,html.dsDemo .btn,html.dsDemo button,html.dsDemo #rotate{visibility:hidden!important}
+/* t757u: below the arcade close X */
+html.gaCab body.touch #hpBox,html.gaCab body.touch #arBox,html.gaCab body.touch #batBox{top:calc(8px + var(--st) + var(--gaTop))}html.gaCab #obj{top:calc(12px + var(--st) + var(--gaTop))}html.gaCab body.touch #obj{top:calc(58px + var(--st) + var(--gaTop))}
 </style></head>
 <body>
 <canvas id="view"></canvas>
