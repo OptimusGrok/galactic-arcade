@@ -2,6 +2,7 @@
 // node test/landscape.js
 const { open } = require('./lib');
 const fs = require('fs');
+const SH = process.env.NOSHOTS ? 0 : 1;
 const START = '/workspace/artifacts/landscape_start.png';
 const GAME = '/workspace/artifacts/landscape_game.png';
 let ok = true;
@@ -50,7 +51,7 @@ const fit = () => {
   await page.waitForTimeout(2300);
   const named = await page.evaluate(fit);
   chk(named.go && named.bad.length === 0 && named.scroll <= 4, 'a valid name shows Play inside the landscape screen', named);
-  await page.screenshot({ path: START });
+  if (SH) await page.screenshot({ path: START });
 
   const orient = await page.evaluate(async () => { window.__wantWide(); await new Promise(r => setTimeout(r, 50)); return { lock: window.__arcade.st.orientLock || '', w: innerWidth, h: innerHeight }; });
   chk(orient.lock !== 'ok' || orient.w > orient.h, 'orientation lock is not reported as working unless the view is actually landscape', orient);
@@ -120,7 +121,7 @@ const fit = () => {
   console.log('speeds', JSON.stringify(speeds));
   chk(speeds.short.vmax > 0.8 && speeds.short.vmax < speeds.mid.vmax && speeds.mid.vmax < speeds.long.vmax && speeds.long.vmax <= 5.21 && speeds.long.vmax > 5, 'short, medium and long drags raise speed up to the sprint cap', speeds);
   chk(speeds.short.sp < speeds.mid.sp && speeds.mid.sp < speeds.long.sp && speeds.long.sp <= 5.25, 'the body actually moves faster as the drag gets longer', speeds);
-  chk(speeds.long.line && speeds.long.past, 'the dotted line reaches past the base while the thumb stays inside', speeds.long);
+  chk(speeds.long.line && !speeds.long.past && speeds.long.reach <= speeds.R + 1, 'the dotted line stays inside the joystick circle even when the finger is past the rim', speeds.long);
   chk(!speeds.released.on && !speeds.released.line && speeds.stopped.sp < 0.25, 'release clears the stick and the line and the walk stops', { released: speeds.released, stopped: speeds.stopped });
   chk(!speeds.cancelled.on && !speeds.cancelled.line, 'a cancelled touch clears the stick', speeds.cancelled);
   chk(speeds.both.joy && speeds.both.sp > 1 && Math.abs(speeds.both.dyaw) > 0.05 && speeds.jumped, 'a second finger can turn the camera and a right-side tap still jumps', speeds.both);
@@ -136,7 +137,7 @@ const fit = () => {
     A.monkey.position.set(0, 0, 2); A.st.yaw = 0; A.st.pitch = 0.22; A.st.fp = false; A.simPause(false);
   });
   await page.waitForFunction(() => window.__arcade.stats.frames > 4, null, { timeout: 15000 });
-  await page.screenshot({ path: GAME });
+  if (SH) await page.screenshot({ path: GAME });
   await page.evaluate(() => window.__arcade.simPause(true));
 
   const fly = await page.evaluate(() => {
@@ -176,6 +177,6 @@ const fit = () => {
   chk(man === 'landscape', 'installed app asks for landscape', man);
   await d.close();
 
-  chk(fs.existsSync(START) && fs.statSync(START).size > 8000 && fs.existsSync(GAME) && fs.statSync(GAME).size > 8000, 'screenshots written');
+  if (SH) chk(fs.existsSync(START) && fs.statSync(START).size > 8000 && fs.existsSync(GAME) && fs.statSync(GAME).size > 8000, 'screenshots written');
   process.exit(ok ? 0 : 1);
 })().catch(e => { console.error(e); process.exit(1); });
