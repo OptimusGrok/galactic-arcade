@@ -699,7 +699,7 @@ const { open } = require('./lib'); const { helpers } = require('./cabflow');
     const runA = A1.log, runB = B1.log;
     const pats = new Set(A1.pats.concat(B1.pats, run1.pats)).size;
     // high up (the game feeds height into the music every frame): only the sparse rhythms
-    S.G.check = 1; S.placeOn(47); S.G.hold = false; S.step(1 / 30);
+    S.G.check = 1; S.placeOn(S.N); S.G.hold = false; S.step(1 / 30);
     const H1 = await fresh(10000), hiPats = H1.pats, hiSpace = snd.space;
     S.G.check = 1; S.placeOn(1); S.G.hold = false; S.step(1 / 30);
     T.bass.disconnect(an); T.master.disconnect(an2);

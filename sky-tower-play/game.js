@@ -986,15 +986,15 @@ function bump(dx, dz, force) {
   G.vx += (dx / L) * force; G.vz += (dz / L) * force; G.vy = Math.max(G.vy, 1.1);
 }
 
+// t788u: charged beam is blue for the monkey, red for the alien — not hoodie / suit colours
+const BEAM_COL = { monkey: { a: 0x2f8cff, b: 0x0a3cff }, alien: { a: 0xff2a33, b: 0xff4018 } };
 function playerCols() {
   let lk = null;
   try { if (window.parent && window.parent !== window && window.parent.__gaPlayer && window.parent.__gaPlayer.look) lk = window.parent.__gaPlayer.look(); } catch (e) {}
   if (!lk) { try { lk = JSON.parse(localStorage.getItem('galacticarcade.player') || '{}'); } catch (e) { lk = {}; } }
-  const char = lk.char || (player.userData && player.userData.char) || 'monkey';
-  const HOOD = { navy: [0x1d2452, 0x141a3a], red: [0xd42a2a, 0x7a1414], blue: [0x2b62e8, 0x173a8a], green: [0x2fae3a, 0x16601c], yellow: [0xf2c418, 0x9a7a08], purple: [0x7a2bd6, 0x46137f], pink: [0xff5fb4, 0xb02a72], orange: [0xff7a1a, 0xa8460a], teal: [0x13b8a8, 0x0a6b62], black: [0x202026, 0x0c0c10], white: [0xe8eaf0, 0xa9adb8], galaxy: [0x2a1470, 0x160a40], lime: [0x86e02a, 0x4a8a10], maroon: [0x6e1430, 0x3c0818], sky: [0x6cc8ff, 0x2a7ab8] };
-  const SUIT = { suitgrey: [0x5a636e, 0x6a3a9a], suitred: [0xb3222f, 0x2b1a3e], suitgold: [0xc9971f, 0x6a3a9a], suitteal: [0x138a8a, 0x6a3a9a], suitwhite: [0xdfe4ea, 0x6a3a9a], suitblack: [0x22252b, 0x8a3ad0] };
-  if (char === 'alien') { const su = SUIT[lk.suit] || SUIT.suitgrey; return { a: su[0], b: su[1], char: 'alien' }; }
-  const ho = HOOD[lk.hoodie || 'navy'] || HOOD.navy; return { a: ho[0], b: ho[1], char: 'monkey' };
+  const char = (lk && lk.char) || (player.userData && player.userData.char) || 'monkey';
+  const c = BEAM_COL[char === 'alien' ? 'alien' : 'monkey'];
+  return { a: c.a, b: c.b, char: char === 'alien' ? 'alien' : 'monkey' };
 }
 function muzzlePos() {
   player.updateMatrixWorld(true);
@@ -1014,6 +1014,38 @@ function updateChargeBall(k) {
   chargeBall.visible = k > 0.02; chargeBall.position.copy(o); chargeBall.scale.setScalar(0.45 + k * 2.2); chargeBall.material.opacity = 0.35 + k * 0.6;
   chargeBall.material.color.setHex(k > 0.7 ? playerCols().a : 0xffe14a);
 }
+function addBeamEnergy(g, len, col) {
+  const en = new THREE.Group(); en.name = 'beamEnergy';
+  const ringMat = basic(col.a, { transparent: true, opacity: 0.9, depthWrite: false, blending: THREE.AdditiveBlending });
+  const sparkMat = basic(0xffffff, { transparent: true, opacity: 0.85, depthWrite: false, blending: THREE.AdditiveBlending });
+  const rings = [], sparks = [];
+  for (let i = 0; i < 6; i++) {
+    const r = new THREE.Mesh(new THREE.TorusGeometry(CHARGE_BEAM_R * 1.35, 0.04, 6, 16), ringMat);
+    r.position.z = (i / 6) * len; r.renderOrder = 6; en.add(r); rings.push(r);
+  }
+  for (let i = 0; i < 16; i++) {
+    const s = new THREE.Mesh(new THREE.SphereGeometry(0.055, 6, 6), sparkMat.clone());
+    s.userData.u = i / 16; s.renderOrder = 7; en.add(s); sparks.push(s);
+  }
+  g.add(en);
+  return { group: en, rings, sparks, t: 0, len };
+}
+function tickBeamEnergy(beam, dt) {
+  const e = beam && beam.energy; if (!e) return;
+  e.t += dt;
+  for (let i = 0; i < e.rings.length; i++) {
+    const r = e.rings[i];
+    r.position.z = ((e.t * 18 + i * (e.len / e.rings.length)) % e.len);
+    r.rotation.z = e.t * 9 + i;
+    r.scale.setScalar(0.82 + 0.28 * Math.sin(e.t * 11 + i));
+  }
+  for (let i = 0; i < e.sparks.length; i++) {
+    const s = e.sparks[i], u = (s.userData.u + e.t * 0.75) % 1, ang = u * Math.PI * 8 + e.t * 7;
+    const rad = CHARGE_BEAM_R * 1.1 + 0.12 * Math.sin(e.t * 16 + i * 1.7);
+    s.position.set(Math.cos(ang) * rad, Math.sin(ang) * rad, u * e.len);
+    if (s.material) s.material.opacity = 0.35 + 0.65 * Math.abs(Math.sin(e.t * 22 + i));
+  }
+}
 function startChargeBeam() {
   const col = playerCols(), { o, dir } = muzzlePos();
   const g = new THREE.Group(); g.name = 'skyChargeBeam';
@@ -1022,7 +1054,8 @@ function startChargeBeam() {
   const c = new THREE.Mesh(new THREE.CylinderGeometry(CHARGE_BEAM_R, CHARGE_BEAM_R, CHARGE_BEAM_LEN, 12, 1, true), core);
   const gl = new THREE.Mesh(new THREE.CylinderGeometry(CHARGE_BEAM_R * 2.1, CHARGE_BEAM_R * 2.1, CHARGE_BEAM_LEN, 12, 1, true), glow);
   [c, gl].forEach(m => { m.rotation.x = Math.PI / 2; m.position.z = CHARGE_BEAM_LEN / 2; m.renderOrder = 5; g.add(m); });
-  scene.add(g); G.beam = { mesh: g, cols: col, lastHit: -1 }; G.beamT = BEAM_T; hideChargeBall(); setChg(1);
+  scene.add(g); G.beam = { mesh: g, cols: col, lastHit: -1, energy: addBeamEnergy(g, CHARGE_BEAM_LEN, col) }; G.beamT = BEAM_T; hideChargeBall(); setChg(1);
+  if (window.__skySnd && window.__skySnd.chargeStop) window.__skySnd.chargeStop();
   if (player.userData.char === 'monkey') { G.gunAimT = GUN_AIM_TIME; G.gunAim = 1; poseMonkeyGun(1); }
   else { G.orbFlash = 0.2; }
   if (window.__skySnd) window.__skySnd.zap(col.char === 'alien' ? 'red' : 'cyan');
@@ -1151,16 +1184,18 @@ function updateCombat(dt) {
   if (window.__DEMO) {
     if (G.fireHeld && G.cooldown <= 0) fire();
   } else if (G.beam) {
-    G.beamT -= dt; const p = placeChargeBeam(); if (p) chargeBeamHits(p.o, p.tip); if (G.beamT <= 0) endChargeBeam();
+    G.beamT -= dt; const p = placeChargeBeam(); if (p) chargeBeamHits(p.o, p.tip); tickBeamEnergy(G.beam, dt); if (G.beamT <= 0) endChargeBeam();
     if (player.userData.char === 'monkey' && G.gunAimT < 0.08) G.gunAimT = GUN_AIM_TIME;
   } else if (G.fireHeld) {
-    if (!G.charging) { G.charging = true; G.charge = 0; G.chargeSpent = false; }
+    if (!G.charging) { G.charging = true; G.charge = 0; G.chargeSpent = false; if (window.__skySnd && window.__skySnd.chargeStart) window.__skySnd.chargeStart(); }
     if (!G.chargeSpent) {
       G.charge += dt; const ck = Math.min(1, G.charge / CHARGE_T); setChg(ck); updateChargeBall(ck);
+      if (window.__skySnd && window.__skySnd.chargeTick) window.__skySnd.chargeTick(ck);
       if (player.userData.char === 'monkey' && G.gunAimT < 0.08) { G.gunAimT = GUN_AIM_TIME; }
       if (G.charge >= CHARGE_T) { G.chargeSpent = true; startChargeBeam(); }
     }
   } else if (G.charging) {
+    if (window.__skySnd && window.__skySnd.chargeStop) window.__skySnd.chargeStop();
     if (!G.chargeSpent && !G.beam) fire({ k: Math.min(0.999, G.charge / CHARGE_T), fromRelease: true });
     G.charging = false; G.charge = 0; setChg(0); hideChargeBall();
   }

@@ -492,6 +492,54 @@
   Object.defineProperty(S, 'voiceLine', { get: () => (voiceSrc ? voiceLine : '') });
   Object.defineProperty(S, 'voiceGain', { get: () => (voiceG ? voiceG.gain.value : 0) });
   Object.defineProperty(S, 'voiceOn', { get: () => !!voiceSrc });
+
+  // t788u: rising charge-up tone while FIRE is held; stops on release or when the beam starts. MUTE silences it (SFX bus).
+  let chOsc = null, chOsc2 = null, chFilt = null, chGain = null;
+  S.chargeStarts = 0; S.chargeStops = 0; S.chargeOn = false; S.chargeHz = 0;
+  function chargeStop() {
+    if (!chGain && !chOsc) { S.chargeOn = false; S.chargeHz = 0; return; }
+    try {
+      if (ac) {
+        const t = ac.currentTime, v = (chGain && chGain.gain.value) || 0.0001;
+        if (chGain) { chGain.gain.cancelScheduledValues(t); chGain.gain.setValueAtTime(Math.max(0.0001, v), t); chGain.gain.exponentialRampToValueAtTime(0.0001, t + 0.05); }
+        if (chOsc) chOsc.stop(t + 0.06);
+        if (chOsc2) chOsc2.stop(t + 0.06);
+      }
+    } catch (e) {}
+    chOsc = chOsc2 = chFilt = chGain = null; S.chargeOn = false; S.chargeHz = 0; S.chargeStops++;
+  }
+  function chargeStart() {
+    chargeStop();
+    if (muted() || !ensure()) return false;
+    if (ac.state === 'suspended') { const p = ac.resume(); if (p && p.catch) p.catch(() => {}); }
+    try {
+      const t = ac.currentTime;
+      chGain = ac.createGain(); chGain.gain.setValueAtTime(0.0001, t); chGain.gain.exponentialRampToValueAtTime(0.05, t + 0.06);
+      chFilt = ac.createBiquadFilter(); chFilt.type = 'bandpass'; chFilt.frequency.value = 700; chFilt.Q.value = 4;
+      chOsc = ac.createOscillator(); chOsc.type = 'sawtooth'; chOsc.frequency.setValueAtTime(180, t);
+      chOsc2 = ac.createOscillator(); chOsc2.type = 'sine'; chOsc2.frequency.setValueAtTime(360, t);
+      chOsc.connect(chFilt); chOsc2.connect(chFilt); chFilt.connect(chGain); chGain.connect(sfxG);
+      chOsc.start(t); chOsc2.start(t);
+      S.chargeOn = true; S.chargeHz = 180; S.chargeStarts++;
+    } catch (e) { chOsc = chOsc2 = chFilt = chGain = null; return false; }
+    return true;
+  }
+  function chargeTick(k) {
+    if (!chOsc) return;
+    if (muted()) { chargeStop(); return; }
+    k = Math.max(0, Math.min(1, k));
+    const t = ac.currentTime, hz = 180 + k * 1420;
+    try {
+      chOsc.frequency.setTargetAtTime(hz, t, 0.04);
+      chOsc2.frequency.setTargetAtTime(hz * 2.02, t, 0.04);
+      if (chFilt) chFilt.frequency.setTargetAtTime(600 + k * 2200, t, 0.05);
+      if (chGain) chGain.gain.setTargetAtTime(0.04 + k * 0.09, t, 0.05);
+    } catch (e) {}
+    S.chargeHz = hz; S.chargeOn = true;
+  }
+  S.chargeStart = chargeStart;
+  S.chargeTick = chargeTick;
+  S.chargeStop = chargeStop;
   S.whoosh = whoosh;
   S.unlock = unlock;
   S.start = start;
