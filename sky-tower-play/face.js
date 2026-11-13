@@ -140,13 +140,13 @@ export function createFace(scene) {
     SCALE, MIN_D, D0, ANGRY_T, HIT_DEBOUNCE, CHARGE_T, VOLS,
     start(ctx) {   // a real climb began
       F.on = true; F.shown = true; root.visible = true; F.t = 0; F.pop = 0; F.leave = 0; F.runs++; F.spoke = 0; F.speakT = -1;
-      F.ang = 0; F.angryT = 0; F.hits = 0; F.heys = 0; F.heyBlocked = 0; F.lastHit = -1e9; F.cycle = 0; F.beams = 0; F.charge = 0; F.glowT = 0; F.lastAct = ''; F.line = ''; F.shake = 0; F.powT = 0; F.speaking = false;
+      F.ang = 0; F.angryT = 0; F.hits = 0; F.heys = 0; F.heyBlocked = 0; F.lastHit = -1e9; F.cycle = 0; F.beams = 0; F.charge = 0; F.glowT = 0; F.lastAct = ''; F.line = ''; F.shake = 0; F.powT = 0; F.speaking = false; F.luckys = 0; F.luckyPend = false; F.sub('');
       F.yaw = (ctx && ctx.camYaw) || 0; F.side = 1;
       F.gaze = 0; F.gazeYaw = 0; F.gazePit = 0; F.expr = 'idle'; F.exprI = -1;
       F.place(ctx, true); F.appearAt = performance.now();
       F.speakT = 0.35;   // after the pop-in
     },
-    stop() { F.on = false; F.shown = false; root.visible = false; F.speaking = false; F.ang = 0; F.angryT = 0; F.charge = 0; F.glowT = 0; pow.visible = false; },
+    stop() { F.on = false; F.shown = false; root.visible = false; F.speaking = false; F.ang = 0; F.angryT = 0; F.charge = 0; F.glowT = 0; pow.visible = false; F.luckyPend = false; F.sub(''); },
     eyeWorld() { root.updateMatrixWorld(true); return eyes.map(e => e.g.localToWorld(V(0, 0, 0.3))); },
     // swept laser test: segment p0->p1 (world) against the head; returns the world hit point or null
     hit(p0, p1) {
@@ -168,8 +168,21 @@ export function createFace(scene) {
       F.lastAct = busy ? 'hey-quiet' : 'hey'; return F.lastAct;
     },
     sayHey() {
-      F.heys++; F.line = 'hey'; F.sayK = 0; F.speaking = true;
+      F.heys++; F.line = 'hey'; F.sayK = 0; F.speaking = true; F.sub('');
       const S = window.__skySnd; F.env = (S && S.voiceEnvs && S.voiceEnvs.hey) || null; if (S && S.voice) S.voice('hey');
+    },
+    sub(text) {   // t787u: on-screen caption for the checkpoint line
+      try { const e = document.getElementById('titanSub'); if (!e) return; e.textContent = text || ''; e.classList.toggle('on', !!text); } catch (err) {}
+    },
+    sayLucky() {   // t787u: reaching the 10th platform. Same booming voice; queues if a line is already going.
+      if (F.luckys) return false;
+      const S = window.__skySnd;
+      const busy = F.speaking || F.speakT >= 0 || (S && S.voiceLine);
+      if (busy) { F.luckyPend = true; return false; }
+      F.luckyPend = false; F.luckys++; F.line = 'lucky'; F.sayK = 0; F.speaking = true;
+      F.env = (S && S.voiceEnvs && S.voiceEnvs.lucky) || null; if (S && S.voice) S.voice('lucky');
+      F.sub('You got lucky');
+      return true;
     },
     target(ctx) {   // where it wants to float: camera-forward, swung to the right, weaving + bobbing
       // t782u: a slower, wider dolly so the giant clearly floats away from the camera and back toward it (~19-36 m)
@@ -227,8 +240,9 @@ export function createFace(scene) {
       let o = 0.06 + 0.04 * Math.sin(F.t * 1.7);
       if (F.speaking) { F.sayK += dt; const k = F.sayK; const i = Math.floor(k / F.envDt);   // game time (pauses with the game; ~real time while playing)
         const S = window.__skySnd;
-        const mime = (S && S.voiceDurs && S.voiceDurs[F.line]) || (F.line === 'hey' ? 1.8 : 2.4);   // t770u: lines ~30% slower (same voice, time-stretched); t782u: shorter opening line
-        if (F.env && i < F.env.length) o = F.env[i]; else if (!F.env && k < mime) o = 0.5 + 0.5 * Math.abs(Math.sin(k * 7.5)); else { F.speaking = false; F.line = ''; } }
+        const mime = (S && S.voiceDurs && S.voiceDurs[F.line]) || (F.line === 'hey' ? 1.8 : F.line === 'lucky' ? 1.9 : 2.4);
+        if (F.env && i < F.env.length) o = F.env[i]; else if (!F.env && k < mime) o = 0.5 + 0.5 * Math.abs(Math.sin(k * 7.5)); else { F.speaking = false; F.line = ''; F.sub(''); if (F.luckyPend) F.sayLucky(); } }
+      if (F.luckyPend && !F.speaking && F.speakT < 0) { const SV = window.__skySnd; if (!(SV && SV.voiceLine)) F.sayLucky(); }
       // anger: snaps in, holds ANGRY_T after the last hit, then eases back
       if (F.angryT > 0) { F.angryT -= dt; F.ang += (1 - F.ang) * (1 - Math.exp(-dt * 16)); } else F.ang += (0 - F.ang) * (1 - Math.exp(-dt * 2.6));
       if (F.ang < 0.002) F.ang = 0;

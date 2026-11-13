@@ -1,4 +1,4 @@
-// t765u: Ghost 256, Strike and Cybercity are upright games. On a portrait phone (390x844) they play the normal way up,
+// t765u: Ghost 256, Strike and Cybercity are upright games. t787u: Monkey Crossing too. On a portrait phone (390x844) they play the normal way up,
 // full screen: the arcade drops its landscape lock (asks for portrait), shows no "turn sideways" hint, nothing is rotated,
 // the game fills the viewport, the close X sits tight top-left.
 // t766u: leaving one goes BACK to the side (landscape) view on every exit path (X, Esc, HOME, fullscreen lost mid-game, an
@@ -43,8 +43,8 @@ const { open } = require('./lib');
     chk(!a.upright && a.hint, tag + ': ' + how + ' -> sideways hint / state restored like any other cabinet', { upright: a.upright, hint: a.hint });
     if (!out) await page.evaluate(() => window.__arcade.play.exit('x')).catch(() => {});
     return a; };
-  const paths = { ghost: 'close X', strike: 'Esc key', cyber: 'close X' };
-  for (const k of (process.env.PT_KEYS || 'ghost,strike,cyber').split(',')) {
+  const paths = { ghost: 'close X', strike: 'Esc key', cyber: 'close X', monkey: 'close X' };
+  for (const k of (process.env.PT_KEYS || 'ghost,strike,cyber,monkey').split(',')) {
     await enter(k);
     const r = await page.evaluate(([W, H]) => {
       const f = document.getElementById('game'), w = f.contentWindow, d = w.document, R = b => [b.left, b.top, b.width, b.height].map(Math.round);

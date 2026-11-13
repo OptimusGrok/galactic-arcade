@@ -66,7 +66,7 @@ let ok = true; const chk = (c, m, x) => { console.log((c ? 'PASS ' : 'FAIL ') + 
   const seeA = await sky(a, 'const R = A.rivals, g = [...R.avatars.values()][0]; return g ? { n: R.avatars.size, char: g.g.userData.char, vis: g.g.visible, tag: !!g.g.getObjectByName("rivalTag"), chip: w.document.getElementById("rivalChip").textContent, chipOn: w.document.getElementById("rivalChip").style.display } : { n: 0 };');
   const seeB = await sky(b, 'const R = A.rivals, g = [...R.avatars.values()][0]; return g ? { n: R.avatars.size, char: g.g.userData.char, vis: g.g.visible, tag: !!g.g.getObjectByName("rivalTag"), chip: w.document.getElementById("rivalChip").textContent } : { n: 0 };');
   chk(seeA.n === 1 && seeA.char === 'alien' && seeA.vis && seeA.tag && seeB.n === 1 && seeB.char === 'monkey', 'both climbers see each other in the tower (monkey sees the alien, alien sees the monkey), name tag', { seeA, seeB });
-  chk(/RACE · YOU 1\/50/.test(seeA.chip) && /Zed 1\/50/.test(seeA.chip) && seeA.chipOn === 'block', 'race chip shows both platform numbers', seeA);
+  chk(/RACE · YOU 1\/20/.test(seeA.chip) && /Zed 1\/20/.test(seeA.chip) && seeA.chipOn === 'block', 'race chip shows both platform numbers', seeA);
   const same = await Promise.all([a, b].map(p => sky(p, 'const o = []; for (let i = 1; i <= A.N; i++) { const f = A.offsetOf(i); o.push(f.x.toFixed(2) + "," + f.z.toFixed(2) + "," + A.yOf(i).toFixed(2)); } return o.join(";");')));
   chk(same[0] === same[1] && same[0].length > 100, 'same tower layout on both devices (fair race)');
   // A climbs to 12: B sees it
@@ -74,7 +74,7 @@ let ok = true; const chk = (c, m, x) => { console.log((c ? 'PASS ' : 'FAIL ') + 
   await b.waitForFunction(() => { const R = document.getElementById('game').contentWindow.__skytower.rivals; return R.rivals[0] && R.rivals[0].s.p === 12; }, null, { timeout: 10000 }).catch(() => {});
   await b.waitForTimeout(600);
   const prog = await sky(b, 'const R = A.rivals, r = R.rivals[0], g = [...R.avatars.values()][0]; const pa = A.yOf(12); return { p: r && r.s.p, y: +g.g.position.y.toFixed(1), top12: +pa.toFixed(1), chip: w.document.getElementById("rivalChip").textContent, myP: A.platform };');
-  chk(prog.p === 12 && Math.abs(prog.y - prog.top12) < 6 && /Dave 12\/50 ▲/.test(prog.chip) && prog.myP === 1, 'B sees A up at platform 12 (rival avatar there, chip ▲)', prog);
+  chk(prog.p === 12 && Math.abs(prog.y - prog.top12) < 6 && /Dave 12\/20 ▲/.test(prog.chip) && prog.myP === 1, 'B sees A up at platform 12 (rival avatar there, chip ▲)', prog);
   // ---- t754u: a watcher in the room sees the LIVE shared climb on the Sky Tower cabinet screen (not the attract) ----
   await c.evaluate(() => { window.__forceDemo = true; });
   await c.waitForFunction(() => { const L = window.__arcade.play.machines.skytower.cab.userData.live; return L && L.on && L.names.length === 2 && L.pads > 0; }, null, { timeout: 15000 }).catch(() => {});

@@ -443,12 +443,13 @@
   // "hey" line is refused while any line is still playing — the face's cooldown handles the retry logic).
   // t770u: both lines re-cut ~30% slower (rubberband time-stretch, tempo 0.70, formants + pitch kept: same deep voice; peaks matched).
   // t782u: opening line re-spoken as "Can you reach the top?" in the same booming chain (deep ~96 Hz voice, sub-octave, short hall, peak ~-0.4 dB) then stretched the same way.
+  // t787u: third line "You got lucky" (../sfx/sky_face_lucky.mp3) when the climber reaches the 10th platform, same voice + same chain.
   // voiceEnv(s) = loudness per 30 ms (0..1) so the face's mouth moves with the words (also when muted).
   const VoiceVol = 0.95;
-  const LINES = { show: { url: '../sfx/sky_face_top.mp3' }, hey: { url: '../sfx/sky_face_hey.mp3' } };
+  const LINES = { show: { url: '../sfx/sky_face_top.mp3' }, hey: { url: '../sfx/sky_face_hey.mp3' }, lucky: { url: '../sfx/sky_face_lucky.mp3' } };   // t787u: 'You got lucky' at the 10th pad, same boom chain
   let voiceG = null, voiceSrc = null, voiceLine = '';
   S.voicePlays = 0; S.voiceMuted = 0; S.voiceEnv = null; S.voiceDur = 0; S.voiceErr = '';
-  S.voiceEnvs = {}; S.voiceDurs = {}; S.voicePlaysBy = { show: 0, hey: 0 }; S.voiceMutedBy = { show: 0, hey: 0 }; S.voiceBusy = 0;
+  S.voiceEnvs = {}; S.voiceDurs = {}; S.voicePlaysBy = { show: 0, hey: 0, lucky: 0 }; S.voiceMutedBy = { show: 0, hey: 0, lucky: 0 }; S.voiceBusy = 0;
   for (const k in LINES) { const L = LINES[k]; L.buf = null; L.raw = null; L.pend = 0;
     try { fetch(L.url).then(r => r.ok ? r.arrayBuffer() : Promise.reject(new Error('http ' + r.status))).then(b => { L.raw = b; decodeLine(k); }).catch(e => { S.voiceErr = k + ': ' + String(e && e.message || e); }); } catch (e) { S.voiceErr = 'fetch'; } }
   function decodeVoice() { for (const k in LINES) decodeLine(k); }
@@ -459,7 +460,7 @@
       for (let i = 0; i < d.length; i += n) { let q = 0; const e = Math.min(d.length, i + n); for (let j = i; j < e; j++) q += d[j] * d[j]; const v = Math.sqrt(q / Math.max(1, e - i)); env.push(v); if (v > mx) mx = v; }
       S.voiceEnvs[k] = env.map(v => Math.min(1, Math.pow(v / (mx || 1), 0.7) * 1.1)); S.voiceDurs[k] = buf.duration;
       if (k === 'show') { S.voiceEnv = S.voiceEnvs.show; S.voiceDur = buf.duration; }
-      if (L.pend && performance.now() - L.pend < (k === 'show' ? 4000 : 600)) { L.pend = 0; voice(k); } };
+      if (L.pend && performance.now() - L.pend < (k === 'show' ? 4000 : k === 'lucky' ? 2500 : 600)) { L.pend = 0; voice(k); } };
     const fail = () => { L.busy = false; S.voiceErr = k + ': decode'; };
     try {
       const raw = L.raw.slice(0);
@@ -487,6 +488,7 @@
   S.voice = voice;
   Object.defineProperty(S, 'voiceReady', { get: () => !!LINES.show.buf });
   Object.defineProperty(S, 'heyReady', { get: () => !!LINES.hey.buf });
+  Object.defineProperty(S, 'luckyReady', { get: () => !!LINES.lucky.buf });
   Object.defineProperty(S, 'voiceLine', { get: () => (voiceSrc ? voiceLine : '') });
   Object.defineProperty(S, 'voiceGain', { get: () => (voiceG ? voiceG.gain.value : 0) });
   Object.defineProperty(S, 'voiceOn', { get: () => !!voiceSrc });
