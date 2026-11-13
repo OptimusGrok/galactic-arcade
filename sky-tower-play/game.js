@@ -4,13 +4,13 @@
 // Soundtrack + laser/ticket SFX live in snd.js (WebAudio, no files).
 import * as THREE from '../vendor/three.module.js';
 import { createFace } from './face.js';
-import { createRivals } from './rivals.js';   // t753u: two players at the cabinet share the climb   // t748u: the TITAN face ("Can you make it to the top?")
+import { createRivals } from './rivals.js';   // t753u: two players at the cabinet share the climb   // t748u/t782u: the TITAN face ("Can you reach the top?")
 
 const N = 50, AIR_SPEED = 6.2, MIN_SEP = 10;
 const PITCH_MIN = -0.22, PITCH_MAX = 1.12;
 const FLY = { drain: 0.125, fill: 0.16, min: 0.08, up: 3.4, down: 2.4 };
 const R = 0.32, PH = 1.82, HI_KEY = 'arcade_skytower_best', RUN_CAP = 50;
-const FLY_TICKETS = 30, FLY_TICKET_VALUE = 1, TICKET_HIT_R = 0.82;
+const FLY_TICKETS = 50, FLY_TICKET_VALUE = 1, TICKET_HIT_R = 0.82;   // t782u: more tickets, a mix of fast ones and some drifting slowly
 // Pad shapes (non-checkpoint only): tiny single-foot pads and long thin beams.
 const PAD = { tiny0: 1.15, tiny1: 1.0, beamW: 0.95, beamL0: 6.4, beamL1: 5.4, tinyP: 0.2, beamP: 0.3 };
 // Random gusts: calm gap, telegraph (streaks + HUD arrow + whoosh), then a push. Accel in m/s^2.
@@ -568,17 +568,27 @@ function tickRand(i, k) {
   const x = Math.sin(i * 127.1 + k * 311.7) * 43758.5453;
   return x - Math.floor(x);
 }
+// shared ticket geometries / materials (t782u: more tickets, one set of meshes reused so the extra fly-pasts stay cheap)
+const TIX_GEO = {
+  body: new THREE.BoxGeometry(0.62, 0.36, 0.08),
+  stripe: new THREE.BoxGeometry(0.68, 0.08, 0.09),
+  shine: new THREE.BoxGeometry(0.66, 0.4, 0.03),
+  hole: CYL(0.075, 0.075, 0.06, 8),
+  stub: new THREE.BoxGeometry(0.1, 0.1, 0.09)
+};
+const TIX_MAT = {
+  gold: lamb(0xffc433, { emissive: 0xb36a00 }),
+  shine: basic(0xffe37a),
+  stripe: lamb(0xd4a017, { emissive: 0x6a3a00 })
+};
 function makeGoldTicket() {
   const g = new THREE.Group(); g.name = 'skyTicket';
-  const gold = lamb(0xffc433, { emissive: 0xb36a00 });
-  const shine = basic(0xffe37a);
-  const stripe = lamb(0xd4a017, { emissive: 0x6a3a00 });
-  part(g, new THREE.BoxGeometry(0.62, 0.36, 0.08), gold);
-  part(g, new THREE.BoxGeometry(0.68, 0.08, 0.09), stripe, 0, 0.02, 0);
-  part(g, new THREE.BoxGeometry(0.66, 0.4, 0.03), shine, 0, 0, -0.02);
-  part(g, CYL(0.075, 0.075, 0.06, 8), gold, -0.16, 0.08, 0.06);
-  part(g, CYL(0.075, 0.075, 0.06, 8), gold, 0.16, 0.08, 0.06);
-  part(g, new THREE.BoxGeometry(0.1, 0.1, 0.09), stripe, 0.28, 0.14, 0);
+  part(g, TIX_GEO.body, TIX_MAT.gold);
+  part(g, TIX_GEO.stripe, TIX_MAT.stripe, 0, 0.02, 0);
+  part(g, TIX_GEO.shine, TIX_MAT.shine, 0, 0, -0.02);
+  part(g, TIX_GEO.hole, TIX_MAT.gold, -0.16, 0.08, 0.06);
+  part(g, TIX_GEO.hole, TIX_MAT.gold, 0.16, 0.08, 0.06);
+  part(g, TIX_GEO.stub, TIX_MAT.stripe, 0.28, 0.14, 0);
   return g;
 }
 function spawnFlyTickets() {
@@ -588,7 +598,9 @@ function spawnFlyTickets() {
     const pi = Math.max(1, Math.min(N - 2, Math.floor((i + 0.5) / FLY_TICKETS * (N - 2))));
     const p = platforms[pi];
     const kind = i % 5;
-    const speed = 11.5 + tickRand(i, 2) * 5;
+    // t782u: about 1 in 3 drift slowly past the head; the rest still zip by
+    const slow = (i % 3 === 0);
+    const speed = slow ? (2.8 + tickRand(i, 2) * 2.6) : (12.5 + tickRand(i, 2) * 6);
     let heading;
     if (kind === 0) heading = 0;
     else if (kind === 1) heading = Math.PI;
@@ -987,7 +999,7 @@ function fire() {
   }
   const mesh = new THREE.Mesh(laserGeo, mat);
   mesh.position.copy(o); mesh.lookAt(o.x + dir.x, o.y + dir.y, o.z + dir.z); scene.add(mesh);
-  const L = { mesh, o: o.clone(), dir: dir.clone(), speed: 24, life: 1.15, alive: true, color: hue };
+  const L = { mesh, o: o.clone(), dir: dir.clone(), speed: 28, life: 1.5, alive: true, color: hue };   // t782u: range ~42 m so a shot still reaches the TITAN at the far end of its dolly
   lasers.push(L);
   if (window.__skySnd) window.__skySnd.zap(hue);
   { const q = v => Math.round(v * 1000) / 1000; SHOT.n++; SHOT.v = [q(o.x), q(o.y), q(o.z), q(dir.x), q(dir.y), q(dir.z), hue === 'red' ? 1 : 0]; }

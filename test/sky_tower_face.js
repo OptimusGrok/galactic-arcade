@@ -1,6 +1,6 @@
-// t748u: SKY TOWER — the TITAN face greets every real climb with a booming "Can you make it to the top?".
-// Appears only when a climb starts (not on the title / DEMO attract), is huge, looks at the player, keeps its
-// distance, rises with the player, weaves around, mouth moves; voice plays once per climb, MUTE silences it.
+// t748u: SKY TOWER — the TITAN face greets every real climb with a booming "Can you reach the top?".
+// Appears only when a climb starts (not on the title / DEMO attract), is huge, usually looks at the player, keeps its
+// distance (dollies away and back), sometimes looks away and changes expression, weaves around, mouth moves; voice plays once per climb, MUTE silences it.
 // Existing climb / fly / fire / tickets still work. 844x390, no screenshots unless FACE_SHOTS=dir.
 const { open } = require('./lib');
 let ok = true; const chk = (c, m, x) => { console.log((c ? 'PASS ' : 'FAIL ') + m + (x !== undefined ? ' ' + JSON.stringify(x).slice(0, 380) : '')); if (!c) ok = false; };
@@ -28,7 +28,7 @@ const SHOTS = process.env.FACE_SHOTS || '';
   chk(s.on && s.vis && s.scene === 'play', 'climb starts: TITAN appears at once', s);
   const opens = await page.evaluate(() => { const A = window.__skytower, F = A.face, m = []; for (let i = 0; i < 90; i++) { A.step(1 / 30); m.push(F.open); } return { max: Math.max(...m), min: Math.min(...m.slice(30)) }; });
   s = await st();
-  chk(s.spoke === 1 && s.plays === 1 && s.muted === 0, 'booms "Can you make it to the top?" once at the start', { spoke: s.spoke, plays: s.plays });
+  chk(s.spoke === 1 && s.plays === 1 && s.muted === 0, 'booms "Can you reach the top?" once at the start', { spoke: s.spoke, plays: s.plays });
   chk(opens.max > 0.5, 'mouth opens and closes with the words', opens);
   chk(s.scale > 0.95 && s.worldR >= 5, 'huge: ~' + (s.worldR * 2).toFixed(1) + ' m tall face', { scale: s.scale, worldR: s.worldR });
   // on screen, looking at the player, standoff kept
@@ -45,12 +45,32 @@ const SHOTS = process.env.FACE_SHOTS || '';
   chk(dmin >= 17.99 && dmax <= 45, 'while flying: standoff ' + dmin.toFixed(1) + '-' + dmax.toFixed(1) + ' m (never crowds the player)');
   const up = await page.evaluate(() => { const A = window.__skytower, F = A.face; A.placeOn(20); const p0 = F.root.position.y; for (let i = 0; i < 150; i++) A.step(1 / 30);
     const pl = F.root.parent.getObjectByName ? null : null; return { p0: +p0.toFixed(1), p1: +F.root.position.y.toFixed(1), plat: A.platform, top: +A.yOf(20).toFixed(1), d: +F.dist.toFixed(1), look: +F.lookErr.toFixed(3) }; });
-  chk(up.p1 > up.p0 + 10 && up.p1 > up.top && up.p1 < up.top + 14 && up.d >= 18 && up.look < 0.2, 'rises with the player to platform 20 and keeps looking at him', up);
+  chk(up.p1 > up.p0 + 10 && up.p1 > up.top && up.p1 < up.top + 14 && up.d >= 18, 'rises with the player to platform 20 and keeps its distance', up);
   const wv = await page.evaluate(() => { const A = window.__skytower, F = A.face, ang = []; for (let i = 0; i < 240; i++) { A.step(1 / 30); if (i % 20 === 0) ang.push(F.root.position.y); } return { spread: Math.max(...ang) - Math.min(...ang) }; });
   chk(wv.spread > 1, 'drifts / bobs around (not frozen)', wv);
+  // t782u: dolly range, look-away, expression change (deterministic cycle starts at t = 8.5)
+  const gz = await page.evaluate(() => { const A = window.__skytower, F = A.face;
+    // snap to just before a look-away, then into one, then into an expressing look-away (odd cycle)
+    const go = t => { F.t = t; F.speaking = false; F.speakT = -1; F.ang = 0; F.leave = 0; F.gaze = 0; F.expr = 'idle'; F.exprI = -1; for (let i = 0; i < 45; i++) A.step(1 / 30); };
+    go(8.5 + 1.0); const onP = { look: +F.lookErr.toFixed(3), gaze: +F.gaze.toFixed(3), expr: F.expr, d: +F.dist.toFixed(1) };
+    go(8.5 + 4.6); const away = { look: +F.lookErr.toFixed(3), gaze: +F.gaze.toFixed(3), expr: F.expr, yaw: +F.gazeYaw.toFixed(3), d: +F.dist.toFixed(1) };
+    go(8.5 + 7 + 4.6); const expr = { look: +F.lookErr.toFixed(3), gaze: +F.gaze.toFixed(3), expr: F.expr };
+    // dolly: sample two times half a period of the main sin(t*0.21) apart so near/far is obvious
+    const snap = t => { F.t = t; F.speaking = false; F.speakT = -1; F.ang = 0; F.leave = 0;
+      const p = A.player.position; F.place({ pos: p, camYaw: F.yaw, dt: 1, hold: false, won: false }, true);
+      let d = F.root.position.distanceTo(p);
+      if (d < F.MIN_D) { const dx = F.root.position.x - p.x, dy = F.root.position.y - p.y, dz = F.root.position.z - p.z, k = F.MIN_D / (d || 1);
+        F.root.position.set(p.x + dx * k, p.y + dy * k, p.z + dz * k); d = F.MIN_D; }
+      F.dist = d; return +d.toFixed(2); };
+    const dFar = snap(Math.PI / (2 * 0.21)), dNear = snap(3 * Math.PI / (2 * 0.21));  // max / min of the main 7.5 m dolly
+    return { onP, away, expr, dNear, dFar }; });
+  chk(gz.onP.look < 0.25 && gz.onP.gaze < 0.35, 'between look-aways the head still turns to the player', gz.onP);
+  chk(gz.away.look > 0.35 && gz.away.gaze > 0.6, 'sometimes turns and looks away from the camera', gz.away);
+  chk(gz.expr.gaze > 0.6 && gz.expr.expr !== 'idle' && ['wink', 'smirk', 'raise', 'squint'].includes(gz.expr.expr), 'sometimes changes expression while looking away', gz.expr);
+  chk(gz.dNear >= 18 && gz.dFar >= 18 && Math.abs(gz.dFar - gz.dNear) > 8, 'floats away from the camera and back toward it (standoff kept)', { dNear: gz.dNear, dFar: gz.dFar });
   // existing climb features still work
   const ex = await page.evaluate(() => { const A = window.__skytower; let L = null; for (let i = 0; i < 12 && !L; i++) { A.step(0.3); L = A.fire(); } return { laser: !!L, tickets: A.tickets.length, energy: A.energy, hp: A.hp, cap: A.RUN_CAP }; });
-  chk(ex.laser && ex.tickets === 30 && ex.cap === 50 && ex.hp > 0, 'FIRE lasers, 30 flying tickets, run cap 50 still there', ex);
+  chk(ex.laser && ex.tickets === 50 && ex.cap === 50 && ex.hp > 0, 'FIRE lasers, 50 flying tickets, run cap 50 still there', ex);
   if (SHOTS) { await page.evaluate(() => { const A = window.__skytower; A.placeOn(1); for (let i = 0; i < 40; i++) A.step(1 / 30); }); await page.waitForTimeout(600); await page.screenshot({ path: SHOTS + '/ga-skytower-face-climb.png' }); }
   // the win: drifts away + fades, ending untouched
   const w = await page.evaluate(() => { const A = window.__skytower, F = A.face; A.placeOn(A.N); A.finish(); for (let i = 0; i < 120; i++) A.step(1 / 30); return { won: A.won, shown: F.shown, vis: F.root.visible, scene: A.scene() }; });

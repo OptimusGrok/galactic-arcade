@@ -79,7 +79,8 @@ function nearGlare(m, k) { const nk = Math.min(1, 1.3 / Math.max(k, 1e-3)); m.us
     sh.vertexShader = 'varying float vNG;\n' + sh.vertexShader.replace('#include <project_vertex>', '#include <project_vertex>\n  vNG = -mvPosition.z;');
     sh.fragmentShader = 'uniform float nearK;\nvarying float vNG;\n' + sh.fragmentShader.replace('vec4 diffuseColor = vec4( diffuse, opacity );', 'vec4 diffuseColor = vec4( diffuse * mix( nearK, 1.0, smoothstep( 0.3, 1.1, vNG ) ), opacity );'); };
   m.customProgramCacheKey = () => 'nearGlare'; return m; }
-const neon = (hex, k = 3) => nearGlare(new THREE.MeshBasicMaterial({ color: new THREE.Color(hex).multiplyScalar(k), fog: false }), k);
+const NEON_DIM = 0.62;   // t782u: dim all arcade neon (~38% less bright) and draw it as sharper, thinner tubes
+const neon = (hex, k = 3) => { k *= NEON_DIM; return nearGlare(new THREE.MeshBasicMaterial({ color: new THREE.Color(hex).multiplyScalar(k), fog: false }), k); };
 const PINK_K = 0.7;   // Dave: 'make the pink neon strips a bit less bright' - pink/magenta strip tubes at 70% (other colours unchanged)
 const C = { pink: 0xff2bd6, mag: 0xff1fa8, cyan: 0x22d8ff, purple: 0x9b4dff, amber: 0xffa53a };
 
@@ -241,7 +242,7 @@ for (const hx of hexes) {
   hx.c.forEach((col, i) => {
     const r = hx.r * (1 - i * 0.16), y = H - 0.9 - i * 0.12, pts = [];
     for (let k = 0; k < 6; k++) { const a = k * Math.PI / 3 + Math.PI / 6; pts.push(new THREE.Vector3(hx.x + r * Math.cos(a), y, hx.z + r * Math.sin(a))); }
-    const m = new THREE.Mesh(polyBars(pts, 0.07, true), neon(col, i ? 2.4 : 3.2)); m.name = 'ceilingHex'; room.add(m);
+    const m = new THREE.Mesh(polyBars(pts, 0.04, true), neon(col, i ? 2.4 : 3.2)); m.name = 'ceilingHex'; room.add(m);
   });
   // dark recessed panel inside the hex
   const panel = new THREE.Mesh(new THREE.CircleGeometry(hx.r * 0.95, 6), new THREE.MeshStandardMaterial({ color: 0x0d0816, roughness: 0.6 }));
@@ -255,8 +256,8 @@ const edge = [], edgeCyan = [], bandsNoEast = [[]];
 for (let i = 0; i < 4; i++) {
   const a = i * Math.PI / 2, s = Math.sin(a), c = Math.cos(a);
   const P = (u, y, d) => new THREE.Vector3(-s * (HALF - d) + c * u, y, -c * (HALF - d) - s * u);
-  edge.push(barGeo(P(-HALF, H - 0.1, 0.1), P(HALF, H - 0.1, 0.1), 0.08));
-  edgeCyan.push(barGeo(P(-HALF, 6.2, 0.05), P(HALF, 6.2, 0.05), 0.045));
+  edge.push(barGeo(P(-HALF, H - 0.1, 0.1), P(HALF, H - 0.1, 0.1), 0.045));
+  edgeCyan.push(barGeo(P(-HALF, 6.2, 0.05), P(HALF, 6.2, 0.05), 0.026));
   if (i !== 3) bandsNoEast[0].push(edgeCyan[edgeCyan.length - 1]);   // room 1's east wall becomes the space window
 }
 room.add(new THREE.Mesh(mergeGeometries(edge), neon(C.pink, 3 * PINK_K)));
@@ -278,12 +279,12 @@ const hall = new THREE.Group(); hall.name = 'hallway'; scene.add(hall);
   const bot = [], topP = [], topC = [];
   for (const sx of [-1, 1]) {
     const x = sx * (hw - 0.03);
-    bot.push(barGeo(new THREE.Vector3(x, 0.09, z0 + 0.02), new THREE.Vector3(x, 0.09, z1), 0.05));
-    topP.push(barGeo(new THREE.Vector3(x, DOOR_H - 0.06, z0 + 0.02), new THREE.Vector3(x, DOOR_H - 0.06, z1), 0.06));
-    topC.push(barGeo(new THREE.Vector3(x, DOOR_H - 0.28, z0 + 0.02), new THREE.Vector3(x, DOOR_H - 0.28, z1), 0.035));
+    bot.push(barGeo(new THREE.Vector3(x, 0.09, z0 + 0.02), new THREE.Vector3(x, 0.09, z1), 0.028));
+    topP.push(barGeo(new THREE.Vector3(x, DOOR_H - 0.06, z0 + 0.02), new THREE.Vector3(x, DOOR_H - 0.06, z1), 0.034));
+    topC.push(barGeo(new THREE.Vector3(x, DOOR_H - 0.28, z0 + 0.02), new THREE.Vector3(x, DOOR_H - 0.28, z1), 0.02));
   }
   // door frame trim on the room side (pink), same bar style
-  topP.push(polyBars([new THREE.Vector3(-hw, 0.0, z0 + 0.03), new THREE.Vector3(-hw, DOOR_H, z0 + 0.03), new THREE.Vector3(hw, DOOR_H, z0 + 0.03), new THREE.Vector3(hw, 0.0, z0 + 0.03)], 0.06, false));
+  topP.push(polyBars([new THREE.Vector3(-hw, 0.0, z0 + 0.03), new THREE.Vector3(-hw, DOOR_H, z0 + 0.03), new THREE.Vector3(hw, DOOR_H, z0 + 0.03), new THREE.Vector3(hw, 0.0, z0 + 0.03)], 0.034, false));
   const nb = new THREE.Mesh(mergeGeometries(bot), neon(C.pink, 3.5 * PINK_K)); nb.name = 'hallNeonBottom';
   const nt = new THREE.Mesh(mergeGeometries(topP), neon(C.pink, 3 * PINK_K)); nt.name = 'hallNeonTop';
   const nc = new THREE.Mesh(mergeGeometries(topC), neon(C.cyan, 1.8)); nc.name = 'hallNeonTopCyan';
@@ -294,7 +295,7 @@ let l2door = null; import('./level2door.js').then(m => { l2door = m.setupLevel2D
 
 // real lights: only a handful
 scene.add(new THREE.HemisphereLight(0x3a2060, 0x080410, 0.35));
-const lights = [[0, 5.5, 0, C.pink, 22], [0, 2.6, -8.6, C.mag, 14 * PINK_K], [0, 2.6, 8.6, C.purple, 14], [-8.6, 2.6, 0, C.cyan, 12], [8.6, 2.6, 0, C.mag, 14 * PINK_K], [6, 6, 6, C.amber, 6]];
+const lights = [[0, 5.5, 0, C.pink, 14], [0, 2.6, -8.6, C.mag, 9 * PINK_K], [0, 2.6, 8.6, C.purple, 9], [-8.6, 2.6, 0, C.cyan, 7.5], [8.6, 2.6, 0, C.mag, 9 * PINK_K], [6, 6, 6, C.amber, 4]];
 const roomLights = [];
 for (const [x, y, z, c, i] of lights) { const l = new THREE.PointLight(c, i, 22, 1.6); l.position.set(x, y, z); l.userData.p1 = [x, y, z]; scene.add(l); roomLights.push(l); }
 
@@ -318,12 +319,12 @@ const kickGeo = segPlane(PROFILE[1], PROFILE[2], CW - 0.2).scale(1, 0.55, 1).tra
 const outline = PROFILE.map(([x, y]) => new THREE.Vector3(x, y, 0));
 const edgeGeo = (() => {
   const gs = [];
-  for (const z of [-CW / 2, CW / 2]) gs.push(polyBars(outline.map(p => p.clone().setZ(z)), 0.03, true));
+  for (const z of [-CW / 2, CW / 2]) gs.push(polyBars(outline.map(p => p.clone().setZ(z)), 0.017, true));
   // front vertical edge accents on the marquee and around the screen
-  for (const i of [7, 8, 5, 6]) gs.push(barGeo(new THREE.Vector3(PROFILE[i][0], PROFILE[i][1], -CW / 2), new THREE.Vector3(PROFILE[i][0], PROFILE[i][1], CW / 2), 0.016));
+  for (const i of [7, 8, 5, 6]) gs.push(barGeo(new THREE.Vector3(PROFILE[i][0], PROFILE[i][1], -CW / 2), new THREE.Vector3(PROFILE[i][0], PROFILE[i][1], CW / 2), 0.009));
   return mergeGeometries(gs);
 })();
-const baseGeo = new THREE.BoxGeometry(0.03, 0.03, CW + 0.04).translate(0.82, 0.03, 0);
+const baseGeo = new THREE.BoxGeometry(0.017, 0.017, CW + 0.04).translate(0.82, 0.017, 0);
 const bodyMat = new THREE.MeshStandardMaterial({ color: 0x1a1426, roughness: 0.4, metalness: 0.45 });
 const blankMat = (c, e = 0) => new THREE.MeshStandardMaterial({ color: c, roughness: 0.18, metalness: 0.3, emissive: c, emissiveIntensity: e });
 
@@ -375,10 +376,10 @@ for (let w = 0; w < 4; w++) {
     const um = (u0 + u1) / 2, hh = (u1 - u0) / 2;
     const plinth = new THREE.Mesh(new THREE.BoxGeometry(hh * 2, 0.09, PLINTH), plinthMat);
     plinth.position.copy(toWorld(um, PLINTH / 2)).setY(0.045); plinth.rotation.y = a; plinth.name = 'plinth_' + wallNames[w]; room.add(plinth);
-    const lipG = [barGeo(toWorld(u0, PLINTH).setY(0.09), toWorld(u1, PLINTH).setY(0.09), 0.035)];
-    if (w === 0) lipG.push(barGeo(toWorld(u0 < 0 ? u1 : u0, PLINTH).setY(0.09), toWorld(u0 < 0 ? u1 : u0, 0).setY(0.09), 0.035)); // return along the door edge
+    const lipG = [barGeo(toWorld(u0, PLINTH).setY(0.09), toWorld(u1, PLINTH).setY(0.09), 0.02)];
+    if (w === 0) lipG.push(barGeo(toWorld(u0 < 0 ? u1 : u0, PLINTH).setY(0.09), toWorld(u0 < 0 ? u1 : u0, 0).setY(0.09), 0.02)); // return along the door edge
     { const lp = new THREE.Mesh(mergeGeometries(lipG), neon(C.pink, 3.5 * PINK_K)); lp.name = 'plinthLip_' + wallNames[w]; room.add(lp); }
-    const lip2 = new THREE.Mesh(barGeo(toWorld(u0, PLINTH + 0.02).setY(0.012), toWorld(u1, PLINTH + 0.02).setY(0.012), 0.02), neon(C.mag, 2 * PINK_K)); lip2.name = 'plinthLip2_' + wallNames[w]; room.add(lip2);
+    const lip2 = new THREE.Mesh(barGeo(toWorld(u0, PLINTH + 0.02).setY(0.012), toWorld(u1, PLINTH + 0.02).setY(0.012), 0.012), neon(C.mag, 2 * PINK_K)); lip2.name = 'plinthLip2_' + wallNames[w]; room.add(lip2);
     const pc = toWorld(um, PLINTH / 2);
     blockers.push({ minX: pc.x - (Math.abs(c) * hh + Math.abs(s) * PLINTH / 2), maxX: pc.x + (Math.abs(c) * hh + Math.abs(s) * PLINTH / 2), minZ: pc.z - (Math.abs(s) * hh + Math.abs(c) * PLINTH / 2), maxZ: pc.z + (Math.abs(s) * hh + Math.abs(c) * PLINTH / 2), kind: 'plinth', wall: wallNames[w] });
   }
@@ -426,7 +427,7 @@ for (let w = 0; w < 4; w++) {
 
 // ---------- room 1: pink neon tube tight along the base of all 4 walls, outlining every cabinet against the wall (up the back edge, over the top, down) and framing the doorway ----------
 function wallTubeGeo(cabList, flatEast, flatW = flatEast ? 3 : -1) {
-  const D = 0.04, T = 0.035, Y0 = 0.03, YP = 0.09 + 0.03, RISE = 0.06, segs = [];
+  const D = 0.04, T = 0.02, Y0 = 0.03, YP = 0.09 + 0.03, RISE = 0.06, segs = [];
   const PU = (ROWS[0][4] - ROWS[0][0]) / 2 + 1.5;   // plinth half-length along each wall
   for (let w = 0; w < 4; w++) {
     const a = w * Math.PI / 2, s = Math.sin(a), c = Math.cos(a);
@@ -1250,7 +1251,7 @@ if (matchMedia('(display-mode: fullscreen), (display-mode: standalone)').matches
 const rt = new THREE.WebGLRenderTarget(innerWidth * dpr, innerHeight * dpr, { type: THREE.HalfFloatType, samples: PS.on ? 0 : (MOBILE ? 2 : 4) });
 const composer = new EffectComposer(renderer, rt);
 composer.addPass(new RenderPass(scene, camera));
-const bloom = new UnrealBloomPass(new THREE.Vector2(innerWidth * Q.bloom, innerHeight * Q.bloom), 0.75, 0.5, 0.4); bloom.highPassUniforms.smoothWidth.value = 0.6;   // soft knee 0.4..1.0 (was a hard cut at 0.85): cyan/amber tubes (lum >= 1) bloom as before, the 70% pink strips (lum ~0.68) keep a weaker halo instead of losing it
+const bloom = new UnrealBloomPass(new THREE.Vector2(innerWidth * Q.bloom, innerHeight * Q.bloom), 0.52, 0.22, 0.46); bloom.highPassUniforms.smoothWidth.value = 0.35;   // t782u: tighter, shorter bloom so the thinner tubes read as sharp lines, not a soft haze
 composer.addPass(bloom);
 composer.addPass(new OutputPass());
 // iPad Safari fix: setSize used to write inline px width/height from innerWidth/innerHeight at load, which on iPad can be
@@ -1749,7 +1750,7 @@ function frame(now) {
   { const dtc = Math.min(gap / 1000, 0.05); if (play.update(dtc, kiosk && kiosk.mode !== 'walk' && kiosk.mode !== 'pick' ? null : nearCab) || (kiosk && kiosk.update(dtc))) { flyGuard(); stepClock(dtc); } else step(dtc); }
   shield.update(Math.min(gap / 1000, 0.05));
   if (golf) { golf.update(Math.min(gap / 1000, 0.05)); golf.cam(camera, Math.min(gap / 1000, 0.05)); }   // t275u: putting camera
-  bloom.strength = camera.position.x > WX / 2 ? 0.12 : 0.75;   // white room: no glare
+  bloom.strength = camera.position.x > WX / 2 ? 0.08 : 0.52;   // white room: no glare; t782u dimmer / sharper bloom
   if (window.__camOverride && window.__camOverride.bloom != null) bloom.strength = window.__camOverride.bloom; // screenshots / tests
   if (shop) { const gb = golf && golf.below, gx = monkey.position.x, gz = monkey.position.z; shop.update(Math.min(gap / 1000, 0.05)); if (gb) { monkey.position.x = gx; monkey.position.z = gz; } }   // golf basement: the shop's own prop push-out (east wall obstacles, x<=93.6) must not apply under its floor
   winds.update();
