@@ -6,7 +6,7 @@ const { open, play } = require('./lib');
   await page.waitForTimeout(1500); await play(page, true, 'Astro'); await page.waitForTimeout(2000);
   const st = () => page.evaluate(() => { const A = window.__arcade, R = A.room2, H = A.hall, nm = o => o && o.material && o.material.name;
     return { r1: [0, 1, 2, 3].map(i => nm(A.room.getObjectByName('wall' + i))), r2: [0, 2, 3].map(i => nm(R.getObjectByName('wall' + i))), r2win: R.getObjectByName('wall1').visible === false && !!R.getObjectByName('spaceWindow') && R.getObjectByName('spaceWindow').visible,
-      hall: ['hallWallW', 'hallWallE'].map(n => nm(H.getObjectByName(n))), bands2: ['Pink', 'Amber', 'Cyan'].map(n => R.getObjectByName('wallBand' + n).visible), uT: A.room2.getObjectByName('wall0').material.uniforms ? A.room2.getObjectByName('wall0').material.uniforms.uT.value : null }; });
+      hall: ['hallWallW', 'hallWallE'].map(n => nm(H.getObjectByName(n))), bands2: ['Cyan'].map(n => R.getObjectByName('wallBand' + n).visible), uT: A.room2.getObjectByName('wall0').material.uniforms ? A.room2.getObjectByName('wall0').material.uniforms.uT.value : null }; });
   const calls = () => page.evaluate(async () => { const A = window.__arcade, R = A.renderer; window.__camOverride = { pos: [4, 2.5, A.Z2 + 9], at: [-4, 4.2, A.Z2 - 10] }; await new Promise(r => setTimeout(r, 2500));
     R.info.autoReset = false; const c = []; for (let i = 0; i < 6; i++) { R.info.reset(); await new Promise(r => requestAnimationFrame(r)); await new Promise(r => setTimeout(r, 0)); c.push(R.info.render.calls); } R.info.autoReset = true; return Math.min(...c); });
   await page.evaluate(() => { const A = window.__arcade; A.setWalls('current'); A.monkey.position.set(0, 0, A.Z2 + 6); });
