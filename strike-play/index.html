@@ -3446,4 +3446,246 @@ window.TicketArt = (function () {
   setInterval(function () { if (!B.on) return; if (G.scene !== 'scores') { G.scene = 'scores'; } G.sceneT = 0; Input.taps.length = 0; }, 100);   // hold the board: no auto return to title
   setInterval(function () { if (B.on) { B.fetches++; netFetchTop(); } }, 20000);
 })();
+
+// STRIKE (arcade copy) t789u/t790u: 2-player online co-op through the arcade's existing multiplayer.
+// If P1 is already playing, P2 drops in from another phone and both fly at the same time. P2's ship is orange.
+// Host (cabinet slot 0) simulates both ships and the world; the guest sends input and draws the host snapshot.
+// P1 stats (score, lives, shield/health, bombs) sit on the left of the HUD, P2's on the right, synced live.
+(function () {
+  const C = window.__strikeCoop = { role: 'solo', slot: 0, p2on: false, sent: 0, recv: 0, snaps: 0, joins: 0, p2color: '#ff6e14' };
+  const PL_KEYS = ['x', 'y', 'alive', 'inv', 'respawn', 'bank', 'fireT', 'misT', 'beamOn', 'beamTop', 'beamW', 'focus', 'entering', 'firing', 'moved', 'plasmaOn'];
+  const ST_KEYS = ['score', 'lives', 'bombs', 'shield', 'shieldFx', 'weapon', 'wlv', 'chips', 'mult', 'medal', 'deaths'];
+  const I2 = { keys: Object.create(null), pressed: Object.create(null), dragX: 0, dragY: 0, bombReq: false };
+  const G2 = { score: 0, lives: 2, bombs: 3, shield: 3, shieldFx: 0, weapon: 'V', wlv: 1, chips: 0, mult: 1, medal: 500, deaths: 0 };
+  const pl2 = { x: W / 2 + 28, y: H - 70, alive: true, inv: 0, respawn: 0, bank: 0, fireT: 0, misT: 0, beamOn: false, beamTop: 0, beamW: 0, focus: false, entering: 0, firing: false, moved: 0, plasmaOn: false };
+  let P2_SPR = null, snap = null, lastIn = 0, lastSt = 0;
+  C.pl2 = pl2; C.G2 = G2; C.I2 = I2;
+
+  function mp() { try { return parent !== window && parent.__mp ? parent.__mp : null; } catch (e) { return null; } }
+  function myId() { const M = mp(); return M && M.id; }
+  function slotNow() {
+    const M = mp(); if (!M || M.state !== 'on' || !M.slotOf) return 0;
+    const sl = M.slotOf('strike', M.id); return sl ? sl.i : 0;
+  }
+  function names() {
+    const out = ['P1', 'P2'], M = mp();
+    try {
+      const L = M && M.cabPlayers ? M.cabPlayers('strike') : [];
+      for (let i = 0; i < L.length && i < 2; i++) {
+        if (L[i] === myId()) {
+          let n = M.name; try { n = (JSON.parse(localStorage.getItem('galacticarcade.player') || '{}') || {}).name || n; } catch (e) {}
+          out[i] = n || out[i];
+        } else {
+          const p = M.peers.get(L[i]); out[i] = (p && p.name) || out[i];
+        }
+      }
+    } catch (e) {}
+    return out;
+  }
+  function cabN() { const M = mp(); return (M && M.cabCount) ? M.cabCount('strike') : 1; }
+  function refreshRole() {
+    const M = mp();
+    if (!M || M.state !== 'on' || cabN() < 2) {
+      if (C.role !== 'solo' && cabN() < 2) { C.role = 'solo'; /* keep p2on until they leave a moment */ if (cabN() < 2) C.p2on = false; }
+      return C.role;
+    }
+    C.slot = slotNow();
+    C.role = C.slot === 0 ? 'host' : 'guest';
+    return C.role;
+  }
+  function tintSprites() {
+    if (P2_SPR || !PLAYER_SPR || !PLAYER_SPR.length) return;
+    P2_SPR = PLAYER_SPR.map(src => {
+      const c = mkC(src.width, src.height), g = c.getContext('2d');
+      g.drawImage(src, 0, 0);
+      g.globalCompositeOperation = 'source-atop';
+      g.fillStyle = 'rgba(255,110,20,0.62)';
+      g.fillRect(0, 0, c.width, c.height);
+      c.flash = src.flash;
+      return c;
+    });
+  }
+  function packShip(s, st) {
+    return [+(s.x.toFixed(1)), +(s.y.toFixed(1)), s.alive ? 1 : 0, s.inv | 0, +((s.bank || 0).toFixed(2)),
+      st.score | 0, st.lives | 0, st.bombs | 0, st.shield | 0, st.weapon || 'V', st.wlv | 0];
+  }
+  function unpackShip(a, s, st) {
+    if (!a || a.length < 9) return;
+    s.x = +a[0]; s.y = +a[1]; s.alive = !!a[2]; s.inv = a[3] | 0; s.bank = +a[4];
+    st.score = a[5] | 0; st.lives = a[6] | 0; st.bombs = a[7] | 0; st.shield = a[8] | 0;
+    if (a[9]) st.weapon = a[9]; if (a[10] != null) st.wlv = a[10] | 0;
+  }
+  function packWorld() {
+    const e = [], b = [], E = enemies.items, B = ebul.items;
+    for (let i = 0; i < E.length && e.length < 40; i++) {
+      const t = E[i]; if (t.alive) e.push([t.x | 0, t.y | 0, t.kind || 'fighter', t.flash ? 1 : 0]);
+    }
+    for (let i = 0; i < B.length && b.length < 70; i++) { const u = B[i]; if (u.alive) b.push([u.x | 0, u.y | 0]); }
+    return { e, b, sc: +((G.scrollPos || 0).toFixed(2)), stg: G.stage | 0, ph: G.phase, t: G.playT | 0 };
+  }
+  function swapP2() {
+    for (let i = 0; i < PL_KEYS.length; i++) { const k = PL_KEYS[i], t = pl[k]; pl[k] = pl2[k]; pl2[k] = t; }
+    for (let i = 0; i < ST_KEYS.length; i++) { const k = ST_KEYS[i], t = G[k]; G[k] = G2[k]; G2[k] = t; }
+    const ik = Input.keys; Input.keys = I2.keys; I2.keys = ik;
+    const ip = Input.pressed; Input.pressed = I2.pressed; I2.pressed = ip;
+    const dx = Input.dragX, dy = Input.dragY; Input.dragX = I2.dragX; I2.dragX = dx; Input.dragY = I2.dragY; I2.dragY = dy;
+    const br = UI.bombReq; UI.bombReq = I2.bombReq; I2.bombReq = br;
+  }
+  function withP2(fn) { swapP2(); try { return fn(); } finally { swapP2(); } }
+  function resetP2() {
+    pl2.x = W / 2 + 28; pl2.y = H + 20; pl2.alive = true; pl2.inv = 170; pl2.entering = 40; pl2.bank = 0; pl2.beamOn = false; pl2.fireT = 0; pl2.misT = 0; pl2.respawn = 0; pl2.focus = false; pl2.firing = false;
+    G2.score = 0; G2.lives = 2; G2.bombs = 3; G2.shield = 3; G2.shieldFx = 0; G2.weapon = 'V'; G2.wlv = 1; G2.chips = 0; G2.mult = 1; G2.medal = 500; G2.deaths = 0;
+  }
+  function applyIn(s) {
+    if (!s) return;
+    const k = I2.keys; k.left = !!(s.k & 1); k.right = !!(s.k & 2); k.up = !!(s.k & 4); k.down = !!(s.k & 8); k.fire = !!(s.k & 16); k.focus = !!(s.k & 32);
+    I2.pressed.bomb = !!s.bomb; I2.bombReq = !!s.bomb;
+    I2.dragX = +s.dx || 0; I2.dragY = +s.dy || 0;
+  }
+  function sendInput() {
+    const M = mp(); if (!M || !M.strike) return;
+    const now = performance.now(); if (now - lastIn < 50) return; lastIn = now;
+    const k = Input.keys;
+    let bits = 0; if (k.left) bits |= 1; if (k.right) bits |= 2; if (k.up) bits |= 4; if (k.down) bits |= 8; if (k.fire || (typeof Opts !== 'undefined' && Opts.autofire)) bits |= 16; if (k.focus) bits |= 32;
+    M.strike.send({ typ: 'in', k: bits, dx: +(Input.dragX || 0).toFixed(2), dy: +(Input.dragY || 0).toFixed(2), bomb: !!(Input.pressed.bomb || UI.bombReq) });
+    C.sent++;
+  }
+  function sendState() {
+    const M = mp(); if (!M || !M.strike) return;
+    const now = performance.now(); if (now - lastSt < 80) return; lastSt = now;
+    M.strike.send(Object.assign({ typ: 'st', p: packShip(pl, G), q: packShip(pl2, G2), p2: C.p2on ? 1 : 0, n: names() }, packWorld()));
+    C.sent++;
+  }
+  function applySnap(s) {
+    if (!s || s.typ !== 'st') return;
+    snap = s; C.snaps++;
+    unpackShip(s.p, pl, G); unpackShip(s.q, pl2, G2);
+    if (s.stg != null) G.stage = s.stg | 0;
+    if (s.sc != null) G.scrollPos = +s.sc;
+    if (s.ph) G.phase = s.ph;
+    if (s.t != null) G.playT = s.t | 0;
+    C.visE = s.e || []; C.visB = s.b || [];
+    C.p2on = true;
+  }
+  function onMsg(pld) {
+    if (!pld || pld.i === myId()) return;
+    C.recv++;
+    if (pld.typ === 'in' && C.role === 'host') applyIn(pld);
+    if (pld.typ === 'st' && C.role === 'guest') applySnap(pld);
+    if (pld.typ === 'join' && C.role === 'host') { if (!C.p2on) { resetP2(); C.p2on = true; } C.joins++; }
+    if (pld.typ === 'tk' && C.role === 'guest') { try { if (window.TicketArt && TicketArt.collect) TicketArt.collect('strike'); } catch (e) {} }
+  }
+  function hookMp() { const M = mp(); if (M && M.strike) M.strike.on = onMsg; }
+  function hazardsP2() {
+    if (!C.p2on || !pl2.alive || pl2.entering > 0) return;
+    withP2(() => {
+      const vuln = pl.inv <= 0, b = ebul.items, px = pl.x, py = pl.y;
+      for (let i = 0; i < b.length; i++) {
+        const u = b[i]; if (!u.alive) continue;
+        const rr = ((typeof EB_HIT !== 'undefined' && EB_HIT[u.k]) || 2) + PL_R, dx = u.x - px, dy = u.y - py;
+        if (dx * dx + dy * dy < rr * rr) { if (vuln) { ebul.kill(u); killPlayer('BULLET'); return; } }
+      }
+      if (!vuln) return;
+      const e = enemies.items;
+      for (let i = 0; i < e.length; i++) {
+        const t = e[i]; if (!t.alive || !t.solid) continue;
+        if (t.hw ? (Math.abs(px - t.x) < t.hw * 0.8 && Math.abs(py - t.y) < t.hh * 0.8) : dist2(px, py, t.x, t.y) < Math.pow((t.r || 8) * 0.7 + PL_R, 2)) {
+          killPlayer('RAM:' + t.kind); try { hurt(t, 20, 'ram'); } catch (err) {} return;
+        }
+      }
+    });
+  }
+  function ticketsP2() {
+    const TK = window.__TK, t = TK && TK.t; if (!t || !pl2.alive || pl2.entering > 0) return;
+    if (Math.hypot(pl2.x - t.x, pl2.y - t.y) < 13) {
+      TK.t = null; TK.got = (TK.got || 0) + 1;
+      const M = mp(); if (M && M.strike) M.strike.send({ typ: 'tk' });
+    }
+  }
+  function drawP2Ship() {
+    if (!C.p2on || !pl2.alive) return;
+    tintSprites();
+    const spr = (P2_SPR && P2_SPR[clamp(Math.round((pl2.bank + 1) * 3), 0, 6)]) || PLAYER_SPR[3];
+    try { shadowBlit(spr, pl2.x, pl2.y); } catch (e) {}
+    blit(spr, pl2.x, pl2.y, pl2.inv > 0 && (G.t & 2));
+  }
+  function renderGuest() {
+    ctx.setTransform(S, 0, 0, S, 0, 0); ctx.imageSmoothingEnabled = false;
+    try { bgDraw(); } catch (e) { ctx.fillStyle = '#020010'; ctx.fillRect(0, 0, W, H); }
+    ctx.fillStyle = '#ffd0a0';
+    const B = C.visB || []; for (let i = 0; i < B.length; i++) ctx.fillRect((B[i][0] | 0) - 1, (B[i][1] | 0) - 1, 2, 2);
+    const E = C.visE || [];
+    for (let i = 0; i < E.length; i++) {
+      const t = E[i]; let spr = null;
+      try { spr = getSpr(t[2] || 'fighter', (STAGES[G.stage] || STAGES[0]).pal); } catch (e) {}
+      if (spr) blit(spr, t[0], t[1], t[3]); else { ctx.fillStyle = '#ff4060'; ctx.fillRect(t[0] - 6, t[1] - 6, 12, 12); }
+    }
+    if (pl.alive) {
+      try { const ps = playerFrame(); shadowBlit(ps, pl.x, pl.y); blit(ps, pl.x, pl.y, pl.inv > 0 && (G.t & 2)); }
+      catch (e) { blit(PLAYER_SPR[3], pl.x, pl.y); }
+    }
+    drawP2Ship();
+    renderHUD();
+  }
+
+  const _hud = renderHUD;
+  renderHUD = function () {
+    if (C.role === 'solo' && !C.p2on) return _hud();
+    const nm = (snap && snap.n) || names();
+    ctx.fillStyle = 'rgba(0,0,12,0.78)'; ctx.fillRect(0, 0, W, 42);
+    ctx.fillStyle = 'rgba(90,150,255,0.55)'; ctx.fillRect(0, 42, W, 1);
+    text(String(nm[0] || 'P1'), 4, 3, '#80c8ff', 1);
+    text(String(G.score).padStart(8, '0'), 4, 12, '#ffffff', 1);
+    text('HP ' + (G.shield | 0) + '/3', 4, 21, G.shield ? '#60f0ff' : '#ff6070', 1);
+    text('L' + Math.max(0, G.lives | 0), 52, 21, '#ffe080', 1);
+    text(String(nm[1] || 'P2'), W - 4, 3, '#ffb060', 1, 'r');
+    text(String(G2.score).padStart(8, '0'), W - 4, 12, '#ffffff', 1, 'r');
+    text('HP ' + (G2.shield | 0) + '/3', W - 4, 21, G2.shield ? '#60f0ff' : '#ff6070', 1, 'r');
+    text('L' + Math.max(0, G2.lives | 0), W - 52, 21, '#ffe080', 1, 'r');
+    for (let i = 0; i < (G.bombs || 0); i++) { try { blit(ITEM_SPR.bomb, 16 + i * 14, H - 10); } catch (e) {} }
+    for (let i = 0; i < (G2.bombs || 0); i++) { try { blit(ITEM_SPR.bomb, W - 16 - i * 14, H - 10); } catch (e) {} }
+    text('P1', 4, H - 22, '#80c8ff', 1);
+    text('P2', W - 4, H - 22, '#ffb060', 1, 'r');
+  };
+
+  const _upd = updPlay;
+  updPlay = function () {
+    hookMp(); refreshRole();
+    if (C.role === 'guest') {
+      sendInput();
+      const M = mp(), oth = M && M.strike && M.strike.others && M.strike.others()[0];
+      if (oth && oth.s && oth.s.typ === 'st') applySnap(oth.s);
+      G.t = (G.t || 0) + 1;
+      if (G.scene !== 'play' && G.scene !== 'pause') G.scene = 'play';
+      return;
+    }
+    _upd();
+    if (C.role === 'host') {
+      if (cabN() >= 2 && !C.p2on) { resetP2(); C.p2on = true; C.joins++; }
+      if (C.p2on) { withP2(() => { updPlayer(); }); hazardsP2(); ticketsP2(); }
+      if (cabN() >= 2) sendState();
+    }
+  };
+  const _rp = renderPlay;
+  renderPlay = function () { if (C.role === 'guest') { renderGuest(); return; } _rp(); };
+  const _dp = drawPlayer;
+  drawPlayer = function () { _dp(); if (C.role !== 'guest') drawP2Ship(); };
+
+  const _start = window.STRIKE.start;
+  window.STRIKE.start = function (stage, o) {
+    C.role = 'solo'; C.p2on = false; C.slot = 0; snap = null; resetP2(); hookMp();
+    const r = _start.apply(this, arguments);
+    refreshRole();
+    if (C.role === 'guest') { const M = mp(); if (M && M.strike) M.strike.send({ typ: 'join' }); C.joins++; }
+    return r;
+  };
+
+  C.hud = () => ({
+    role: C.role, slot: C.slot, p2on: C.p2on, names: names(),
+    p1: { x: +pl.x.toFixed(2), y: +pl.y.toFixed(2), score: G.score, lives: G.lives, shield: G.shield, bombs: G.bombs, alive: !!pl.alive },
+    p2: { x: +pl2.x.toFixed(2), y: +pl2.y.toFixed(2), score: G2.score, lives: G2.lives, shield: G2.shield, bombs: G2.bombs, alive: !!pl2.alive }
+  });
+  C.resetP2 = resetP2; C.applyIn = applyIn; C.applySnap = applySnap; C.sendState = sendState; C.sendInput = sendInput;
+  window.STRIKE.coop = C;
+})();
 </script></body></html>

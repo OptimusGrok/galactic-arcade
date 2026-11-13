@@ -169,7 +169,7 @@ body.ingame #mpPill,body.ingame #mpBar,body.ingame #mpChat,body.ingame #mpTags,b
       const tag = el('div', { className: 'mpTag' }, tags); tag.addEventListener('click', e => { e.stopPropagation(); toggleMute(pid); });
       p = { id: pid, name: 'Monkey', g, tag, cur: null, tgt: null, a: 'idle', m: 'room1', last: performance.now(), phase: 0, phase0: (parseInt(pid.slice(-3), 36) || 0) % 7, bub: {}, kind: 'monkey' }; M.peers.set(pid, p); }
     if (meta) paint(p, meta); else if (!p.lookKey) paint(p, { hue: 0 }); if (meta && meta.name) p.name = String(meta.name).slice(0, 14); p.tag.textContent = p.name; p.tag.classList.toggle('mute', M.muted.has(pid)); return p; }
-  function drop(pid) { const p = M.peers.get(pid); if (!p) return; if (p.ball) { scene.remove(p.ball); p.ball.geometry.dispose(); p.ball.material.dispose(); } scene.remove(p.g); p.g.traverse(o => { if (o.isMesh) o.material.dispose(); }); p.tag.remove(); for (const k in p.bub) p.bub[k].el.remove(); M.peers.delete(pid); skyIn.delete(pid); }
+  function drop(pid) { const p = M.peers.get(pid); if (!p) return; if (p.ball) { scene.remove(p.ball); p.ball.geometry.dispose(); p.ball.material.dispose(); } scene.remove(p.g); p.g.traverse(o => { if (o.isMesh) o.material.dispose(); }); p.tag.remove(); for (const k in p.bub) p.bub[k].el.remove(); M.peers.delete(pid); skyIn.delete(pid); strikeIn.delete(pid); }
   function toggleMute(pid) { if (M.muted.has(pid)) M.muted.delete(pid); else M.muted.add(pid); LSs('neonarcade.mpMuted', JSON.stringify([...M.muted])); const p = M.peers.get(pid); if (p) { p.tag.classList.toggle('mute', M.muted.has(pid)); if (M.muted.has(pid)) clearBub(p, 'chat'); } renderLog(); }
   M.toggleMute = toggleMute;
   function onState(s) { if (!s || s.i === id || typeof s.x !== 'number') return; M.recv++; const p = peer(s.i); p.last = performance.now();
@@ -217,6 +217,27 @@ body.ingame #mpPill,body.ingame #mpBar,body.ingame #mpChat,body.ingame #mpTags,b
   function lists(a, max, n) { if (!Array.isArray(a) || !a.length || a.length > max) return null; for (const b of a) if (!nums(b, n)) return null; return a; }
   // t754u: who is playing Sky Tower at its cabinet right now (live climbs to draw on the screen), in slot order
   M.sky.feed = (key) => { const now = performance.now(), out = []; for (const [pid, r] of skyIn) { const p = M.peers.get(pid); if (!p || now - r.at > 2500 || p.a !== 'play:' + key || !r.s.run) continue; const sl = slotOf(key, pid); out.push({ id: pid, name: p.name || 'Player', s: r.s, slot: sl ? sl.i : 0, look: p.look || null }); } return out.sort((a, b) => a.slot - b.slot); };
+  // t789u/t790u: Strike 2-player online co-op relay (the cabinet iframe talks through parent.__mp.strike)
+  const strikeIn = new Map(); let strikeAt = 0;
+  function onStrike(pl) {
+    if (!pl || !pl.i || pl.i === id) return;
+    M.recv++; M.strikeRecv = (M.strikeRecv || 0) + 1;
+    strikeIn.set(pl.i, { s: pl, at: performance.now() });
+    try { if (M.strike && M.strike.on) M.strike.on(pl); } catch (e) {}
+  }
+  M.strike = { peers: strikeIn,
+    send(s) { const now = performance.now(); if (now - strikeAt < 70 || !s || typeof s !== 'object') return false; strikeAt = now;
+      const ok = send('strike', Object.assign({ i: id }, s)); if (ok) M.strikeSent = (M.strikeSent || 0) + 1; return ok; },
+    last(pid) { const r = strikeIn.get(pid); return r && performance.now() - r.at < 2500 ? r.s : null; },
+    others() { const now = performance.now(), out = [];
+      for (const [pid, r] of strikeIn) {
+        const p = M.peers.get(pid);
+        if (!p || now - r.at > 2500 || p.a !== 'play:strike') continue;
+        const sl = slotOf('strike', pid);
+        out.push({ id: pid, name: p.name || 'Player', s: r.s, slot: sl ? sl.i : 0, at: r.at });
+      }
+      return out.sort((a, b) => a.slot - b.slot); } };
+
   // every machine: names of the other players at it (for a LIVE badge on cabinets that cannot stream their game)
   M.cabLive = (key) => { const out = []; for (const p of M.peers.values()) if (p.a === 'play:' + key) out.push(p.name || 'Player'); return out; };
   // ---------- bubbles (emotes / chat), chat log ----------
@@ -263,7 +284,7 @@ body.ingame #mpPill,body.ingame #mpBar,body.ingame #mpChat,body.ingame #mpTags,b
       M.joins = (M.joins || 0) + 1;
       ch.on('presence', { event: 'sync' }, onSync)
         .on('broadcast', { event: 'st' }, m => onState(m && m.payload)).on('broadcast', { event: 'chat' }, m => onChat(m && m.payload)).on('broadcast', { event: 'emo' }, m => onEmo(m && m.payload))
-        .on('broadcast', { event: 'look' }, m => onLook(m && m.payload)).on('broadcast', { event: 'zap' }, m => onZap(m && m.payload)).on('broadcast', { event: 'sky' }, m => onSky(m && m.payload))
+        .on('broadcast', { event: 'look' }, m => onLook(m && m.payload)).on('broadcast', { event: 'zap' }, m => onZap(m && m.payload)).on('broadcast', { event: 'sky' }, m => onSky(m && m.payload)).on('broadcast', { event: 'strike' }, m => onStrike(m && m.payload))
         .on('broadcast', { event: 'bye' }, m => { if (m && m.payload) drop(m.payload.i); });
       // peek at presence before taking a seat: if 10 are already in, stay solo without counting as an 11th
       ch.subscribe(async status => {
