@@ -1201,30 +1201,44 @@ function updateTurn() {
   const portrait = MOBILE && innerHeight > innerWidth * 1.08;
   el.classList.toggle('on', portrait && !document.body.classList.contains('upright'));   // t765u: no 'turn sideways' over an upright (portrait) game
 }
-// t765u: Ghost 256 / Strike / Cybercity are upright games -> while one is open the phone goes back to normal portrait
-// (release the arcade's landscape lock, ask for portrait, full screen); leaving restores the wide arcade view.
+// t765u: Ghost 256 / Strike / Cybercity are upright games -> while one is open the phone goes back to normal portrait.
+// t766u: leaving one MUST go back to the side (landscape) view on a real phone. One owner of the lock: every request bumps
+// a sequence token (a late answer to an older portrait request can never win), the landscape request is made right inside
+// the exit tap (unlock, then lock), fullscreen is held / re-requested (Android only locks in fullscreen) and the lock is
+// retried after fullscreen comes back. __oriLog records the calls (tests).
+const OR = { seq: 0, want: null };
+window.__oriLog = [];
+const oriLog = m => { const L = window.__oriLog; L.push(m); if (L.length > 60) L.splice(0, L.length - 60); };
+const isFs = () => !!(document.fullscreenElement || document.webkitFullscreenElement);
+function goFs() { const r = document.documentElement, fs = r.requestFullscreen || r.webkitRequestFullscreen; if (!fs) return Promise.resolve(false);
+  if (isFs()) return Promise.resolve(true); oriLog('fullscreen');
+  try { return Promise.resolve(fs.call(r)).then(() => true, () => false); } catch (e) { return Promise.resolve(false); } }
+function lockTo(kind) {
+  const seq = ++OR.seq, o = screen.orientation; OR.want = kind;
+  if (!o || typeof o.lock !== 'function') { st.orientLock = 'unsupported'; updateTurn(); return; }
+  if (kind === 'landscape' && typeof o.unlock === 'function') { try { o.unlock(); oriLog('unlock'); } catch (e) {} }   // drop the portrait lock first
+  const fsP = goFs();
+  const ok = () => { if (seq !== OR.seq) return; st.orientLock = kind === 'landscape' ? 'ok' : kind; updateTurn(); };
+  const fail = () => { if (seq !== OR.seq) return; st.orientLock = kind + '-failed'; updateTurn(); };
+  const call = () => { if (seq !== OR.seq) return Promise.reject(new Error('stale')); oriLog('lock:' + kind); try { return Promise.resolve(o.lock(kind)); } catch (e) { return Promise.reject(e); } };
+  call().then(ok, () => { if (seq !== OR.seq) return;   // not in fullscreen yet / it was dropped -> (re)enter fullscreen, then once more
+    fsP.then(() => goFs()).then(() => call()).then(ok, fail); });
+  updateTurn();
+}
+// fullscreen (re)entered later (eg the request above resolved after the lock was refused) -> re-apply what we want now
+document.addEventListener('fullscreenchange', () => { if (isFs() && OR.want && MOBILE) { const o = screen.orientation, seq = OR.seq, k = OR.want;
+  if (o && typeof o.lock === 'function') { oriLog('relock:' + k); Promise.resolve().then(() => o.lock(k)).then(() => { if (seq === OR.seq) { st.orientLock = k === 'landscape' ? 'ok' : k; updateTurn(); } }, () => {}); } } });
 function orient(up) {
   document.body.classList.toggle('upright', !!up); st.orientUp = !!up;
   if (!MOBILE) { updateTurn(); return; }
-  const o = screen.orientation;
-  if (up) {
-    const root = document.documentElement, fs = root.requestFullscreen || root.webkitRequestFullscreen;
-    if (fs && !document.fullscreenElement) Promise.resolve(fs.call(root)).catch(() => {});
-    if (o && typeof o.lock === 'function') Promise.resolve(o.lock('portrait')).then(() => { st.orientLock = 'portrait'; }).catch(() => { try { o.unlock && o.unlock(); } catch (e) {} st.orientLock = 'unlocked'; });
-    else if (o && typeof o.unlock === 'function') { try { o.unlock(); } catch (e) {} }
-  } else if (st.orientTried) { wantWide(); return; }
-  else if (o && typeof o.unlock === 'function') { try { o.unlock(); } catch (e) {} }
-  updateTurn();
+  if (up) lockTo('portrait');
+  else { st.orientTried = true; lockTo('landscape'); }   // t766u: always back to the side view, like every other cabinet
 }
 function wantWide() {
   if (!MOBILE) { st.orientLock = 'desktop'; updateTurn(); return; }
   st.orientTried = true;
-  const root = document.documentElement, fs = root.requestFullscreen || root.webkitRequestFullscreen;
-  if (fs && !document.fullscreenElement) Promise.resolve(fs.call(root)).catch(() => {});
-  const o = screen.orientation;
-  if (o && typeof o.lock === 'function') {
-    Promise.resolve(o.lock('landscape')).then(() => { st.orientLock = 'ok'; updateTurn(); }).catch(() => { st.orientLock = 'failed'; updateTurn(); });
-  } else { st.orientLock = 'unsupported'; updateTurn(); }
+  if (document.body.classList.contains('upright')) { updateTurn(); return; }   // an upright game is open: its exit restores landscape
+  lockTo('landscape');
 }
 window.__wantWide = wantWide; window.__orient = orient;
 document.getElementById('bView').onclick = toggleView;

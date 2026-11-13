@@ -316,6 +316,8 @@ export function setupPlay(A) {
   bPlay.addEventListener('click', e => { e.stopPropagation(); press(); });
   ['pointerdown', 'touchstart'].forEach(t => ui.addEventListener(t, e => e.stopPropagation(), { passive: true }));
   bExit.addEventListener('click', () => exit('x'));
+  // t766u: safety net - an upright game's portrait view never outlives the game (any exit path)
+  setInterval(() => { if (P.mode !== 'game' && P.mode !== 'zoomIn' && P.mode !== 'prep' && document.body.classList.contains('upright')) try { window.__orient && window.__orient(false); } catch (e) {} }, 400);
   // HUD home button: confirm, then leave any cabinet game / demo and show the start screen again (credits, tickets, floor kept)
   const homeQ = document.getElementById('homeQ'), homeN = document.getElementById('homeN');
   const homeAsk = on => { homeQ.classList.toggle('on', on); homeQ.setAttribute('aria-hidden', on ? 'false' : 'true'); P.homeAsk = on;
