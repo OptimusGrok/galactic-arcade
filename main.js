@@ -13,6 +13,7 @@ import { buildMonkeyCabinet } from './monkeycab.js';
 import { setupSpaceWindow } from './spacewin.js';
 import { stoneWallTex } from './medieval.js';
 import { buildNeonSigns } from './neonsigns.js';
+import { setupNeonBricks } from './neonbricks.js';
 import { buildOrcCabinet } from './orccab.js';
 import { buildCyberCabinet } from './cybercitycab.js';
 import { buildBlasterCabinet } from './blastercab.js';
@@ -1167,13 +1168,14 @@ function zoomSetLock(on) {
 }
 function zoomRelease() { zoomHold.on = false; zoomHold.tapRel = false; bZoom.classList.remove('held'); if (zoomHold.lock) { zoomSetLock(false); zoomHold.releases++; } }
 bZoom.addEventListener('pointerdown', e => { zoomStopEv(e); try { bZoom.setPointerCapture(e.pointerId); } catch (err) {}
+  if (nb && nb.playing) { nb.toggleZoom(); bZoom.classList.toggle('locked', nb.zoom); return; }   // t779u NEON BRICKS: one press = playfield full screen, again = back
   if (zoomHold.lock) { zoomRelease(); zoomHold.tapRel = true; return; }   // tap while locked: release, ease back out
   zoomHold.on = true; bZoom.classList.add('held'); });
-bZoom.addEventListener('pointerup', e => { zoomStopEv(e);
+bZoom.addEventListener('pointerup', e => { zoomStopEv(e); if (nb && nb.playing) return;
   if (zoomHold.tapRel) { zoomHold.tapRel = false; return; }   // the lift of the releasing tap
   if (zoomHold.on && zoomHold.k >= 1) { bZoom.classList.remove('held'); zoomSetLock(true); zoomHold.locks++; return; }   // held to FULL: stays locked (on stays true)
   zoomHold.on = false; bZoom.classList.remove('held'); });
-bZoom.addEventListener('pointercancel', () => { if (zoomHold.tapRel) { zoomHold.tapRel = false; return; } if (zoomHold.on && zoomHold.k >= 1) { bZoom.classList.remove('held'); zoomSetLock(true); zoomHold.locks++; return; } zoomHold.on = false; bZoom.classList.remove('held'); });
+bZoom.addEventListener('pointercancel', () => { if (nb && nb.playing) return; if (zoomHold.tapRel) { zoomHold.tapRel = false; return; } if (zoomHold.on && zoomHold.k >= 1) { bZoom.classList.remove('held'); zoomSetLock(true); zoomHold.locks++; return; } zoomHold.on = false; bZoom.classList.remove('held'); });
 for (const ev of ['touchstart', 'touchend', 'mousedown', 'mouseup', 'click']) bZoom.addEventListener(ev, zoomStopEv);
 function syncZoomBtn() {
   const pack = document.getElementById('bPack'), show = !!(pack && pack.classList.contains('on'));
@@ -1375,7 +1377,7 @@ function thud() { try { const ac = jumpAC = jumpAC || window.__unlockAC || new (
   const o = ac.createOscillator(), g = ac.createGain(), t = ac.currentTime; o.type = 'sine'; o.frequency.setValueAtTime(140, t); o.frequency.exponentialRampToValueAtTime(55, t + 0.12);
   g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.18, t + 0.01); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.16); o.connect(g).connect(ac.destination); o.start(t); o.stop(t + 0.18); } catch (e) {} }
 function canJump() { const S = window.__start, F = window.__floorBtn;
-  return !st.jump && !st.fly.air && !st.lavaFall && !st.seated && play.mode === 'walk' && !(tp && tp.locked) && !(shop && shop.open) && !(S && S.shown && !S.dismissed) && !(F && F.open) && !document.body.classList.contains('ingame'); }
+  return !(nb && nb.playing) && !st.jump && !st.fly.air && !st.lavaFall && !st.seated && play.mode === 'walk' && !(tp && tp.locked) && !(shop && shop.open) && !(S && S.shown && !S.dismissed) && !(F && F.open) && !document.body.classList.contains('ingame'); }
 const LAVA_FALL = 0.45, lavaFx = document.createElement('div'); lavaFx.id = 'lavaFx'; document.body.appendChild(lavaFx);
 let lavaAC = null;
 function sizzle() { try { const ac = lavaAC = lavaAC || window.__unlockAC || new (window.AudioContext || window.webkitAudioContext)(); if (window.__muted || (window.__mute && window.__mute.on)) return;
@@ -1499,6 +1501,8 @@ function flyIntegrate(dt) {
   f.air = true; f.thrust = powered; flyHud(equipped); flyMeter(f.e); flyBtn(powered); flyFx(powered ? 1 : 0); return true;
 }
 let nearCab = null;
+let nbHud = () => {}, rrStep = () => {};
+let nb = null;   // t776u NEON BRICKS in the window (set up after the HUD exists)
 const ICE_SLIP = 3.2, ICE_COAST = 4.6;   // m/s (run 5.2, walk 2.4)
 function step(dt) {
   st.t += dt;
@@ -1514,6 +1518,7 @@ function step(dt) {
     else { ix = iz = mag = 0; run = false; }
   }
   if (tp && tp.locked) { ix = iz = mag = 0; run = false; if (!shop) loadShop(); }   // teleporting: input locked
+  if (nb && nb.playing) { nb.joy(ix * (mag || 0), iz * (mag || 0), dt); ix = iz = mag = 0; run = false; joyV = null; }   // NEON BRICKS: the joystick / keys move the blocks, not the player
   st.inMag = mag; st.lastStep = st.t;
   if (st.jumpReq != null) { const ok = st.t - st.jumpReq < 0.2 && canJump(); st.jumpReq = null;
     if (ok) { st.jump = { t: 0, vx: st.vel.x, vz: st.vel.z }; st.jumps = (st.jumps || 0) + 1; } }
@@ -1718,7 +1723,7 @@ function frame(now) {
   const gap = Math.max(0, Math.min(100, now - last)); last = now;   // rAF time can be a hair before a resume timestamp
   if (paused) { rafOn = false; return; }   // full-screen game running: arcade render loop stopped
   if (document.hidden) { PS.hiddenSkips++; requestAnimationFrame(frame); return; }   // pause GPU work while the tab is in the background
-  syncZoomBtn(); tickZoom(gap / 1000);
+  syncZoomBtn(); tickZoom(gap / 1000); if (nb) nb.restoreCam(camera);
   const t0 = performance.now();
   { const dtc = Math.min(gap / 1000, 0.05); if (play.update(dtc, kiosk && kiosk.mode !== 'walk' && kiosk.mode !== 'pick' ? null : nearCab) || (kiosk && kiosk.update(dtc))) { flyGuard(); stepClock(dtc); } else step(dtc); }
   shield.update(Math.min(gap / 1000, 0.05));
@@ -1729,6 +1734,8 @@ function frame(now) {
   winds.update();
   if (tp && !st.beamed && window.__start && window.__start.dismissed && !(window.__skipStart && !window.__beamTest)) { st.beamed = true; const b = beamSpot(); tp.beamIn(b.x, b.z); }   // t282u: once per session, first Play
   if (tp) tp.update(Math.min(gap / 1000, 0.05), !!document.querySelector('#bPack.on') && !document.querySelector('#inv.on'));
+  rrStep(gap / 1000);
+  if (nb) { nb.update(Math.min(gap / 1000, 0.05)); nbHud(); if (nb.camera(camera)) monkey.visible = false; }   // t779u: ZOOM = full-screen playfield
   if (window.__camOverride) { const o = window.__camOverride; camera.position.set(...o.pos); camera.lookAt(...o.at); if (!o.showMonkey) monkey.visible = false; } // screenshots / tests
   if (window.__roomFire) window.__roomFire.update(Math.min(gap / 1000, 0.05));   // t741u laser pistol: arm pose + lasers, after the walk animation
   const draw = !PS.on || (now - PS.lastDraw) >= (1000 / Math.max(1, PS.fps)) - 0.75;   // power-save: skip GPU frames; movement above already used real dt
@@ -1815,11 +1822,66 @@ kiosk = setupKiosk({ room, camera, monkey, st, play, blockers });
   // DEAD SIGNAL: no extra sign; the VR station already carries its own game-styled DEAD SIGNAL / VR sign above the screen (dscab.js)
   const signs = buildNeonSigns(THREE, mergeGeometries, list, { HALF, renderer, aniso: Math.min(8, renderer.capabilities.getMaxAnisotropy()) });
   scene.add(signs); window.__neonSigns = signs; }
+// ---------- t776u-t779u NEON BRICKS: Dave's Lego-brick Tetris in the middle pane of room 1's big window (neonbricks.js) ----------
+{ const css = document.createElement('style');
+  css.textContent = '#nbPlay{position:fixed;left:50%;bottom:calc(max(8px,env(safe-area-inset-bottom)) + 96px);transform:translateX(-50%);z-index:26;display:none;padding:12px 26px;border-radius:14px;border:2px solid #3ff3ff;background:#0a0618ee;color:#fff;font:900 20px/1 "Arial Black",Arial,sans-serif;letter-spacing:.06em;box-shadow:0 0 16px #3ff3ff88,inset 0 0 10px #ff3fd244;cursor:pointer;touch-action:none}'
+    + '#nbPlay.on{display:block}#nbPlay small{display:block;font:700 11px/1.2 "Courier New",monospace;color:#ffe14a;margin-top:4px;letter-spacing:.1em}'
+    + '#nbMove{position:fixed;right:calc(max(4px,env(safe-area-inset-right)));bottom:calc(max(4px,env(safe-area-inset-bottom)));z-index:25;width:104px;height:104px;border-radius:50%;display:none;align-items:center;justify-content:center;flex-direction:column;border:3px solid #ffe14a;background:#140a24ee;color:#fff6b0;font:900 17px/1 "Arial Black",Arial,sans-serif;box-shadow:0 0 18px #ffb00088,inset 0 0 14px #ff3fd244;cursor:pointer;touch-action:none;-webkit-tap-highlight-color:transparent;user-select:none}'
+    + '#nbMove svg{width:40px;height:40px;margin-bottom:3px}#nbMove:active{transform:scale(.93)}'
+    + '#nbExit{position:fixed;left:calc(max(8px,env(safe-area-inset-left)) + 4px);top:calc(max(8px,env(safe-area-inset-top)) + 70px);z-index:26;display:none;width:44px;height:44px;border-radius:50%;border:2px solid #ff3fd2;background:#0a0618ee;color:#fff;font:900 22px/1 Arial;cursor:pointer}'
+    + 'body.nbPlay #nbMove,body.nbPlay #nbExit{display:flex;align-items:center;justify-content:center}body.nbPlay #bPack{visibility:hidden!important;pointer-events:none!important}body.nbPlay #nbPlay{display:none!important}';
+  document.head.appendChild(css);
+  const mk = (id, html, label) => { const b = document.createElement('button'); b.id = id; b.type = 'button'; b.innerHTML = html; b.setAttribute('aria-label', label); document.body.appendChild(b);
+    for (const ev of ['touchstart', 'touchend', 'mousedown', 'mouseup', 'click']) b.addEventListener(ev, e => { e.stopPropagation(); if (e.cancelable && ev !== 'click') e.preventDefault(); }); return b; };
+  const bPlay = mk('nbPlay', 'PLAY NEON BRICKS<small>TAP TO START</small>', 'Play Neon Bricks');
+  const bMove = mk('nbMove', '<svg viewBox="0 0 24 24" fill="none" stroke="#fff6b0" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 12a8 8 0 1 1-2.4-5.7"/><path d="M20 4v5h-5"/></svg>MOVE', 'Rotate the block');
+  const bExit = mk('nbExit', '&times;', 'Leave Neon Bricks');
+  nb = setupNeonBricks({ THREE, room, HALF, getMonkey: () => monkey, st, onState: on => {
+    document.body.classList.toggle('nbPlay', on); if (on) { st.yaw = -Math.PI / 2; st.pitch = Math.min(st.pitch, 0.25); joyClear && joyClear(); } else bZoom.classList.remove('locked'); } });
+  bPlay.addEventListener('pointerdown', e => { e.stopPropagation(); nb.start(); });
+  bMove.addEventListener('pointerdown', e => { e.stopPropagation(); nb.rotate(); });
+  bExit.addEventListener('pointerdown', e => { e.stopPropagation(); nb.stop('exit'); });
+  addEventListener('keydown', e => { if (!nb.playing) { if (nb.near && (e.code === 'Enter' || e.code === 'KeyE') && canNb()) nb.start(); return; }
+    if (e.code === 'ArrowUp' || e.code === 'KeyW' || e.code === 'KeyX') { if (!e.repeat) nb.rotate(); } else if (e.code === 'Space') { if (!e.repeat) nb.hardDrop(); } else if (e.code === 'Escape') nb.stop('exit'); });
+  const canNb = () => play.mode === 'walk' && !(tp && tp.locked) && !(shop && shop.open) && !document.body.classList.contains('ingame') && !(window.__start && window.__start.shown && !window.__start.dismissed) && !document.querySelector('#inv.on');
+  nbHud = () => { bPlay.classList.toggle('on', nb.near && canNb()); };
+  window.__neonBricks = nb; }
+// ---------- t779u RANDOM ROOM: every minute both rooms get a different floor and different walls (picked from the existing options) ----------
+// Overrides the menu for this visit only (the saved Options choice is put back in storage, so a reload starts from it). Shaders + textures are
+// pre-warmed once ~20 s in, so a swap is just a material change. window.__noRandomRoom (the test harness sets it) turns the timer off.
+{ const FLOORS = Object.keys(floorMats),   // the mirror-reflecting NEON floor stays a menu-only pick: it costs a second scene render every frame (+ its own shader variants)
+   WALLS = ['current', 'viking', 'portals', 'medieval'];
+  const RR = window.__randomRoom = { period: 60, t: 0, n: 0, warmed: false, last: null, log: [],
+    clipFloors() { let pl = null, ci = false; for (const m of [...Object.values(floorMats), (carpetWhite() || {}).material]) if (m && m.clippingPlanes && m.clippingPlanes.length) { pl = m.clippingPlanes; ci = m.clipIntersection; break; }
+      if (!pl) return false; const cw = carpetWhite(); for (const m of [...Object.values(floorMats), cw && cw.userData.carpetMat]) if (m && m.clippingPlanes !== pl) { m.clippingPlanes = pl; m.clipIntersection = ci; m.needsUpdate = true; } return true; },
+    pick(list, cur) { const o = list.filter(x => x !== cur); return o[Math.floor(Math.random() * o.length)]; },
+    tick() { let sf = null, sw = null; try { sf = localStorage.getItem(FLOOR_KEY); sw = localStorage.getItem(WALLS_KEY); } catch (e) {}
+      const f = RR.pick(FLOORS, floorMode), w = RR.pick(WALLS, wallsMode), t0 = performance.now(); setFloor(f); setWalls(w); RR.clipFloors();
+      try { if (sf == null) localStorage.removeItem(FLOOR_KEY); else localStorage.setItem(FLOOR_KEY, sf); if (sw == null) localStorage.removeItem(WALLS_KEY); else localStorage.setItem(WALLS_KEY, sw); } catch (e) {}
+      RR.n++; RR.t = 0; RR.last = { floor: f, walls: w, ms: +(performance.now() - t0).toFixed(1) }; RR.log.push(RR.last); if (RR.log.length > 20) RR.log.shift(); return RR.last; },
+    warm() { if (RR.warmed) return; RR.warmed = true; const w0 = wallsMode, f0 = floorMode; let sf = null, sw = null; try { sf = localStorage.getItem(FLOOR_KEY); sw = localStorage.getItem(WALLS_KEY); } catch (e) {}
+      const objs = () => [room.getObjectByName('wall0'), r2Ready && room2.getObjectByName('wall0'), r2Ready && hall.getObjectByName('hallWallW')].filter(Boolean);
+      try { for (const m of WALLS) { setWalls(m); for (const o of objs()) compileForPlay(o, camera, scene).catch(() => {}); }
+        // floors: golf.js cuts the shop floor (4 clip planes) out of whichever floor material is on, and renderer.compile() can't build that clipped
+        // variant, so give every floor the same planes and draw ONE 1x1 off-screen frame per floor (one per task, ~20 s in) = the real programs, ready for the swap
+        RR.clipFloors(); const rt = new THREE.WebGLRenderTarget(1, 1), fl = FLOORS.filter(f => f !== f0); let i = 0;
+        const next = () => { if (i >= fl.length || play.mode !== 'walk') { rt.dispose(); RR.floorsWarm = true; return; }
+          const fm = floorMode, prev = renderer.getRenderTarget(); let sv = null; try { sv = localStorage.getItem(FLOOR_KEY); } catch (e) {}
+          try { setFloor(fl[i++]); RR.clipFloors(); renderer.setRenderTarget(rt); renderer.render(scene, camera); } catch (e) {} finally { renderer.setRenderTarget(prev); setFloor(fm); try { if (sv == null) localStorage.removeItem(FLOOR_KEY); else localStorage.setItem(FLOOR_KEY, sv); } catch (e) {} }
+          setTimeout(next, 250); };
+        setTimeout(next, 250);
+        for (const t of [stoneTex, vikTex]) if (t && t.image) renderer.initTexture(t);
+        if (vikTex && !vikTex.image) { const iv = setInterval(() => { if (vikTex.image && vikTex.image.width) { clearInterval(iv); try { renderer.initTexture(vikTex); } catch (e) {} } }, 500); setTimeout(() => clearInterval(iv), 20000); }
+      } catch (e) {}
+      setWalls(w0); setFloor(f0); try { if (sf == null) localStorage.removeItem(FLOOR_KEY); else localStorage.setItem(FLOOR_KEY, sf); if (sw == null) localStorage.removeItem(WALLS_KEY); else localStorage.setItem(WALLS_KEY, sw); } catch (e) {} },
+    step(dt) { if (window.__noRandomRoom) return; const S = window.__start; if (S && S.shown && !S.dismissed) return; if (play.mode !== 'walk') return;
+      RR.t += dt; if (!RR.warmed && RR.t > 20) RR.warm(); if (RR.t >= RR.period) RR.tick(); } };
+  rrStep = dt => RR.step(dt); }
 const opts = setupOpts({ play, kiosk, shield, st, monkey, setFloor, getFloor: () => floorMode, setWalls, getWalls: () => wallsMode, setWindow, getWindow: () => windowMode, HALF, Z2 });
 requestAnimationFrame(frame);
 
 // hooks for tests / future art work
-window.__arcade = { powerSave: PS, animateMonkey: dt => animateMonkey(dt), get window() { return windowMode; }, setWindow, get jumping() { return !!st.jump; }, canJump, LAVA, lavaRespawnPoint, get spaceWin() { return spaceWin; }, get kiosk() { return kiosk; }, setFloor, get floor() { return floorMode; }, floorMats, setWalls, get walls() { return wallsMode; }, wallMat, carpet, mirror, shield, room, room2, Z2, hall, DOOR_W, DOOR_H, HALL_L, berserkerCab, monkeyCab, orcCab, cyberCab, novaCab, blasterCab, pipCab, clawCab, bbCab, rockfallCab, skyTowerCab, roadsterCab, dsCab, play, get paused() { return paused; }, simPause: arcadePause, flyCfg: FLY, jetpackOn: jetpackEquipped, wantWide, joyFrom, joyClear, setDist, loadZoom, saveZoom, defaultDist, zoomHold, tickZoom, zoom: { key: ZOOM_KEY, min: DIST_MIN, max: DIST_MAX, wide: DIST_WIDE, portrait: DIST_PORTRAIT, holdT: ZOOM_HOLD_T }, THREE, scene, camera, renderer, monkey, makeMonkey, makeAlien, setChar: setPlayerChar, tickBot, cabinets, strikeCab, ghostCab, featured, demo, ghostDemo, playables, blockers, st, stats, step, keys, get nearCab() { return nearCab; }, setArt: (i, part, tex, glow) => cabinets[i].userData.setArt(part, tex, glow) };
+window.__arcade = { powerSave: PS, animateMonkey: dt => animateMonkey(dt), get window() { return windowMode; }, setWindow, get jumping() { return !!st.jump; }, canJump, LAVA, lavaRespawnPoint, get spaceWin() { return spaceWin; }, get kiosk() { return kiosk; }, setFloor, get floor() { return floorMode; }, floorMats, setWalls, get walls() { return wallsMode; }, wallMat, carpet, mirror, shield, room, room2, Z2, hall, DOOR_W, DOOR_H, HALL_L, berserkerCab, monkeyCab, orcCab, cyberCab, novaCab, blasterCab, pipCab, clawCab, bbCab, rockfallCab, skyTowerCab, roadsterCab, dsCab, play, get paused() { return paused; }, simPause: arcadePause, flyCfg: FLY, jetpackOn: jetpackEquipped, wantWide, joyFrom, joyClear, setDist, loadZoom, saveZoom, defaultDist, zoomHold, tickZoom, zoom: { key: ZOOM_KEY, min: DIST_MIN, max: DIST_MAX, wide: DIST_WIDE, portrait: DIST_PORTRAIT, holdT: ZOOM_HOLD_T }, THREE, scene, camera, renderer, monkey, makeMonkey, makeAlien, setChar: setPlayerChar, tickBot, cabinets, strikeCab, ghostCab, featured, demo, ghostDemo, playables, blockers, st, stats, step, keys, get nearCab() { return nearCab; }, get neonBricks() { return nb; }, get randomRoom() { return window.__randomRoom; }, setArt: (i, part, tex, glow) => cabinets[i].userData.setArt(part, tex, glow) };
 const mp = setupMP({ scene, camera, monkey, makeMonkey, makeAlien, st, play, getTp: () => tp, HALF, Z2, HALL_L, WX: 80 }); window.__arcade.mp = mp;   // multiplayer step 1: public room, 10 players
 // after the first room frames: pull in the shop, then the window scenery, off the critical path
 { const idle = f => (window.requestIdleCallback ? requestIdleCallback(f, { timeout: 1500 }) : setTimeout(f, 200));

@@ -16,6 +16,7 @@ async function open(opts = {}) {
   if (opts.init) await page.addInitScript(opts.init);   // t767u: eg fake an iPad before any app script runs
   if (!opts.start) await page.addInitScript(() => { window.__skipStart = 1; });   // only test/start.js sees the start screen
   if (!opts.unloadWarn) await page.addInitScript(() => { window.__noUnloadWarn = 1; });   // tests reload freely; test/nosave.js checks the warning
+  if (!opts.randomRoom) await page.addInitScript(() => { window.__noRandomRoom = 1; });   // t779u: the floor/walls shuffle every minute; only test/random_room.js wants it
   if (opts.shieldOpen) await page.addInitScript(() => { window.__sessSeed = Object.assign(window.__sessSeed || {}, { 'neonarcade.shieldOpen': '1' }); });   // hallway tests walk through the doorway
   await page.goto(process.env.GA_URL || `http://localhost:${srv.address().port}/index.html`, { timeout: 180000 });
   await page.waitForFunction(() => window.__arcade && window.__arcade.stats.frames > 3, null, { timeout: 60000 });
