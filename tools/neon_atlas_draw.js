@@ -51,15 +51,37 @@ window.drawNeonAtlas = function () {
       const s = fit(g, 'PIP QUEST', f, 88, w - 110);
       neonText(g, 'PIP QUEST', w / 2, h * 0.64, { font: f(s), glow: '#ff5a3a', blur: 14, fill: lin(g, h * 0.4, h * 0.9, [[0, '#ffb04a'], [1, '#ff3a2a']]), outline: '#ffffff', ow: 7 });
       glow(g, '#ffd21a', 10); for (const cx of [38, w - 38]) { g.fillStyle = '#ffd21a'; g.beginPath(); g.ellipse(cx, h * 0.64, 15, 19, 0, 0, 7); g.fill(); g.fillStyle = '#fff3a0'; g.fillRect(cx - 3, h * 0.64 - 11, 6, 22); } nog(g); },
-    berserker(g, w, h) { // viking saga: carved red serif + gold rune line
+    berserker(g, w, h) { // viking saga: carved red serif + a Viking axe (t778u; was a gold rune line)
       const f = s => `900 ${s}px "Cinzel Decorative"`; const s = fit(g, 'BERSERKER', f, 70, w - 110);
       neonText(g, 'BERSERKER', w / 2, h * 0.4, { font: f(s), glow: '#ff2000', blur: 16, fill: lin(g, h * 0.15, h * 0.65, [[0, '#ff8a5a'], [0.5, '#ff3a1a'], [1, '#a01008']]), outline: '#2a0400', ow: 5 });
-      // rune row (B E R S E R K E R in Elder Futhark), drawn as carved strokes so no rune font is needed
-      const RU = { B: [[0, 0, 0, 1], [0, 0, 0.6, 0.25], [0.6, 0.25, 0, 0.5], [0, 0.5, 0.6, 0.75], [0.6, 0.75, 0, 1]], E: [[0, 0, 0, 1], [0.7, 0, 0.7, 1], [0, 0, 0.35, 0.3], [0.35, 0.3, 0.7, 0]],
-        R: [[0, 0, 0, 1], [0, 0, 0.6, 0.25], [0.6, 0.25, 0, 0.5], [0, 0.5, 0.6, 1]], S: [[0.6, 0, 0, 0.4], [0, 0.4, 0.6, 0.6], [0.6, 0.6, 0, 1]], K: [[0.6, 0, 0, 0.5], [0, 0.5, 0.6, 1]] };
-      const word = 'BERSERKER', rh = h * 0.22, step = rh * 1.05, y0 = h * 0.71; let rx = w / 2 - (word.length - 1) * step / 2 - rh * 0.3;
-      g.strokeStyle = '#e8c060'; g.lineWidth = 3; g.lineCap = 'round'; glow(g, '#c89a3a', 8);
-      for (const ch of word) { g.beginPath(); for (const [a, b, c2, d] of RU[ch]) { g.moveTo(rx + a * rh, y0 + b * rh); g.lineTo(rx + c2 * rh, y0 + d * rh); } g.stroke(); rx += step; } nog(g); },
+      // t778u: a horizontal 3D-looking Viking bearded axe under the name (shaded steel head, wooden haft, leather wrap), in the sign's red neon glow
+      const yH = h * 0.74, ox = w / 2 - 266, X = v => ox + v;
+      const head = () => { g.beginPath(); g.moveTo(X(366), yH - 20); g.lineTo(X(398), yH - 20); g.lineTo(X(398), yH + 12);
+        g.quadraticCurveTo(X(405), yH + 30, X(414), yH + 50); g.quadraticCurveTo(X(360), yH + 68, X(316), yH + 47); g.quadraticCurveTo(X(352), yH + 32, X(366), yH + 12); g.closePath(); };
+      const haft = () => { g.beginPath(); g.roundRect(X(118), yH - 7, 262, 14, 6); };
+      // dimmed neon halo of the whole silhouette
+      g.save(); glow(g, '#ff2000', 14); g.globalAlpha = 0.6; g.fillStyle = '#ff3a1a'; haft(); g.fill(); head(); g.fill(); g.restore(); nog(g);
+      // haft: round wood (light top, dark underside) with grain
+      haft(); g.fillStyle = lin(g, yH - 7, yH + 7, [[0, '#e0a868'], [0.35, '#b07838'], [0.75, '#6a3e18'], [1, '#2a1608']]); g.fill();
+      g.strokeStyle = 'rgba(40,20,8,0.55)'; g.lineWidth = 1; for (const [a, b, yy] of [[220, 330, -2], [250, 360, 2], [300, 372, -4]]) { g.beginPath(); g.moveTo(X(a), yH + yy); g.lineTo(X(b), yH + yy + 0.5); g.stroke(); }
+      // leather wrap near the butt: diagonal bands
+      g.save(); g.beginPath(); g.rect(X(138), yH - 8, 70, 16); g.clip();
+      g.fillStyle = lin(g, yH - 8, yH + 8, [[0, '#8a5a34'], [0.5, '#5a3218'], [1, '#24120a']]); g.fillRect(X(138), yH - 8, 70, 16);
+      g.strokeStyle = '#1a0c04'; g.lineWidth = 2; for (let k = -10; k < 80; k += 9) { g.beginPath(); g.moveTo(X(138 + k), yH + 8); g.lineTo(X(146 + k), yH - 8); g.stroke(); }
+      g.strokeStyle = 'rgba(255,200,150,0.35)'; g.lineWidth = 1; for (let k = -10; k < 80; k += 9) { g.beginPath(); g.moveTo(X(140 + k), yH + 6); g.lineTo(X(147 + k), yH - 7); g.stroke(); } g.restore();
+      // butt cap
+      g.beginPath(); g.ellipse(X(118), yH, 5, 8, 0, 0, 7); g.fillStyle = lin(g, yH - 8, yH + 8, [[0, '#f0f4f8'], [0.5, '#8a96a0'], [1, '#3a4248']]); g.fill();
+      glow(g, '#ff2000', 8); g.strokeStyle = 'rgba(255,90,42,0.85)'; g.lineWidth = 1.4; haft(); g.stroke(); nog(g);   // red neon rim (the head covers the socket end)
+      // steel head: lit from above, darker toward the beard, bright bevel on the cutting edge
+      head(); g.fillStyle = lin(g, yH - 20, yH + 64, [[0, '#f4f8fb'], [0.3, '#c4ccd4'], [0.65, '#7a8692'], [1, '#3a424a']]); g.fill();
+      g.save(); head(); g.clip(); g.fillStyle = 'rgba(255,255,255,0.25)'; g.beginPath(); g.moveTo(X(368), yH - 20); g.lineTo(X(384), yH - 20); g.lineTo(X(384), yH + 20); g.quadraticCurveTo(X(360), yH + 40, X(330), yH + 46); g.quadraticCurveTo(X(358), yH + 30, X(368), yH + 12); g.closePath(); g.fill();
+      g.strokeStyle = 'rgba(20,24,28,0.6)'; g.lineWidth = 2; g.beginPath(); g.moveTo(X(398), yH + 14); g.quadraticCurveTo(X(370), yH + 44, X(326), yH + 47); g.stroke(); g.restore();   // bevel line
+      g.strokeStyle = '#ffffff'; g.lineWidth = 2; g.beginPath(); g.moveTo(X(413), yH + 49); g.quadraticCurveTo(X(360), yH + 67, X(317), yH + 47); g.stroke();   // honed edge
+      g.lineWidth = 2; g.strokeStyle = '#1a1210'; head(); g.stroke();
+      // socket band + rivets, and a thin red neon rim on the whole axe
+      g.fillStyle = lin(g, yH - 20, yH + 12, [[0, '#9aa4ae'], [1, '#2a3036']]); g.fillRect(X(374), yH - 20, 6, 32);
+      g.fillStyle = '#e8eef2'; for (const yy of [-12, 4]) { g.beginPath(); g.arc(X(389), yH + yy, 2.2, 0, 7); g.fill(); }
+      glow(g, '#ff2000', 8); g.strokeStyle = 'rgba(255,90,42,0.85)'; g.lineWidth = 1.4; head(); g.stroke(); nog(g); },
     monkey(g, w, h) {   // cartoon jungle: Luckiest Guy, orange MONKEY over yellow CROSSING, brown outline
       const f = s => `${s}px "Luckiest Guy"`;
       neonText(g, 'MONKEY', w / 2, h * 0.3, { font: f(fit(g, 'MONKEY', f, 80, w - 80)), glow: '#ff6a1a', blur: 12, fill: '#ff7a3a', outline: '#3a1a04', ow: 7 });
@@ -95,7 +117,7 @@ window.drawNeonAtlas = function () {
       neonText(g, 'CLAW MACHINE', w / 2, h / 2 + 2, { font: f(s), glow: '#ff2bd6', blur: 14, fill: '#ff6fe0', outline: '#ffe14a', ow: 5 });
       g.fillStyle = '#ffe14a'; glow(g, '#ffe14a', 8); for (const cx of [26, w - 26]) { g.beginPath(); for (let k = 0; k < 10; k++) { const a = k / 10 * 6.283 - 1.571, r = k % 2 ? 6 : 15; g.lineTo(cx + r * Math.cos(a), h / 2 + r * Math.sin(a)); } g.fill(); } nog(g); },
   };
-  const ORDER = [['strike', 1], ['ghost', 1.7], ['cyber', 1], ['orc', 1], ['pip', 2], ['berserker', 1.5], ['monkey', 2], ['nova', 2], ['blaster', 1.6], ['bb', 2], ['rockfall', 1], ['skytower', 1], ['roadster', 1], ['claw', 1]];
+  const ORDER = [['strike', 1], ['ghost', 1.7], ['cyber', 1], ['orc', 1], ['pip', 2], ['berserker', 1.7], ['monkey', 2], ['nova', 2], ['blaster', 1.6], ['bb', 2], ['rockfall', 1], ['skytower', 1], ['roadster', 1], ['claw', 1]];
   const out = {}; const colY = [0, 0]; if (!document.fonts.check('20px "Press Start 2P"')) throw new Error('fonts missing');
   for (const [key, rows] of ORDER) {
     const ch = Math.round(128 * rows), col = colY[0] <= colY[1] ? 0 : 1, x0 = col * CW, y0 = colY[col]; colY[col] += ch;
