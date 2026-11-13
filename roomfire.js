@@ -24,7 +24,7 @@
     + 'align-items:center;justify-content:center;flex-direction:column;gap:2px;border:3px solid #ff6060;background:radial-gradient(circle at 50% 42%,#4a1010f2,#140404f2);color:#fff;font:900 13px/1 "Courier New",monospace;letter-spacing:.05em;'
     + 'text-shadow:0 0 8px #ff3030;box-shadow:0 0 14px #ff303099,inset 0 0 12px #ff303044;cursor:pointer;touch-action:none;-webkit-tap-highlight-color:transparent;user-select:none;-webkit-user-select:none}'
     + '#bFire.on{display:flex}#bFire.held{border-color:#ffd0d0;background:radial-gradient(circle at 50% 42%,#ff4040cc,#3a0808f2);transform:scale(.96)}#bFire svg{width:24px;height:16px;display:block;filter:drop-shadow(0 0 4px #48f2ff)}'    + '#bFire .chg{position:absolute;inset:-5px;border-radius:50%;pointer-events:none;background:conic-gradient(#ffe14a calc(var(--chg,0)*1%),transparent 0);-webkit-mask:radial-gradient(farthest-side,transparent calc(100% - 5px),#000 calc(100% - 4px));mask:radial-gradient(farthest-side,transparent calc(100% - 5px),#000 calc(100% - 4px));opacity:.95}'
-    + 'body.ingame #bFire{display:none!important}';
+    + 'body.ingame #bFire,body.nbPlay #bFire{display:none!important}';
   document.head.appendChild(css);
   var btn = document.createElement('button'); btn.id = 'bFire'; btn.type = 'button'; btn.title = 'Fire the laser pistol (hold)'; btn.setAttribute('aria-label', 'Fire laser');
   btn.innerHTML = '<i class="chg" aria-hidden="true"></i><svg viewBox="0 0 44 28" aria-hidden="true"><rect x="4" y="5" width="26" height="10" rx="2" fill="#9aa7bd"/><rect x="26" y="7" width="9" height="6" fill="#5a6678"/><rect x="35" y="7.5" width="6" height="5" rx="1.5" fill="#48f2ff"/><path d="M9 15h8l-2 11H7z" fill="#5a6678"/></svg><span>FIRE</span>';
@@ -70,7 +70,7 @@
     var c = playerCols(); chargeBall.material.color.setHex(k > 0.7 ? c.a : 0xffe14a);
   }
   function canShow() { var a = A(), z = document.getElementById('bZoom'); if (!a || !a.play || a.play.mode !== 'walk') return false;
-    if (!z || !z.classList.contains('on') || document.body.classList.contains('ingame')) return false;
+    if (!z || !z.classList.contains('on') || document.body.classList.contains('ingame') || document.body.classList.contains('nbPlay')) return false;
     if ((window.__wardrobe && window.__wardrobe.isOpen) || (window.__inv && window.__inv.open) || window.__optsOpen) return false;
     var op = document.getElementById('opt'); if (op && op.classList.contains('on')) return false; return equipped(); }
   // ---------- sound: snd.js zap() (Sky Tower) ----------
