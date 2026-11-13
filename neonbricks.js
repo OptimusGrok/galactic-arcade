@@ -161,9 +161,9 @@ function joy(jx, jy, dt) {   // joystick / keys: left-right auto-repeat, down = 
   const d = jx > 0.45 ? 1 : jx < -0.45 ? -1 : 0;
   if (d !== rep.dir) { rep.dir = d; rep.t = 0; if (d) move(d); } else if (d) { rep.t += dt; while (rep.t >= DAS) { move(d); rep.t -= ARR; } }
   G.soft = jy > 0.6 && Math.abs(jy) > Math.abs(jx); }
-const api = { G, grp, panel, playing: false, zoom: false, zoomK: 0, near: false, clears: 0, starts: 0, rotates: 0, moves: 0,
+const api = { G, grp, panel, get shown() { return grp.visible; }, playing: false, zoom: false, zoomK: 0, near: false, clears: 0, starts: 0, rotates: 0, moves: 0,
   get mats() { return [brickMat, ghostMat]; },
-  start() { if (api.playing) return; newGame(); api.playing = true; api.starts++; boardDirty = true; G.events.length = 0; boardDirty = true; msg = ''; drawPanel(); onState && onState(true); },
+  start() { if (api.playing) return; hideT = 0; show(true); newGame(); api.playing = true; api.starts++; boardDirty = true; G.events.length = 0; boardDirty = true; msg = ''; drawPanel(); onState && onState(true); },
   stop, rotate() { if (api.playing && rotate(1)) api.rotates++; }, hardDrop() { if (api.playing) hardDrop(); },
   move(d) { if (api.playing && move(d)) api.moves++; },
   joy, toggleZoom() { if (api.playing) api.zoom = !api.zoom; },
@@ -171,6 +171,7 @@ const api = { G, grp, panel, playing: false, zoom: false, zoomK: 0, near: false,
     const m = getMonkey(); api.near = !!(m && !api.playing && m.position.x > HALF - 4.2 && Math.abs(m.position.z - ZC) < 2.4 && m.position.y < 1);
     if (api.playing) { update(Math.min(dt, 0.1)); drain(); }
     if (msgT > 0) { msgT -= dt; if (msgT <= 0) msg = ''; }
+    if (hideT > 0 && !api.playing) { hideT -= dt; if (hideT <= 0) { hideT = 0; show(false); } }
     api.zoomK += ((api.playing && api.zoom ? 1 : 0) - api.zoomK) * (1 - Math.exp(-dt * 7)); if (api.zoomK < 0.002) api.zoomK = 0;
     sync(); drawPanel(msg); },
   // ZOOM: frame the 10 x 20 playfield so it fills the screen, eased with zoomK
@@ -183,6 +184,8 @@ const api = { G, grp, panel, playing: false, zoom: false, zoomK: 0, near: false,
     V3.copy(cam.position); cam.position.lerp(V3.set(zx, yc, ZC), k);
     const look = new THREE.Vector3(); cam.getWorldDirection(look); look.multiplyScalar(10).add(V3.copy(cam.position));
     cam.lookAt(look.lerp(new THREE.Vector3(X0, yc, ZC), k)); return k > 0.35; } };
-function stop(why) { if (!api.playing) return; api.playing = false; api.zoom = false; rep.dir = 0; G.soft = false; if (why !== 'over') G.state = 'title'; msg = ''; panelKey = ''; drawPanel(); onState && onState(false); }
+function stop(why) { if (!api.playing) return; api.playing = false; api.zoom = false; rep.dir = 0; G.soft = false; if (why !== 'over') G.state = 'title'; msg = ''; panelKey = ''; drawPanel(); if (why === 'over') hideT = 1.6; else show(false); onState && onState(false); }
+// t781u: nothing in the window until PLAY is tapped; hidden again after game over (a short GAME OVER beat first) or exit
+let hideT = 0; function show(on) { grp.visible = panel.visible = on; } show(false);
 drawPanel(); sync();
 return api; }
