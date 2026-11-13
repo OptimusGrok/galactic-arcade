@@ -6,7 +6,35 @@
   try {
     if (window.frameElement && window.frameElement.id === 'game' && window.parent && window.parent.__arcade) {
       window.__gaTop = 46; var de = document.documentElement; de.classList.add('gaCab'); de.style.setProperty('--gaTop', '46px');
+      // t762u: --gaLeft = first free x (game CSS px) right of the shell's X / ticket pill / Viking chip in that strip,
+      // so a game can put its HUD up in the strip beside them (Rock Fall). Re-measured as the chips change.
+      var last = -1, pw = window.parent, fe = window.frameElement;
+      var edge = function () { try {
+        var pd = pw.document, fr = fe.getBoundingClientRect(), k = (fr.width / (window.innerWidth || fr.width)) || 1, r = 0;
+        ['bExit', 'tix', 'vix'].forEach(function (id) { var e = pd.getElementById(id); if (!e) return; var cs = pw.getComputedStyle(e);
+          if (cs.display === 'none' || cs.visibility === 'hidden') return; var b = e.getBoundingClientRect(); if (b.width > 0 && b.top < 46) r = Math.max(r, b.right); });
+        var v = Math.max(0, Math.ceil((r - fr.left) / k + 8)); if (v !== last) { last = v; window.__gaLeft = v; de.style.setProperty('--gaLeft', v + 'px'); }
+      } catch (e) {} };
+      edge(); setInterval(edge, 250); window.addEventListener('resize', edge);
     }
+  } catch (e) {}
+})();
+// t762u: every play copy records the WebGL contexts and AudioContexts it creates; window.__gaRelease() frees them all
+// (WebGL loseContext, AudioContext.close) when the arcade closes the game. Phones (iOS Safari
+// especially) keep a removed iframe's GPU / audio memory until a later GC, so without this every re-entry
+// stacks a second full game on top of the first one.
+(function () {
+  try {
+    var gls = [], acs = [], P = window.HTMLCanvasElement && HTMLCanvasElement.prototype, gc = P && P.getContext;
+    if (gc) P.getContext = function (type) { var c = gc.apply(this, arguments); try { if (c && /webgl/i.test(String(type)) && gls.indexOf(c) < 0) gls.push(c); } catch (e) {} return c; };
+    ['AudioContext', 'webkitAudioContext'].forEach(function (k) { var AC = window[k]; if (typeof AC !== 'function' || typeof Proxy !== 'function') return;
+      try { window[k] = new Proxy(AC, { construct: function (t, a, n) { var c = Reflect.construct(t, a, n); acs.push(c); return c; } }); } catch (e) {} });
+    window.__gaRes = function () { return { gl: gls.length, glLost: gls.filter(function (g) { try { return g.isContextLost(); } catch (e) { return true; } }).length, ac: acs.length, acOpen: acs.filter(function (a) { return a.state !== 'closed'; }).length }; };
+    window.__gaRelease = function () {
+      window.__gaReleased = (window.__gaReleased || 0) + 1;
+      acs.forEach(function (a) { try { if (a.state !== 'closed') { var p = a.close(); if (p && p.catch) p.catch(function () {}); } } catch (e) {} });
+      gls.forEach(function (g) { try { var x = g.getExtension('WEBGL_lose_context'); if (x && !g.isContextLost()) x.loseContext(); } catch (e) {} });
+    };
   } catch (e) {}
 })();
 (function () {

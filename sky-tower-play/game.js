@@ -1504,7 +1504,13 @@ function resetWorld(keepPos) {
   if (!keepPos) placeOn(1);
 }
 
+function clearInput() {   // t762u: every climb starts with clean controls (no stuck key / joystick / held FLY / pause)
+  for (const k in keys) keys[k] = false; G.ix = G.iz = 0; G.flyHeld = G.fireHeld = false; G.flyKey = G.fireKey = false;
+  G.joy.on = false; G.joy.x = G.joy.y = 0; G.joy.pid = -1; G.lookPid = -1; G.hold = false;
+  try { joyKnob.style.left = '60px'; joyKnob.style.top = '60px'; } catch (e) {}
+}
 function startRun() {
+  clearInput();
   window.__DEMO = false; D.on = false; document.body.classList.remove('demo');
   G.mode = 'play'; G.run = true; G.over = false; G.won = false;
   resetWorld(false); showBanner('FLY UP!'); rivals.reset();
@@ -1538,21 +1544,23 @@ bFire.addEventListener('pointerup', e => { e.preventDefault(); setFire(false); }
 bFire.addEventListener('pointercancel', () => setFire(false));
 addEventListener('keydown', e => {
   keys[e.code] = true;
-  if (e.code === 'Space') { e.preventDefault(); setFly(true); }
-  if (e.code === 'KeyF' || e.code === 'KeyJ') { e.preventDefault(); if (!e.repeat) setFire(true); }
+  if (e.code === 'Space') { e.preventDefault(); G.flyKey = true; setFly(true); }
+  if (e.code === 'KeyF' || e.code === 'KeyJ') { e.preventDefault(); G.fireKey = true; if (!e.repeat) setFire(true); }
   syncKeys();
 });
 addEventListener('keyup', e => {
   keys[e.code] = false;
-  if (e.code === 'Space') setFly(false);
-  if (e.code === 'KeyF' || e.code === 'KeyJ') setFire(false);
+  if (e.code === 'Space') { G.flyKey = false; setFly(false); }
+  if (e.code === 'KeyF' || e.code === 'KeyJ') { G.fireKey = false; setFire(false); }
   syncKeys();
 });
 function syncKeys() {
   G.ix = (keys.KeyD || keys.ArrowRight ? 1 : 0) - (keys.KeyA || keys.ArrowLeft ? 1 : 0);
   G.iz = (keys.KeyS || keys.ArrowDown ? 1 : 0) - (keys.KeyW || keys.ArrowUp ? 1 : 0);
 }
-addEventListener('blur', () => { setFly(false); setFire(false); for (const k in keys) keys[k] = false; G.joy.on = false; });
+// t762u: losing keyboard focus (the arcade / Grok's WATCH view focusing the page) only drops KEYBOARD input. A finger on
+// the joystick / FLY / FIRE keeps working - pointer events still arrive - so a focus change can't freeze the player mid-touch.
+addEventListener('blur', () => { for (const k in keys) keys[k] = false; syncKeys(); if (G.flyKey) { G.flyKey = false; setFly(false); } if (G.fireKey) { G.fireKey = false; setFire(false); } G.blurs = (G.blurs || 0) + 1; });
 
 function joyAt(x, y) {
   const r = joyEl.getBoundingClientRect(), cx = r.left + r.width / 2, cy = r.top + r.height / 2;
@@ -1590,9 +1598,13 @@ function frame(now) {
   const cap = cool ? (1000 / 30) : 0;
   if (cap && now - last < cap - 1 && !window.__skyForce) return;
   const dt = Math.min(0.05, (now - last) / 1000); last = now;
-  step(dt);
-  renderer.render(scene, camera);
+  // t762u: one bad frame (e.g. a phone refusing to start audio) must never stop the climb: log it, keep stepping + drawing
+  try { step(dt); } catch (e) { G.stepErrs = (G.stepErrs || 0) + 1; if (G.stepErrs < 4) console.warn('sky tower step', e); }
+  try { renderer.render(scene, camera); } catch (e) { G.drawErrs = (G.drawErrs || 0) + 1; }
 }
+// t762u: phones can drop the WebGL context under memory pressure (e.g. right after another game closed) - let three restore it
+renderer.domElement.addEventListener('webglcontextlost', e => { e.preventDefault(); G.ctxLost = (G.ctxLost || 0) + 1; }, false);
+renderer.domElement.addEventListener('webglcontextrestored', () => { G.ctxRestored = (G.ctxRestored || 0) + 1; try { setSky(); hud(); } catch (e) {} }, false);
 spawnFlyTickets(); placeOn(1); updateCamera(1); setSky(); hud();
 requestAnimationFrame(frame);
 

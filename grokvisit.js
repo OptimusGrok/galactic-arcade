@@ -658,6 +658,7 @@ export function setupGrokVisit({ scene, tp, play, monkey, camera, st } = {}) {
     try {
       if (watchFrame) {
         try { const w = watchFrame.contentWindow; if (w && w.__demo && w.__demo.stop) w.__demo.stop(); } catch (e) {}
+        try { const w = watchFrame.contentWindow; if (w && w.__gaRelease) w.__gaRelease(); } catch (e) {}   // t762u
         watchFrame.style.display = 'none';
         try { watchFrame.src = 'about:blank'; } catch (e) {}
         watchFrame.removeAttribute('src');
