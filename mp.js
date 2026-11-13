@@ -174,7 +174,7 @@ body.ingame #mpPill,body.ingame #mpBar,body.ingame #mpChat,body.ingame #mpTags,b
   M.toggleMute = toggleMute;
   function onState(s) { if (!s || s.i === id || typeof s.x !== 'number') return; M.recv++; const p = peer(s.i); p.last = performance.now();
     p.tgt = { x: s.x, y: s.y || 0, z: s.z, r: s.r || 0 }; if (!p.cur) p.cur = Object.assign({}, p.tgt); p.a = String(s.a || 'idle'); p.m = String(s.m || 'room1');
-    p.gb = Array.isArray(s.gb) && s.gb.length === 3 && s.gb.every(Number.isFinite) ? s.gb : null; p.ps = Number.isFinite(s.ps) ? s.ps : 0; }
+    p.gb = Array.isArray(s.gb) && s.gb.length === 3 && s.gb.every(Number.isFinite) ? s.gb : null; p.ps = Number.isFinite(s.ps) && s.ps > 0 ? s.ps : undefined; }
   // ---------- t753u: cabinet presence ----------
   // A player inside a machine still stands in front of it for everyone else, in Grok's playing pose (leaning in, one hand
   // circling the stick, the other tapping buttons). Two at one machine stand side by side: the one who started first
@@ -184,7 +184,7 @@ body.ingame #mpPill,body.ingame #mpBar,body.ingame #mpChat,body.ingame #mpTags,b
   function cabOf(key) { const m = play && play.machines && play.machines[key]; return m && m.cab && m.cab.userData && m.cab.userData.front ? m.cab : null; }
   function atCab(key) { const L = [], now = performance.now();
     if (myPlay() === key) L.push({ id, ps: playSince });
-    for (const p of M.peers.values()) if (p.a === 'play:' + key && now - p.last < 10000) L.push({ id: p.id, ps: p.ps || 0 });
+    for (const p of M.peers.values()) if (p.a === 'play:' + key && now - p.last < 10000) L.push({ id: p.id, ps: (Number.isFinite(p.ps) && p.ps > 0) ? p.ps : 9e15 });
     L.sort((a, b) => (a.ps || 9e15) - (b.ps || 9e15) || (a.id < b.id ? -1 : 1)); return L; }
   function slotOf(key, pid) { const cab = cabOf(key); if (!cab) return null; const L = atCab(key).slice(0, CAB_MAX), i = L.findIndex(q => q.id === pid); if (i < 0) return null;
     const f = cab.userData.front, fc = cab.userData.facing || { x: 0, z: -1 }, lx = fc.z, lz = -fc.x, off = L.length === 2 ? (i === 0 ? SIDE : -SIDE) : 0;   // (lx, lz) = the player's left
@@ -231,10 +231,11 @@ body.ingame #mpPill,body.ingame #mpBar,body.ingame #mpChat,body.ingame #mpTags,b
     last(pid) { const r = strikeIn.get(pid); return r && performance.now() - r.at < 2500 ? r.s : null; },
     others() { const now = performance.now(), out = [];
       for (const [pid, r] of strikeIn) {
+        if (now - r.at > 2500) continue;
         const p = M.peers.get(pid);
-        if (!p || now - r.at > 2500 || p.a !== 'play:strike') continue;
-        const sl = slotOf('strike', pid);
-        out.push({ id: pid, name: p.name || 'Player', s: r.s, slot: sl ? sl.i : 0, at: r.at });
+        if (p && p.a && p.a !== 'play:strike') continue;   // t797u: presence lag must not drop a live strike packet
+        const sl = p ? slotOf('strike', pid) : null;
+        out.push({ id: pid, name: (p && p.name) || 'Player', s: r.s, slot: sl ? sl.i : 1, at: r.at });
       }
       return out.sort((a, b) => a.slot - b.slot); } };
 
@@ -303,7 +304,10 @@ body.ingame #mpPill,body.ingame #mpBar,body.ingame #mpChat,body.ingame #mpTags,b
   const disabled = () => M.reason === 'disabled';
   const want = () => !disabled() && !M.full && !document.hidden && navigator.onLine !== false;
   function rejoin(why) { if (!want()) return; M.rejoins = (M.rejoins || 0) + 1; M.lastRejoin = why; if (ch || M.state === 'on' || M.state === 'joining') leave(); M.state = 'off'; retry = 0; join(); }
-  document.addEventListener('visibilitychange', () => { if (document.hidden) { if (M.state === 'on' || M.state === 'joining') { leave(); M.paused = true; } } else { M.paused = false; if (M.state !== 'on') rejoin('visible'); } });
+  // t797u: brief hidden blips (upright Strike going fullscreen / orientation lock on a phone) used to leave() at once,
+  // drop peers, and clear the other ship. Wait a few seconds so a flicker does not kill co-op; still free the slot if they stay in the background.
+  let hideT = 0;
+  document.addEventListener('visibilitychange', () => { if (document.hidden) { if (M.state === 'on' || M.state === 'joining') { M.paused = true; clearTimeout(hideT); hideT = setTimeout(() => { if (document.hidden && (M.state === 'on' || M.state === 'joining')) leave(); }, 5000); } } else { clearTimeout(hideT); hideT = 0; M.paused = false; if (M.state !== 'on') rejoin('visible'); } });
   addEventListener('online', () => rejoin('online'));
   addEventListener('offline', () => { if (ch) { leave(); M.state = 'off'; M.reason = 'offline'; pillTxt(); } });
   addEventListener('pageshow', e => { if (e.persisted) rejoin('bfcache'); });

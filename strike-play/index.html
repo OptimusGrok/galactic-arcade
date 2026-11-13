@@ -158,8 +158,8 @@ window.addEventListener('pointerdown', e => {
 window.addEventListener('pointermove', e => {
   if (e.pointerId !== Input.dragId) return;
   e.preventDefault();
-  const sc = VIEW.sc;
-  Input.dragX += (e.clientX - Input.lastX) / sc * DRAG_SENS; Input.dragY += (e.clientY - Input.lastY) / sc * DRAG_SENS;
+  const sc = VIEW.sc || 1;
+  if (sc > 0.01) { Input.dragX += (e.clientX - Input.lastX) / sc * DRAG_SENS; Input.dragY += (e.clientY - Input.lastY) / sc * DRAG_SENS; }
   Input.lastX = e.clientX; Input.lastY = e.clientY;
 }, { passive: false });
 function ptrEnd(e) { if (e.pointerId === Input.dragId) { Input.dragId = null; Input.ptrDown = false; } }
@@ -3452,20 +3452,20 @@ window.TicketArt = (function () {
 // Host (cabinet slot 0) simulates both ships and the world; the guest sends input and draws the host snapshot.
 // P1 stats (score, lives, shield/health, bombs) sit on the left of the HUD, P2's on the right, synced live.
 (function () {
-  const C = window.__strikeCoop = { role: 'solo', slot: 0, p2on: false, sent: 0, recv: 0, snaps: 0, joins: 0, p2color: '#ff6e14' };
+  const C = window.__strikeCoop = { role: 'solo', slot: 0, p2on: false, locked: false, peerAt: 0, sent: 0, recv: 0, snaps: 0, joins: 0, p2color: '#ff6e14' };
   const PL_KEYS = ['x', 'y', 'alive', 'inv', 'respawn', 'bank', 'fireT', 'misT', 'beamOn', 'beamTop', 'beamW', 'focus', 'entering', 'firing', 'moved', 'plasmaOn'];
   const ST_KEYS = ['score', 'lives', 'bombs', 'shield', 'shieldFx', 'weapon', 'wlv', 'chips', 'mult', 'medal', 'deaths'];
   const I2 = { keys: Object.create(null), pressed: Object.create(null), dragX: 0, dragY: 0, bombReq: false };
   const G2 = { score: 0, lives: 2, bombs: 3, shield: 3, shieldFx: 0, weapon: 'V', wlv: 1, chips: 0, mult: 1, medal: 500, deaths: 0 };
   const pl2 = { x: W / 2 + 28, y: H - 70, alive: true, inv: 0, respawn: 0, bank: 0, fireT: 0, misT: 0, beamOn: false, beamTop: 0, beamW: 0, focus: false, entering: 0, firing: false, moved: 0, plasmaOn: false };
-  let P2_SPR = null, snap = null, lastIn = 0, lastSt = 0;
+  let P2_SPR = null, snap = null, lastIn = 0, lastSt = 0, lastHost = 0;
   C.pl2 = pl2; C.G2 = G2; C.I2 = I2;
 
   function mp() { try { return parent !== window && parent.__mp ? parent.__mp : null; } catch (e) { return null; } }
   function myId() { const M = mp(); return M && M.id; }
   function slotNow() {
-    const M = mp(); if (!M || M.state !== 'on' || !M.slotOf) return 0;
-    const sl = M.slotOf('strike', M.id); return sl ? sl.i : 0;
+    const M = mp(); if (!M || M.state !== 'on' || !M.slotOf) return null;
+    const sl = M.slotOf('strike', M.id); return sl ? sl.i : null;
   }
   function names() {
     const out = ['P1', 'P2'], M = mp();
@@ -3483,14 +3483,44 @@ window.TicketArt = (function () {
     return out;
   }
   function cabN() { const M = mp(); return (M && M.cabCount) ? M.cabCount('strike') : 1; }
+  // t797u: a missing slot must not default to host (both phones used to simulate locally).
+  // Presence cabN can flap (pause, visibility, lag); keep a locked host/guest role and P2
+  // while strike packets (or a short grace) say the other phone is still here.
+  function strikePeers() {
+    const M = mp(), now = performance.now(), out = [];
+    if (!M || !M.strike || !M.strike.peers) return out;
+    try {
+      for (const [pid, r] of M.strike.peers) {
+        if (!r || pid === myId() || now - r.at > 4000) continue;
+        out.push({ id: pid, s: r.s, at: r.at });
+      }
+    } catch (e) {}
+    return out;
+  }
+  function recentHostSnap() {
+    const L = strikePeers();
+    for (let i = 0; i < L.length; i++) { const s = L[i].s; if (s && (s.typ === 'st' || s.typ === 'host')) return s; }
+    return null;
+  }
+  function peerLive() {
+    if (strikePeers().length) { C.peerAt = performance.now(); return true; }
+    if (cabN() >= 2) { C.peerAt = performance.now(); return true; }
+    if (C.peerAt) return performance.now() - C.peerAt < 4000;
+    return !!(C.locked && C.role === 'host');   // host waiting for a join must keep the lock
+  }
+  function become(role, slot) { C.role = role; C.slot = slot; C.locked = true; if (role === 'guest') C.p2on = true; }
   function refreshRole() {
     const M = mp();
-    if (!M || M.state !== 'on' || cabN() < 2) {
-      if (C.role !== 'solo' && cabN() < 2) { C.role = 'solo'; /* keep p2on until they leave a moment */ if (cabN() < 2) C.p2on = false; }
+    if (C.locked) {
+      if (peerLive()) return C.role;
+      C.role = 'solo'; C.locked = false; C.p2on = false; C.slot = 0;
       return C.role;
     }
-    C.slot = slotNow();
-    C.role = C.slot === 0 ? 'host' : 'guest';
+    if (!M || M.state !== 'on') return C.role;
+    const host = recentHostSnap();
+    if (host && C.role !== 'host') { become('guest', 1); return C.role; }
+    const sl = slotNow();
+    if (sl != null && cabN() >= 2) { become(sl === 0 ? 'host' : 'guest', sl); return C.role; }
     return C.role;
   }
   function tintSprites() {
@@ -3511,7 +3541,7 @@ window.TicketArt = (function () {
   }
   function unpackShip(a, s, st) {
     if (!a || a.length < 9) return;
-    s.x = +a[0]; s.y = +a[1]; s.alive = !!a[2]; s.inv = a[3] | 0; s.bank = +a[4];
+    s.x = clamp(+a[0], -20, W + 20); s.y = clamp(+a[1], -40, H + 40); s.alive = !!a[2]; s.inv = a[3] | 0; s.bank = +a[4];
     st.score = a[5] | 0; st.lives = a[6] | 0; st.bombs = a[7] | 0; st.shield = a[8] | 0;
     if (a[9]) st.weapon = a[9]; if (a[10] != null) st.wlv = a[10] | 0;
   }
@@ -3540,14 +3570,16 @@ window.TicketArt = (function () {
     if (!s) return;
     const k = I2.keys; k.left = !!(s.k & 1); k.right = !!(s.k & 2); k.up = !!(s.k & 4); k.down = !!(s.k & 8); k.fire = !!(s.k & 16); k.focus = !!(s.k & 32);
     I2.pressed.bomb = !!s.bomb; I2.bombReq = !!s.bomb;
-    I2.dragX = +s.dx || 0; I2.dragY = +s.dy || 0;
+    I2.dragX = Number.isFinite(+s.dx) ? +s.dx : 0; I2.dragY = Number.isFinite(+s.dy) ? +s.dy : 0;
   }
   function sendInput() {
     const M = mp(); if (!M || !M.strike) return;
     const now = performance.now(); if (now - lastIn < 50) return; lastIn = now;
     const k = Input.keys;
     let bits = 0; if (k.left) bits |= 1; if (k.right) bits |= 2; if (k.up) bits |= 4; if (k.down) bits |= 8; if (k.fire || (typeof Opts !== 'undefined' && Opts.autofire)) bits |= 16; if (k.focus) bits |= 32;
-    M.strike.send({ typ: 'in', k: bits, dx: +(Input.dragX || 0).toFixed(2), dy: +(Input.dragY || 0).toFixed(2), bomb: !!(Input.pressed.bomb || UI.bombReq) });
+    const dx = Number.isFinite(Input.dragX) ? +Input.dragX.toFixed(2) : 0, dy = Number.isFinite(Input.dragY) ? +Input.dragY.toFixed(2) : 0;
+    M.strike.send({ typ: 'in', k: bits, dx, dy, bomb: !!(Input.pressed.bomb || UI.bombReq) });
+    Input.dragX = 0; Input.dragY = 0;   // t797u: guest must consume drag or every later packet retriggers it and the ship rails off the screen
     C.sent++;
   }
   function sendState() {
@@ -3565,11 +3597,17 @@ window.TicketArt = (function () {
     if (s.ph) G.phase = s.ph;
     if (s.t != null) G.playT = s.t | 0;
     C.visE = s.e || []; C.visB = s.b || [];
-    C.p2on = true;
+    C.p2on = s.p2 == null ? true : !!s.p2;
+    C.peerAt = performance.now();
   }
   function onMsg(pld) {
     if (!pld || pld.i === myId()) return;
-    C.recv++;
+    C.recv++; C.peerAt = performance.now();
+    // two hosts at once (race): the higher id yields so only one phone simulates
+    if ((pld.typ === 'st' || pld.typ === 'host') && C.role === 'host' && pld.i && String(pld.i) < String(myId() || '')) {
+      become('guest', 1);
+      const M = mp(); if (M && M.strike) M.strike.send({ typ: 'join' }); C.joins++;
+    }
     if (pld.typ === 'in' && C.role === 'host') applyIn(pld);
     if (pld.typ === 'st' && C.role === 'guest') applySnap(pld);
     if (pld.typ === 'join' && C.role === 'host') { if (!C.p2on) { resetP2(); C.p2on = true; } C.joins++; }
@@ -3655,15 +3693,20 @@ window.TicketArt = (function () {
       sendInput();
       const M = mp(), oth = M && M.strike && M.strike.others && M.strike.others()[0];
       if (oth && oth.s && oth.s.typ === 'st') applySnap(oth.s);
+      else { const h = recentHostSnap(); if (h && h.typ === 'st') applySnap(h); }
       G.t = (G.t || 0) + 1;
       if (G.scene !== 'play' && G.scene !== 'pause') G.scene = 'play';
       return;
     }
     _upd();
     if (C.role === 'host') {
-      if (cabN() >= 2 && !C.p2on) { resetP2(); C.p2on = true; C.joins++; }
+      if (!C.p2on && (cabN() >= 2 || strikePeers().length)) { resetP2(); C.p2on = true; C.joins++; }
       if (C.p2on) { withP2(() => { updPlayer(); }); hazardsP2(); ticketsP2(); }
-      if (cabN() >= 2) sendState();
+      if (C.p2on || strikePeers().length) sendState();
+      else {
+        const M = mp(), now = performance.now();
+        if (M && M.strike && now - lastHost > 400) { lastHost = now; M.strike.send({ typ: 'host' }); }
+      }
     }
   };
   const _rp = renderPlay;
@@ -3673,15 +3716,24 @@ window.TicketArt = (function () {
 
   const _start = window.STRIKE.start;
   window.STRIKE.start = function (stage, o) {
-    C.role = 'solo'; C.p2on = false; C.slot = 0; snap = null; resetP2(); hookMp();
+    hookMp();
+    const already = recentHostSnap();
+    C.p2on = false; snap = null; resetP2();
     const r = _start.apply(this, arguments);
-    refreshRole();
-    if (C.role === 'guest') { const M = mp(); if (M && M.strike) M.strike.send({ typ: 'join' }); C.joins++; }
+    // whoever starts a real game first is host; cabinet presence (demo) must not flip that
+    if (already) {
+      become('guest', 1);
+      const M = mp(); if (M && M.strike) M.strike.send({ typ: 'join' }); C.joins++;
+      if (already.typ === 'st') applySnap(already);
+    } else {
+      become('host', 0);
+      const M = mp(); if (M && M.strike) M.strike.send({ typ: 'host' });
+    }
     return r;
   };
 
   C.hud = () => ({
-    role: C.role, slot: C.slot, p2on: C.p2on, names: names(),
+    role: C.role, slot: C.slot, p2on: C.p2on, locked: !!C.locked, names: names(),
     p1: { x: +pl.x.toFixed(2), y: +pl.y.toFixed(2), score: G.score, lives: G.lives, shield: G.shield, bombs: G.bombs, alive: !!pl.alive },
     p2: { x: +pl2.x.toFixed(2), y: +pl2.y.toFixed(2), score: G2.score, lives: G2.lives, shield: G2.shield, bombs: G2.bombs, alive: !!pl2.alive }
   });
