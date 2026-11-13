@@ -26,10 +26,10 @@ const { open } = require('./lib');
     };
   });
   const menu = () => page.evaluate(() => {
-    window.__floorBtn.openMenu(true);
-    const floor = (document.querySelector('#flTiles .flT.sel') || {}).dataset || {};
-    const walls = (document.querySelector('#wlTiles .wlT.sel') || {}).dataset || {};
-    window.__floorBtn.openMenu(false);
+    if (window.__opts && window.__opts.show) window.__opts.show(true);
+    const floor = (document.querySelector('#opFlTiles .opFl.sel') || {}).dataset || {};
+    const walls = (document.querySelector('#opWlTiles .opFl.sel') || {}).dataset || {};
+    if (window.__opts && window.__opts.show) window.__opts.show(false);
     return { floor: floor.floor || null, walls: walls.walls || null };
   });
   const reload = async () => {
@@ -51,10 +51,11 @@ const { open } = require('./lib');
 
   // start-menu helpers floorNow()/wallsNow(): with the keys missing they must also pick COBBLE + MEDIEVAL
   m = await page.evaluate(() => { localStorage.removeItem('neonarcade.floor'); localStorage.removeItem('neonarcade.walls');
-    window.__floorBtn.openMenu(true);   // reuses the start screen's openOpt -> showFloor()/showWalls() -> floorNow()/wallsNow()
+    const U = window.__startUI, opt = U.opt, home = opt && opt.parentNode;
+    document.body.appendChild(opt); U.openOpt(true);   // start-screen picker: openOpt -> showFloor()/showWalls() -> floorNow()/wallsNow()
     const floor = (document.querySelector('#flTiles .flT.sel') || {}).dataset || {}, walls = (document.querySelector('#wlTiles .wlT.sel') || {}).dataset || {};
     const n = document.querySelectorAll('#flTiles .flT.sel').length + document.querySelectorAll('#wlTiles .wlT.sel').length;
-    window.__floorBtn.openMenu(false); return { floor: floor.floor || null, walls: walls.walls || null, n }; });
+    U.openOpt(false); if (home && opt.parentNode !== home) home.appendChild(opt); return { floor: floor.floor || null, walls: walls.walls || null, n }; });
   chk(m.floor === 'cobble' && m.walls === 'medieval' && m.n === 2, 'start-menu tiles with no saved keys select COBBLE + MEDIEVAL only ' + JSON.stringify(m));
   await page.evaluate(() => {
     localStorage.setItem('neonarcade.tickets', '4'); localStorage.setItem('neonarcade.vikingTickets', '2'); localStorage.setItem('neonarcade.keepSentinel', 'ok');

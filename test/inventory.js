@@ -1,7 +1,7 @@
 // BACKPACK button (bottom-right, walk-around only) + INVENTORY panel: gold / Viking tickets, cash + refill countdown, live values,
 // tap does not move the monkey, I key on desktop, hidden in cabinet games. node test/inventory.js [phone]
 const { open } = require('./lib'); const { helpers } = require('./cabflow');
-const PHONE = process.argv[2] === 'phone';
+const PHONE = process.argv[2] === 'phone', SH = process.env.NOSHOTS ? 0 : 1;
 (async () => {
   const { page, errors, close } = await open(PHONE ? { phone: true, w: 412, h: 860 } : {});
   page.setDefaultTimeout(60000);
@@ -12,12 +12,12 @@ const PHONE = process.argv[2] === 'phone';
     const b = R('bPack'), hit = []; for (const id of ['tix', 'vix', 'cash', 'ui', 'bUse', 'bPick', 'playUI', 'bPlay']) { const r = R(id); if (r && !(r.bottom <= b.top || b.bottom <= r.top || r.right <= b.left || b.right <= r.left)) hit.push(id); }
     return { b: b && [b.left | 0, b.top | 0, b.width | 0, b.height | 0], W: innerWidth, H: innerHeight, hit, why: window.__inv.why }; });
   chk(lay.b && lay.b[0] + lay.b[2] > lay.W - 130 && lay.b[1] + lay.b[3] > lay.H - 130 && lay.b[2] >= 100 && lay.b[2] <= 110 && lay.hit.length === 0, 'big (2.5x) ringless backpack button bottom-right, clear of the other HUD ' + JSON.stringify(lay));
-  await page.screenshot({ path: 'shots/backpack_room' + sfx + '.png' }); await page.screenshot({ path: 'shots/backpack_big' + sfx + '.png' });
+  if (SH) { await page.screenshot({ path: 'shots/backpack_room' + sfx + '.png' }); await page.screenshot({ path: 'shots/backpack_big' + sfx + '.png' }); }
   { await page.evaluate(() => { localStorage.setItem('neonarcade.tickets', '4'); localStorage.setItem('neonarcade.vikingTickets', '0'); window.__neonSync(); });
     if (PHONE) await page.tap('#bPack'); else await page.click('#bPack'); await page.waitForTimeout(700);
     const z = await page.evaluate(() => ({ open: window.__inv.open, row: getComputedStyle(document.getElementById('invV')).display, h: document.getElementById('invV').getBoundingClientRect().height, rows: [...document.querySelectorAll('#inv .invR')].filter(r => r.offsetParent).map(r => r.id) }));
-    chk(z.open && z.row === 'none' && z.h === 0 && JSON.stringify(z.rows) === '["invG","invC","invMy"]', '0 Viking tickets: no Viking row in the backpack (gold + cash + PRIZES: No prizes yet) ' + JSON.stringify(z));
-    await page.screenshot({ path: 'shots/inventory_noviking' + sfx + '.png' });
+    chk(z.open && z.row === 'none' && z.h === 0 && JSON.stringify(z.rows) === '["invWard","invG","invC","invMy"]', '0 Viking tickets: Wardrobe + gold + cash + PRIZES (no Viking row) ' + JSON.stringify(z));
+    if (SH) await page.screenshot({ path: 'shots/inventory_noviking' + sfx + '.png' });
     if (PHONE) await page.tap('#invX'); else await page.click('#invX'); await page.waitForTimeout(300); }
   await page.evaluate(() => { const p = window.__arcade.play; localStorage.setItem('neonarcade.tickets', '7'); localStorage.setItem('neonarcade.vikingTickets', '2'); window.__neonSync(); window.__kiosk.setState({ bal: 5, at: Date.now(), pending: 0 }); });
   const m0 = await page.evaluate(() => window.__arcade.monkey.position.toArray().map(v => +v.toFixed(3)));
@@ -28,7 +28,7 @@ const PHONE = process.argv[2] === 'phone';
   await page.evaluate(() => { const p = window.__arcade.play; localStorage.setItem('neonarcade.tickets', '9'); localStorage.setItem('neonarcade.vikingTickets', '3'); window.__neonSync(); window.__kiosk.setState({ bal: 2, at: Date.now() - 600e3, pending: 0 }); }); await page.waitForTimeout(600);
   const l = await page.evaluate(() => ({ g: document.getElementById('invGn').textContent, v: document.getElementById('invVn').textContent, c: document.getElementById('invCn').textContent, r: document.getElementById('invCr').textContent }));
   chk(l.g === '9' && l.v === '3' && l.c === '$2' && /^\+\$3 in \d+m$/.test(l.r), 'values live-update, cash below $5 shows the refill countdown ' + JSON.stringify(l));
-  await page.screenshot({ path: 'shots/inventory_open' + sfx + '.png' });
+  if (SH) await page.screenshot({ path: 'shots/inventory_open' + sfx + '.png' });
   if (PHONE) await page.tap('#invX'); else await page.click('#invX'); await page.waitForTimeout(300);
   chk(await page.evaluate(() => !window.__inv.open && !document.getElementById('inv').classList.contains('on')), 'X closes it');
   if (!PHONE) { await page.keyboard.press('KeyI'); await page.waitForTimeout(300); const a = await page.evaluate(() => window.__inv.open); await page.keyboard.press('Escape'); await page.waitForTimeout(300); const b = await page.evaluate(() => window.__inv.open);

@@ -1112,7 +1112,8 @@ function joyClear() {
 }
 function syncJoyArm() {
   const startUp = document.getElementById('start') && window.__start && window.__start.shown && !window.__start.dismissed;
-  const on = !!(MOBILE && !startUp);
+  const nbOn = window.__neonBricks && window.__neonBricks.playing;
+  const on = !!(MOBILE && !startUp && !nbOn);
   if (on === joyArm) return;
   joyArm = on; joyEl.classList.toggle('arm', on);
   if (!on) joyClear();
@@ -1382,7 +1383,7 @@ function thud() { try { const ac = jumpAC = jumpAC || window.__unlockAC || new (
   const o = ac.createOscillator(), g = ac.createGain(), t = ac.currentTime; o.type = 'sine'; o.frequency.setValueAtTime(140, t); o.frequency.exponentialRampToValueAtTime(55, t + 0.12);
   g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.18, t + 0.01); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.16); o.connect(g).connect(ac.destination); o.start(t); o.stop(t + 0.18); } catch (e) {} }
 function canJump() { const S = window.__start, F = window.__floorBtn;
-  return !(nb && nb.playing) && !st.jump && !st.fly.air && !st.lavaFall && !st.seated && play.mode === 'walk' && !(tp && tp.locked) && !(shop && shop.open) && !(S && S.shown && !S.dismissed) && !(F && F.open) && !document.body.classList.contains('ingame'); }
+  return !(nb && nb.playing) && !st.jump && !st.fly.air && !st.lavaFall && !st.seated && play.mode === 'walk' && !(tp && tp.locked) && !(shop && shop.open) && !(S && S.shown && !S.dismissed) && !(F && F.open) && !window.__optsOpen && !document.body.classList.contains('ingame'); }
 const LAVA_FALL = 0.45, lavaFx = document.createElement('div'); lavaFx.id = 'lavaFx'; document.body.appendChild(lavaFx);
 let lavaAC = null;
 function sizzle() { try { const ac = lavaAC = lavaAC || window.__unlockAC || new (window.AudioContext || window.webkitAudioContext)(); if (window.__muted || (window.__mute && window.__mute.on)) return;
@@ -1860,15 +1861,38 @@ kiosk = setupKiosk({ room, camera, monkey, st, play, blockers });
     + '#nbMove{position:fixed;right:calc(max(4px,env(safe-area-inset-right)));bottom:calc(max(4px,env(safe-area-inset-bottom)));z-index:25;width:104px;height:104px;border-radius:50%;display:none;align-items:center;justify-content:center;flex-direction:column;border:3px solid #ffe14a;background:#140a24ee;color:#fff6b0;font:900 17px/1 "Arial Black",Arial,sans-serif;box-shadow:0 0 18px #ffb00088,inset 0 0 14px #ff3fd244;cursor:pointer;touch-action:none;-webkit-tap-highlight-color:transparent;user-select:none}'
     + '#nbMove svg{width:40px;height:40px;margin-bottom:3px}#nbMove:active{transform:scale(.93)}'
     + '#nbExit{position:fixed;left:calc(max(8px,env(safe-area-inset-left)) + 4px);top:calc(max(8px,env(safe-area-inset-top)) + 70px);z-index:26;display:none;width:44px;height:44px;border-radius:50%;border:2px solid #ff3fd2;background:#0a0618ee;color:#fff;font:900 22px/1 Arial;cursor:pointer}'
-    + 'body.nbPlay #nbMove,body.nbPlay #nbExit{display:flex;align-items:center;justify-content:center}body.nbPlay #bPack{visibility:hidden!important;pointer-events:none!important}body.nbPlay #nbPlay{display:none!important}';
+    + 'body.nbPlay #nbMove,body.nbPlay #nbExit{display:flex;align-items:center;justify-content:center}body.nbPlay #bPack{visibility:hidden!important;pointer-events:none!important}body.nbPlay #nbPlay{display:none!important}'
+    + 'body.nbPlay #joy,body.nbPlay #joyLine{display:none!important}'
+    + '#nbPad{display:none;position:fixed;left:max(22px,calc(env(safe-area-inset-left) + 14px));bottom:max(22px,calc(env(safe-area-inset-bottom) + 14px));width:120px;height:120px;z-index:21;pointer-events:none}'
+    + 'body.nbPlay #nbPad{display:block}'
+    + '#nbPad button{position:absolute;width:40px;height:40px;border-radius:10px;border:2px solid #3ff3ffaa;background:#0a0612ee;color:#dffbff;font:900 16px/1 sans-serif;padding:0;pointer-events:auto;touch-action:none;-webkit-tap-highlight-color:transparent;box-shadow:0 0 10px #3ff3ff66,inset 0 0 8px #ff3fd244;cursor:pointer}'
+    + '#nbPad button:active,#nbPad button.on{border-color:#ffe08a;color:#ffe08a;box-shadow:0 0 14px #ffb000aa}'
+    + '#nbPad [data-nbd="u"]{left:40px;top:0}#nbPad [data-nbd="d"]{left:40px;bottom:0}#nbPad [data-nbd="l"]{left:0;top:40px}#nbPad [data-nbd="r"]{right:0;top:40px}';
   document.head.appendChild(css);
   const mk = (id, html, label) => { const b = document.createElement('button'); b.id = id; b.type = 'button'; b.innerHTML = html; b.setAttribute('aria-label', label); document.body.appendChild(b);
     for (const ev of ['touchstart', 'touchend', 'mousedown', 'mouseup', 'click']) b.addEventListener(ev, e => { e.stopPropagation(); if (e.cancelable && ev !== 'click') e.preventDefault(); }); return b; };
   const bPlay = mk('nbPlay', 'PLAY NEON BRICKS<small>TAP TO START</small>', 'Play Neon Bricks');
   const bMove = mk('nbMove', '<svg viewBox="0 0 24 24" fill="none" stroke="#fff6b0" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 12a8 8 0 1 1-2.4-5.7"/><path d="M20 4v5h-5"/></svg>MOVE', 'Rotate the block');
   const bExit = mk('nbExit', '&times;', 'Leave Neon Bricks');
+  const bPad = document.createElement('div'); bPad.id = 'nbPad'; bPad.setAttribute('aria-label', 'Neon Bricks D-pad');
+  bPad.innerHTML = '<button type="button" data-nbd="u" aria-label="Rotate">▲</button><button type="button" data-nbd="l" aria-label="Move left">◀</button><button type="button" data-nbd="r" aria-label="Move right">▶</button><button type="button" data-nbd="d" aria-label="Soft drop">▼</button>';
+  document.body.appendChild(bPad);
+  let padHold = false;
+  function padOff() { if (!padHold) return; padHold = false; bPad.querySelectorAll('button.on').forEach(b => b.classList.remove('on')); st.joy.on = false; st.joy.x = 0; st.joy.y = 0; st.joy.dist = 0; st.joy.vmax = 0; }
+  function padDir(d) {
+    padHold = true; st.joy.on = true; st.joy.dist = 80; st.joy.vmax = 0;
+    st.joy.x = d === 'l' ? -1 : d === 'r' ? 1 : 0; st.joy.y = d === 'd' ? 1 : 0;
+  }
+  bPad.addEventListener('pointerdown', e => {
+    const b = e.target.closest && e.target.closest('[data-nbd]'); if (!b || !nb.playing) return;
+    e.stopPropagation(); e.preventDefault(); try { b.setPointerCapture(e.pointerId); } catch (err) {}
+    const d = b.dataset.nbd; b.classList.add('on');
+    if (d === 'u') nb.rotate(); else padDir(d);
+  });
+  const padEnd = e => { const b = e.target.closest && e.target.closest('[data-nbd]'); if (b) b.classList.remove('on'); if (b && b.dataset.nbd !== 'u') padOff(); };
+  bPad.addEventListener('pointerup', padEnd); bPad.addEventListener('pointercancel', padEnd); bPad.addEventListener('lostpointercapture', padEnd);
   nb = setupNeonBricks({ THREE, room, HALF, getMonkey: () => monkey, st, onState: on => {
-    document.body.classList.toggle('nbPlay', on); if (on) { st.yaw = -Math.PI / 2; st.pitch = Math.min(st.pitch, 0.25); joyClear && joyClear(); try { flyCut(); } catch (e) {} } else { bZoom.classList.remove('locked'); st.pitch = THREE.MathUtils.clamp(st.pitch, PITCH_MIN, PITCH_MAX); } } });
+    document.body.classList.toggle('nbPlay', on); if (on) { st.yaw = -Math.PI / 2; st.pitch = Math.min(st.pitch, 0.25); joyClear && joyClear(); padOff(); try { flyCut(); } catch (e) {} } else { padOff(); bZoom.classList.remove('locked'); st.pitch = THREE.MathUtils.clamp(st.pitch, PITCH_MIN, PITCH_MAX); } try { syncJoyArm(); } catch (e) {} } });
   bPlay.addEventListener('pointerdown', e => { e.stopPropagation(); nb.start(); });
   bMove.addEventListener('pointerdown', e => { e.stopPropagation(); nb.rotate(); });
   bExit.addEventListener('pointerdown', e => { e.stopPropagation(); nb.stop('exit'); });

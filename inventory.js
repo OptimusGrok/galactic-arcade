@@ -19,6 +19,8 @@
     '#invMy{display:block;border-color:#ff3cf088;background:#1a0420cc}#invMy .pzH{display:flex;justify-content:space-between;align-items:baseline;letter-spacing:.12em;color:#ffd0fa;font-size:13px}#invMy .pzH small{font-size:10px;color:#d79ad0;letter-spacing:.04em}' +
     '#invMyL{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}.myC{position:relative;cursor:pointer;touch-action:manipulation;display:flex;align-items:center;gap:6px;padding:5px 8px 5px 5px;border-radius:10px;border:2px solid var(--c,#ff3cf0aa);background:#0d0212;font:700 11px "Courier New",monospace;color:#fff;max-width:100%}' +
     '.myC i{font-style:normal;font-size:20px;width:28px;height:28px;line-height:28px;text-align:center;border-radius:8px;background:var(--c,#ff3cf0)33;flex:none}.myC b{color:#ffe08a}.myC.on{border-color:#ffe08a;background:#ffb00044;color:#fff;box-shadow:0 0 12px #ffb000aa}.myC .pzSlot{position:absolute;left:-6px;top:-8px}.myE{color:#d7b8e0;font-size:12px;margin-top:6px;letter-spacing:.06em}' +
+    '#invWard{border-color:#ff3cf0aa;background:#1a0420cc;cursor:pointer;width:100%;text-align:left;color:#fff}' +
+    '#invWard .l{color:#ffd0fa;font:900 16px "Courier New",monospace;letter-spacing:.14em}#invWard:active{transform:scale(.99)}' +
     '.invCoin{width:28px!important;height:28px!important;border-radius:50%;background:radial-gradient(#9dffb5,#1d8f45);color:#04180c;font:900 17px/28px sans-serif;text-align:center;flex:none}';
   document.head.appendChild(st);
   // original icon: black backpack, grey cartoon monkey face on the front pocket (big white eyes), (side ear removed)
@@ -40,6 +42,7 @@
   var b = document.createElement('button'); b.id = 'bPack'; b.title = 'Backpack (I)'; b.setAttribute('aria-label', 'Backpack: inventory'); b.appendChild(drawPack(document.createElement('canvas'), 100));
   var inv = document.createElement('div'); inv.id = 'inv'; inv.setAttribute('aria-hidden', 'true'); inv.setAttribute('role', 'dialog'); inv.setAttribute('aria-label', 'Inventory');
   inv.innerHTML = '<div id="invP"><div id="invHd"><b><canvas id="invIco"></canvas>INVENTORY</b><button id="invX" title="Close">\u2715</button></div>' +
+    '<button type="button" class="invR" id="invWard"><div class="l">WARDROBE</div></button>' +
     '<div class="invR" id="invG"><canvas></canvas><div class="l">GOLD TICKETS</div><div class="n" id="invGn">0</div></div>' +
     '<div class="invR" id="invV"><canvas></canvas><div class="l">VIKING TICKETS</div><div class="n" id="invVn">0</div></div>' +
     '<div class="invR" id="invC"><div class="invCoin">$</div><div class="l">CASH<small id="invCr"></small></div><div class="n" id="invCn">$0</div></div><div class="invR" id="invMy"></div></div>';
@@ -57,12 +60,12 @@
   function fill() { var v = vals(); I.vals = v; document.getElementById('invGn').textContent = v.gold; document.getElementById('invVn').textContent = v.viking; document.getElementById('invV').style.display = v.viking > 0 ? '' : 'none';   // Viking row only once one is won
     document.getElementById('invCn').textContent = '$' + v.cash; document.getElementById('invCr').textContent = v.refill; vikArt(); try { fillMy(); } catch (e) {} }
   // t284u/t285u PRIZES: GROK SHOP prizes are drawn by shop.js itself (#invPz, tap to hold); this adds the claw machine plushes WON
-  // (arcade_clawMachine.collection). Wardrobe accessories stay in the wardrobe tab. Display-only.
+  // (arcade_clawMachine.collection). Wardrobe accessories open from the WARDROBE entry in this backpack (t795u). Display-only.
   // 'No prizes yet' when there is nothing at all.
   var CLAW = { bear: ['TEDDY BEAR', '\uD83E\uDDF8', '#b8c4d6'], bunny: ['BUNNY', '\uD83D\uDC30', '#b8c4d6'], duck: ['DUCKY', '\uD83E\uDD86', '#b8c4d6'], frog: ['FROG', '\uD83D\uDC38', '#b8c4d6'], cat: ['KITTY', '\uD83D\uDC31', '#3dff9a'], octopus: ['OCTOPUS', '\uD83D\uDC19', '#3dff9a'],
     penguin: ['PENGUIN', '\uD83D\uDC27', '#3dd6ff'], alien: ['ALIEN', '\uD83D\uDC7D', '#3dd6ff'], monkey: ['MONKEY', '\uD83D\uDC35', '#ffb020'], grok: ['GROK', '\uD83E\uDD16', '#ffb020'] };
   function J(k, d) { try { return JSON.parse(localStorage.getItem(k)) || d; } catch (e) { return d; } }
-  // t285u (Dave): wardrobe accessories stay in the wardrobe tab only; the backpack = GROK SHOP prizes + claw machine plushes
+  // t795u (Dave): wardrobe is a backpack entry; the backpack also holds GROK SHOP prizes + claw machine plushes
   function myPrizes() { var out = [];
     var cl = J('arcade_clawMachine.collection', {}); Object.keys(CLAW).forEach(function (k) { var n = cl[k] | 0; if (n > 0) out.push({ src: 'claw', id: 'claw:' + k, name: CLAW[k][0] + ' PLUSH', ic: CLAW[k][1], c: CLAW[k][2], n: n }); });
     return out; }
@@ -111,6 +114,9 @@
   function setOpen(on) { if (on && canShow()) return; I.open = on; inv.classList.toggle('on', on); inv.setAttribute('aria-hidden', on ? 'false' : 'true'); if (on) { I.opens++; fill(); } }
   I.setOpen = setOpen; I.fill = fill; I.vals = vals;
   b.addEventListener('click', function (e) { swallow(e); setOpen(!I.open); });
+  document.getElementById('invWard').addEventListener('click', function (e) { swallow(e); setOpen(false);
+    if (window.__wardrobeBtn && window.__wardrobeBtn.openFromMenu) window.__wardrobeBtn.openFromMenu();
+    else if (window.__wardrobe && window.__wardrobe.open) window.__wardrobe.open(); });
   document.getElementById('invX').addEventListener('click', function (e) { swallow(e); setOpen(false); });
   inv.addEventListener('click', function (e) { if (e.target === inv) setOpen(false); });
   addEventListener('keydown', function (e) { var t = e.target && e.target.tagName; if (t === 'INPUT' || t === 'TEXTAREA') return;

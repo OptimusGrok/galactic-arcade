@@ -1,6 +1,6 @@
 // t209/t210 WINDOW option: FLOOR·WALLS menu has a WINDOW tab (SPACE / JUNGLE / BEACH), separate from walls; HD painted views with
 // parallax layers, weather, drawn animals; old walls='windows' migrates; 1 ticket via the HUD button, re-pick free. node test/windows.js [phone]
-const { open } = require('./lib'); const PH = process.argv[2] === 'phone', sfx = PH ? '_phone' : '_desktop';
+const { open } = require('./lib'); const PH = process.argv[2] === 'phone', sfx = PH ? '_phone' : '_desktop', SH = process.env.NOSHOTS ? 0 : 1;
 (async () => { let ok = true; const chk = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); if (!c) ok = false; };
   const O = PH ? { phone: true, w: 390, h: 844 } : {};
   let o = await open(O), page = o.page; page.setDefaultTimeout(90000);
@@ -14,19 +14,19 @@ const { open } = require('./lib'); const PH = process.argv[2] === 'phone', sfx =
   chk(T.tab && T.wl.join() === 'current,viking,portals,medieval' && T.wn.join() === 'space,jungle,beach', 'WINDOW tab (space, jungle, beach); walls are current, viking, portals, medieval ' + JSON.stringify(T));
   // in game via the HUD button: tickets, fit, shot
   await page.evaluate(() => { localStorage.setItem('neonarcade.tickets', '3'); window.__neonSync && window.__neonSync(); window.__startUI.openOpt(false); const s = document.getElementById('start'); if (s && window.__start && !window.__start.dismissed) { window.__start.dismissed = true; s.remove(); } });
-  await page.evaluate(() => window.__floorBtn.openMenu(true)); await page.waitForTimeout(400);
+  await page.evaluate(() => { if (window.__opts && window.__opts.show) window.__opts.show(true); }); await page.waitForTimeout(400);
   const tapSel = async sel => { const b = await page.locator(sel).first().boundingBox(); if (PH) await page.touchscreen.tap(b.x + b.width / 2, b.y + b.height / 2); else await page.mouse.click(b.x + b.width / 2, b.y + b.height / 2); await page.waitForTimeout(400); };
-  await tapSel('#tabWin');
-  const fit = await page.evaluate(() => { const p = document.getElementById('optP').getBoundingClientRect(); return ['#tabFloor', '#tabWalls', '#tabWin', '#wnSpace', '#wnJungle', '#wnBeach'].map(s => { const b = document.querySelector(s).getBoundingClientRect(); return b.width > 20 && b.left >= p.left && b.right <= p.right && b.top >= 0 && b.bottom <= innerHeight; }); });
+  await tapSel('#opTabWin');
+  const fit = await page.evaluate(() => { const p = document.querySelector('#gOpt .opBox').getBoundingClientRect(); return ['#opTabFloor', '#opTabWalls', '#opTabWin', '#opWnSpace', '#opWnJungle', '#opWnBeach'].map(s => { const b = document.querySelector(s).getBoundingClientRect(); return b.width > 20 && b.left >= p.left && b.right <= p.right && b.top >= 0 && b.bottom <= innerHeight; }); });
   chk(fit.every(Boolean), 'tabs + 3 window tiles fit inside the panel on screen ' + fit);
-  await page.screenshot({ path: 'shots/window_menu' + sfx + '.png' });
+  if (SH) await page.screenshot({ path: 'shots/window_menu' + sfx + '.png' });
   const t0 = await page.evaluate(() => window.__arcade.play.tickets.total);
-  await tapSel('#wnJungle'); const t1 = await page.evaluate(() => window.__arcade.play.tickets.total);
-  await tapSel('#wnBeach'); const t2 = await page.evaluate(() => ({ t: window.__arcade.play.tickets.total, w: window.__arcade.window, ls: localStorage.getItem('neonarcade.window'), sel: document.querySelector('#wnBeach').classList.contains('sel') }));
+  await tapSel('#opWnJungle'); const t1 = await page.evaluate(() => window.__arcade.play.tickets.total);
+  await tapSel('#opWnBeach'); const t2 = await page.evaluate(() => ({ t: window.__arcade.play.tickets.total, w: window.__arcade.window, ls: localStorage.getItem('neonarcade.window'), sel: document.querySelector('#opWnBeach').classList.contains('sel') }));
   chk(t1 === t0 && t2.t === t0 - 1 && t2.w === 'beach' && t2.ls === 'beach' && t2.sel, 're-picking JUNGLE free, BEACH costs 1 ticket, saved ' + JSON.stringify([t0, t1, t2]));
   await page.evaluate(() => window.__arcade.setWalls('viking')); const combo = await page.evaluate(() => ({ w: window.__arcade.walls, win: window.__arcade.window, on: window.__windows.on }));
   chk(combo.w === 'viking' && combo.win === 'beach' && combo.on, 'window choice combines with any walls ' + JSON.stringify(combo));
-  await page.evaluate(() => { window.__arcade.setWalls('current'); window.__floorBtn.openMenu(false); });
+  await page.evaluate(() => { window.__arcade.setWalls('current'); if (window.__opts && window.__opts.show) window.__opts.show(false); });
   // weather + animals + perf
   const ph = await page.evaluate(() => { const W = window.__windows, out = {}; for (const p of [10, 60, 110, 155, 205]) { W.setPhase(p); out[p] = W.weather().name; } W.setPhase(null); return out; });
   chk(ph[10] === 'sunny' && ph[60] === 'clouds' && ph[110] === 'rain' && ph[155] === 'clearing' && ph[205] === 'sunset', 'weather cycle ' + JSON.stringify(ph));
@@ -35,7 +35,7 @@ const { open } = require('./lib'); const PH = process.argv[2] === 'phone', sfx =
   chk(sp.length >= 7, 'drawn animals walk / fly past at depths: ' + sp.join(','));
   const shot = async (name, win, phase, cam) => { await page.evaluate(([win, phase, cam]) => { const A = window.__arcade; A.setWindow(win); const W = window.__windows; W.setPhase(phase); A.monkey.position.set(3, 0, 0); window.__camOverride = { pos: cam[0], at: cam[1] };
       if (win === 'jungle') { W.J.walkers.length = 0; W.J.next = 1e12; const a = W.spawn('elephant'); a.x = 700; a.depth = 2; const b = W.spawn('giraffe'); b.x = 1300; b.depth = 1; const c = W.spawn('tiger'); c.x = 400; c.depth = 1; const d = W.spawn('parrot'); d.x = 1000; const e = W.spawn('rhino'); e.x = 1500; e.depth = 0; } }, [win, phase, cam]);
-    await page.waitForTimeout(2500); await page.screenshot({ path: 'shots/' + name + sfx + '.png' }); };
+    await page.waitForTimeout(2500); if (SH) await page.screenshot({ path: 'shots/' + name + sfx + '.png' }); };
   const CAM = [[-4, 3.6, 0], [12, 4.2, 0]];
   await shot('window_jungle_hd', 'jungle', 10, CAM); const d0 = await page.evaluate(() => [window.__windows.draws, window.__arcade.stats.frames]); await page.waitForTimeout(1500); const d1 = await page.evaluate(() => [window.__windows.draws, window.__arcade.stats.frames]);
   const dr = d1[0] - d0[0], fr = d1[1] - d0[1];   // capped at ~20 fps; on a slow test box it redraws on every rendered frame

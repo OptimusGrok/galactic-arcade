@@ -1,8 +1,9 @@
 // t776u-t779u: NEON BRICKS (Lego-brick Tetris) in room 1's big window: playfield in the middle pane with the window theme visible around it,
-// score/level panel in the right-hand pane, PLAY pops up at the window, joystick/keys move, MOVE (in the backpack's place) rotates,
+// score/level panel in the right-hand pane, PLAY pops up at the window, D-pad/keys move (up rotates), MOVE (in the backpack's place) still rotates,
 // ZOOM once = playfield full screen / again = back, game over / exit gives the backpack + walking back.
 // t781u: the game is NOT drawn until PLAY (only the button at the window); the player fades out (0.3 s) and is gone while playing, others see it too.
 // t791u: while playing, hide FIRE and FLY (restore on exit); pan the camera up far enough to see the top of the playfield.
+// t795u: while playing, replace the joystick with a D-pad (restore the joystick on exit).
 // node test/neon_bricks_window.js
 const { open } = require('./lib');
 let ok = true; const chk = (c, m, x) => { console.log((c ? 'PASS ' : 'FAIL ') + m + (x !== undefined ? ' ' + JSON.stringify(x).slice(0, 400) : '')); if (!c) ok = false; };
@@ -75,7 +76,10 @@ const vis = (page, sel) => page.evaluate(s => { const e = document.querySelector
   chk(!mp || mp.me === 'nb', "multiplayer: my state is 'nb' while playing (others fade me out; older clients show me idle)", mp);
   chk(!mp || (mp.v0 && !mp.v1 && mp.f1 === 0 && mp.back), 'another player who starts Neon Bricks fades out and back in on my screen', mp);
   chk(!(await vis(page, '#bPack')) && (await vis(page, '#nbMove')), 'backpack button replaced by MOVE', { pack: await vis(page, '#bPack'), move: await vis(page, '#nbMove') });
-  // joystick moves blocks, not the monkey
+  const padOn = await vis(page, '#nbPad');
+  const joyOn = await vis(page, '#joy');
+  chk(padOn && !joyOn, 't795u: D-pad replaces the joystick while playing', { pad: padOn, joy: joyOn });
+  // D-pad / keys move blocks, not the monkey
   const pos0 = await page.evaluate(() => window.__arcade.monkey.position.toArray());
   const x0 = await page.evaluate(() => window.__neonBricks.G.cur.x);
   // (software GL here runs a few fps, so drive the arcade's own step() at 60 Hz like test/zoom.js)
@@ -84,16 +88,37 @@ const vis = (page, sel) => page.evaluate(s => { const e = document.querySelector
   await page.keyboard.down('ArrowRight'); const x2 = await page.evaluate(() => { const A = window.__arcade; for (let i = 0; i < 3; i++) A.step(1 / 60); return window.__neonBricks.G.cur.x; });
   await page.keyboard.up('ArrowRight'); await page.evaluate(() => window.__arcade.step(1 / 60));
   const pos1 = await page.evaluate(() => window.__arcade.monkey.position.toArray());
-  chk(x1 < x0 && x2 > x1, 'joystick left / key right move the falling block side to side', { x0, x1, x2 });
+  chk(x1 < x0 && x2 > x1, 'held left / key right move the falling block side to side', { x0, x1, x2 });
+  // D-pad left / right / down / up (up = rotate, safer than a hard drop). MOVE still rotates.
+  const dx0 = await page.evaluate(() => window.__neonBricks.G.cur.x);
+  await page.locator('#nbPad [data-nbd="l"]').hover(); await page.mouse.down();
+  const dx1 = await page.evaluate(() => { const A = window.__arcade; for (let i = 0; i < 3; i++) A.step(1 / 60); return window.__neonBricks.G.cur.x; });
+  await page.mouse.up(); await page.evaluate(() => window.__arcade.step(1 / 60));
+  await page.locator('#nbPad [data-nbd="r"]').hover(); await page.mouse.down();
+  const dx2 = await page.evaluate(() => { const A = window.__arcade; for (let i = 0; i < 3; i++) A.step(1 / 60); return window.__neonBricks.G.cur.x; });
+  await page.mouse.up(); await page.evaluate(() => window.__arcade.step(1 / 60));
+  chk(dx1 < dx0 && dx2 > dx1, 'D-pad left / right move the falling block', { dx0, dx1, dx2 });
+  const rot0 = await page.evaluate(() => window.__neonBricks.rotates);
+  await tapEl('#nbPad [data-nbd="u"]'); await page.waitForTimeout(80);
+  const rot1 = await page.evaluate(() => window.__neonBricks.rotates);
+  chk(rot1 === rot0 + 1, 'D-pad up rotates (same as MOVE, not a hard drop)', { rot0, rot1 });
   chk(Math.hypot(pos1[0] - pos0[0], pos1[2] - pos0[2]) < 0.05, 'the monkey does not walk while playing', { pos0, pos1 });
   // MOVE rotates
   const r0 = await page.evaluate(() => [window.__neonBricks.G.cur.r, window.__neonBricks.rotates]);
   await tapEl('#nbMove'); await page.waitForTimeout(80);
   const r1 = await page.evaluate(() => [window.__neonBricks.G.cur.r, window.__neonBricks.rotates]);
   chk(r1[1] === r0[1] + 1, 'MOVE rotates the block', { r0, r1 });
-  // joystick down = soft drop
+  // D-pad / joystick down = soft drop
   const sd = await page.evaluate(() => { const A = window.__arcade, G = window.__neonBricks.G; A.st.joy.on = true; A.st.joy.x = 0; A.st.joy.y = 1; A.st.joy.dist = 60; A.step(1 / 60); const s = G.soft; A.st.joy.y = 0; A.st.joy.on = false; A.step(1 / 60); return [s, G.soft]; });
-  chk(sd[0] === true && sd[1] === false, 'joystick down soft-drops', sd);
+  chk(sd[0] === true && sd[1] === false, 'held down soft-drops', sd);
+  const sdPad = await page.evaluate(() => {
+    const A = window.__arcade, G = window.__neonBricks.G, b = document.querySelector('#nbPad [data-nbd="d"]');
+    b.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, pointerId: 9, isPrimary: true }));
+    A.step(1 / 60); const s = G.soft;
+    b.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, pointerId: 9, isPrimary: true }));
+    A.step(1 / 60); return [s, G.soft];
+  });
+  chk(sdPad[0] === true && sdPad[1] === false, 'D-pad down soft-drops', sdPad);
   // hard drop locks a piece and scores
   const sc0 = await page.evaluate(() => window.__neonBricks.G.score); await page.keyboard.press('Space'); await page.waitForTimeout(150);
   const hd = await page.evaluate(() => ({ s: window.__neonBricks.G.score, n: window.__neonBricks.G.board.flat().filter(Boolean).length, jump: !!window.__arcade.jumping }));
@@ -137,7 +162,7 @@ const vis = (page, sel) => page.evaluate(s => { const e = document.querySelector
   // exit -> backpack + walking back
   await tapEl('#nbExit'); await page.waitForTimeout(200);
   const ex = await page.evaluate(() => ({ p: window.__neonBricks.playing, body: document.body.classList.contains('nbPlay') }));
-  chk(!ex.p && !ex.body && (await vis(page, '#bPack')) && !(await vis(page, '#nbMove')), 'exit: backpack back, MOVE gone', ex);
+  chk(!ex.p && !ex.body && (await vis(page, '#bPack')) && !(await vis(page, '#nbMove')) && !(await vis(page, '#nbPad')), 'exit: backpack back, MOVE and D-pad gone', ex);
   await page.evaluate(() => { const A = window.__arcade; for (let i = 0; i < 8; i++) A.step(1 / 60); if (window.__roomFire) window.__roomFire.update(0); });
   const hud2 = { fire: await vis(page, '#bFire'), fly: await vis(page, '#flyHud'), bFly: await vis(page, '#bFly') };
   chk(hud2.fire && hud2.fly && hud2.bFly, 't791u: FIRE and FLY return after leaving Neon Bricks', hud2);

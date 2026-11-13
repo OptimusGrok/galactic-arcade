@@ -3,7 +3,7 @@
 // levels) and its BRICK GEOMETRY (rounded body + one stud facing you) are copied verbatim below; the rendering is new: only the
 // falling-block playfield sits in the middle section of the window (no backdrop, so the window's space / jungle / beach view shows
 // through and on both sides), score + level float in the right-hand section. Walk up to the middle of the window -> PLAY.
-// While playing: joystick left/right moves (down = soft drop), the MOVE button (in the backpack's place) rotates, ZOOM once = the
+// While playing: D-pad left/right moves (down = soft drop, up = rotate), the MOVE button (in the backpack's place) still rotates, ZOOM once = the
 // playfield fills the screen (again = back), swipes still turn the camera. Free play, no tickets (like the room's other free toys).
 // Cheap: 3 instanced meshes + 1 canvas panel (redrawn only when the numbers change), no lights added, all compiled by the warm-up.
 export function setupNeonBricks({ THREE, room, HALF, getMonkey, st, canStart, onState }) {

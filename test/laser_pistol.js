@@ -68,7 +68,7 @@ const sideCam = (page, alien) => page.evaluate(alien => { const A = window.__arc
   await reload(page);
   s = await page.evaluate(() => ({ p: window.__gaPlayer.p, own: window.__gaPlayer.owned() })); w = await worn(page);
   chk(s.p.glasses === 'skull' && s.p.hand === 'pistol' && s.own.includes('glasses:skull') && s.own.includes('hand:pistol') && w.skull && w.pistol, 'after reload: still owned + worn', { p: s.p, w });
-  // WARDROBE (FLOOR·WALLS menu) lists them once owned
+  // WARDROBE (backpack entry) lists them once owned
   await page.evaluate(() => window.__wardrobe.open()); await page.waitForTimeout(1000);
   s = await page.evaluate(() => ({ rows: [...document.querySelectorAll('#gaW .gaRow')].filter(r => !r.hidden).map(r => r.dataset.k).join(), skull: !!document.querySelector('#gaW .gaRow[data-k=glasses] .gaO[data-v=skull]'), pistol: !!document.querySelector('#gaW .gaRow[data-k=hand] .gaO[data-v=pistol]'), split: document.getElementById('gaW').classList.contains('gaSplit') }));
   chk(s.skull && s.pistol && s.split, 'WARDROBE shows the owned skull mask + laser pistol (split layout)', s);
