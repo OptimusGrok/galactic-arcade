@@ -6,6 +6,10 @@ const no=()=>Promise.reject(new Error('demo: network disabled'));window.fetch=no
 window.WebSocket=function(){throw new Error('demo: network disabled')};if(navigator.sendBeacon)navigator.sendBeacon=()=>false;
 window.AudioContext=undefined;window.webkitAudioContext=undefined;window.Audio=function(){return{play(){return Promise.resolve()},pause(){}}};
 window.requestAnimationFrame=()=>0;})();
+
+// t768u: 2D canvases CPU-backed: the sprite / city generators call getImageData hundreds of times at boot; on a GPU canvas each was a
+// readback (~2.5 s on the main thread right as the player entered the arcade). Same pixels, no readbacks.
+(function(){const gc=HTMLCanvasElement.prototype.getContext;HTMLCanvasElement.prototype.getContext=function(t,o){return t==='2d'?gc.call(this,t,Object.assign({willReadFrequently:true},o||{})):gc.apply(this,arguments)};})();
 </script><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes"><meta name="mobile-web-app-capable" content="yes"><meta name="theme-color" content="#000000"><meta name="apple-mobile-web-app-status-bar-style" content="black-fullscreen"><meta name="apple-mobile-web-app-title" content="Strike">

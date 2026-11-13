@@ -8,7 +8,7 @@ async function open(opts = {}) {
   const chromeBins = ['/home/box/.cache/ms-playwright/chromium-1248/chrome-linux64/chrome', '/opt/ungoogled-chromium/chrome'];
   const executablePath = chromeBins.find(f => fs.existsSync(f));
   const browser = await chromium.launch({ executablePath, args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] });
-  const ctx = await browser.newContext(opts.phone ? Object.assign({ viewport: { width: opts.w || 390, height: opts.h || 844 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true }, opts.ua ? { userAgent: opts.ua } : {}) : { viewport: { width: opts.w || 1280, height: opts.h || 720 } });
+  const ctx = await browser.newContext(opts.phone ? Object.assign({ viewport: { width: opts.w || 390, height: opts.h || 844 }, deviceScaleFactor: opts.dsf || 2, isMobile: true, hasTouch: true }, opts.ua ? { userAgent: opts.ua } : {}) : { viewport: { width: opts.w || 1280, height: opts.h || 720 } });
   const page = await ctx.newPage(); const errors = [], requests = [];
   ctx.on('request', r => requests.push(r.url()));
   await ctx.route(/supabase/i, opts.supa || (r => r.abort()));
