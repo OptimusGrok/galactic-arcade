@@ -1,6 +1,8 @@
 // t776u-t779u: NEON BRICKS (Lego-brick Tetris) in room 1's big window: playfield in the middle pane with the window theme visible around it,
 // score/level panel in the right-hand pane, PLAY pops up at the window, joystick/keys move, MOVE (in the backpack's place) rotates,
-// ZOOM once = playfield full screen / again = back, game over / exit gives the backpack + walking back. node test/neon_bricks_window.js
+// ZOOM once = playfield full screen / again = back, game over / exit gives the backpack + walking back.
+// t781u: the game is NOT drawn until PLAY (only the button at the window); the player fades out (0.3 s) and is gone while playing, others see it too.
+// node test/neon_bricks_window.js
 const { open } = require('./lib');
 let ok = true; const chk = (c, m, x) => { console.log((c ? 'PASS ' : 'FAIL ') + m + (x !== undefined ? ' ' + JSON.stringify(x).slice(0, 400) : '')); if (!c) ok = false; };
 const vis = (page, sel) => page.evaluate(s => { const e = document.querySelector(s); if (!e) return false; const cs = getComputedStyle(e), r = e.getBoundingClientRect(); return cs.display !== 'none' && cs.visibility !== 'hidden' && r.width > 0; }, sel);
@@ -16,16 +18,48 @@ const vis = (page, sel) => page.evaluate(s => { const e = document.querySelector
   chk(mn[1] > 0.3 && mx[1] < 8.2 && mx[1] - mn[1] > 6.5, 'tall 10x20 well, above the floor, below the ceiling', geo.b);
   chk(geo.G.W === 10 && geo.G.H === 22, 'Neon Bricks rules (10 wide, 20 + 2 hidden rows)', geo.G);
   chk(geo.pb[0][2] > 5.5 && geo.pb[0][0] > 11, 'score / level panel floats in the right-hand window section', geo.pb);
+  const hid0 = await page.evaluate(() => ({ g: window.__neonBricks.grp.visible, p: window.__neonBricks.panel.visible }));
+  chk(!hid0.g && !hid0.p, 't781u: playfield + score panel not drawn while not playing', hid0);
   // away from the window: no PLAY
   chk(!(await vis(page, '#nbPlay')), 'no PLAY button away from the window');
   await page.evaluate(() => { const A = window.__arcade; A.monkey.position.set(9.6, 0, 0.2); A.st.vel && A.st.vel.set && A.st.vel.set(0, 0, 0); });
   await page.waitForTimeout(400);
   chk(await vis(page, '#nbPlay'), 'walking to the middle of the window pops up PLAY');
+  const hid1 = await page.evaluate(() => ({ g: window.__neonBricks.grp.visible, p: window.__neonBricks.panel.visible }));
+  chk(!hid1.g && !hid1.p, 't781u: at the window only the PLAY button shows (no game drawn)', hid1);
+  const before = await page.evaluate(() => { const A = window.__arcade, ms = []; A.nbWarm(); A.monkey.traverse(o => { if (o.material) ms.push(o.material); }); window.__nbMats0 = ms;
+    window.__nbProgs0 = new Set(A.renderer.info.programs.map(p => p.id)); return { progs: A.renderer.info.programs.length, tag: !!A.monkey.getObjectByName('gaNameTag'), n: ms.length }; });
   chk(await vis(page, '#bPack'), 'backpack still there before playing');
   const tapEl = async sel => { const r = await page.evaluate(s => { const b = document.querySelector(s).getBoundingClientRect(); return [b.x + b.width / 2, b.y + b.height / 2]; }, sel); await page.mouse.click(r[0], r[1]); };
   await tapEl('#nbPlay'); await page.waitForTimeout(300);
   const s1 = await page.evaluate(() => ({ p: window.__neonBricks.playing, body: document.body.classList.contains('nbPlay'), st: window.__neonBricks.G.state, yaw: window.__arcade.st.yaw }));
   chk(s1.p && s1.body && s1.st === 'play', 'tapping PLAY starts the game', s1);
+  const sh = await page.evaluate(() => ({ g: window.__neonBricks.grp.visible, p: window.__neonBricks.panel.visible }));
+  chk(sh.g && sh.p, 't781u: the playfield + score panel appear when PLAY is tapped', sh);
+  // player fade (driven at 60 Hz steps; software GL here is a few fps)
+  const fd = await page.evaluate(() => { const A = window.__arcade, m0 = window.__nbMats0; A.nbFade(1 / 60); A.nbFade(0.1); window.__nbFadeCl = [...A.pfClones.values()]; const mid = { k: A.playerFade, ops: [] }; let swapped = 0, tr = 0;
+    A.monkey.traverse(o => { if (o.material) { if (!m0.includes(o.material)) swapped++; if (o.material.transparent) tr++; mid.ops.push(o.material.opacity); } });
+    const orig = m0.every(m => m.opacity === 1 || m.opacity > 0.99 || true) && m0.filter(m => m.opacity < 1 && !m.transparent).length === 0;
+    for (let i = 0; i < 12; i++) A.nbFade(1 / 60); const end = { k: A.playerFade, vis: A.monkey.visible };
+    return { mid: { k: mid.k, maxOp: Math.max(...mid.ops), swapped, tr }, orig, end, restored: (() => { let r = 0; A.monkey.traverse(o => { if (o.material && m0.includes(o.material)) r++; }); return r; })(), n: m0.length }; });
+  chk(fd.mid.k > 0 && fd.mid.k < 0.9 && fd.mid.maxOp < 0.9 && fd.mid.swapped === fd.n, 't781u: the player (body, accessories, name tag) fades: part-way after ~0.1 s (+ any real frames), on transparent copies of its materials', fd.mid);
+  chk(fd.end.k === 0 && !fd.end.vis && fd.restored === fd.n, 'gone after 0.3 s (shared materials untouched / put back)', { end: fd.end, restored: fd.restored, n: fd.n });
+  await page.waitForTimeout(1500);
+  const gone = await page.evaluate(() => { const A = window.__arcade, nb = A.neonBricks, P = A.renderer.properties, fresh = [];
+    for (const m of [...nb.mats, nb.panel.material, ...nb.grp.children.map(c => c.material)]) { const pr = P.get(m).currentProgram; if (pr && !window.__nbProgs0.has(pr.id)) fresh.push(m.name || m.type); }
+    return { vis: A.monkey.visible, fresh: [...new Set(fresh)], progs: A.renderer.info.programs.length }; });
+  chk(!gone.vis, 'stays hidden over real frames while playing', gone);
+  const clp = await page.evaluate(() => { const P = window.__arcade.renderer.properties; let used = 0, fresh = 0; for (const m of window.__nbFadeCl) { const pr = P.get(m).currentProgram; if (pr) { used++; if (!window.__nbProgs0.has(pr.id)) fresh++; } } return { clones: window.__nbFadeCl.length, used, fresh }; });
+  chk(clp.fresh === 0, 'the fade uses pre-warmed transparent shader variants', clp);
+  chk(gone.fresh.length === 0, 'the game draws with pre-warmed shaders (no compile when PLAY is tapped)', gone);
+  const mp = await page.evaluate(async () => { const M = window.__mp; if (!M || !M.animOf || !M._onState) return null; const me = M.animOf();
+    const A = window.__arcade; M._onState({ i: 'nbtest', x: 9.0, y: 0, z: 3.0, r: 0, a: 'idle', m: 'room1' }); await new Promise(r => setTimeout(r, 1200));
+    const p = M.peers.get('nbtest'), v0 = p && p.g.visible; M._onState({ i: 'nbtest', x: 9.0, y: 0, z: 3.0, r: 0, a: 'nb', m: 'room1' });
+    const t0 = performance.now(); while (performance.now() - t0 < 6000 && p.nbF > 0) await new Promise(r => setTimeout(r, 100)); const v1 = p.g.visible, f1 = p.nbF;
+    M._onState({ i: 'nbtest', x: 9.0, y: 0, z: 3.0, r: 0, a: 'idle', m: 'room1' }); const t1 = performance.now(); while (performance.now() - t1 < 6000 && p.nbF < 1) await new Promise(r => setTimeout(r, 100));
+    return { me, v0, v1, f1, back: p.g.visible && p.nbF === 1 }; });
+  chk(!mp || mp.me === 'nb', "multiplayer: my state is 'nb' while playing (others fade me out; older clients show me idle)", mp);
+  chk(!mp || (mp.v0 && !mp.v1 && mp.f1 === 0 && mp.back), 'another player who starts Neon Bricks fades out and back in on my screen', mp);
   chk(!(await vis(page, '#bPack')) && (await vis(page, '#nbMove')), 'backpack button replaced by MOVE', { pack: await vis(page, '#bPack'), move: await vis(page, '#nbMove') });
   // joystick moves blocks, not the monkey
   const pos0 = await page.evaluate(() => window.__arcade.monkey.position.toArray());
@@ -72,6 +106,9 @@ const vis = (page, sel) => page.evaluate(s => { const e = document.querySelector
   await tapEl('#nbExit'); await page.waitForTimeout(200);
   const ex = await page.evaluate(() => ({ p: window.__neonBricks.playing, body: document.body.classList.contains('nbPlay') }));
   chk(!ex.p && !ex.body && (await vis(page, '#bPack')) && !(await vis(page, '#nbMove')), 'exit: backpack back, MOVE gone', ex);
+  const back = await page.evaluate(() => { const A = window.__arcade, m0 = window.__nbMats0; for (let i = 0; i < 25; i++) { A.step(1 / 60); A.nbFade(1 / 60); } let r = 0, tr = 0; A.monkey.traverse(o => { if (o.material && m0.includes(o.material)) r++; }); return { k: A.playerFade, vis: A.monkey.visible, r, n: m0.length, g: A.neonBricks.grp.visible, p: A.neonBricks.panel.visible }; });
+  chk(back.k === 1 && back.vis && back.r === back.n, 't781u: on exit the player fades back in (original materials back)', back);
+  chk(!back.g && !back.p, 't781u: game hidden again after exit', back);
   const w0 = await page.evaluate(() => window.__arcade.monkey.position.toArray());
   await page.keyboard.down('KeyA'); const w1 = await page.evaluate(() => { const A = window.__arcade; for (let i = 0; i < 20; i++) A.step(1 / 60); return A.monkey.position.toArray(); }); await page.keyboard.up('KeyA');
   chk(Math.hypot(w1[0] - w0[0], w1[2] - w0[2]) > 0.2, 'joystick / keys walk again after exit', { w0, w1 });
@@ -79,9 +116,11 @@ const vis = (page, sel) => page.evaluate(s => { const e = document.querySelector
   await page.evaluate(() => window.__neonBricks.start()); await page.waitForTimeout(100);
   const go = await page.evaluate(async () => { const nb = window.__neonBricks; for (let i = 0; i < 60 && nb.playing; i++) { nb.hardDrop(); await new Promise(r => setTimeout(r, 20)); } return { p: nb.playing, st: nb.G.state, body: document.body.classList.contains('nbPlay') }; });
   chk(!go.p && go.st === 'over' && !go.body && (await vis(page, '#bPack')), 'game over: backpack returns, walking resumes', go);
+  const goH = await page.evaluate(() => { const nb = window.__neonBricks, a = nb.grp.visible; for (let i = 0; i < 40; i++) nb.update(0.05); return { during: a, after: nb.grp.visible || nb.panel.visible }; });
+  chk(goH.during && !goH.after, 't781u: after game over a short GAME OVER beat, then the game is hidden again', goH);
   // theme visible for every window theme: playfield never covers the side panes
-  const th = await page.evaluate(() => { const out = []; for (const m of ['space', 'jungle', 'beach']) { window.__arcade.setWindow(m); out.push([m, window.__arcade.window, window.__neonBricks.grp.visible]); } window.__arcade.setWindow('space'); return out; });
-  chk(th.every(t => t[0] === t[1] && t[2]), 'works with every window theme', th);
+  const th = await page.evaluate(() => { const out = []; for (const m of ['space', 'jungle', 'beach']) { window.__arcade.setWindow(m); out.push([m, window.__arcade.window, !window.__neonBricks.grp.visible]); } window.__arcade.setWindow('space'); return out; });
+  chk(th.every(t => t[0] === t[1] && t[2]), 'every window theme: nothing drawn over it when not playing', th);
   chk(errors.length === 0, 'no page errors', errors);
   await o.close(); process.exit(ok ? 0 : 1);
 })().catch(e => { console.log('FAIL exception ' + e.message); process.exit(1); });

@@ -111,6 +111,7 @@ body.ingame #mpPill,body.ingame #mpBar,body.ingame #mpChat,body.ingame #mpTags,b
     if (S && S.shown && !S.dismissed && !(tp && tp.beamIns)) return 'pre';   // t282u: still on the start screen before first Play: hidden for others
     if (tp && tp.state !== 'idle') return tp.state === 'remat' ? 'tpi' : tp.state === 'flash' ? 'tp' : 'tpo';
     if (play.mode !== 'walk' && play.cur) return (play.cur.key === 'roadster' || play.cur.key === 'deadsignal' ? 'seat:' : 'play:') + play.cur.key;
+    if (window.__neonBricks && window.__neonBricks.playing) return 'nb';   // t781u: playing NEON BRICKS in the window: others see me fade out too (older clients just show me idle)
     if (st.fly && st.fly.air) return st.fly.thrust ? 'fly' : 'glide';   // same position packet; 'fly' is powered exhaust, 'glide' is the unpowered descent pose
     if (st.jump) return 'jump'; return st.speed > 0.15 ? 'walk' : 'idle'; }
   const r2 = v => Math.round(v * 100) / 100;
@@ -313,6 +314,10 @@ body.ingame #mpPill,body.ingame #mpBar,body.ingame #mpChat,body.ingame #mpTags,b
       const fa = (now - (p.fxT || 0)) / 1000, tp = p.a === 'tp' || (p.a === 'tpo' && fa > 2.7) || (p.a === 'tpi' && fa < 0.25), ghost = /^seat:/.test(p.a) || (/^play:/.test(p.a) && !slot); g.visible = !tp && p.a !== 'pre';
       if (p.binT !== undefined) { if (p.s0 === undefined) p.s0 = g.scale.x; const u = Math.min(1, (now - p.binT) / 1500); if (u < 0.12) g.visible = false; const e = 1 - Math.pow(1 - u, 3); g.scale.set(p.s0 * (0.35 + 0.65 * e), p.s0 * e, p.s0 * (0.35 + 0.65 * e)); if (u >= 1) { g.scale.setScalar(p.s0); p.binT = undefined; } }   // t282u: scale/stretch in under the column
       if (ghost !== !!p.ghost) { p.ghost = ghost; g.traverse(o => { if (o.isMesh) { o.material.transparent = ghost; o.material.opacity = ghost ? 0.45 : 1; } }); }
+      { const want = p.a === 'nb' ? 0 : 1; if (p.nbF === undefined) p.nbF = 1;   // t781u: a player who starts NEON BRICKS fades out in 0.3 s (name tag goes with them), back in when they stop
+        if (p.nbF !== want) { p.nbF = want ? Math.min(1, p.nbF + dt / 0.3) : Math.max(0, p.nbF - dt / 0.3); const op = (p.ghost ? 0.45 : 1) * p.nbF;
+          g.traverse(o => { if (o.isMesh && o.material) { o.material.transparent = p.ghost || p.nbF < 1; o.material.opacity = op; } }); }
+        if (p.nbF === 0) g.visible = false; if (p.tag) p.tag.style.opacity = p.nbF < 1 ? p.nbF.toFixed(2) : ''; }
       const sp = Math.hypot(c.x - ox, c.z - oz) / Math.max(dt, 1e-3), u = g.userData; p.phase += dt * (sp > 0.1 ? 3 + sp * 2.1 : 0);
       if (u.legs) { const fly = p.a === 'fly' || p.a === 'glide', amp = fly ? 0 : Math.min(1, sp / 2.4) * 0.6, s = Math.sin(p.phase);
         u.legs[0].leg.rotation.x = fly ? 0.45 : s * amp; u.legs[1].leg.rotation.x = fly ? 0.45 : -s * amp;
@@ -332,5 +337,6 @@ body.ingame #mpPill,body.ingame #mpBar,body.ingame #mpChat,body.ingame #mpTags,b
   // multiplayer is off in automated test browsers unless a test opts in (keeps the suite off the network)
   const auto = navigator.webdriver && !window.__mpMock && !window.__mpLive;
   if (auto || window.__mpOff) { M.state = 'off'; M.reason = 'disabled'; pillTxt(); } else setTimeout(join, window.__mpMock ? 0 : 1200);
+  M.animOf = animOf; M._onState = onState;   // tests (t781u neon_bricks_window: my 'nb' state + a remote player fading out)
   return M;
 }

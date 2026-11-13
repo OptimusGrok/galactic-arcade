@@ -1502,6 +1502,27 @@ function flyIntegrate(dt) {
 }
 let nearCab = null;
 let nbHud = () => {}, rrStep = () => {};
+// t781u: the player fades out quickly (0.3 s) when NEON BRICKS starts and is gone while playing; fades back in on game over / exit.
+// During the fade every avatar mesh / sprite (body, accessories, name tag) draws with a transparent CLONE of its material (same shader program),
+// so shared materials are never touched; the originals go back when the fade ends. The follow lights dim with it.
+const PF = { k: 1, list: null, T: 0.3, clones: new Map(), warm: false };   // clones: original material -> its transparent twin (kept, so its shader program stays compiled)
+function pfClone(m0) { let m = PF.clones.get(m0); if (!m) { m = m0.clone(); m.transparent = true; m.userData = {}; PF.clones.set(m0, m); } return m; }
+function nbFade(dt) {
+  const want = nb && nb.playing ? 0 : 1; if (PF.k === want && !PF.list) { if (!want) monkey.visible = false; return; }
+  if (!PF.list) { PF.list = []; monkey.traverse(o => { if (!o.material || Array.isArray(o.material)) return; const m0 = o.material, m = pfClone(m0); PF.list.push([o, m0, m, m0.opacity]); o.material = m; }); }
+  PF.k = want ? Math.min(1, PF.k + dt / PF.T) : Math.max(0, PF.k - dt / PF.T);
+  for (const [, , m, op] of PF.list) m.opacity = op * PF.k;
+  monkeyFill.intensity = 0.7 * PF.k; monkeyRim.intensity = 0.9 * PF.k;
+  if (PF.k === want) { for (const [o, m0, m] of PF.list) if (o.material === m) o.material = m0; PF.list = null; }
+  if (PF.k === 0) monkey.visible = false; }
+// pre-compile what PLAY needs (the hidden playfield + panel, and the avatar's transparent fade variants) in one task, well before the first tap
+function nbWarm() { if (PF.warm || !nb) return; PF.warm = true;
+  // twice: with room 2 drawn and culled (its spotlight changes the light count, so the shader variant) - facing the window usually culls it
+  const r2v = room2.visible;
+  try { const g = nb.grp, pn = nb.panel, v = [g.visible, pn.visible]; g.visible = pn.visible = true;
+    const sw = []; if (!PF.list) monkey.traverse(o => { if (o.material && !Array.isArray(o.material)) { sw.push([o, o.material]); o.material = pfClone(o.material); } }); const mv = monkey.visible; monkey.visible = true;
+    try { for (const r2 of [true, false]) { room2.visible = r2; for (const o of [g, pn, sw.length && monkey]) if (o) compileForPlay(o, camera, scene).catch(() => {}); } }
+    finally { room2.visible = r2v; g.visible = v[0]; pn.visible = v[1]; monkey.visible = mv; for (const [o, m0] of sw) o.material = m0; } } catch (e) {} }
 let nb = null;   // t776u NEON BRICKS in the window (set up after the HUD exists)
 const ICE_SLIP = 3.2, ICE_COAST = 4.6;   // m/s (run 5.2, walk 2.4)
 function step(dt) {
@@ -1735,7 +1756,7 @@ function frame(now) {
   if (tp && !st.beamed && window.__start && window.__start.dismissed && !(window.__skipStart && !window.__beamTest)) { st.beamed = true; const b = beamSpot(); tp.beamIn(b.x, b.z); }   // t282u: once per session, first Play
   if (tp) tp.update(Math.min(gap / 1000, 0.05), !!document.querySelector('#bPack.on') && !document.querySelector('#inv.on'));
   rrStep(gap / 1000);
-  if (nb) { nb.update(Math.min(gap / 1000, 0.05)); nbHud(); if (nb.camera(camera)) monkey.visible = false; }   // t779u: ZOOM = full-screen playfield
+  if (nb) { nb.update(Math.min(gap / 1000, 0.05)); nbHud(); nbFade(Math.min(gap / 1000, 0.05)); if (nb.camera(camera)) monkey.visible = false; }   // t779u: ZOOM = full-screen playfield
   if (window.__camOverride) { const o = window.__camOverride; camera.position.set(...o.pos); camera.lookAt(...o.at); if (!o.showMonkey) monkey.visible = false; } // screenshots / tests
   if (window.__roomFire) window.__roomFire.update(Math.min(gap / 1000, 0.05));   // t741u laser pistol: arm pose + lasers, after the walk animation
   const draw = !PS.on || (now - PS.lastDraw) >= (1000 / Math.max(1, PS.fps)) - 0.75;   // power-save: skip GPU frames; movement above already used real dt
@@ -1844,7 +1865,8 @@ kiosk = setupKiosk({ room, camera, monkey, st, play, blockers });
   addEventListener('keydown', e => { if (!nb.playing) { if (nb.near && (e.code === 'Enter' || e.code === 'KeyE') && canNb()) nb.start(); return; }
     if (e.code === 'ArrowUp' || e.code === 'KeyW' || e.code === 'KeyX') { if (!e.repeat) nb.rotate(); } else if (e.code === 'Space') { if (!e.repeat) nb.hardDrop(); } else if (e.code === 'Escape') nb.stop('exit'); });
   const canNb = () => play.mode === 'walk' && !(tp && tp.locked) && !(shop && shop.open) && !document.body.classList.contains('ingame') && !(window.__start && window.__start.shown && !window.__start.dismissed) && !document.querySelector('#inv.on');
-  nbHud = () => { bPlay.classList.toggle('on', nb.near && canNb()); };
+  nbHud = () => { bPlay.classList.toggle('on', nb.near && canNb()); if (nb.near && !PF.warm) nbWarm(); };
+  setTimeout(nbWarm, 9000);   // usually long before anyone reaches the window
   window.__neonBricks = nb; }
 // ---------- t779u RANDOM ROOM: every minute both rooms get a different floor and different walls (picked from the existing options) ----------
 // Overrides the menu for this visit only (the saved Options choice is put back in storage, so a reload starts from it). Shaders + textures are
@@ -1881,7 +1903,7 @@ const opts = setupOpts({ play, kiosk, shield, st, monkey, setFloor, getFloor: ()
 requestAnimationFrame(frame);
 
 // hooks for tests / future art work
-window.__arcade = { powerSave: PS, animateMonkey: dt => animateMonkey(dt), get window() { return windowMode; }, setWindow, get jumping() { return !!st.jump; }, canJump, LAVA, lavaRespawnPoint, get spaceWin() { return spaceWin; }, get kiosk() { return kiosk; }, setFloor, get floor() { return floorMode; }, floorMats, setWalls, get walls() { return wallsMode; }, wallMat, carpet, mirror, shield, room, room2, Z2, hall, DOOR_W, DOOR_H, HALL_L, berserkerCab, monkeyCab, orcCab, cyberCab, novaCab, blasterCab, pipCab, clawCab, bbCab, rockfallCab, skyTowerCab, roadsterCab, dsCab, play, get paused() { return paused; }, simPause: arcadePause, flyCfg: FLY, jetpackOn: jetpackEquipped, wantWide, joyFrom, joyClear, setDist, loadZoom, saveZoom, defaultDist, zoomHold, tickZoom, zoom: { key: ZOOM_KEY, min: DIST_MIN, max: DIST_MAX, wide: DIST_WIDE, portrait: DIST_PORTRAIT, holdT: ZOOM_HOLD_T }, THREE, scene, camera, renderer, monkey, makeMonkey, makeAlien, setChar: setPlayerChar, tickBot, cabinets, strikeCab, ghostCab, featured, demo, ghostDemo, playables, blockers, st, stats, step, keys, get nearCab() { return nearCab; }, get neonBricks() { return nb; }, get randomRoom() { return window.__randomRoom; }, setArt: (i, part, tex, glow) => cabinets[i].userData.setArt(part, tex, glow) };
+window.__arcade = { powerSave: PS, animateMonkey: dt => animateMonkey(dt), get window() { return windowMode; }, setWindow, get jumping() { return !!st.jump; }, canJump, LAVA, lavaRespawnPoint, get spaceWin() { return spaceWin; }, get kiosk() { return kiosk; }, setFloor, get floor() { return floorMode; }, floorMats, setWalls, get walls() { return wallsMode; }, wallMat, carpet, mirror, shield, room, room2, Z2, hall, DOOR_W, DOOR_H, HALL_L, berserkerCab, monkeyCab, orcCab, cyberCab, novaCab, blasterCab, pipCab, clawCab, bbCab, rockfallCab, skyTowerCab, roadsterCab, dsCab, play, get paused() { return paused; }, simPause: arcadePause, flyCfg: FLY, jetpackOn: jetpackEquipped, wantWide, joyFrom, joyClear, setDist, loadZoom, saveZoom, defaultDist, zoomHold, tickZoom, zoom: { key: ZOOM_KEY, min: DIST_MIN, max: DIST_MAX, wide: DIST_WIDE, portrait: DIST_PORTRAIT, holdT: ZOOM_HOLD_T }, THREE, scene, camera, renderer, monkey, makeMonkey, makeAlien, setChar: setPlayerChar, tickBot, cabinets, strikeCab, ghostCab, featured, demo, ghostDemo, playables, blockers, st, stats, step, keys, get nearCab() { return nearCab; }, get neonBricks() { return nb; }, nbFade: dt => nbFade(dt), get playerFade() { return PF.k; }, get pfClones() { return PF.clones; }, nbWarm: () => nbWarm(), get randomRoom() { return window.__randomRoom; }, setArt: (i, part, tex, glow) => cabinets[i].userData.setArt(part, tex, glow) };
 const mp = setupMP({ scene, camera, monkey, makeMonkey, makeAlien, st, play, getTp: () => tp, HALF, Z2, HALL_L, WX: 80 }); window.__arcade.mp = mp;   // multiplayer step 1: public room, 10 players
 // after the first room frames: pull in the shop, then the window scenery, off the critical path
 { const idle = f => (window.requestIdleCallback ? requestIdleCallback(f, { timeout: 1500 }) : setTimeout(f, 200));
