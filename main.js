@@ -1068,8 +1068,8 @@ if (!MOBILE) loadZoom();   // desktop wheel zoom may persist; the hold-to-zoom b
 cv.addEventListener('wheel', e => { setDist(st.dist + e.deltaY * 0.004); e.preventDefault(); }, { passive: false });
 function look(dx, dy) { st.lookT = st.t; st.yaw -= dx * 0.005; st.pitch = THREE.MathUtils.clamp(st.pitch + dy * 0.004, -0.6, 1.25); }
 function defaultDist() { return (MOBILE && camera.aspect > 1.15) ? DIST_WIDE : DIST_PORTRAIT; }
-// touch: the bottom-left stick steers. The thumb stays inside the base; the dotted line and the
-// speed follow the real finger, so a drag past the rim still walks faster up to a capped sprint.
+// touch: the bottom-left stick steers. The thumb and the dotted line stay inside the base; the
+// speed still follows the real finger, so a drag past the rim still walks faster up to a capped sprint.
 // One-finger swipe on the game view (outside the stick and HUD) turns the camera, as it did before pinch-zoom.
 const joyEl = document.getElementById('joy'), knob = document.getElementById('knob');
 const joyLine = document.getElementById('joyLine'), joyDash = document.getElementById('joyDash');
@@ -1098,8 +1098,10 @@ function joyFrom(x, y) {
   knob.style.transform = show ? `translate(${st.joy.x * cl}px,${st.joy.y * cl}px)` : '';
   if (show) {
     joyLine.classList.add('on');
+    // t786u: never draw the dotted trail past the circle (speed still uses the real finger)
+    const lx = c.x + st.joy.x * cl, ly = c.y + st.joy.y * cl;
     joyDash.setAttribute('x1', c.x); joyDash.setAttribute('y1', c.y);
-    joyDash.setAttribute('x2', x); joyDash.setAttribute('y2', y);
+    joyDash.setAttribute('x2', lx); joyDash.setAttribute('y2', ly);
   } else joyLine.classList.remove('on');
 }
 function joyClear() {
