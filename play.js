@@ -94,7 +94,7 @@ export function setupPlay(A) {
       scene(w) { const m = w.NV.G.mode; return m === 'over' ? 'over' : m === 'title' ? 'title' : 'play'; },
       active(w) { return w.NV.G.mode === 'play'; },
       hold(w) { const G = w.NV.G; if (G.mode !== 'play') return false; G.mode = 'pause'; return true; }, unhold(w) { const G = w.NV.G; if (G.mode === 'pause') G.mode = 'play'; }, overHold: 4500, scoresHold: 0 },
-    claw: { key: 'claw', cab: A.clawCab, src: 'claw-play/index.html', credits: 0, games: 0, aspect: (A.clawCab && A.clawCab.userData.aspect) || 1.4, cost: 1,   // CLAW MACHINE (#12): 1 ticket = 1 credit = one drop (Dave: 'It costs 1 ticket to play')
+    claw: { key: 'claw', upright: 1, cab: A.clawCab, src: 'claw-play/index.html', credits: 0, games: 0, aspect: (A.clawCab && A.clawCab.userData.aspect) || 1.4, cost: 1,   // t799u: play upright (portrait) like Monkey Crossing / Ghost / Strike / Cybercity. 1 ticket = 1 credit = one drop
       demo(w) { w.__demo.start(); }, stopDemo(w) { w.__demo.stop(); },
       start(w) { w.__clawA.start(); },
       scene(w) { return w.__clawA.scene(); }, active(w) { return w.__clawA.active(); },
