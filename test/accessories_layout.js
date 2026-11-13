@@ -101,11 +101,11 @@ const tapEl = async (page, sel) => { const r = await page.locator(sel).first().b
     chk(await islandOpen(page), ch + ': island button reopens after DONE'); m = await measure(page); d = await drawn(page);
     chk(m.split && !m.over && m.o.h >= 44 && d.ok, ch + ': reopen keeps the split layout with the player drawn', { split: m.split, o: m.o && Math.round(m.o.h), d });
     await tapEl(page, '#gaWX'); { const g = await gone(page); chk(g.ok, ch + ': X closes', g); }
-    // WARDROBE from the FLOOR·WALLS menu: same split, player drawn, close works
+    // WARDROBE from the backpack: same split, player drawn, close works
     await page.evaluate(() => { const A = window.__arcade; A.st.vel.set(0, 0, 0); A.monkey.position.set(0, 0, 0); }); await page.waitForTimeout(600);
-    await tapEl(page, '#flBtn'); await page.waitForTimeout(600); await tapEl(page, '#optWard'); await page.waitForTimeout(1500);
+    await tapEl(page, '#bPack'); await page.waitForTimeout(600); await tapEl(page, '#invWard'); await page.waitForTimeout(1500);
     m = await measure(page); d = await drawn(page);
-    chk(m.title === 'WARDROBE' && m.split, ch + ': WARDROBE (FLOOR·WALLS menu) opens in the split layout', { t: m.title, split: m.split, rows: m.rows });
+    chk(m.title === 'WARDROBE' && m.split, ch + ': WARDROBE (backpack) opens in the split layout', { t: m.title, split: m.split, rows: m.rows });
     chk(m.cv.r <= m.box.x && m.cv.h >= m.vh * 0.6 && m.ph >= m.cv.h * 0.75 && d.ok, ch + ': wardrobe: player full size on the left, drawn', { cv: [Math.round(m.cv.w), Math.round(m.cv.h)], ph: Math.round(m.ph), d });
     chk(m.box.h >= m.vh * 0.9 && m.box.w >= m.vw * 0.55 && m.o.h >= 44 && m.a.h >= 44 && m.lab >= 14 && !m.over && m.rowsIn && m.hitO && m.hitA && m.hitCtl, ch + ': wardrobe: rows on the right, bigger, tappable, no overflow',
       { o: [Math.round(m.o.w), Math.round(m.o.h)], a: [Math.round(m.a.w), Math.round(m.a.h)], lab: m.lab, over: m.over, rowsIn: m.rowsIn, hit: [m.hitO, m.hitA, m.hitCtl] });

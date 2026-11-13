@@ -1,9 +1,9 @@
-// t731 WARDROBE lives inside the FLOOR & WALLS menu (not a top-level HUD button).
-// Opening that menu shows a Wardrobe option that opens window.__wardrobe exactly as before.
+// t795u WARDROBE lives inside the backpack inventory (not a top-level HUD button or the FLOOR/WALLS menu).
+// Opening the backpack shows a Wardrobe entry that opens window.__wardrobe exactly as before.
 // Taps never walk / jump; mp.js rebroadcasts the look on 'galacticarcade:look' (mpmock, no network).
 // node test/wardrobe.js [phone]
 const { open } = require('./lib'); const mock = require('./mpmock');
-const PH = process.argv[2] === 'phone';
+const PH = process.argv[2] === 'phone', SH = process.env.NOSHOTS ? 0 : 1;
 (async () => { let ok = true; const chk = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); if (!c) ok = false; };
   const O = PH ? { phone: true, w: 412, h: 860 } : {}, pages = [], all = [];
   async function dev(id) { const o = await open(O); const p = o.page; p.setDefaultTimeout(60000); all.push(o);
@@ -18,37 +18,36 @@ const PH = process.argv[2] === 'phone';
     const hudWards = [...document.querySelectorAll('button')].filter(b => vis(b) && /wardrobe/i.test((b.textContent || '') + (b.title || '')) && !b.closest('#opt'));
     return { hasWd: !!wd, wdVis: vis(wd), flVis: vis(fl), hudWards: hudWards.map(b => b.id || b.className), api: !!(window.__wardrobeBtn && window.__wardrobeBtn.openFromMenu) };
   });
-  chk(!hud.hasWd && !hud.wdVis && hud.hudWards.length === 0, 'no separate top-level wardrobe button ' + JSON.stringify(hud));
-  chk(hud.flVis && hud.api, 'walls and floor button is visible and the wardrobe menu API is ready ' + JSON.stringify(hud));
+  chk(!hud.hasWd && !hud.wdVis && !hud.flVis && hud.hudWards.length === 0, 'no separate top-level wardrobe or FLOOR/WALLS button ' + JSON.stringify(hud));
+  chk(hud.api, 'wardrobe menu API is ready ' + JSON.stringify(hud));
 
   const openMenu = async () => {
-    const b = await page.locator('#flBtn').boundingBox();
+    await page.waitForFunction(() => window.__inv && window.__inv.shown, null, { timeout: 20000 }).catch(() => {});
+    const b = await page.locator('#bPack').boundingBox();
     if (PH) await page.touchscreen.tap(b.x + b.width / 2, b.y + b.height / 2);
     else await page.mouse.click(b.x + b.width / 2, b.y + b.height / 2);
     await page.waitForTimeout(500);
   };
-  const closeMenu = async () => { await page.evaluate(() => { if (window.__start && window.__start.openOpt) window.__start.openOpt(false); }); await page.waitForTimeout(200); };
   await openMenu();
   const menu = await page.evaluate(() => {
-    const opt = document.getElementById('opt');
-    const w = document.getElementById('optWard');
+    const inv = document.getElementById('inv');
+    const w = document.getElementById('invWard');
     const vis = e => { if (!e) return false; const s = getComputedStyle(e), r = e.getBoundingClientRect(); return s.display !== 'none' && s.visibility !== 'hidden' && r.width > 8 && r.height > 8; };
     const extra = w && getComputedStyle(w, '::after').content;
     return {
-      open: opt && opt.classList.contains('on') && vis(opt),
+      open: !!(window.__inv && window.__inv.open && inv && inv.classList.contains('on') && vis(inv)),
       ward: w && vis(w),
-      label: w && (w.textContent || '').trim(),
-      extra: extra && extra !== 'none' ? extra : '',
-      tabs: [...document.querySelectorAll('#optTabs .flT')].map(t => t.textContent.trim())
+      label: w && (w.textContent || '').replace(/\s+/g, ' ').trim(),
+      extra: extra && extra !== 'none' ? extra : ''
     };
   });
-  chk(menu.open && menu.ward && menu.label === 'WARDROBE', 'opening the walls and floor menu shows a Wardrobe option ' + JSON.stringify(menu));
-  chk(!/🎟/.test(menu.extra || ''), 'wardrobe option does not show a ticket cost ' + JSON.stringify(menu.extra));
+  chk(menu.open && menu.ward && menu.label === 'WARDROBE', 'opening the backpack shows a Wardrobe entry ' + JSON.stringify(menu));
+  chk(!/🎟/.test(menu.extra || ''), 'wardrobe entry does not show a ticket cost ' + JSON.stringify(menu.extra));
   if (process.env.WD_SHOT) await page.screenshot({ path: process.env.WD_SHOT });
 
   const tapWard = async () => {
-    const b = await page.locator('#optWard').boundingBox();
-    if (!b) throw new Error('optWard not on screen');
+    const b = await page.locator('#invWard').boundingBox();
+    if (!b) throw new Error('invWard not on screen');
     if (PH) await page.touchscreen.tap(b.x + b.width / 2, b.y + b.height / 2);
     else await page.mouse.click(b.x + b.width / 2, b.y + b.height / 2);
     await page.waitForTimeout(600);
@@ -57,8 +56,8 @@ const PH = process.argv[2] === 'phone';
   const real = await page.evaluate(() => !!(window.__wardrobe && window.__wardrobe.open));
   await tapWard();
   if (real) {
-    const op = await page.evaluate(() => ({ open: !!window.__wardrobe.isOpen, menu: !!(document.getElementById('opt') && document.getElementById('opt').classList.contains('on')) }));
-    chk(op.open && !op.menu, 'Wardrobe option opens the existing wardrobe and closes the floor menu ' + JSON.stringify(op));
+    const op = await page.evaluate(() => ({ open: !!window.__wardrobe.isOpen, menu: !!(window.__inv && window.__inv.open) }));
+    chk(op.open && !op.menu, 'Wardrobe entry opens the existing wardrobe and closes the backpack ' + JSON.stringify(op));
     await page.evaluate(() => window.__wardrobe.close()); await page.waitForTimeout(400);
   } else {
     const t = await page.evaluate(() => { const e = document.querySelector('.wdToast'); return e && e.style.display !== 'none' ? e.textContent : ''; });
@@ -67,12 +66,19 @@ const PH = process.argv[2] === 'phone';
   await page.evaluate(() => { window.__wdOpen = 0; window.__wardrobe = { open() { window.__wdOpen++; }, close() {} }; });
   await openMenu();
   await tapWard(); await page.waitForTimeout(500);
-  const s = await page.evaluate(() => { const m = window.__arcade.monkey.position, st = window.__arcade.st, opt = document.getElementById('opt'); return { n: window.__wdOpen, p: [m.x, m.y, m.z], jump: !!(st && st.jump), mode: window.__arcade.play.mode, menu: !!(opt && opt.classList.contains('on')) }; });
+  const s = await page.evaluate(() => { const m = window.__arcade.monkey.position, st = window.__arcade.st; return { n: window.__wdOpen, p: [m.x, m.y, m.z], jump: !!(st && st.jump), mode: window.__arcade.play.mode, menu: !!(window.__inv && window.__inv.open) }; });
   chk(s.n === 1, 'Wardrobe option calls window.__wardrobe.open() once ' + s.n);
   chk(Math.hypot(s.p[0] - p0[0], s.p[2] - p0[2]) < 0.05 && !s.jump && s.mode === 'walk' && !s.menu, 'menu taps do not walk, jump or start anything ' + JSON.stringify([p0, s]));
-  await page.screenshot({ path: 'shots/wardrobe_button_' + (PH ? 'phone' : 'desktop') + '.png' });
-  const hid = await page.evaluate(() => { document.body.classList.add('ingame'); const v = getComputedStyle(document.getElementById('flBtn')).display; document.body.classList.remove('ingame'); return v; });
-  chk(hid === 'none', 'floor box (and its wardrobe option) hidden inside machines (body.ingame)');
+  if (SH) await page.screenshot({ path: 'shots/wardrobe_button_' + (PH ? 'phone' : 'desktop') + '.png' });
+  const hid = await page.evaluate(async () => {
+    const p = window.__arcade.play, prev = p.mode;
+    p.mode = 'game'; document.body.classList.add('ingame');
+    await new Promise(r => setTimeout(r, 400));
+    const out = { packShown: window.__inv.shown, pack: getComputedStyle(document.getElementById('bPack')).display, fl: getComputedStyle(document.getElementById('flBtn')).display };
+    p.mode = prev; document.body.classList.remove('ingame');
+    return out;
+  });
+  chk(hid.fl === 'none' && !hid.packShown && hid.pack === 'none', 'FLOOR tab stays gone and the backpack (with Wardrobe) hides inside machines ' + JSON.stringify(hid));
   const B = await dev('bbbb2222'), b = B.page;
   await page.waitForFunction(() => window.__mp.peers.size === 1, null, { timeout: 15000 }).catch(() => {}); await b.waitForFunction(() => window.__mp.peers.has('aaaa1111'), null, { timeout: 15000 }).catch(() => {});
   const on = await page.evaluate(() => window.__mp.state);

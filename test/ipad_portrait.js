@@ -23,7 +23,7 @@ const init = mode => {
       await page.setViewportSize({ width: w, height: h }); await page.waitForTimeout(1500);
       const tag = mode + ' ' + w + 'x' + h;
       const r = await page.evaluate(() => { const c = document.querySelector('body > canvas'), b = c.getBoundingClientRect(), A = window.__arcade, f0 = A.stats.frames;
-        const hud = ['bView', 'bOpt', 'flBtn', 'tix'].map(id => { const e = document.getElementById(id); if (!e) return [id, 'missing']; const q = e.getBoundingClientRect(); if (!q.width || getComputedStyle(e).display === 'none') return [id, 'hidden'];
+        const hud = ['bView', 'bOpt', 'tix'].map(id => { const e = document.getElementById(id); if (!e) return [id, 'missing']; const q = e.getBoundingClientRect(); if (!q.width || getComputedStyle(e).display === 'none') return [id, 'hidden'];
           const t = document.elementFromPoint(q.left + q.width / 2, q.top + q.height / 2); return [id, q.left >= 0 && q.top >= 0 && q.right <= innerWidth && q.bottom <= innerHeight && t && (t === e || e.contains(t)) ? 'ok' : 'blocked:' + (t ? t.id || t.tagName : 'none')]; });
         return new Promise(res => setTimeout(() => res({ W: innerWidth, H: innerHeight, cv: [b.left, b.top, b.width, b.height].map(Math.round), frames: A.stats.frames - f0, hint: document.getElementById('turnHint').classList.contains('on'),
           hintVis: getComputedStyle(document.getElementById('turnHint')).display, locks: window.__lockCalls.slice(), hud }), 3000)); });

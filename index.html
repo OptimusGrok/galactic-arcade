@@ -46,6 +46,17 @@ body.ingame #cash{display:none}
 .opSm{min-width:56px;min-height:44px;border-radius:8px;border:2px solid #3cff7a;background:#081a10;color:#fff;font:700 13px 'Courier New',monospace}.opSm.ld{border-color:#2f9bff;background:#08121f}.opSm.dl{min-width:40px;border-color:#ff3b3b55;background:#1a0606}.opSm:disabled{opacity:.3}
 #opQ{position:fixed;inset:0;display:none;align-items:center;justify-content:center;background:#000a;z-index:41}#opQ.on{display:flex}
 .opQb{width:min(86vw,340px);padding:18px;border-radius:14px;border:3px solid #ffb000;background:#140c02f4;text-align:center;color:#fff;display:flex;flex-direction:column;gap:10px}#opQt{font:900 20px 'Courier New',monospace;color:#ffd98a}#opQn{font:13px system-ui;color:#cfe}.opQr{display:flex;gap:10px}.opQr .opB{flex:1}
+.opTabs{display:flex;gap:6px}.opTab{flex:1;min-height:40px;font:900 13px 'Courier New',monospace;letter-spacing:.08em;border-radius:8px;border:2px solid #2f6cff;background:#0c1424;color:#fff;cursor:pointer}
+.opTab.off{opacity:.55;border-color:#2f6cff66}
+#opRoomNote{font:700 12px 'Courier New',monospace;color:#ffe08a;letter-spacing:.06em;text-align:center;min-height:1.2em}
+#opRoomNote.need{color:#ff5a6e;animation:shk .35s}
+#opFlTiles,#opWlTiles,#opWnTiles{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}
+#opFlTiles .opFl,#opWlTiles .opFl,#opWnTiles .opFl{display:flex;flex-direction:column;align-items:center;gap:2px;padding:4px;border-radius:8px;border:2px solid #2f6cff66;background:#0c1424;color:#fff;font:700 9px/1.15 'Courier New',monospace;letter-spacing:.04em;cursor:pointer}
+#opFlTiles .opFl.sel,#opWlTiles .opFl.sel,#opWnTiles .opFl.sel{border-color:#ffd98a;color:#ffd98a}
+#opFlTiles .opFl img,#opWlTiles .opFl img,#opWnTiles .opFl img{width:100%;aspect-ratio:1;object-fit:cover;border-radius:6px;pointer-events:none}
+#opFlTiles .opFl .now,#opWlTiles .opFl .now,#opWnTiles .opFl .now{font-size:8px;color:#9fd6ff}
+#gOpt.wl #opFlTiles,#gOpt.wn #opFlTiles,#gOpt:not(.wl) #opWlTiles,#gOpt:not(.wn) #opWnTiles{display:none}
+#gOpt.walk #opFlTiles .opFl:not(.sel)::after,#gOpt.walk.wl #opWlTiles .opFl:not(.sel)::after,#gOpt.walk.wn #opWnTiles .opFl:not(.sel)::after{content:'1 🎟';display:block;margin-top:2px;font-size:9px;color:#ffe08a}
 #ui button:active{opacity:1}
 body.ingame #ui{top:calc(max(10px,env(safe-area-inset-top)) + 58px)}
 #homeQ{position:fixed;inset:0;z-index:90;display:none;align-items:center;justify-content:center;background:#05010cb0}
@@ -106,17 +117,11 @@ body.ingame #ui{top:calc(max(10px,env(safe-area-inset-top)) + 58px)}
 #tvCount{font:900 22px 'Courier New',monospace;color:#ffe08a;text-shadow:0 0 10px #ffb000;letter-spacing:.12em}
 #tvHint{font:700 11px 'Courier New',monospace;color:#c8a860;opacity:.8;letter-spacing:.1em}
 #tvX{position:fixed;top:max(10px,env(safe-area-inset-top));right:max(10px,env(safe-area-inset-right));z-index:41;width:40px;height:40px;border-radius:50%;border:1px solid #ffd04088;background:#120a02cc;color:#ffe08a;font:700 18px sans-serif;cursor:pointer}
-/* FLOOR & WALL HUD button (Dave: 'square floor & wall button top left ... image of a floor that rotates every 30 seconds, the ticket close next to on the right') */
-#flBtn{--fb:60px;position:fixed;top:max(8px,env(safe-area-inset-top));left:max(8px,env(safe-area-inset-left));z-index:23;width:var(--fb);height:var(--fb);box-sizing:border-box;border-radius:10px;border:2px solid #ffb000aa;background:#0a0612;overflow:hidden;cursor:pointer;padding:0;box-shadow:0 0 10px #ffb00055;touch-action:none;-webkit-tap-highlight-color:transparent}
-#flBtn img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;transition:opacity .45s ease}
-#flBtn img.off{opacity:0}
-#flBtn span{position:absolute;left:0;right:0;bottom:0;font:900 8px/1.5 'Courier New',monospace;letter-spacing:.06em;color:#ffe08a;background:#000a;text-align:center;pointer-events:none}
-@media (min-width:900px) and (min-height:500px){#flBtn{--fb:76px}#flBtn span{font-size:10px}}
-#tix{left:calc(max(8px,env(safe-area-inset-left)) + var(--fbw,60px) + 6px)}
-@media (min-width:900px) and (min-height:500px){#tix{--fbw:76px}}
+/* t795u: FLOOR/WALLS tab removed from the HUD; floor/walls/window live in in-game Options. Tickets sit top-left in its place. */
+#flBtn{display:none!important}
 body.ingame #flBtn,body.ingame #wdBtn{display:none}
-/* Wardrobe moved into the FLOOR·WALLS menu (t731u); keep #wdBtn hidden if a leftover node exists */
-#wdBtn{display:none!important}
+/* Wardrobe moved into the backpack (t795u); keep leftover #wdBtn / #optWard hidden */
+#wdBtn,#optWard{display:none!important}
 #wdBtn.hide{--fb:60px;position:fixed;top:calc(max(8px,env(safe-area-inset-top)) + var(--fb) + 6px);left:max(8px,env(safe-area-inset-left));z-index:23;width:var(--fb);height:var(--fb);box-sizing:border-box;border-radius:10px;border:2px solid #ffb000aa;background:radial-gradient(circle at 50% 40%,#3a1650,#0a0612 70%);overflow:hidden;cursor:pointer;padding:0;box-shadow:0 0 10px #ffb00055;touch-action:none;-webkit-tap-highlight-color:transparent}
 #wdBtn svg{position:absolute;left:14%;top:8%;width:72%;height:64%;filter:drop-shadow(0 0 4px #ff4fd8)}
 #wdBtn span{position:absolute;left:0;right:0;bottom:0;font:900 8px/1.5 'Courier New',monospace;letter-spacing:.06em;color:#ffe08a;background:#000a;text-align:center;pointer-events:none}
@@ -130,7 +135,7 @@ body.ingame #flBtn,body.ingame #wdBtn{display:none}
 #optNote.need{color:#ff5a6e;animation:shk .35s}
 @keyframes shk{25%{transform:translateX(-6px)}75%{transform:translateX(6px)}}
 body.ingame #turnHint{top:calc(max(8px,env(safe-area-inset-top)) + 46px)}#tix.ingame{top:calc(max(4px,env(safe-area-inset-top)) + 5px);left:calc(max(4px,env(safe-area-inset-left)) + 46px);opacity:.85}   /* t757u: close X tight top-left, ticket pill beside it; games keep their HUD below this 46px strip (watch-shim.js: html.gaCab / --gaTop) */
-#vix{position:fixed;box-sizing:border-box;top:max(8px,env(safe-area-inset-top));left:calc(max(8px,env(safe-area-inset-left)) + 112px);z-index:23;font:700 13px 'Courier New',monospace;color:#e2e8ee;background:#0a0612cc;border:1px solid #c8a06a88;border-radius:8px;padding:5px 9px;display:flex;align-items:center;gap:6px;cursor:pointer;text-shadow:0 0 6px #c8a06a}
+#vix{position:fixed;box-sizing:border-box;top:max(8px,env(safe-area-inset-top));left:max(8px,env(safe-area-inset-left));z-index:23;font:700 13px 'Courier New',monospace;color:#e2e8ee;background:#0a0612cc;border:1px solid #c8a06a88;border-radius:8px;padding:5px 9px;display:flex;align-items:center;gap:6px;cursor:pointer;text-shadow:0 0 6px #c8a06a}
 #vix.ingame{opacity:.85}
 /* BERSERKER: its level / wave text runs under the top-left, so the close button + counters sit below it */
 #dCost{font:900 clamp(14px,3.6vw,20px)/1 'Courier New',monospace;color:#ffe08a;letter-spacing:.12em;text-shadow:0 0 8px #ffb000;background:#0009;padding:6px 10px;border-radius:8px}
@@ -325,39 +330,17 @@ body.ingame #turnHint{top:calc(max(8px,env(safe-area-inset-top)) + 46px)}#tix.in
 })();
 </script>
 <script>
-// In-game FLOOR & WALL button: opens the start screen's FLOOR / WALLS menu during play; changing floor or walls costs 1 ticket
-// (re-picking the current one is free; tickets only reach storage through SAVE, see session.js). The start-screen picker stays free.
+// t795u: the top-left FLOOR·WALLS tab is gone. Floor/walls/window are in in-game Options (opts.js).
+// Keep a compatible __floorBtn so jump / jetpack still treat an open Options panel as a block, and older
+// tests can call openMenu() to open Options.
 function flBtnInit() {
-  var btn = document.getElementById('flBtn'), A = document.getElementById('flBtnA'), B = document.getElementById('flBtnB'), opt = null, note = null, home = null,
-    FL = ['neon', 'carpet', 'checkers', 'lava', 'jungle', 'beach'], i = 0, G = window.__floorBtn = { opens: 0, spent: 0, need: 0, cycles: 0, img: 'neon', open: false };
-  function cycle() { i = (i + 1) % FL.length; var on = A.classList.contains('off') ? A : B, off = on === A ? B : A; on.src = FL[i] === 'jungle' || FL[i] === 'beach' ? 'img/window_' + FL[i] + '.webp' : 'img/floor_' + FL[i] + '.webp'; on.classList.remove('off'); off.classList.add('off'); G.img = FL[i]; G.cycles++; }
-  G.cycle = cycle; setInterval(cycle, 30000);
-  function grab() { if (opt) return true; var U = window.__startUI; if (!U || !U.opt) return false; opt = U.opt; note = opt.querySelector('#optNote'); home = opt.parentNode; wire(); return true; }
-  function tickets() { var p = window.__arcade && window.__arcade.play; return p ? p.tickets.total : 0; }
-  function showNote(need) { note.classList.toggle('need', !!need); note.textContent = need ? 'NEED 1 TICKET · YOU HAVE 0 🎟' : 'CHANGING COSTS 1 🎟 · YOU HAVE ' + tickets() + ' 🎟'; if (need) { note.style.animation = 'none'; void note.offsetWidth; note.style.animation = ''; } }
-  function openG(on) { var U = window.__startUI; if (!U || !grab()) return; G.open = on;
-    if (on) { G.opens++; document.body.appendChild(opt); opt.classList.add('game'); U.openOpt(true); showNote(false); try { var k = window.__arcade.keys; for (var c in k) k[c] = false; } catch (e) {} }
-    else { U.openOpt(false); opt.classList.remove('game'); if (home && opt.parentNode !== home) home.appendChild(opt); } }
-  setTimeout(grab, 0);
+  var G = window.__floorBtn = { opens: 0, spent: 0, need: 0, cycles: 0, img: 'neon', open: false };
+  G.cycle = function () { G.cycles++; };
+  function openG(on) {
+    G.open = !!on;
+    if (window.__opts && window.__opts.show) { if (on) G.opens++; window.__opts.show(!!on); return; }
+  }
   G.openMenu = openG;
-  function cur(kind) { var a = window.__arcade; return kind === 'floor' ? (a ? a.floor : 'cobble') : kind === 'window' ? (a ? a.window : 'space') : (a ? a.walls : 'medieval'); }
-  function pick(kind, v) { var U = window.__startUI; if (v === cur(kind)) return;
-    if (tickets() < 1) { G.need++; showNote(true); return; }
-    try { localStorage.setItem('neonarcade.tickets', String(tickets() - 1)); } catch (e) {} if (window.__neonSync) window.__neonSync(); G.spent++;
-    if (kind === 'floor') U.pickFloor(v); else if (kind === 'window') U.pickWin(v); else U.pickWalls(v); showNote(false); }
-  function swallow(e) { e.stopPropagation(); }
-  ['pointerdown', 'mousedown', 'touchstart', 'click'].forEach(function (t) { btn.addEventListener(t, swallow, { passive: true }); });
-  btn.addEventListener('pointerup', function (e) { e.stopPropagation(); var p = window.__arcade && window.__arcade.play; if (p && p.mode !== 'walk') return; openG(true); });
-  function wire() {
-  ['pointerdown', 'mousedown', 'touchstart', 'touchend', 'click', 'wheel'].forEach(function (t) { opt.addEventListener(t, function (e) { if (opt.classList.contains('game')) e.stopPropagation(); }, { passive: true }); });
-  opt.addEventListener('pointerup', function (e) { if (!opt.classList.contains('game')) return; e.stopPropagation(); var t = e.target, h = function (s) { return t && t.closest && t.closest(s); }, U = window.__startUI;
-    if (h('#optX') || h('#optBack') || !h('#optP')) openG(false);
-    else if (h('#optWard')) { openG(false); if (window.__wardrobeBtn && window.__wardrobeBtn.openFromMenu) window.__wardrobeBtn.openFromMenu(); else if (window.__wardrobe && window.__wardrobe.open) window.__wardrobe.open(); }
-    else if (h('#musBtn')) { if (window.__music) window.__music.setOn(!window.__music.on); U.openOpt(true); showNote(false); }
-    else if (h('#coolBtn')) { if (window.__powerSave) window.__powerSave.set(!window.__powerSave.on); if (U.showCool) U.showCool(); U.openOpt(true); showNote(false); }
-    else if (h('#tabFloor')) U.tab(false); else if (h('#tabWalls')) U.tab(true); else if (h('#tabWin')) U.tab('window');
-    else if (h('.wnT')) pick('window', h('.wnT').dataset.win); else if (h('.wlT')) pick('walls', h('.wlT').dataset.walls); else if (h('.flT')) pick('floor', h('.flT').dataset.floor); }); }
-  addEventListener('keydown', function (e) { if (G.open && (e.code === 'Escape' || e.code === 'Backspace')) { e.stopImmediatePropagation(); openG(false); } }, true);
 }
 // WARDROBE button: opens player.js's wardrobe (window.__wardrobe.open()); until that exists, a 'Coming soon' toast. Taps never reach walking / jumping.
 function wdBtnInit() {

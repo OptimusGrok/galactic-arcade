@@ -1,40 +1,38 @@
-// t184 HUD FLOOR & WALL button: top-left square, floor preview cycling every 30 s, #tix snug to its right, opens FLOOR / WALLS in play,
-// a different floor or wall costs 1 ticket (re-pick free, 0 tickets -> NEED 1 TICKET). node test/floorbtn.js [phone]
+// t795u: no top-left FLOOR/WALLS tab; tickets sit top-left in its place; floor/walls live in Options.
+// A different floor or wall costs 1 ticket while walking (re-pick free, 0 tickets -> NEED 1 TICKET).
+// node test/floorbtn.js [phone]
 const { open } = require('./lib');
 const PH = process.argv[2] === 'phone';
+const SH = process.env.NOSHOTS ? 0 : 1;
 (async () => { const { page, errors, close } = await open({ phone: PH }); let ok = true; const chk = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); if (!c) ok = false; };
   await page.waitForTimeout(1500);
-  const L = await page.evaluate(() => { const r = id => { const e = document.getElementById(id); if (!e) return null; const b = e.getBoundingClientRect(); return { x: b.x, y: b.y, w: b.width, h: b.height, r: b.right, b: b.bottom, vis: getComputedStyle(e).display !== 'none' }; };
+  const L = await page.evaluate(() => { const r = id => { const e = document.getElementById(id); if (!e) return null; const b = e.getBoundingClientRect(); return { x: b.x, y: b.y, w: b.width, h: b.height, r: b.right, b: b.bottom, vis: getComputedStyle(e).display !== 'none' && b.width > 2 && b.height > 2 }; };
     return { fb: r('flBtn'), tix: r('tix'), n: document.querySelectorAll('#tix').length, home: r('bExit'), mute: r('bMute') || r('mute'), fs: r('bFs') }; });
-  const want = PH ? [56, 64] : [66, 84];
-  chk(L.fb && L.fb.vis && L.fb.x <= 12 && L.fb.y <= 12 && Math.abs(L.fb.w - L.fb.h) < 1 && L.fb.w >= want[0] && L.fb.w <= want[1], 'square button in the top-left corner ' + JSON.stringify(L.fb));
-  chk(L.n === 1 && L.tix.x > L.fb.r && L.tix.x - L.fb.r <= 10 && Math.abs(L.tix.y - L.fb.y) < 2, 'one ticket counter, snug to the right, top-aligned ' + JSON.stringify(L.tix));
-  chk([L.home, L.mute, L.fs].every(o => !o || !o.w || o.x > L.tix.r || o.y > L.fb.b), 'no overlap with the top-right buttons ' + JSON.stringify([L.home, L.mute, L.fs]));
-  const c0 = await page.evaluate(() => { const g = window.__floorBtn, a = g.img; g.cycle(); return [a, g.img]; });
-  await page.waitForTimeout(600);
-  chk(c0[0] === 'neon' && c0[1] === 'carpet' && await page.evaluate(() => /floor_carpet/.test(document.querySelector('#flBtn img:not(.off)').src)), 'preview cycles to the next floor (fade) ' + c0);
-  chk(/setInterval\(cycle, 30000\)/.test(await page.evaluate(() => document.documentElement.innerHTML)), 'cycle timer is 30 s');
+  chk(!L.fb || !L.fb.vis, 'no FLOOR/WALLS tab in the top left ' + JSON.stringify(L.fb));
+  chk(L.n === 1 && L.tix && L.tix.vis && L.tix.x <= 12 && L.tix.y <= 12, 'one ticket counter in the top-left corner ' + JSON.stringify(L.tix));
+  chk([L.home, L.mute, L.fs].every(o => !o || !o.w || o.x > L.tix.r || o.y > L.tix.b), 'no overlap with the top-right buttons ' + JSON.stringify([L.home, L.mute, L.fs]));
   await page.evaluate(() => { const p = window.__arcade.play; p.tickets.total = 2; localStorage.setItem('neonarcade.tickets', '2'); window.__neonSync && window.__neonSync(); });
   const tap = async sel => { const b = await page.locator(sel).first().boundingBox(); if (PH) await page.touchscreen.tap(b.x + b.width / 2, b.y + b.height / 2); else await page.mouse.click(b.x + b.width / 2, b.y + b.height / 2); await page.waitForTimeout(700); };
-  await tap('#flBtn');
-  const m = await page.evaluate(() => ({ on: document.getElementById('opt').classList.contains('on'), game: document.getElementById('opt').classList.contains('game'), note: document.getElementById('optNote').textContent }));
-  chk(m.on && m.game && /1 🎟/.test(m.note) && /YOU HAVE 2/.test(m.note), 'tap opens the FLOOR / WALLS menu in play with the 1-ticket cost ' + JSON.stringify(m));
-  await page.screenshot({ path: 'shots/hud_floorbtn_' + (PH ? 'phone' : 'desktop') + '_menu.png' });
-  await tap('#flTiles .flT[data-floor="neon"]');
+  await tap('#bOpt');
+  const m = await page.evaluate(() => ({ on: document.getElementById('gOpt').classList.contains('on'), note: (document.getElementById('opRoomNote') || {}).textContent || '', n: document.querySelectorAll('#opFlTiles .opFl').length, cur: (document.querySelector('#opFlTiles .opFl.sel') || {}).dataset && document.querySelector('#opFlTiles .opFl.sel').dataset.floor }));
+  chk(m.on && /1 🎟/.test(m.note) && /YOU HAVE 2/.test(m.note) && m.n >= 5, 'Options opens with floor tiles and the 1-ticket cost ' + JSON.stringify(m));
+  if (SH) await page.screenshot({ path: 'shots/hud_floorbtn_' + (PH ? 'phone' : 'desktop') + '_menu.png' });
+  const cur = m.cur || 'cobble';
+  await tap(`#opFlTiles .opFl[data-floor="${cur}"]`);
   chk(await page.evaluate(() => window.__arcade.play.tickets.total) === 2, 're-picking the current floor is free');
-  await tap('#flTiles .flT[data-floor="checkers"]');
+  await tap('#opFlTiles .opFl[data-floor="checkers"]');
   const a = await page.evaluate(() => ({ f: window.__arcade.floor, t: window.__arcade.play.tickets.total, ls: localStorage.getItem('neonarcade.tickets'), badge: document.getElementById('tixN') && document.getElementById('tixN').textContent }));
   chk(a.f === 'checkers' && a.t === 1 && /1/.test(a.badge), 'CHECKERS costs 1 ticket (2 -> 1), badge updates ' + JSON.stringify(a));
-  await tap('#tabWalls'); const w = await page.evaluate(() => [...document.querySelectorAll('.wlT')].map(e => e.dataset.walls).find(v => v !== window.__arcade.walls));
-  await tap(`.wlT[data-walls="${w}"]`);
+  await tap('#opTabWalls'); const w = await page.evaluate(() => [...document.querySelectorAll('#opWlTiles .opFl')].map(e => e.dataset.walls).find(v => v !== window.__arcade.walls));
+  await tap(`#opWlTiles .opFl[data-walls="${w}"]`);
   const b = await page.evaluate(() => ({ w: window.__arcade.walls, t: window.__arcade.play.tickets.total }));
   chk(b.w === w && b.t === 0, 'changing walls costs 1 ticket (1 -> 0) ' + JSON.stringify(b));
-  await tap('#tabFloor'); await tap('#flTiles .flT[data-floor="lava"]');
-  const c = await page.evaluate(() => ({ f: window.__arcade.floor, t: window.__arcade.play.tickets.total, note: document.getElementById('optNote').textContent }));
+  await tap('#opTabFloor'); await tap('#opFlTiles .opFl[data-floor="lava"]');
+  const c = await page.evaluate(() => ({ f: window.__arcade.floor, t: window.__arcade.play.tickets.total, note: document.getElementById('opRoomNote').textContent }));
   chk(c.f === 'checkers' && c.t === 0 && /NEED 1 TICKET/.test(c.note), 'with 0 tickets: NEED 1 TICKET, nothing changes ' + JSON.stringify(c));
-  await tap('#optX');
-  chk(await page.evaluate(() => !window.__startUI.opt.classList.contains('on') && window.__arcade.play.mode === 'walk'), 'X closes the menu, back to walking');
+  await tap('#opX');
+  chk(await page.evaluate(() => !document.getElementById('gOpt').classList.contains('on') && window.__arcade.play.mode === 'walk'), 'X closes Options, back to walking');
   await page.evaluate(() => { window.__arcade.setFloor('neon'); }); await page.waitForTimeout(800);
-  await page.screenshot({ path: 'shots/hud_floorbtn_' + (PH ? 'phone' : 'desktop') + '.png' });
+  if (SH) await page.screenshot({ path: 'shots/hud_floorbtn_' + (PH ? 'phone' : 'desktop') + '.png' });
   chk(errors.length === 0, 'no page errors ' + errors.join('|'));
   await close(); process.exit(ok ? 0 : 1); })();
