@@ -18,7 +18,7 @@ let ok = true; const chk = (c, m, x) => { console.log((c ? 'PASS ' : 'FAIL ') + 
       const A = window.__skytower, F = A.face, G = A.G, P = A.player, V = P.position.constructor;
       window.__shootFace = () => { const h = F.head.getWorldPosition(new V());
         G.face = Math.atan2(h.x - P.position.x, h.z - P.position.z); G.cooldown = 0; const L = A.fire(); if (!L) return { fired: false };
-        const h0 = F.hits; let n = 0; while (L.alive && n < 90) { A.step(1 / 60); n++; }
+        const h0 = F.hits; let n = 0; while (L.alive && n < 120) { A.step(1 / 60); n++; }
         return { fired: true, color: L.color, hit: F.hits > h0, alive: L.alive, inScene: !!L.mesh.parent, act: F.lastAct, cycle: F.cycle };
       };
       // advance until the face's eye beams have been fired and are gone; dodge = sidestep right after they fire
@@ -72,7 +72,7 @@ let ok = true; const chk = (c, m, x) => { console.log((c ? 'PASS ' : 'FAIL ') + 
   r = await shoot(); await steps(3); s = await st();
   chk(r.fired && r.color === 'cyan' && r.hit && !r.alive && !r.inScene, 'monkey cyan laser hits the face and the bolt is spent on it', r);
   chk(s.ang > 0.8 && s.brow > 0.3 && s.green < 0.15 && !s.vein, 'hit 1: ANGRY (red flush, V brows) and no forehead vein', s);
-  chk(s.cycle === 1 && s.act === 'hey-quiet' && s.by.show === 1 && s.spoke === 1 && s.line === 'show' && s.by.hey === 0, 'hit 1 lands during "Can you make it to the top?": opening plays on untouched, no "hey" over it', s);
+  chk(s.cycle === 1 && s.act === 'hey-quiet' && s.by.show === 1 && s.spoke === 1 && s.line === 'show' && s.by.hey === 0, 'hit 1 lands during "Can you reach the top?": opening plays on untouched, no "hey" over it', s);
   chk(s.tk === 0 && s.fly === 0 && s.hp === 3, 'hitting the face: no tickets, no damage', s);
   await steps(120); await page.waitForTimeout(3400); await steps(20);
   s = await st(); chk(s.ang < 0.05 && !s.speaking && s.skin === 'ff8f3f' && s.brow < 0 && !s.vein, 'anger eases back to the normal face', s);
@@ -108,7 +108,7 @@ let ok = true; const chk = (c, m, x) => { console.log((c ? 'PASS ' : 'FAIL ') + 
   // last heart: a beam hit = the usual HIT -> checkpoint (health never goes below 0)
   r = await page.evaluate(() => { const A = window.__skytower, G = A.G; G.hp = 1; G.iframe = 0; A.fireEyeBeams(A.face.eyeWorld()); for (let i = 0; i < 260 && A.eyeBeams.length; i++) A.step(1 / 60); return { hp: G.hp, scene: A.scene() }; });
   chk(r.hp === 3 && r.scene === 'play', 'beam on the last heart = normal HIT -> checkpoint respawn, hearts refilled', r);
-  s = await st(); chk(s.dist >= 18 && s.look < 0.25 && s.on, 'still keeps its distance and watches the player', s);
+  s = await st(); chk(s.dist >= 18 && s.on, 'still keeps its distance after the fight (t782u: it may be mid look-away)', s);
   // the win: once the face drifts away it cannot be hit and fires nothing
   r = await page.evaluate(() => { const A = window.__skytower, F = A.face; A.placeOn(A.N); A.finish(); for (let i = 0; i < 60; i++) A.step(1 / 30); const h = F.head.getWorldPosition(new (A.player.position.constructor)());
     return { hit: !!F.hit(A.player.position, h), won: A.won, fire: A.fireEyeBeams(F.eyeWorld()), live: A.eyeBeams.length }; });

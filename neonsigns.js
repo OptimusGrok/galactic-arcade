@@ -1,6 +1,7 @@
 // t773u NEON NAME SIGNS: a glowing sign of each machine's game name above that machine (on the wall above the wall cabinets, facing into the room;
 // on top of the free-standing claw machine; above DEAD SIGNAL's curved screen).
-// t775u: each sign is styled after its own game's title screen (fonts, colours, motifs), a bit dimmer and ~25% bigger. The lettering is baked
+// t775u: each sign is styled after its own game's title screen (fonts, colours, motifs), a bit dimmer and ~25% bigger.
+// t782u: dimmer still, and the lettering is sharper and thinner (less glow bloom in the atlas + a lower mesh gain). The lettering is baked
 // offline into ONE atlas (tex/neon_signs.webp, rects in neon_atlas.js; rebuild with node tools/build_neon_atlas.js) so every device shows the
 // same fonts. Still ONE merged mesh of quads (one draw call, one program, no per-frame work), compiled by the warm-up; the atlas is uploaded
 // to the GPU as soon as it loads (initTexture), on the start screen, not at the first room frame.
@@ -26,7 +27,7 @@ export function buildNeonSigns(THREE, mergeGeometries, list, opt = {}) {
   }
   const tex = new THREE.TextureLoader().load(opt.src || 'tex/neon_signs.webp', t => { try { if (opt.renderer) opt.renderer.initTexture(t); } catch (err) {} if (opt.onLoad) opt.onLoad(t); });
   tex.colorSpace = THREE.SRGBColorSpace; tex.anisotropy = opt.aniso || 4;
-  const mat = new THREE.MeshBasicMaterial({ map: tex, transparent: true, depthWrite: false, fog: false, color: new THREE.Color(1, 1, 1).multiplyScalar(opt.k || 0.85) });   // t775u: 0.85 (v188: 1.3), ~35% dimmer
+  const mat = new THREE.MeshBasicMaterial({ map: tex, transparent: true, depthWrite: false, fog: false, color: new THREE.Color(1, 1, 1).multiplyScalar(opt.k || 0.55) });   // t782u: 0.55 (t775u: 0.85, v188: 1.3), dimmer + the atlas itself is sharper / thinner
   mat.name = 'neonSigns';
   const mesh = new THREE.Mesh(mergeGeometries(quads), mat); mesh.name = 'neonSigns'; mesh.renderOrder = 3; mesh.matrixAutoUpdate = false; mesh.updateMatrix();
   mesh.userData.signs = info; mesh.userData.k = mat.color.r; return mesh;

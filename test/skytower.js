@@ -317,8 +317,8 @@ const { open } = require('./lib'); const { helpers } = require('./cabflow');
       yMin, yMax, p0, pN, before, afterBump, afterShot, afterSecond
     };
   }, W);
-  chk(flyTix.n === 30 && flyTix.named === 30 && flyTix.value === 1 && flyTix.cap === 50,
-    'about 30 flying tickets and a cap that fits them on top of checkpoints + win ' + JSON.stringify(flyTix));
+  chk(flyTix.n === 50 && flyTix.named === 50 && flyTix.value === 1 && flyTix.cap === 50,
+    'about 50 flying tickets and a cap that fits them on top of checkpoints + win ' + JSON.stringify(flyTix));
   chk(flyTix.yMin > flyTix.p0 && flyTix.yMax < flyTix.pN + 8, 'tickets are spread along the climb ' + JSON.stringify({ yMin: flyTix.yMin, yMax: flyTix.yMax, p0: flyTix.p0, pN: flyTix.pN }));
   chk(!flyTix.afterBump.collected && flyTix.afterBump.fly === flyTix.before.fly && flyTix.afterBump.run === flyTix.before.run,
     'flying into a ticket does not collect it ' + JSON.stringify(flyTix.afterBump));

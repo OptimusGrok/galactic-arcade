@@ -7,7 +7,7 @@
 import * as THREE from 'three';
 export const DS = { R: 2.05, TOP: 0.32, SCR_Z: -2.5 };
 const black = (r = 0.45, m = 0.6) => new THREE.MeshStandardMaterial({ color: 0x111116, roughness: r, metalness: m });
-const glow = (hex, k) => new THREE.MeshBasicMaterial({ color: new THREE.Color(hex).multiplyScalar(k), fog: false });
+const glow = (hex, k) => new THREE.MeshBasicMaterial({ color: new THREE.Color(hex).multiplyScalar(k * 0.62), fog: false });   // t782u: dimmer LEDs, matching the rest of the arcade neon
 function canvasTex(w, h, draw, rep) { const c = document.createElement('canvas'); c.width = w; c.height = h; draw(c.getContext('2d'), w, h);
   const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 8; if (rep) { t.wrapS = THREE.RepeatWrapping; t.repeat.x = rep; } return t; }
 function signTex() {
@@ -15,10 +15,10 @@ function signTex() {
     g.clearRect(0, 0, w, h); g.font = '900 150px "Arial Black", Arial, sans-serif'; g.textBaseline = 'middle'; g.textAlign = 'left';
     const y = 120, dw = g.measureText('DEAD ').width, sw = g.measureText('SIGNAL').width, x0 = (w - dw - sw) / 2;
     for (const [txt, x, c1, c2] of [['DEAD', x0, '#c8e6ff', '#2f8cff'], ['SIGNAL', x0 + dw, '#ff5a6a', '#ff1030']]) {
-      g.shadowColor = c2; g.shadowBlur = 34; g.fillStyle = c2; g.fillText(txt, x, y); g.shadowBlur = 12; g.fillStyle = c1; g.fillText(txt, x, y); g.shadowBlur = 0;
+      g.shadowColor = c2; g.shadowBlur = 12; g.fillStyle = c2; g.fillText(txt, x, y); g.shadowBlur = 4; g.fillStyle = c1; g.fillText(txt, x, y); g.shadowBlur = 0;
       g.fillStyle = 'rgba(0,0,0,.28)'; for (let k = 0; k < 9; k++) g.fillRect(x, y - 60 + k * 15, txt === 'DEAD' ? dw - 30 : sw, 3); }   // scan-line glitch bands
     const bx = x0 + dw + sw - 190, by = 205, bw = 190, bh = 80;   // VR badge, under the end of SIGNAL
-    g.shadowColor = '#ff2a8a'; g.shadowBlur = 18; g.strokeStyle = '#ff4fa8'; g.lineWidth = 7; g.fillStyle = 'rgba(10,8,30,.92)';
+    g.shadowColor = '#ff2a8a'; g.shadowBlur = 7; g.strokeStyle = '#ff4fa8'; g.lineWidth = 3; g.fillStyle = 'rgba(10,8,30,.92)';
     g.beginPath(); g.roundRect(bx, by, bw, bh, 18); g.fill(); g.stroke(); g.shadowBlur = 0;
     g.fillStyle = '#d8f0ff'; g.font = '900 62px "Arial Black", Arial'; g.textAlign = 'center'; g.fillText('VR', bx + bw / 2, by + bh / 2 + 3); });
 }
@@ -37,8 +37,8 @@ export function buildDeadSignalStation() {
   add(new THREE.CylinderGeometry(DS.R, DS.R + 0.05, DS.TOP, 72), metal, 'platform', 0, DS.TOP / 2, 0);
   add(new THREE.CylinderGeometry(DS.R + 0.03, DS.R + 0.065, 0.17, 72, 1, true), (() => { const t = hazardTex(); return new THREE.MeshStandardMaterial({ map: t, emissiveMap: t, emissive: 0xffffff, emissiveIntensity: 0.32, roughness: 0.6, metalness: 0.2 }); })(), 'hazardRim', 0, 0.115, 0);
   { const d = add(new THREE.CircleGeometry(DS.R - 0.02, 72), new THREE.MeshStandardMaterial({ map: deckTex(), roughness: 0.55, metalness: 0.5 }), 'deck', 0, DS.TOP + 0.002, 0); d.rotation.x = -Math.PI / 2; }
-  const ledP = add(new THREE.TorusGeometry(DS.R - 0.06, 0.022, 8, 96), glow(0xff2a9a, 1.9), 'ledRingPink', 0, DS.TOP + 0.01, 0); ledP.rotation.x = Math.PI / 2;
-  const ledB = add(new THREE.TorusGeometry(1.05, 0.018, 8, 80), glow(0x2a8cff, 1.9), 'ledRingBlue', 0, DS.TOP + 0.008, 0); ledB.rotation.x = Math.PI / 2;
+  const ledP = add(new THREE.TorusGeometry(DS.R - 0.06, 0.013, 8, 96), glow(0xff2a9a, 1.9), 'ledRingPink', 0, DS.TOP + 0.01, 0); ledP.rotation.x = Math.PI / 2;
+  const ledB = add(new THREE.TorusGeometry(1.05, 0.011, 8, 80), glow(0x2a8cff, 1.9), 'ledRingBlue', 0, DS.TOP + 0.008, 0); ledB.rotation.x = Math.PI / 2;
   // ---- two curved black handrails (open at the front and the back) ----
   const RR = 1.72, RY = 1.05;
   for (const sd of [-1, 1]) {
@@ -51,9 +51,9 @@ export function buildDeadSignalStation() {
   // ---- pedestal ----
   add(new THREE.CylinderGeometry(0.55, 0.6, 0.07, 40), metal, 'pedBase', 0, DS.TOP + 0.035, 0);
   add(new THREE.CylinderGeometry(0.17, 0.21, 0.6, 24), matte, 'pedColumn', 0, DS.TOP + 0.37, 0);
-  add(new THREE.BoxGeometry(0.06, 0.03, 0.01), glow(0x3aa8ff, 2), null, 0, DS.TOP + 0.42, 0.2);
+  add(new THREE.BoxGeometry(0.06, 0.018, 0.008), glow(0x3aa8ff, 2), null, 0, DS.TOP + 0.42, 0.2);
   add(new THREE.CylinderGeometry(0.5, 0.42, 0.1, 40), metal, 'pedTop', 0, 1.0, 0);
-  const pr = add(new THREE.TorusGeometry(0.49, 0.014, 6, 60), glow(0x3aa8ff, 1.8), 'pedRing', 0, 1.0, 0); pr.rotation.x = Math.PI / 2;
+  const pr = add(new THREE.TorusGeometry(0.49, 0.008, 6, 60), glow(0x3aa8ff, 1.8), 'pedRing', 0, 1.0, 0); pr.rotation.x = Math.PI / 2;
   add(new THREE.CylinderGeometry(0.09, 0.12, 0.06, 20), matte, 'headsetStand', 0, 1.08, 0);
   const PED_Y = 1.05;
   // ---- VR headset: black shell, glossy visor, two blue lens lights, strap ----
@@ -82,12 +82,12 @@ export function buildDeadSignalStation() {
   for (const sd of [-1, 1]) { const a = Math.PI + sd * (TH / 2 + 0.02); add(new THREE.BoxGeometry(0.2, SH + 0.5, 0.2), metal, 'screenPost', Math.sin(a) * (SR - 0.02), (SY0 + SH / 2 + 0.05), cz + Math.cos(a) * (SR - 0.02)).rotation.y = a; }
   add(new THREE.BoxGeometry(2.6, SY0 - 0.06, 0.5), matte, 'screenFoot', 0, (SY0 - 0.06) / 2, DS.SCR_Z - 0.2);
   // ---- DEAD SIGNAL sign with the VR badge ----
-  const sign = add(new THREE.PlaneGeometry(4.6, 1.35), new THREE.MeshBasicMaterial({ map: signTex(), transparent: true, depthWrite: false, color: new THREE.Color(1.0, 1.0, 1.0), fog: false }), 'sign', 0, SY0 + SH + 1.05, DS.SCR_Z - 0.1);
+  const sign = add(new THREE.PlaneGeometry(4.6, 1.35), new THREE.MeshBasicMaterial({ map: signTex(), transparent: true, depthWrite: false, color: new THREE.Color(0.62, 0.62, 0.62), fog: false }), 'sign', 0, SY0 + SH + 1.05, DS.SCR_Z - 0.1);
   sign.renderOrder = 2;
   // ---- overhead circular ring rig with a cable down to the headset ----
   const RIG = new THREE.Vector3(0, 3.6, -0.05);
   { const r = add(new THREE.TorusGeometry(1.45, 0.07, 10, 72), metal, 'rigRing', RIG.x, RIG.y, RIG.z); r.rotation.x = Math.PI / 2;
-    const rb = add(new THREE.TorusGeometry(1.38, 0.022, 6, 72), glow(0x2a8cff, 2.2), 'rigGlow', RIG.x, RIG.y - 0.05, RIG.z); rb.rotation.x = Math.PI / 2;
+    const rb = add(new THREE.TorusGeometry(1.38, 0.013, 6, 72), glow(0x2a8cff, 2.2), 'rigGlow', RIG.x, RIG.y - 0.05, RIG.z); rb.rotation.x = Math.PI / 2;
     for (let k = 0; k < 3; k++) { const a = k * Math.PI * 2 / 3 + 0.5, p = new THREE.Vector3(Math.cos(a) * 1.45, 0, Math.sin(a) * 1.45);
       add(new THREE.CylinderGeometry(0.018, 0.018, 8.5 - RIG.y, 6), metal, null, RIG.x + p.x, (8.5 + RIG.y) / 2, RIG.z + p.z);   // hangers to the ceiling
       const sp = add(new THREE.CylinderGeometry(0.02, 0.02, 1.45, 6), metal, null, RIG.x + p.x / 2, RIG.y, RIG.z + p.z / 2); sp.rotation.set(Math.PI / 2, 0, 0); sp.lookAt(RIG.x, RIG.y, RIG.z); sp.rotateX(Math.PI / 2); }

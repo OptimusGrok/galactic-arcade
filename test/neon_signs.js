@@ -27,7 +27,7 @@ let ok = true; const chk = (c, m, x) => { console.log((c ? 'PASS ' : 'FAIL ') + 
     if (Math.abs(a.pos[1] - b.pos[1]) < (a.h + b.h) / 2 && a.normal.join() === b.normal.join() && Math.hypot(a.pos[0] - b.pos[0], a.pos[2] - b.pos[2]) < (a.w + b.w) / 2) overlap.push([a.key, b.key]); }
   chk(overlap.length === 0, 'no two signs overlap', overlap);
   chk(r.transparent && !r.depthWrite && r.map === 1024 && /tex\/neon_signs\.webp/.test(r.src), 'styled atlas texture (tex/neon_signs.webp), transparent, no depth write', { map: r.map, src: r.src });
-  chk(r.k <= 0.9, 't775u: dimmer than v188 (colour x' + r.k + ', was 1.3)');
+  chk(r.k <= 0.65, 't782u: dimmer than t775u (colour x' + r.k + ', was 0.85 / v188 1.3)');
   chk(errors.length === 0, 'no page errors', errors);
   await o.close(); process.exit(ok ? 0 : 1);
 })().catch(e => { console.log('FAIL exception ' + e.message); process.exit(1); });

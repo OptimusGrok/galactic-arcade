@@ -1,11 +1,14 @@
 // SKY TOWER (t748u): the TITAN — a massive floating cartoon face that greets every climb with a booming
-// "Can you make it to the top?". Original design: sunset-orange giant (t751u: wild white mad-scientist hair), big white eyes,
+// "Can you reach the top?". Original design: sunset-orange giant (t751u: wild white mad-scientist hair), big white eyes,
 // heavy brows, round nose, rosy cheeks and a wide toothy mouth. One procedural Three.js group (~40 meshes,
 // shared geometries, Lambert), fog-free so it reads at a distance.
 // Behaviour: pops in when a real climb starts (never in the lobby / DEMO attract), floats up with the player,
-// always turns its head + eyes to the player, weaves around on the camera's right-hand side at a 22-30 m
-// standoff (never closer than MIN_D), mouth animates from the voice's loudness envelope. On the win it
-// drifts up and away and fades so the space ending stays clear.
+// and slowly dollies away from the camera and back toward it (standoff never closer than MIN_D). It usually
+// turns its head + eyes to the player, but sometimes looks away — and sometimes changes expression (wink,
+// raised brows, smirk, squint) while it is looking away. Weaves on the camera's right-hand side. Mouth
+// animates from the voice's loudness envelope. On the win it drifts up and away and fades so the space
+// ending stays clear.
+// t782u: opening line is "Can you reach the top?"; dolly in/out; occasional look-away + expression changes.
 // t749u/t751u/t752u: shoot it and it gets ANGRY — red flush, brows slam down into a V, squint, gritted scowl and a
 // head shake (no forehead vein). Every hit advances a cycle: odd hits boom "Hey, watch it!" (same voice, same chain,
 // ../sfx/sky_face_hey.mp3), even hits charge the eyes red and game.js fires a thick red laser from EACH eye at the
@@ -132,13 +135,14 @@ export function createFace(scene) {
 
   const F = {
     root, head, mouth, eyes, brows, hair: hairG, helmet: helm, on: false, shown: false, t: 0, pop: 0, appearAt: -1, spoke: 0, speakT: -1, speaking: false, open: 0,
-    dist: 0, yaw: 0, side: 1, leave: 0, env: null, envDt: 0.03, lookErr: 0, eyeErr: 0, runs: 0,
+    dist: 0, yaw: 0, side: 1, leave: 0, env: null, envDt: 0.03, lookErr: 0, eyeErr: 0, runs: 0, gaze: 0, gazeYaw: 0, gazePit: 0, expr: 'idle', exprI: -1,
     ang: 0, angryT: 0, hits: 0, heys: 0, heyBlocked: 0, lastHit: -1e9, cycle: 0, beams: 0, charge: 0, glowT: 0, onBeam: null, line: '', shake: 0, powT: 0, hitPos: null, lastAct: '',
     SCALE, MIN_D, D0, ANGRY_T, HIT_DEBOUNCE, CHARGE_T, VOLS,
     start(ctx) {   // a real climb began
       F.on = true; F.shown = true; root.visible = true; F.t = 0; F.pop = 0; F.leave = 0; F.runs++; F.spoke = 0; F.speakT = -1;
       F.ang = 0; F.angryT = 0; F.hits = 0; F.heys = 0; F.heyBlocked = 0; F.lastHit = -1e9; F.cycle = 0; F.beams = 0; F.charge = 0; F.glowT = 0; F.lastAct = ''; F.line = ''; F.shake = 0; F.powT = 0; F.speaking = false;
       F.yaw = (ctx && ctx.camYaw) || 0; F.side = 1;
+      F.gaze = 0; F.gazeYaw = 0; F.gazePit = 0; F.expr = 'idle'; F.exprI = -1;
       F.place(ctx, true); F.appearAt = performance.now();
       F.speakT = 0.35;   // after the pop-in
     },
@@ -168,7 +172,8 @@ export function createFace(scene) {
       const S = window.__skySnd; F.env = (S && S.voiceEnvs && S.voiceEnvs.hey) || null; if (S && S.voice) S.voice('hey');
     },
     target(ctx) {   // where it wants to float: camera-forward, swung to the right, weaving + bobbing
-      const t = F.t, p = ctx.pos, d = D0 + 3.2 * Math.sin(t * 0.37) + (F.leave * 26);
+      // t782u: a slower, wider dolly so the giant clearly floats away from the camera and back toward it (~19-36 m)
+      const t = F.t, p = ctx.pos, d = D0 + 7.5 * Math.sin(t * 0.21) + 1.8 * Math.sin(t * 0.09) + (F.leave * 26);
       const off = F.side * (0.4 + 0.14 * Math.sin(t * 0.29) + 0.05 * Math.sin(t * 0.83));
       const a = F.yaw + off;
       return V(p.x + Math.sin(a) * d, p.y + 3.4 + 1.6 * Math.sin(t * 0.53) + 0.6 * Math.sin(t * 1.3) + F.leave * 30, p.z + Math.cos(a) * d);
@@ -190,19 +195,39 @@ export function createFace(scene) {
       F.pop = Math.min(1, F.pop + dt / 0.6); const s = (1 - Math.pow(1 - F.pop, 3)) * (1 + 0.1 * Math.sin(F.pop * Math.PI)) * (1 - 0.85 * F.leave);
       root.scale.setScalar(Math.max(0.001, s));
       if (F.leave >= 1) { root.visible = false; F.shown = false; }
-      // head + eyes look at the player's head
+      // t782u: usually looks at the player; after the opening line, a deterministic cycle looks away
+      // for a couple of seconds (every 7 s: 4.2 s on the player, 2.8 s away). Pauses while speaking,
+      // angry, or leaving so the line and the hit reactions still read clearly.
       const eye = V(p.x, p.y + 1.1, p.z);
-      head.lookAt(eye);
+      let wantGaze = 0, awayI = -1;
+      if (F.t >= 8.5 && !F.speaking && F.speakT < 0 && F.ang < 0.12 && F.leave <= 0) {
+        const cyc = (F.t - 8.5) % 7; awayI = Math.floor((F.t - 8.5) / 7); wantGaze = cyc > 4.2 ? 1 : 0;
+      }
+      F.gaze += (wantGaze - F.gaze) * (1 - Math.exp(-dt * 2.4));
+      if (wantGaze) {
+        F.gazeYaw = (awayI % 2 ? -1 : 1) * 0.72; F.gazePit = (awayI % 3 === 0 ? 0.22 : -0.12);
+        // sometimes (every other look-away) change expression while looking away
+        const next = (awayI % 2 === 1) ? ['wink', 'smirk', 'raise', 'squint'][awayI % 4] : 'idle';
+        if (F.exprI !== awayI) { F.expr = next; F.exprI = awayI; }
+      } else if (F.gaze < 0.15) { F.expr = 'idle'; }
+      const look = eye.clone();
+      if (F.gaze > 0.01) {
+        const right = V(Math.cos(F.yaw), 0, -Math.sin(F.yaw));
+        look.addScaledVector(right, F.gazeYaw * 20 * F.gaze);
+        look.y += F.gazePit * 14 * F.gaze;
+      }
+      head.lookAt(look);
       head.rotation.z += 0.08 * Math.sin(F.t * 0.9);   // a little head tilt
       root.updateMatrixWorld(true);
-      for (const e of eyes) { const loc = e.g.worldToLocal(eye.clone()); const yaw = Math.atan2(loc.x, loc.z), pit = -Math.atan2(loc.y, Math.hypot(loc.x, loc.z));
+      for (const e of eyes) { const loc = e.g.worldToLocal(look.clone()); const yaw = Math.atan2(loc.x, loc.z), pit = -Math.atan2(loc.y, Math.hypot(loc.x, loc.z));
         e.piv.rotation.set(THREE.MathUtils.clamp(pit, -0.5, 0.5), THREE.MathUtils.clamp(yaw, -0.5, 0.5), 0); }
-      { const fw = V(0, 0, 1).applyQuaternion(head.getWorldQuaternion(new THREE.Quaternion())), to = eye.clone().sub(head.getWorldPosition(V(0, 0, 0))).normalize(); F.lookErr = Math.acos(THREE.MathUtils.clamp(fw.dot(to), -1, 1)) - 0; }
+      { const fw = V(0, 0, 1).applyQuaternion(head.getWorldQuaternion(new THREE.Quaternion())), to = eye.clone().sub(head.getWorldPosition(V(0, 0, 0))).normalize(); F.lookErr = Math.acos(THREE.MathUtils.clamp(fw.dot(to), -1, 1)); }
       // voice + mouth
       if (F.speakT >= 0) { F.speakT -= dt; if (F.speakT < 0) { F.speakT = -1; F.say(); } }
       let o = 0.06 + 0.04 * Math.sin(F.t * 1.7);
       if (F.speaking) { F.sayK += dt; const k = F.sayK; const i = Math.floor(k / F.envDt);   // game time (pauses with the game; ~real time while playing)
-        const mime = F.line === 'hey' ? 1.8 : 3.4;   // t770u: lines ~30% slower (same voice, time-stretched)
+        const S = window.__skySnd;
+        const mime = (S && S.voiceDurs && S.voiceDurs[F.line]) || (F.line === 'hey' ? 1.8 : 2.4);   // t770u: lines ~30% slower (same voice, time-stretched); t782u: shorter opening line
         if (F.env && i < F.env.length) o = F.env[i]; else if (!F.env && k < mime) o = 0.5 + 0.5 * Math.abs(Math.sin(k * 7.5)); else { F.speaking = false; F.line = ''; } }
       // anger: snaps in, holds ANGRY_T after the last hit, then eases back
       if (F.angryT > 0) { F.angryT -= dt; F.ang += (1 - F.ang) * (1 - Math.exp(-dt * 16)); } else F.ang += (0 - F.ang) * (1 - Math.exp(-dt * 2.6));
@@ -217,6 +242,14 @@ export function createFace(scene) {
       for (const b of brows) { const sd = b.userData.sd; b.position.set((0.38 - A * 0.05) * sd, 0.66 + op * 0.06 * (1 - A) - A * 0.1, 0.78 + A * 0.04);
         b.rotation.z = (-(0.28 - op * 0.18) * (1 - A) + 0.52 * A) * sd; b.scale.set(1 + A * 0.12, 1 + A * 0.45, 1); }
       for (const e of eyes) e.g.scale.set(1, 1 - A * 0.38, 1);   // squint
+      // t782u: extra expressions while looking away (anger still wins)
+      if (A < 0.2 && F.gaze > 0.2) {
+        const ek = Math.min(1, (F.gaze - 0.2) / 0.8), E = F.expr;
+        if (E === 'wink') eyes[0].g.scale.y *= 1 - 0.85 * ek;
+        else if (E === 'squint') for (const e of eyes) e.g.scale.y *= 1 - 0.4 * ek;
+        else if (E === 'raise') for (const b of brows) { b.position.y += 0.12 * ek; b.rotation.z *= (1 - 0.55 * ek); }
+        else if (E === 'smirk') { mouth.rotation.z = 0.2 * ek; mouth.scale.y *= 1 - 0.18 * ek; }
+      } else mouth.rotation.z = 0;
       // red flush + anger mark + shake
       skin.color.copy(skinC).lerp(RED, A * 0.8); skin.emissive.copy(skinE).lerp(REDE, A); skinD.color.copy(skinDC).lerp(REDD, A * 0.8); skinD.emissive.copy(skinDE).lerp(REDDE, A);
       for (const c of cheeks) c.visible = A < 0.5;
