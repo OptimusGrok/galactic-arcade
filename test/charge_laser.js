@@ -3,6 +3,7 @@
 // Monkey beam is blue, alien beam is red (not hoodie / suit colours). Rings and sparks surge along
 // the beam; a rising charge-up tone plays while holding and stops on release. Arcade (__roomFire)
 // and Sky Tower (setFire + step). No screenshots. 844x390 phone landscape.
+// t793u/t794u: the monkey's charge ball, scaled bolts and 3 s beam start at his gun muzzle (not his feet). Alien origin unchanged.
 const { open } = require('./lib');
 let ok = true; const chk = (c, m, x) => { console.log((c ? 'PASS ' : 'FAIL ') + m + (x !== undefined ? ' ' + JSON.stringify(x).slice(0, 420) : '')); if (!c) ok = false; };
 
@@ -27,7 +28,14 @@ let ok = true; const chk = (c, m, x) => { console.log((c ? 'PASS ' : 'FAIL ') + 
   let s = await page.evaluate(() => {
     const R = window.__roomFire;
     const wipe = () => { while (R.lasers.length) { const L = R.lasers[0]; if (R.lasers.indexOf(L) >= 0) { /* let life expire via update */ L.life = 0; } R.update(0.02); } R.cool = 0; R.charge = 0; R.chargeSpent = false; if (R.beam) { R.beamT = 0; R.update(0.02); } };
-    const last = () => { const L = R.lasers.filter(x => !x.remote).pop(); return L ? { k: L.k, sx: +L.mesh.scale.x.toFixed(3), sy: +L.mesh.scale.y.toFixed(3), sz: +L.mesh.scale.z.toFixed(3), hue: L.hue } : null; };
+    const last = () => { const L = R.lasers.filter(x => !x.remote).pop(); return L ? { k: L.k, sx: +L.mesh.scale.x.toFixed(3), sy: +L.mesh.scale.y.toFixed(3), sz: +L.mesh.scale.z.toFixed(3), hue: L.hue, oy: L.o && +L.o[1].toFixed(3) } : null; };
+    const muz = () => {
+      const A = window.__arcade, T = A.THREE, mk = A.monkey, p = new T.Vector3(), h = new T.Vector3();
+      mk.updateMatrixWorld(true);
+      const mz = mk.getObjectByName('gaPistolMuzzle'); if (mz) mz.getWorldPosition(p);
+      const hand = mk.getObjectByName('handR'); if (hand) hand.getWorldPosition(h);
+      return { muzzleY: +p.y.toFixed(3), handY: +h.y.toFixed(3), feetY: +mk.position.y.toFixed(3) };
+    };
     wipe();
     const n0 = R.shots;
     R.setHeld(true); R.update(0.04); R.setHeld(false);
@@ -37,12 +45,14 @@ let ok = true; const chk = (c, m, x) => { console.log((c ? 'PASS ' : 'FAIL ') + 
     R.setHeld(true); R.update(1); const midChg = R.charge; const ring = parseFloat(getComputedStyle(document.getElementById('bFire')).getPropertyValue('--chg') || '0');
     const ball = window.__arcade.scene.getObjectByName('roomCharge');
     const midBall = !!(ball && ball.visible);
+    const midMuz = muz();
+    const midOrigin = { ballY: ball ? +ball.position.y.toFixed(3) : null, ...midMuz };
     R.setHeld(false);
-    const mid = { n: R.shots - n1, last: last(), chargeAt: midChg, ring, ball: midBall };
+    const mid = { n: R.shots - n1, last: last(), chargeAt: midChg, ring, ball: midBall, origin: midOrigin };
 
     wipe(); const n2 = R.shots;
     R.setHeld(true); R.update(3); R.setHeld(false);
-    const late = { n: R.shots - n2, last: last() };
+    const late = { n: R.shots - n2, last: last(), origin: muz() };
 
     wipe();
     const snd0 = { on: R.chargeOn, starts: R.chargeStarts, hz: R.chargeHz };
@@ -56,11 +66,13 @@ let ok = true; const chk = (c, m, x) => { console.log((c ? 'PASS ' : 'FAIL ') + 
     wipe(); const n3 = R.shots;
     R.setHeld(true); R.update(4.05);
     const en0 = R.beam && R.beam.energy && R.beam.energy.rings.map(r => +r.position.z.toFixed(3));
+    const muz4 = muz();
     const at4 = { n: R.shots - n3, beam: !!R.beam, beamT: R.beamT, spent: R.chargeSpent, cols: R.beam && R.beam.cols, core: R.beam && R.beam.mesh.children[0].material.color.getHex(), glow: R.beam && R.beam.mesh.children[1].material.color.getHex(), expect: R.playerCols(),
       energy: !!(R.beam && R.beam.energy && R.beam.mesh.getObjectByName('beamEnergy')),
       rings: R.beam && R.beam.energy && R.beam.energy.rings.length,
       sparks: R.beam && R.beam.energy && R.beam.energy.sparks.length,
-      chargeOn: R.chargeOn };
+      chargeOn: R.chargeOn,
+      origin: { beamY: R.beam ? +R.beam.mesh.position.y.toFixed(3) : null, ...muz4 } };
     R.update(0.35);
     const en1 = R.beam && R.beam.energy && R.beam.energy.rings.map(r => +r.position.z.toFixed(3));
     const surged = !!(en0 && en1 && en0.some((z, i) => Math.abs(z - en1[i]) > 0.05));
@@ -83,6 +95,10 @@ let ok = true; const chk = (c, m, x) => { console.log((c ? 'PASS ' : 'FAIL ') + 
   chk(s.tap.n === 1 && s.tap.last && s.tap.last.k < 0.05 && Math.abs(s.tap.last.sx - 1) < 0.16 && s.tap.last.hue === 'cyan' && !s.tap.beam,
     'arcade: a quick tap fires one normal-size cyan bolt', s.tap);
   chk(s.mid.n === 1 && s.late.n === 1 && s.mid.last && s.late.last, 'arcade: mid-hold release fires exactly one bolt', { mid: s.mid, late: s.late });
+  const nearMuz = (y, o, slack) => y != null && o && Math.abs(y - o.muzzleY) < (slack || 0.25) && y > o.feetY + 0.7;
+  chk(nearMuz(s.mid.origin.ballY, s.mid.origin) && nearMuz(s.late.last.oy, s.late.origin, 0.35),
+    'arcade: the monkey charge ball and scaled bolt start at the gun muzzle, not his feet', { mid: s.mid.origin, late: s.late });
+  chk(nearMuz(s.at4.origin.beamY, s.at4.origin), 'arcade: the monkey beam origin is near the gun muzzle height', s.at4.origin);
   chk(s.mid.last.sx > s.tap.last.sx + 0.4 && s.late.last.sx > s.mid.last.sx + 0.8 && s.late.last.sz > s.mid.last.sz,
     'arcade: bolt gets progressively bigger and thicker as the hold approaches 4 s', { tap: s.tap.last, mid: s.mid.last, late: s.late.last });
   chk(s.mid.ring > 20 && s.mid.ball, 'arcade: charge ring is visible while holding', { ring: s.mid.ring, ball: s.mid.ball });
@@ -139,7 +155,14 @@ let ok = true; const chk = (c, m, x) => { console.log((c ? 'PASS ' : 'FAIL ') + 
     S.start();
     window.__DEMO = false;
     S.G.mode = 'play'; S.G.run = true; S.G.over = false; S.G.hold = false;
-    const last = () => { const L = S.lasers[S.lasers.length - 1]; return L ? { k: L.k, sx: +L.mesh.scale.x.toFixed(3), sy: +L.mesh.scale.y.toFixed(3), sz: +L.mesh.scale.z.toFixed(3), color: L.color } : null; };
+    const last = () => { const L = S.lasers[S.lasers.length - 1]; return L ? { k: L.k, sx: +L.mesh.scale.x.toFixed(3), sy: +L.mesh.scale.y.toFixed(3), sz: +L.mesh.scale.z.toFixed(3), color: L.color, oy: L.o ? +L.o.y.toFixed(3) : null } : null; };
+    const muz = () => {
+      if (S.poseMonkeyGun) S.poseMonkeyGun(1);
+      S.player.updateMatrixWorld(true);
+      const u = S.player.userData, p = S.player.position, o = { feetY: +p.y.toFixed(3), muzzleY: null };
+      if (u.muzzle) { const v = u.muzzle.getWorldPosition(p.clone()); o.muzzleY = +v.y.toFixed(3); }
+      return o;
+    };
     const wipe = () => {
       for (const L of S.lasers.slice()) { if (L.mesh && L.mesh.parent) L.mesh.parent.remove(L.mesh); L.alive = false; }
       S.lasers.length = 0; S.G.cooldown = 0; S.G.charge = 0; S.G.charging = false; S.G.chargeSpent = false; S.G.fireHeld = false;
@@ -150,8 +173,12 @@ let ok = true; const chk = (c, m, x) => { console.log((c ? 'PASS ' : 'FAIL ') + 
 
     wipe(); const n0 = S.SHOT.n; hold(0.04); const tap = { n: S.SHOT.n - n0, last: last(), beam: !!S.G.beam };
 
-    wipe(); const n1 = S.SHOT.n; hold(1); const mid = { n: S.SHOT.n - n1, last: last() };
-    wipe(); const n2 = S.SHOT.n; hold(3); const late = { n: S.SHOT.n - n2, last: last() };
+    wipe(); const n1 = S.SHOT.n; S.setFire(true); tick(1);
+    const skyBall = S.world && S.world.getObjectByName('skyCharge');
+    const midBall = { ballY: skyBall ? +skyBall.position.y.toFixed(3) : null, ...muz() };
+    S.setFire(false); tick(1 / 60);
+    const mid = { n: S.SHOT.n - n1, last: last(), origin: midBall };
+    wipe(); const n2 = S.SHOT.n; hold(3); const late = { n: S.SHOT.n - n2, last: last(), origin: muz() };
 
     const Sd = window.__skySnd;
     wipe();
@@ -166,6 +193,7 @@ let ok = true; const chk = (c, m, x) => { console.log((c ? 'PASS ' : 'FAIL ') + 
     wipe(); const n3 = S.SHOT.n;
     S.setFire(true); tick(4.05);
     const en0 = S.G.beam && S.G.beam.energy && S.G.beam.energy.rings.map(r => +r.position.z.toFixed(3));
+    const muz4 = muz();
     const at4 = { n: S.SHOT.n - n3, beam: !!S.G.beam, beamT: S.G.beamT, spent: S.G.chargeSpent,
       core: S.G.beam && S.G.beam.mesh.children[0].material.color.getHex(),
       glow: S.G.beam && S.G.beam.mesh.children[1].material.color.getHex(),
@@ -173,7 +201,8 @@ let ok = true; const chk = (c, m, x) => { console.log((c ? 'PASS ' : 'FAIL ') + 
       energy: !!(S.G.beam && S.G.beam.energy && S.G.beam.mesh.getObjectByName('beamEnergy')),
       rings: S.G.beam && S.G.beam.energy && S.G.beam.energy.rings.length,
       sparks: S.G.beam && S.G.beam.energy && S.G.beam.energy.sparks.length,
-      chargeOn: !!(Sd && Sd.chargeOn) };
+      chargeOn: !!(Sd && Sd.chargeOn),
+      origin: { beamY: S.G.beam ? +S.G.beam.mesh.position.y.toFixed(3) : null, ...muz4 } };
     tick(0.35);
     const en1 = S.G.beam && S.G.beam.energy && S.G.beam.energy.rings.map(r => +r.position.z.toFixed(3));
     const surged = !!(en0 && en1 && en0.some((z, i) => Math.abs(z - en1[i]) > 0.05));
@@ -204,6 +233,10 @@ let ok = true; const chk = (c, m, x) => { console.log((c ? 'PASS ' : 'FAIL ') + 
   chk(s.mid.n === 1 && s.late.n === 1 && s.mid.last && s.late.last, 'Sky Tower: mid-hold release fires exactly one bolt', { mid: s.mid, late: s.late });
   chk(s.mid.last.sx > s.tap.last.sx + 0.4 && s.late.last.sx > s.mid.last.sx + 0.8 && s.late.last.sz > s.mid.last.sz,
     'Sky Tower: bolt gets progressively bigger and thicker as the hold approaches 4 s', { tap: s.tap.last, mid: s.mid.last, late: s.late.last });
+  const skyNear = (y, o, slack) => y != null && o && o.muzzleY != null && Math.abs(y - o.muzzleY) < (slack || 0.25) && y > o.feetY + 0.7;
+  chk(skyNear(s.mid.origin.ballY, s.mid.origin) && skyNear(s.late.last.oy, s.late.origin, 0.35),
+    'Sky Tower: the monkey charge ball and scaled bolt start at the gun muzzle, not his feet', { mid: s.mid.origin, late: s.late });
+  chk(skyNear(s.at4.origin.beamY, s.at4.origin), 'Sky Tower: the monkey beam origin is near the gun muzzle height', s.at4.origin);
   chk(s.at4.n === 0 && s.at4.beam && s.at4.beamT > 2.8 && s.at4.spent && s.at4.core === 0x2f8cff && s.at4.glow === 0x0a3cff,
     'Sky Tower: a 4 s hold starts a 3 s blue monkey beam (no bolt)', s.at4);
   chk(s.at4.energy && s.at4.rings >= 5 && s.at4.sparks >= 10 && s.surged,

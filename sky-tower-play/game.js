@@ -997,8 +997,10 @@ function playerCols() {
   return { a: c.a, b: c.b, char: char === 'alien' ? 'alien' : 'monkey' };
 }
 function muzzlePos() {
-  player.updateMatrixWorld(true);
   const u = player.userData, o = new V3(), dir = new V3(Math.sin(G.face), 0.02, Math.cos(G.face));
+  // t793u/t794u: aim the monkey's gun first so the charge / bolts / beam come from the muzzle, not the walk pose (his feet). Do not change the alien's eye origin.
+  if (u.char !== 'alien' && u.gun) { G.gunAim = 1; G.gunAimT = Math.max(G.gunAimT || 0, GUN_AIM_TIME); poseMonkeyGun(1); }
+  player.updateMatrixWorld(true);
   if (u.char === 'alien' && u.botEye) { u.botEye.getWorldPosition(o); o.addScaledVector(dir, 0.1); }
   else if (u.muzzle) { u.muzzle.getWorldPosition(o); o.addScaledVector(dir, 0.04); }
   else if (u.gun) u.gun.getWorldPosition(o);
@@ -1058,6 +1060,7 @@ function startChargeBeam() {
   if (window.__skySnd && window.__skySnd.chargeStop) window.__skySnd.chargeStop();
   if (player.userData.char === 'monkey') { G.gunAimT = GUN_AIM_TIME; G.gunAim = 1; poseMonkeyGun(1); }
   else { G.orbFlash = 0.2; }
+  placeChargeBeam();   // t793u: same frame as spawn, otherwise the beam sits at the world origin (the monkey's feet)
   if (window.__skySnd) window.__skySnd.zap(col.char === 'alien' ? 'red' : 'cyan');
 }
 function placeChargeBeam() {
@@ -1541,8 +1544,8 @@ function step(dt) {
   updateTraps(dt);
   drawWind();
   trapHits();
-  updateCombat(dt);
   animatePlayer(dt);
+  updateCombat(dt);
   updateCamera(dt);
   face.update(dt, { pos: player.position, camYaw: G.camYaw, won: G.won, hold: G.hold });
   rivals.update(dt, SHOT);

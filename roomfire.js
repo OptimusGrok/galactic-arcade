@@ -57,6 +57,8 @@
   function hideChargeBall() { if (chargeBall && chargeBall.parent) chargeBall.parent.remove(chargeBall); chargeBall = null; }
   function muzzlePos() {
     var a = A(); if (!a || !a.monkey) return null; var T = a.THREE, mk = a.monkey, u = mk.userData || {}, p = new T.Vector3();
+    // t793u/t794u: aim the monkey's pistol first so the charge ball / bolts / beam come from the gun, not the walk pose (his feet). Alien origin is unchanged.
+    if (u.char !== 'alien') { RF.aim = 1; RF.aimT = Math.max(RF.aimT || 0, AIM_T); pose(u, 1); }
     mk.updateMatrixWorld(true);
     if (u.char === 'alien') { var eye = mk.getObjectByName('botEye') || u.bot; if (eye) eye.getWorldPosition(p); else p.set(mk.position.x, mk.position.y + 1.6, mk.position.z); }
     else { var mz = mk.getObjectByName('gaPistolMuzzle'); if (mz) mz.getWorldPosition(p); else p.set(mk.position.x, mk.position.y + 1.1, mk.position.z); }
@@ -177,7 +179,7 @@
     g.children.forEach(function (m) { m.rotation.x = Math.PI / 2; m.position.z = BEAM_LEN / 2; m.renderOrder = 5; });
     a.scene.add(g); RF.beam = { mesh: g, cols: col, energy: addBeamEnergy(T, g, BEAM_LEN, col) }; RF.beamT = BEAM_T; hideChargeBall(); setChg(1);
     stopChargeSnd();
-    RF.aimT = AIM_T; RF.aim = 1; if (col.char !== 'alien') pose((a.monkey.userData || {}), 1); else RF.flash = 0.2;
+    RF.aimT = AIM_T; RF.aim = 1; if (col.char !== 'alien') { pose((a.monkey.userData || {}), 1); placeBeam(); } else RF.flash = 0.2;
     zap(col.char === 'alien' ? 'red' : 'cyan');
   }
   function placeBeam() {
@@ -208,12 +210,18 @@
   function update(dt) { var a = A(); if (!a || !a.monkey) return; RF.t = (RF.t || 0) + dt; var show = canShow();
     if (show !== RF.shown) { RF.shown = show; btn.classList.toggle('on', show); if (!show) { RF.held = false; btn.classList.remove('held'); stopChargeSnd(); } }
     if (RF.cool > 0) RF.cool -= dt;
+    var u = a.monkey.userData || {};
+    // t793u: pose the monkey's gun before placing the charge / beam so the origin is the muzzle, not the walk cycle
+    if (equipped() && u.char !== 'alien') {
+      if (RF.held || RF.beam) RF.aimT = Math.max(RF.aimT || 0, AIM_T);
+      if (RF.aimT > 0) RF.aimT = Math.max(0, RF.aimT - dt);
+      var want = (RF.held || RF.aimT > 0 || RF.beam) ? 1 : 0;
+      if (want) RF.aim = 1; else RF.aim += (0 - RF.aim) * (1 - Math.exp(-7 * dt));
+      pose(u, RF.aim);
+    } else RF.aim = 0;
     if (RF.beam) { RF.beamT -= dt; placeBeam(); tickBeamEnergy(RF.beam, dt); if (RF.beamT <= 0) endBeam(); }
     else if (RF.held) { RF.charge += dt; var ck = Math.min(1, RF.charge / CHARGE_T); setChg(ck); updateChargeBall(ck); tickChargeSnd(ck); if (RF.aimT < 0.1) RF.aimT = AIM_T; if (RF.charge >= CHARGE_T && !RF.chargeSpent) { RF.chargeSpent = true; startBeam(); } }
     else { stopChargeSnd(); if (chargeBall) hideChargeBall(); }
-    var u = a.monkey.userData || {};
-    if (equipped() && u.char !== 'alien') { if (RF.aimT > 0) RF.aimT = Math.max(0, RF.aimT - dt); var want = (RF.held || RF.aimT > 0) ? 1 : 0; RF.aim += (want - RF.aim) * (1 - Math.exp(-(want ? 10 : 7) * dt)); pose(u, RF.aim); }
-    else RF.aim = 0;
     if (RF.flash > 0) { RF.flash = Math.max(0, RF.flash - dt); if (u.bot && u.char === 'alien') u.bot.rotation.x = -0.18 * Math.min(1, RF.flash / 0.05); }
     for (var i = RF.lasers.length - 1; i >= 0; i--) { var L = RF.lasers[i]; L.mesh.position.addScaledVector(L.dir, SPEED * dt); L.life -= dt; var op = Math.max(0, Math.min(1, L.life / FADE)); L.mesh.material.opacity = op; if (L.mesh.children[0]) L.mesh.children[0].material.opacity = op * 0.32; if (L.life <= 0) kill(L); } }
   addEventListener('keydown', function (e) { if (e.code === 'KeyL' && !e.repeat && RF.shown && !(e.target && /INPUT|TEXTAREA/.test(e.target.tagName))) setHeld(true); });
