@@ -239,6 +239,8 @@ export function setupPlay(A) {
     P.lastExit = why; P.sub = null; demoUI.classList.remove('on'); P.mode = 'zoomOut'; P.t = 0; bExit.style.display = 'none'; document.body.dataset.cab = '';
     const f = P.frame; f.classList.remove('on');
     try { if (f.contentWindow && f.contentWindow.__skySnd) f.contentWindow.__skySnd.stop(); } catch (e) {}
+    try { if (f.contentWindow && f.contentWindow.__gaRelease) f.contentWindow.__gaRelease(); } catch (e) {}   // t762u: free its GPU / canvas / audio now, not at some later GC (phones)
+    try { if (TV.open) closeView(); } catch (e) {}
     try { f.contentWindow.document.body.style.display = 'none'; } catch (e) {} setTimeout(() => f.remove(), 500); P.frame = null;
     if (P.cur.onExit) P.cur.onExit();
     const m = P.cur, back = monkey.position.clone().setY(monkey.position.y + 1.25), out = back.clone().addScaledVector(m.cab.userData.inward, 2.6).setY(2.1);

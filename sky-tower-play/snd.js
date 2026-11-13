@@ -55,7 +55,7 @@
     if (ac) return ac;
     const AC = global.AudioContext || global.webkitAudioContext;
     if (!AC) return null;
-    ac = new AC();
+    try { ac = new AC(); } catch (e) { S.acErr = String(e && e.message || e); ac = null; return null; }   // t762u: a phone that refuses audio just plays silent
     setTimeout(() => { try { decodeVoice(); } catch (e) {} }, 0);
     master = ac.createGain(); master.gain.value = 1;
     musicG = ac.createGain(); musicG.gain.value = 0;

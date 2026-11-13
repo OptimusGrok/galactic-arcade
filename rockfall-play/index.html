@@ -27,7 +27,13 @@ canvas{position:absolute;left:0;top:0;image-rendering:pixelated;image-rendering:
 @keyframes bl{50%{opacity:0}}
 .hide{display:none!important}
 /* t757u: below the arcade close X */
-html.gaCab #hud{padding-top:calc(4px + env(safe-area-inset-top) + var(--gaTop))}
+/* t762u: in the arcade the whole HUD row sits up in the top strip, just right of the close X / ticket pill (/ Viking chip):
+   --gaLeft comes from watch-shim.js; vertically centred with the X (4-42px); wraps to a second line only on narrow screens */
+html.gaCab #hud{left:var(--gaLeft,124px);right:0;top:0;min-height:calc(46px + env(safe-area-inset-top));justify-content:flex-start;gap:2px 12px;padding:calc(4px + env(safe-area-inset-top)) calc(6px + env(safe-area-inset-right)) 4px 0;background:linear-gradient(rgba(20,12,50,.8),rgba(20,12,50,.5) 75%,rgba(0,0,0,0))}
+html.gaCab #hud>span:not(.bt){line-height:38px}
+html.gaCab #br,html.gaCab #fs{display:none!important}
+@media (max-width:760px){html.gaCab #hud{gap:0 8px;font-size:12px;letter-spacing:0}html.gaCab #hud button{font-size:11px;padding:3px 5px}}
+@media (max-width:560px){html.gaCab #hud{gap:0 6px;font-size:11px}html.gaCab #hud>span:not(.bt){line-height:19px}html.gaCab #hud .bt{gap:4px}}
 </style></head><body>
 <div id="wrap"><canvas id="c"></canvas>
 <div id="hud"><span>💎 <b id="hd">0</b>/<span class="d" id="hn">0</span></span><span>⏱ <b id="ht">300</b></span><span>♥ <b id="hl">3</b></span><span>SCORE <b id="hs">000000</b></span><span>HI <b id="hh">0</b></span>

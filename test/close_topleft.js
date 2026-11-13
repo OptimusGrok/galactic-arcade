@@ -1,12 +1,14 @@
 // t757u: on EVERY cabinet game the arcade close X sits tight in the top-left corner, the ticket pill beside it in the
-// same strip, nothing (shell or game HUD) sits under them, the HUD that used to be there is below the strip, and the
+// same strip, nothing (shell or game HUD) sits under them, the HUD that used to be there is below the strip (Rock Fall t762u: up IN the strip, right of the pill), and the
 // X still exits to the room. 844x390 landscape (+ a portrait pass for Sky Tower). CLOSE_SHOTS=dir saves screenshots.
 const { open } = require('./lib');
 const SHOTS = process.env.CLOSE_SHOTS || '', PICK = new Set((process.env.CLOSE_PICK || 'skytower,monkey,orc,ds,roadster,bb,berserker,pip,rockfall,nova').split(','));
 (async () => {
   let ok = true; const chk = (c, m, x) => { console.log((c ? 'PASS ' : 'FAIL ') + m + (x !== undefined ? ' ' + JSON.stringify(x).slice(0, 500) : '')); if (!c) ok = false; };
   // per game: HUD element(s) that the close X used to cover -> must now start below the strip
-  const MOVED = { skytower: ['#hp', '#tixHud'], monkey: ['#score'], orc: ['.stat'], ds: ['#hpBox'], roadster: ['#dial'], rockfall: ['#hud > *'] };
+  const MOVED = { skytower: ['#hp', '#tixHud'], monkey: ['#score'], orc: ['.stat'], ds: ['#hpBox'], roadster: ['#dial'] };
+  // t762u: Rock Fall's whole HUD row sits UP in the strip, right of the X / pill (/ Viking chip), clear of everything
+  const INSTRIP = { rockfall: '#hud > *' };
   async function sweep(w, h, keys) {
     const o = await open({ phone: true, w, h }), page = o.page; page.setDefaultTimeout(60000);
     await page.evaluate(() => { const s = document.getElementById('start'); if (s) s.remove(); if (window.__start) window.__start.dismissed = true; });
@@ -40,6 +42,25 @@ const SHOTS = process.env.CLOSE_SHOTS || '', PICK = new Set((process.env.CLOSE_P
       chk(r.gaCab && r.gaTop === 46, tag + ': the game knows about the strip (html.gaCab, __gaTop 46)', { gaCab: r.gaCab, gaTop: r.gaTop });
       chk(r.hits.length === 0, tag + ': nothing sits under the X / ticket strip', r.hits);
       if (r.moved) chk(r.moved.every(m => m.top != null && m.top >= r.strip[1] - 3), tag + ': former top-left HUD now below the X', { moved: r.moved, strip: r.strip });
+      if (INSTRIP[k]) {
+        const meas = () => page.evaluate(sel => { const f = document.getElementById('game'), fb = f.getBoundingClientRect(), d = f.contentWindow.document, w = f.contentWindow;
+          const R = b => ({ l: Math.round(b.left), t: Math.round(b.top), r: Math.round(b.right), b: Math.round(b.bottom) });
+          const shell = {}; for (const id of ['bExit', 'tix', 'vix']) { const e = document.getElementById(id); const cs = e && getComputedStyle(e); shell[id] = e && cs.display !== 'none' && cs.visibility !== 'hidden' && e.getBoundingClientRect().width ? R(e.getBoundingClientRect()) : null; }
+          const others = [...document.querySelectorAll('body *')].filter(e => { if (/^(bExit|tix|vix|game)$/.test(e.id) || e.closest('#tix,#vix,#bExit') || /^(SCRIPT|STYLE|IFRAME)$/.test(e.tagName)) return false; const b = e.getBoundingClientRect(), cs = getComputedStyle(e);
+            return b.width > 3 && b.height > 3 && b.width < innerWidth * 0.7 && b.top < 50 && cs.display !== 'none' && cs.visibility !== 'hidden' && +cs.opacity > 0.05 && (e.innerText || '').trim(); }).map(e => [e.id || e.tagName, R(e.getBoundingClientRect())]);
+          const items = [...d.querySelectorAll(sel)].filter(e => { const cs = w.getComputedStyle(e); return cs.display !== 'none' && cs.visibility !== 'hidden' && e.getBoundingClientRect().width > 0; })
+            .map(e => { const b = e.getBoundingClientRect(); return [(e.id || e.textContent.trim().slice(0, 8)), R({ left: b.left + fb.left, top: b.top + fb.top, right: b.right + fb.left, bottom: b.bottom + fb.top })]; });
+          return { shell, others, items, W: innerWidth, gaLeft: w.__gaLeft }; }, INSTRIP[k]);
+        const ov = (a, b) => a.l < b.r && a.r > b.l && a.t < b.b && a.b > b.t;
+        const judge = (m, label) => { const lim = w > h ? 46 : 92, edgeR = Math.max(...['bExit', 'tix', 'vix'].map(id => m.shell[id] ? m.shell[id].r : 0));
+          const bad = m.items.filter(([, b]) => b.t < 0 || b.b > lim || b.l < edgeR + 2 || b.r > m.W || ['bExit', 'tix', 'vix'].some(id => m.shell[id] && ov(b, m.shell[id])) || m.others.some(([, o]) => ov(b, o)));
+          chk(m.items.length >= 6 && bad.length === 0 && (w <= h || m.items.every(([, b]) => b.b <= 46)), tag + ': ' + label, { bad, items: m.items.map(([n, b]) => n + '@' + b.l + ',' + b.t + '-' + b.r + ',' + b.b), edgeR, gaLeft: m.gaLeft, others: m.others }); };
+        judge(await meas(), 'HUD row (diamonds, time, lives, score, HI, PAUSE / SOUND) is up in the top strip, right of the X + ticket pill, overlapping nothing');
+        await page.evaluate(() => { const p = window.__arcade.play; p.viking.total = 1; p.showVix(); }); await page.waitForTimeout(900);
+        const mv = await meas(); judge(mv, 'with the Viking chip showing, the HUD shifts right of it (still in the strip, no overlap)');
+        chk(!!mv.shell.vix, tag + ': (Viking chip was visible for that check)', mv.shell.vix);
+        await page.evaluate(() => { const p = window.__arcade.play; p.viking.total = 0; p.showVix(); }); await page.waitForTimeout(400);
+      }
       if (SHOTS && PICK.has(k) && w > h) await page.screenshot({ path: SHOTS + '/ga-close-topleft-' + k + '.png' });
       // the X still leaves to the room
       const X = await page.locator('#bExit').boundingBox(); await page.touchscreen.tap(X.x + X.width / 2, X.y + X.height / 2);
@@ -52,6 +73,6 @@ const SHOTS = process.env.CLOSE_SHOTS || '', PICK = new Set((process.env.CLOSE_P
     await o.close();
   }
   await sweep(844, 390, process.env.CLOSE_KEYS ? process.env.CLOSE_KEYS.split(',') : null);
-  await sweep(390, 844, ['skytower', 'monkey']);
+  await sweep(390, 844, process.env.CLOSE_PKEYS ? process.env.CLOSE_PKEYS.split(',') : ['skytower', 'monkey', 'rockfall']);
   console.log(ok ? 'ALL PASS' : 'SOME FAILED'); process.exit(ok ? 0 : 1);
 })();
