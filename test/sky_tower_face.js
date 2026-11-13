@@ -43,9 +43,9 @@ const SHOTS = process.env.FACE_SHOTS || '';
   const s2 = await st();
   const dmin = Math.min(...tr.map(q => q.d)), dmax = Math.max(...tr.map(q => q.d));
   chk(dmin >= 17.99 && dmax <= 45, 'while flying: standoff ' + dmin.toFixed(1) + '-' + dmax.toFixed(1) + ' m (never crowds the player)');
-  const up = await page.evaluate(() => { const A = window.__skytower, F = A.face; A.placeOn(20); const p0 = F.root.position.y; for (let i = 0; i < 150; i++) A.step(1 / 30);
-    const pl = F.root.parent.getObjectByName ? null : null; return { p0: +p0.toFixed(1), p1: +F.root.position.y.toFixed(1), plat: A.platform, top: +A.yOf(20).toFixed(1), d: +F.dist.toFixed(1), look: +F.lookErr.toFixed(3) }; });
-  chk(up.p1 > up.p0 + 10 && up.p1 > up.top && up.p1 < up.top + 14 && up.d >= 18, 'rises with the player to platform 20 and keeps its distance', up);
+  const up = await page.evaluate(() => { const A = window.__skytower, F = A.face; A.placeOn(12); const p0 = F.root.position.y; for (let i = 0; i < 150; i++) A.step(1 / 30);
+    const pl = F.root.parent.getObjectByName ? null : null; return { p0: +p0.toFixed(1), p1: +F.root.position.y.toFixed(1), plat: A.platform, pad: +A.platforms[11].top.toFixed(1), d: +F.dist.toFixed(1), look: +F.lookErr.toFixed(3) }; });
+  chk(up.plat === 12 && up.p1 > up.p0 + 10 && up.p1 > up.pad && up.p1 < up.pad + 14 && up.d >= 18, 'rises with the player to platform 12 and keeps its distance', up);
   const wv = await page.evaluate(() => { const A = window.__skytower, F = A.face, ang = []; for (let i = 0; i < 240; i++) { A.step(1 / 30); if (i % 20 === 0) ang.push(F.root.position.y); } return { spread: Math.max(...ang) - Math.min(...ang) }; });
   chk(wv.spread > 1, 'drifts / bobs around (not frozen)', wv);
   // t782u: dolly range, look-away, expression change (deterministic cycle starts at t = 8.5)
@@ -70,7 +70,24 @@ const SHOTS = process.env.FACE_SHOTS || '';
   chk(gz.dNear >= 18 && gz.dFar >= 18 && Math.abs(gz.dFar - gz.dNear) > 8, 'floats away from the camera and back toward it (standoff kept)', { dNear: gz.dNear, dFar: gz.dFar });
   // existing climb features still work
   const ex = await page.evaluate(() => { const A = window.__skytower; let L = null; for (let i = 0; i < 12 && !L; i++) { A.step(0.3); L = A.fire(); } return { laser: !!L, tickets: A.tickets.length, energy: A.energy, hp: A.hp, cap: A.RUN_CAP }; });
-  chk(ex.laser && ex.tickets === 50 && ex.cap === 50 && ex.hp > 0, 'FIRE lasers, 50 flying tickets, run cap 50 still there', ex);
+  chk(ex.laser && ex.tickets === 20 && ex.cap === 50 && ex.hp > 0, 'FIRE lasers, 20 flying tickets, run cap 50 still there', ex);
+  // t787u: reaching the 10th pad booms “You got lucky” with a subtitle, once per climb
+  await page.waitForFunction(() => !window.__skySnd.voiceLine, null, { timeout: 8000 }).catch(() => {});
+  const lucky = await page.evaluate(() => {
+    const A = window.__skytower, F = A.face, S = window.__skySnd;
+    F.speakT = -1; F.speaking = false; F.line = ''; F.luckyPend = false; F.luckys = 0; F.sub('');
+    A.G.run = true; A.G.won = false; A.G.over = false; window.__DEMO = false;
+    if (A.TK && A.TK.awarded) delete A.TK.awarded.p10;
+    A.G.reached = 1; A.placeOn(10);
+    for (let i = 0; i < 24; i++) A.step(1 / 30);
+    const el = document.getElementById('titanSub');
+    const first = { line: F.line, luckys: F.luckys, speaking: F.speaking, sub: el && el.textContent, on: !!(el && el.classList.contains('on')), open: +F.open.toFixed(3) };
+    A.placeOn(11); A.placeOn(10); for (let i = 0; i < 8; i++) A.step(1 / 30);
+    return { first, luckys: F.luckys, dur: S && S.voiceDurs && S.voiceDurs.lucky, ready: !!(S && S.luckyReady) };
+  });
+  chk(lucky.first.luckys === 1 && lucky.first.line === 'lucky' && lucky.first.speaking && lucky.first.on && /You got lucky/i.test(lucky.first.sub) && lucky.first.open > 0.15,
+    'reaching the 10th platform, the TITAN says “You got lucky” with a subtitle and a moving mouth', lucky);
+  chk(lucky.luckys === 1 && lucky.ready, 'the lucky line plays once per climb and the buffer is shipped', lucky);
   if (SHOTS) { await page.evaluate(() => { const A = window.__skytower; A.placeOn(1); for (let i = 0; i < 40; i++) A.step(1 / 30); }); await page.waitForTimeout(600); await page.screenshot({ path: SHOTS + '/ga-skytower-face-climb.png' }); }
   // the win: drifts away + fades, ending untouched
   const w = await page.evaluate(() => { const A = window.__skytower, F = A.face; A.placeOn(A.N); A.finish(); for (let i = 0; i < 120; i++) A.step(1 / 30); return { won: A.won, shown: F.shown, vis: F.root.visible, scene: A.scene() }; });

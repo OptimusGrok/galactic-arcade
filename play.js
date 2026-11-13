@@ -41,7 +41,7 @@ export function setupPlay(A) {
       scene(w) { const s = w.__ghost.G.state; return s === 'play' || s === 'dying' || s === 'pause' ? 'play' : s === 'over' ? 'over' : s; },
       active(w) { return w.__ghost.G.state === 'play'; },
       hold(w) { const s = w.__ghost.G.state; if (s !== 'play' && s !== 'dying') return false; w.__ghost.togglePause(); return true; }, unhold(w) { if (w.__ghost.G.state === 'pause') w.__ghost.togglePause(); }, overHold: 4500, scoresHold: 0 },
-    monkey: { key: 'monkey', cab: A.monkeyCab, src: 'monkey-play/index.html', credits: 0, games: 0, aspect: 9 / 16, cost: 5,
+    monkey: { key: 'monkey', upright: 1, cab: A.monkeyCab, src: 'monkey-play/index.html', credits: 0, games: 0, aspect: 9 / 16, cost: 5,   // t787u: play upright (portrait) like Ghost / Strike / Cybercity
       demo(w) { w.__demo.start(); }, stopDemo(w) { w.__demo.stop(); },
       start(w) { w.__HOLD = 0; w.__M.startGame(); },
       scene(w) { return w.__M.state; }, active(w) { return w.__M.state === 'play'; },

@@ -1,67 +1,86 @@
-// t786u: Monkey Crossing play view is the original arcade one: a full-screen iframe, not an
-// upright/portrait lock (that is only Ghost 256 / Strike / Cybercity) and not a rotated/sideways
-// frame. No screenshots.
-const { open } = require('./lib'); const { helpers } = require('./cabflow');
+// t787u: Monkey Crossing plays upright (portrait), flipping from sideways, like Ghost 256 / Strike / Cybercity.
+// Full-screen iframe, no CSS rotation, arcade landscape lock released, close X top-left, tickets still award
+// through the arcade copy. Leaving re-locks the side (landscape) view. No screenshots. 390x844 portrait phone.
+const { open } = require('./lib');
 let ok = true; const chk = (c, m, x) => { console.log((c ? 'PASS ' : 'FAIL ') + m + (x !== undefined ? ' ' + JSON.stringify(x).slice(0, 420) : '')); if (!c) ok = false; };
 (async () => {
-  const o = await open({ phone: true, w: 844, h: 390 }), page = o.page, { errors } = o;
+  const W = 390, H = 844, o = await open({ phone: true, w: W, h: H }), page = o.page, { errors } = o;
   page.setDefaultTimeout(60000);
-  const H = helpers(page, true);
-  const mode = await page.evaluate(() => {
-    const m = window.__arcade.play.machines.monkey, g = window.__arcade.play.machines.ghost, s = window.__arcade.play.machines.strike;
-    return { monkeyUpright: !!m.upright, ghostUpright: !!g.upright, strikeUpright: !!s.upright, aspect: m.aspect, src: m.src };
+  await page.evaluate(() => { const s = document.getElementById('start'); if (s) s.remove(); if (window.__start) window.__start.dismissed = true; });
+  await page.evaluate(() => {
+    const F = window.__F = { el: null, log: [], cur: 'natural', pend: null, delay: {} }, so = screen.orientation, D = document;
+    Object.defineProperty(Document.prototype, 'fullscreenElement', { get() { return F.el; }, configurable: true });
+    D.documentElement.requestFullscreen = function () { F.log.push('fs'); return new Promise(r => setTimeout(() => { if (!F.el) { F.el = D.documentElement; D.dispatchEvent(new Event('fullscreenchange')); } r(); }, 30)); };
+    const abort = () => { if (F.pend) { const p = F.pend; F.pend = null; p.rej(new DOMException('aborted', 'AbortError')); } };
+    so.lock = k => { F.log.push('lock:' + k); if (!F.el) return Promise.reject(new DOMException('not fullscreen', 'SecurityError')); abort();
+      return new Promise((res, rej) => { const me = { rej }; F.pend = me; setTimeout(() => { if (F.pend !== me) return; F.pend = null; F.cur = k; F.log.push('=>' + k); res(); }, F.delay[k] || 20); }); };
+    so.unlock = () => { F.log.push('unlock'); abort(); F.cur = 'natural'; };
+    window.__wantWide && window.__wantWide();
   });
-  chk(!mode.monkeyUpright && mode.ghostUpright && mode.strikeUpright, 'Monkey Crossing is not flagged upright (Ghost/Strike are)', mode);
+  await page.waitForTimeout(400);
+
+  const mode = await page.evaluate(() => {
+    const m = window.__arcade.play.machines.monkey, g = window.__arcade.play.machines.ghost;
+    return { monkeyUpright: !!m.upright, ghostUpright: !!g.upright, aspect: m.aspect, src: m.src };
+  });
+  chk(mode.monkeyUpright && mode.ghostUpright, 'Monkey Crossing is flagged upright like Ghost 256', mode);
   chk(Math.abs(mode.aspect - 9 / 16) < 1e-6 && /monkey-play/.test(mode.src), 'cabinet aspect is still the original 9:16 portrait screen', mode);
 
   await page.evaluate(() => { const p = window.__arcade.play; p.tickets.total = 20; localStorage.setItem('neonarcade.tickets', '20'); p.machines.monkey.credits = 1; });
-  await H.goTo('monkeyCabinet');
-  await page.waitForFunction(() => document.getElementById('playUI').classList.contains('on'), null, { timeout: 8000 }).catch(() => {});
-  await H.press();
-  await page.waitForFunction(() => window.__arcade.play.mode === 'game' && document.getElementById('game'), null, { timeout: 150000 });
-  await page.waitForFunction(() => { const f = document.getElementById('game'); return f && f.classList.contains('on') && f.contentWindow && f.contentWindow.__M; }, null, { timeout: 60000 });
+  await page.evaluate(() => { const P = window.__arcade.play; P.start(P.machines.monkey); });
+  await page.waitForFunction(() => window.__arcade.play.mode === 'game' && document.getElementById('bExit') && document.getElementById('bExit').style.display === 'block', null, { timeout: 90000 });
+  await page.evaluate(() => { const P = window.__arcade.play; P.machines.monkey.credits = 1; P.tryPlay(); });
+  await page.waitForTimeout(4500);
+  await page.waitForFunction(() => { const f = document.getElementById('game'); return f && f.contentWindow && f.contentWindow.__M; }, null, { timeout: 20000 });
 
-  const demo = await page.evaluate(() => {
-    const f = document.getElementById('game'), st = f.contentWindow.getComputedStyle(f.contentWindow.document.body);
-    const rot = (el) => { const s = getComputedStyle(el); return { t: s.transform, tr: el.style.transform || '', r: el.style.rotate || '' }; };
+  const play = await page.evaluate(([W, H]) => {
+    const f = document.getElementById('game'), w = f.contentWindow, d = w.document, R = b => [b.left, b.top, b.width, b.height].map(Math.round);
+    const rot = e => { for (let q = e; q && q.nodeType === 1; q = q.parentElement) { const t = w.getComputedStyle(q).transform; if (t && t !== 'none') { const m = new w.DOMMatrix(t); if (Math.abs(m.b) > 0.01 || Math.abs(m.c) > 0.01) return (q.id || q.tagName) + ' ' + t; } } return null; };
+    const cvs = [...d.querySelectorAll('canvas')].filter(c => { const b = c.getBoundingClientRect(), cs = w.getComputedStyle(c); return b.width > 50 && cs.display !== 'none' && cs.visibility !== 'hidden'; });
+    const main = cvs.sort((a, b) => b.getBoundingClientRect().width * b.getBoundingClientRect().height - a.getBoundingClientRect().width * a.getBoundingClientRect().height)[0];
+    const mb = main ? main.getBoundingClientRect() : null;
     return {
-      sub: window.__arcade.play.sub,
+      sub: window.__arcade.play.sub, state: w.__M.state,
       upright: document.body.classList.contains('upright'),
       hint: document.getElementById('turnHint') && document.getElementById('turnHint').classList.contains('on'),
-      frame: rot(f),
-      body: rot(document.body),
-      inner: rot(f.contentWindow.document.body),
-      html: rot(f.contentWindow.document.documentElement),
-      box: f.getBoundingClientRect(),
-      vw: innerWidth, vh: innerHeight,
-      gameW: f.contentWindow.innerWidth, gameH: f.contentWindow.innerHeight,
-      state: f.contentWindow.__M.state
+      cur: window.__F && window.__F.cur,
+      frame: R(f.getBoundingClientRect()), inner: [w.innerWidth, w.innerHeight],
+      rot: main ? rot(main) : 'no canvas', rootRot: rot(d.body),
+      fill: mb ? +(mb.width * mb.height / (W * H)).toFixed(3) : 0, wfill: mb ? +(mb.width / W).toFixed(3) : 0,
+      X: R(document.getElementById('bExit').getBoundingClientRect()), gaTop: w.__gaTop
     };
-  });
-  chk(!demo.upright && !demo.hint, 'while Monkey Crossing is open the arcade stays in the normal landscape view (no upright lock, no turn-sideways hint)', demo);
-  const noRot = (r) => (!r.t || r.t === 'none') && !r.tr && !r.r;
-  chk(noRot(demo.frame) && noRot(demo.body) && noRot(demo.inner) && noRot(demo.html), 'the play iframe and game are not rotated/sideways', { frame: demo.frame, body: demo.body, inner: demo.inner, html: demo.html });
-  chk(demo.box.width >= demo.vw - 2 && demo.box.height >= demo.vh - 2 && demo.box.left <= 1 && demo.box.top <= 1, 'play view is the original full-screen iframe', demo.box);
-  chk(demo.gameW >= 800 && demo.gameH <= 430 && demo.gameW > demo.gameH, 'the game itself is the landscape full-screen view (not a portrait/upright frame)', { w: demo.gameW, h: demo.gameH, state: demo.state });
+  }, [W, H]);
+  chk(play.sub === 'play' && play.state === 'play', 'Monkey Crossing is running', play);
+  chk(play.cur === 'portrait' && play.upright, 'the phone goes to normal portrait for Monkey Crossing', play);
+  chk(!play.hint, 'no “turn your phone sideways” hint over the game');
+  chk(play.frame[0] === 0 && play.frame[1] === 0 && play.frame[2] === W && play.frame[3] === H && play.inner[0] === W && play.inner[1] === H, 'game frame is the full portrait screen', play);
+  chk(!play.rot && !play.rootRot, 'nothing is rotated (the game is upright, not sideways)', { rot: play.rot, rootRot: play.rootRot });
+  chk(play.wfill >= 0.95 && play.fill >= 0.4, 'the game picture fills the portrait screen', { fill: play.fill, wfill: play.wfill });
+  chk(play.X[0] <= 6 && play.X[1] <= 6 && play.X[2] >= 36 && play.gaTop === 46, 'close X tight top-left', { X: play.X, gaTop: play.gaTop });
 
-  // start a credit so we also see the playing (not only DEMO) view
-  await H.insert().catch(() => {});
-  await page.evaluate(() => { const w = document.getElementById('game').contentWindow; if (w && w.__M && w.__M.state !== 'play') w.__M.startGame(); });
-  await page.waitForTimeout(300);
-  const play = await page.evaluate(() => {
-    const f = document.getElementById('game');
-    return {
-      sub: window.__arcade.play.sub,
-      upright: document.body.classList.contains('upright'),
-      state: f.contentWindow.__M.state,
-      t: getComputedStyle(f).transform,
-      gameW: f.contentWindow.innerWidth, gameH: f.contentWindow.innerHeight
-    };
+  const tix = await page.evaluate(() => {
+    const t0 = window.__arcade.play.tickets.total;
+    const w = document.getElementById('game').contentWindow;
+    const hook = typeof window.__neonTicket;
+    w.parent.__neonTicket(1, 'monkey');
+    return { hook, t0, t1: window.__arcade.play.tickets.total, keys: { best: localStorage.getItem('arcade_mc_best'), tot: localStorage.getItem('arcade_mc_tickets') } };
   });
-  chk(!play.upright && play.state === 'play' && (!play.t || play.t === 'none') && play.gameW > play.gameH,
-    'while actually playing, the view stays the original full-screen landscape (not upright or sideways)', play);
+  chk(tix.hook === 'function' && tix.t1 === tix.t0 + 1, 'the arcade copy still awards tickets to the cabinet total', tix);
 
-  const bad = errors.filter(e => !/supabase|AbortError|Failed to load|AudioContext/i.test(e));
+  const X = await page.locator('#bExit').boundingBox();
+  await page.touchscreen.tap(X.x + X.width / 2, X.y + X.height / 2);
+  await page.waitForFunction(() => window.__arcade.play.mode === 'walk' && !document.getElementById('game'), null, { timeout: 30000 });
+  await page.waitForTimeout(1500);
+  const back = await page.evaluate(() => ({
+    mode: window.__arcade.play.mode, cur: window.__F.cur, fs: !!window.__F.el,
+    upright: document.body.classList.contains('upright'),
+    hint: document.getElementById('turnHint') && document.getElementById('turnHint').classList.contains('on'),
+    lastLock: window.__F.log.filter(x => /^lock:/.test(x)).pop()
+  }));
+  chk(back.mode === 'walk' && back.cur === 'landscape' && back.fs && back.lastLock === 'lock:landscape' && !back.upright,
+    'leaving Monkey Crossing goes back to the side (landscape) view', back);
+
+  const bad = errors.filter(e => !/supabase|AbortError|Failed to load|AudioContext|not fullscreen/i.test(e));
   chk(bad.length === 0, 'no page errors', bad.slice(0, 4));
   await o.close();
   console.log(ok ? 'ALL PASS' : 'FAIL');

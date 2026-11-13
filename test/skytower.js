@@ -1,4 +1,4 @@
-// SKY TOWER (#15): south wall slot 2:2 (old blank E, x=0). 3D jetpack climb, 50 Lego
+// SKY TOWER (#15): south wall slot 2:2 (old blank E, x=0). 3D jetpack climb, 20 Lego
 // platforms ending in space above Earth. FLY lifts, FIRE shoots Lego aliens, tickets
 // only while a real arcade credit is running (never in DEMO / WATCH).
 // node test/skytower.js
@@ -317,8 +317,8 @@ const { open } = require('./lib'); const { helpers } = require('./cabflow');
       yMin, yMax, p0, pN, before, afterBump, afterShot, afterSecond
     };
   }, W);
-  chk(flyTix.n === 50 && flyTix.named === 50 && flyTix.value === 1 && flyTix.cap === 50,
-    'about 50 flying tickets and a cap that fits them on top of checkpoints + win ' + JSON.stringify(flyTix));
+  chk(flyTix.n === 20 && flyTix.named === 20 && flyTix.value === 1 && flyTix.cap === 50,
+    '20 flying tickets and a cap that fits them on top of the checkpoint + win ' + JSON.stringify(flyTix));
   chk(flyTix.yMin > flyTix.p0 && flyTix.yMax < flyTix.pN + 8, 'tickets are spread along the climb ' + JSON.stringify({ yMin: flyTix.yMin, yMax: flyTix.yMax, p0: flyTix.p0, pN: flyTix.pN }));
   chk(!flyTix.afterBump.collected && flyTix.afterBump.fly === flyTix.before.fly && flyTix.afterBump.run === flyTix.before.run,
     'flying into a ticket does not collect it ' + JSON.stringify(flyTix.afterBump));
@@ -331,7 +331,7 @@ const { open } = require('./lib'); const { helpers } = require('./cabflow');
     const w = eval(W), S = w.__skytower;
     S.G.wind.lock = true; S.G.wind.phase = 'calm';
     const plats = S.platforms.map(p => ({ i: p.i, x: p.x, z: p.z, size: p.size, kind: p.kind, top: p.top, slide: p.slide || null }));
-    const largeI = new Set([1, 11, 21, 31, 41, 50]);
+    const largeI = new Set([1, 10, 20]);
     const large = plats.filter(p => largeI.has(p.i)).map(p => p.size);
     const small = plats.filter(p => !largeI.has(p.i) && p.kind === 'block').map(p => p.size);
     const restOf = p => p.slide ? { x: p.slide.ox, z: p.slide.oz } : { x: p.x, z: p.z };
@@ -347,7 +347,7 @@ const { open } = require('./lib'); const { helpers } = require('./cabflow');
       const tEff = Math.max(needY / S.FLY.up, centerXZ / (S.AIR_SPEED || 6.2));
       const tWorst = Math.max(needY / S.FLY.up, worstXZ / (S.AIR_SPEED || 6.2));
       const fuelEff = tEff * S.FLY.drain, fuelWorst = tWorst * S.FLY.drain;
-      const computed = fuelWorst <= 0.90 + 1e-6;
+      const computed = start.i === (S.LUCKY - 1) ? fuelWorst <= 1.0 + 1e-6 : fuelWorst <= 0.90 + 1e-6;
       hops.push({
         from: start.i, to: dest.i, computed, centerXZ: +centerXZ.toFixed(2), worstXZ: +worstXZ.toFixed(2),
         needY: +needY.toFixed(2), fuelEff: +fuelEff.toFixed(4), fuelWorst: +fuelWorst.toFixed(4), amp: +amp.toFixed(2)
@@ -389,15 +389,30 @@ const { open } = require('./lib'); const { helpers } = require('./cabflow');
       hp0, hp1: S.G.hp, maxClimb, maxAir, gustA, drift, windFuel
     };
   }, W);
-  chk(layout.n === 50 && layout.minY > 13 && layout.maxY > 22 && layout.minXZ > 20,
-    'platforms use ramped hard gaps ' + JSON.stringify({ minY: layout.minY, maxY: layout.maxY, minXZ: layout.minXZ, maxXZ: layout.maxXZ }));
+  chk(layout.n === 20 && layout.minY > 9 && layout.maxY > 18 && layout.minXZ > 20,
+    '20 platforms use ramped hard gaps ' + JSON.stringify({ minY: layout.minY, maxY: layout.maxY, minXZ: layout.minXZ, maxXZ: layout.maxXZ }));
   chk(layout.minXZ > 18 && layout.minAny > 8, 'no platforms are stacked above each other (consec xz ' + layout.minXZ.toFixed(2) + ', other xz ' + layout.minAny.toFixed(2) + ')');
   chk(layout.smallMax < layout.largeMin && layout.largeMin >= 9 && layout.smallMax < 3.4,
     'checkpoints stay large and the other pads are a few studs wide ' + JSON.stringify({ large: layout.large, smallMin: layout.smallMinR, smallMax: layout.smallMaxR }));
-  chk(layout.hopsOk && layout.hopCount === 49 && layout.hardestWorst <= 0.90 + 1e-6,
-    'every hop stays reachable in the worst moving-pad case (<=90% fuel) ' + JSON.stringify({ failed: layout.hopsFailed, easy: layout.easyFuel, hard: layout.hardFuel, worst: layout.hardestWorst }));
-  chk(layout.hardestWorst + layout.windFuel <= 1.0,
-    'worst hop + worst head-on gust still fits one tank (' + ((layout.hardestWorst + layout.windFuel) * 100).toFixed(1) + '%) ' + JSON.stringify({ gustA: +layout.gustA.toFixed(2), drift: +layout.drift.toFixed(2), windFuel: +layout.windFuel.toFixed(4) }));
+  // t787u: hop onto the moving 10th pad is allowed to need nearly a full tank at the far end (that's the timing challenge)
+  const luckyHop = await page.evaluate(W => {
+    const w = eval(W), S = w.__skytower, p9 = S.platforms[8], p10 = S.platforms[9], sl = p10.slide;
+    const a = { x: p9.x, z: p9.z }, b = sl ? { x: sl.ox, z: sl.oz } : { x: p10.x, z: p10.z };
+    const center = Math.hypot(b.x - a.x, b.z - a.z), needY = p10.top - p9.top, amp = sl ? sl.amp : 0;
+    const fuel = (xz) => Math.max(needY / S.FLY.up, xz / S.AIR_SPEED) * S.FLY.drain;
+    return { i: p10.i, check: S.isCheck(10), size: p10.size, kind: p10.kind, hasSlide: !!sl, amp, dir: !!(sl && sl.dirx != null),
+      center: +center.toFixed(2), near: +(center - amp).toFixed(2), far: +(center + amp).toFixed(2),
+      fuelNear: +fuel(center - amp).toFixed(4), fuelFar: +fuel(center + amp).toFixed(4), fuelMid: +fuel(center).toFixed(4),
+      otherWorst: 0 };
+  }, W);
+
+  chk(layout.hopCount === 19, '19 hops on a 20-platform climb ' + JSON.stringify({ n: layout.hopCount }));
+  chk(luckyHop.check && luckyHop.hasSlide && luckyHop.dir && luckyHop.size >= 14,
+    'the 10th platform is a larger sliding checkpoint ' + JSON.stringify(luckyHop));
+  chk(luckyHop.fuelFar <= 1.0 && luckyHop.fuelFar >= 0.90 && luckyHop.fuelNear <= 0.50 && luckyHop.fuelNear + 0.15 < luckyHop.fuelFar,
+    'pad 10 is out of reach with a low tank at the far end, reachable with a modest tank at the near end, and always with a full tank ' + JSON.stringify(luckyHop));
+  chk(layout.hopsOk, 'every hop stays reachable (pad 10 far end may need a full tank; others <=90% fuel) ' + JSON.stringify({ failed: layout.hopsFailed, easy: layout.easyFuel, hard: layout.hardFuel, worst: layout.hardestWorst }));
+
   chk(layout.easyFuel >= 0.48 && layout.easyFuel <= 0.62,
     'early hops cost about 50-60% fuel (' + (layout.easyFuel * 100).toFixed(1) + '%)');
   chk(layout.hardFuel >= 0.80 && layout.hardFuel <= 0.90,
@@ -408,7 +423,7 @@ const { open } = require('./lib'); const { helpers } = require('./cabflow');
   const slide = await page.evaluate(W => {
     const w = eval(W), S = w.__skytower;
     const sliders = S.platforms.filter(p => p.slide);
-    const bad = sliders.filter(p => S.isCheck(p.i) || p.i === 1 || p.i === S.N);
+    const bad = sliders.filter(p => (S.isCheck(p.i) || p.i === 1 || p.i === S.N) && p.i !== S.LUCKY);
     const sl = sliders[2] || sliders[0];
     S.placeOn(sl.i);
     S.G.ix = 0; S.G.iz = 0; S.G.joy.on = false; S.fly(false);
@@ -430,7 +445,7 @@ const { open } = require('./lib'); const { helpers } = require('./cabflow');
       axes: sliders.slice(0, 8).map(p => p.slide.axis)
     };
   }, W);
-  chk(slide.n >= 12 && slide.bad.length === 0, 'small non-checkpoint pads slide side to side ' + JSON.stringify(slide));
+  chk(slide.n >= 6 && slide.bad.length === 0, 'small non-checkpoint pads (and the 10th checkpoint) slide side to side ' + JSON.stringify(slide));
   chk(slide.moved > 0.85 && slide.carry < 0.35 && !slide.air && slide.yErr < 0.2,
     'standing on a moving pad carries the player without falling off ' + JSON.stringify(slide));
   chk(slide.axes.includes('x') && slide.axes.includes('z'), 'moving pads vary axis ' + JSON.stringify(slide.axes));
@@ -449,6 +464,8 @@ const { open } = require('./lib'); const { helpers } = require('./cabflow');
     const noSpinTiny = tiny.every(p => !p.traps.some(tr => tr.type === 'spinner' || tr.type === 'wind'));
     // drop onto a tiny pad from 2m up: lands and stays on top
     const land = (p, ox, oz) => {
+      // Reset the checkpoint so a drop on an early pad is not treated as a fall from pad 10.
+      S.G.check = 1; S.G.reached = 1; S.G.won = false; S.G.over = false;
       S.placeOn(p.i); S.G.hold = false; S.G.shotLock = true; S.fly(false); S.G.ix = S.G.iz = 0; S.G.joy.on = false;
       if (p.slide) { p.slide.speed0 = p.slide.speed; p.slide.speed = 0; }
       S.player.position.set(p.x + ox, p.top + 2, p.z + oz); S.G.air = true; S.G.vx = S.G.vz = S.G.vy = 0;
@@ -475,10 +492,10 @@ const { open } = require('./lib'); const { helpers } = require('./cabflow');
 
   const wind = await page.evaluate(W => {
     const w = eval(W), S = w.__skytower, Wd = S.WIND, snd = S.snd || w.__skySnd;
-    const big = S.platforms[20];
+    const big = S.platforms[14];
     const reset = i => { S.placeOn(i); S.G.hold = false; S.G.shotLock = true; S.fly(false); S.G.ix = S.G.iz = 0; S.G.joy.on = false; S.G.vx = S.G.vz = 0; };
     // natural scheduler: calm -> telegraph (warn) -> gust -> calm
-    reset(21); S.G.wind.lock = false; S.G.wind.phase = 'calm'; S.G.wind.t = 0; S.G.wind.next = 0.2;
+    reset(15); S.G.wind.lock = false; S.G.wind.phase = 'calm'; S.G.wind.t = 0; S.G.wind.next = 0.2;
     const wh0 = snd ? snd.whooshes : 0; if (snd) snd.lastWhoosh = -99;
     const seen = []; let warnForce = 0, sawStreaks = 0, hudWarn = false, hudGust = false, arrow = '';
     for (let i = 0; i < 30 * 7; i++) {
@@ -493,12 +510,12 @@ const { open } = require('./lib'); const { helpers } = require('./cabflow');
     const whooshed = snd ? snd.whooshes - wh0 : -1;
     // forced full gust +x: air vs ground push
     S.G.wind.lock = false;
-    reset(21); S.player.position.y = big.top + 6; S.G.air = true;
+    reset(15); S.player.position.y = big.top + 6; S.G.air = true;
     S.windGust({ dx: 1, dz: 0, str: 1, phase: 'gust', t: 1, dur: 10 });
     const ax0 = S.player.position.x; let airA = 0;
     for (let i = 0; i < 15; i++) { S.step(1 / 30); airA = Math.max(airA, S.G.wind.accel); }
     const airDx = S.player.position.x - ax0;
-    reset(21); S.windGust({ dx: 1, dz: 0, str: 1, phase: 'gust', t: 1, dur: 10 });
+    reset(15); S.windGust({ dx: 1, dz: 0, str: 1, phase: 'gust', t: 1, dur: 10 });
     const gx0 = S.player.position.x; let gA = 0;
     for (let i = 0; i < 15; i++) { S.step(1 / 30); gA = Math.max(gA, S.G.wind.accel); }
     const groundDx = S.player.position.x - gx0;
@@ -521,14 +538,14 @@ const { open } = require('./lib'); const { helpers } = require('./cabflow');
   chk(wind.highA > wind.lowA * 1.8, 'gusts ramp with height ' + JSON.stringify({ low: wind.lowA, high: wind.highA }));
   chk(!wind.hudAfter, 'WIND indicator hides when calm');
 
-  // t736u: day/night cycle by height (night + moon at 10/30/50, day at 20/40, dusk/dawn half-way)
+  // t736u / t787u: day/night cycle by height (night + moon at 10, day at 20, dusk/dawn half-way)
   const sky = await page.evaluate(W => {
     const w = eval(W), S = w.__skytower;
     S.G.wind.lock = true; S.G.wind.phase = 'calm'; S.G.wind.k = 0;
     const at = i => { S.G.check = 1; S.placeOn(i); S.G.hold = false; S.G.shotLock = true; S.fly(false); S.G.ix = S.G.iz = 0; S.G.joy.on = false; S.step(1 / 30); const k = S.sky, b = S.world.background;
       return { i, level: +k.level.toFixed(3), n: +k.night.toFixed(3), phase: k.phase, sun: +k.sun.toFixed(3), moon: +k.moon.toFixed(3), stars: +k.stars.toFixed(2), mv: k.moonVisible, space: +k.space.toFixed(2), lum: +(0.3 * b.r + 0.59 * b.g + 0.11 * b.b).toFixed(3) }; };
-    const nights = [10, 30, 50].map(at), days = [20, 40].map(at), mids = [5, 15, 25, 35, 45].map(at);
-    // smooth with height: sweep from platform 1 to 50 in small height steps, sky never jumps
+    const nights = [10].map(at), days = [20].map(at), mids = [5, 15].map(at);
+    // smooth with height: sweep from platform 1 to 20 in small height steps, sky never jumps
     let maxStep = 0, mono = true, prevL = -1, prevN = null;
     const y0 = S.platforms[0].top, y1 = S.platforms[S.N - 1].top;
     for (let k = 0; k <= 2000; k++) {
@@ -549,17 +566,17 @@ const { open } = require('./lib'); const { helpers } = require('./cabflow');
   }, W);
   console.log('sky', JSON.stringify(sky));
   chk(sky.cycle === 10 && sky.nights.every(r => Math.abs(r.level - r.i) < 0.02 && r.n > 0.99 && r.phase === 'night' && r.sun < 0.02 && r.moon > 0.95 && r.mv && r.stars > 0.95),
-    'full night with only moonlight (no sun, moon + stars out) on platforms 10, 30 and 50 ' + JSON.stringify(sky.nights));
-  chk(sky.days.every(r => r.n < 0.01 && r.phase === 'day' && r.sun > 0.6 && r.moon < 0.01 && !r.mv && r.stars < 0.05 && r.lum > 0.2),
-    'full day again on platforms 20 and 40 ' + JSON.stringify(sky.days));
-  chk(sky.mids.every(r => r.n > 0.4 && r.n < 0.6 && r.sun > 0.15 && r.sun < 0.9) && sky.mids.map(r => r.phase).join() === 'dusk,dawn,dusk,dawn,dusk',
-    'half-way platforms 5/15/25/35/45 are dusk/dawn mid-transition ' + JSON.stringify(sky.mids.map(r => [r.i, r.n, r.phase])));
-  chk(sky.nights[0].lum < sky.mids[0].lum && sky.mids[0].lum < sky.days[0].lum + 0.2 && sky.nights[2].space > 0.95 && sky.nights[2].lum < 0.02,
-    'night sky is dark, and platform 50 blends into black space ' + JSON.stringify({ n10: sky.nights[0].lum, d5: sky.mids[0].lum, d20: sky.days[0].lum, n50: sky.nights[2].lum, space: sky.nights[2].space }));
+    'full night with only moonlight (no sun, moon + stars out) on platform 10 ' + JSON.stringify(sky.nights));
+  chk(sky.days.every(r => r.n < 0.01 && r.phase === 'day' && r.moon < 0.01 && !r.mv && r.space > 0.95),
+    'day at the top (platform 20) ' + JSON.stringify(sky.days));
+  chk(sky.mids.every(r => r.n > 0.4 && r.n < 0.6 && r.sun > 0.15 && r.sun < 0.9) && sky.mids.map(r => r.phase).join() === 'dusk,dawn',
+    'half-way platforms 5 and 15 are dusk/dawn mid-transition ' + JSON.stringify(sky.mids.map(r => [r.i, r.n, r.phase])));
+  chk(sky.nights[0].lum < sky.mids[0].lum && sky.days[0].space > 0.95,
+    'night sky is dark, and platform 20 blends into black space ' + JSON.stringify({ n10: sky.nights[0].lum, d5: sky.mids[0].lum, d20: sky.days[0].lum, space: sky.days[0].space }));
   chk(sky.mono && sky.maxStep < 0.01, 'the sky follows height smoothly (no snap), max step ' + sky.maxStep);
   chk(sky.half.n > 0.8 && sky.half.n < 0.995 && sky.half.level > 9.3 && sky.half.level < 9.7, 'in the air between 9 and 10 the sky is part-way ' + JSON.stringify(sky.half));
-  chk(sky.before.check === 11 && sky.before.n < 0.05 && sky.after.plat === 11 && Math.abs(sky.after.level - 11) < 0.05 && Math.abs(sky.after.n - sky.after.expect) < 0.002 && sky.after.n > 0.95,
-    'falling from 19 respawns at checkpoint 11 and the sky matches that height (night again) ' + JSON.stringify({ before: sky.before, after: sky.after }));
+  chk(sky.before.check === 10 && sky.before.n < 0.05 && sky.after.plat === 10 && Math.abs(sky.after.level - 10) < 0.05 && Math.abs(sky.after.n - sky.after.expect) < 0.002 && sky.after.n > 0.95,
+    'falling from 19 respawns at checkpoint 10 and the sky matches that height (night again) ' + JSON.stringify({ before: sky.before, after: sky.after }));
 
   const adv = await page.evaluate(W => {
     const w = eval(W), S = w.__skytower, p0 = S.platform;
@@ -567,15 +584,15 @@ const { open } = require('./lib'); const { helpers } = require('./cabflow');
     const txt = w.document.getElementById('plat').textContent;
     return { p0, p1: S.platform, txt };
   }, W);
-  chk(adv.p1 === 12 && /12\/50/.test(adv.txt), 'platform counter advances to 12/50 ' + JSON.stringify(adv));
+  chk(adv.p1 === 12 && /12\/20/.test(adv.txt), 'platform counter advances to 12/20 ' + JSON.stringify(adv));
 
   const win = await page.evaluate(W => {
     const w = eval(W), S = w.__skytower;
-    S.placeOn(50);
+    S.placeOn(20);
     for (let i = 0; i < 8; i++) S.step(1 / 60);
     return { plat: S.platform, won: S.won, scene: S.scene(), earth: !!(S.earth && S.earth.visible), banner: w.document.getElementById('banner').textContent };
   }, W);
-  chk(win.plat === 50 && win.won && win.scene === 'over' && win.earth, 'platform 50 finishes in space with Earth below ' + JSON.stringify(win));
+  chk(win.plat === 20 && win.won && win.scene === 'over' && win.earth, 'platform 20 finishes in space with Earth below ' + JSON.stringify(win));
 
   const paid = await page.evaluate(W => { const w = eval(W); return { run: w.__TK.run, log: w.__TK.log.slice(), arcade: window.__arcade.play.tickets.total }; }, W);
   chk(paid.run >= 7 && paid.arcade === 1 + paid.run, 'win tickets bank in the arcade only (' + JSON.stringify(paid) + ')');

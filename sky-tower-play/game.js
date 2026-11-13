@@ -1,16 +1,16 @@
 // SKY TOWER — 3D jetpack climb, arcade copy only.
-// 50 Lego platforms from the clouds to outer space. Tickets only via TicketArt
+// 20 Lego platforms from the clouds to outer space. Tickets only via TicketArt
 // (parent.__neonTicket) while a real credit is running; never in DEMO / WATCH.
 // Soundtrack + laser/ticket SFX live in snd.js (WebAudio, no files).
 import * as THREE from '../vendor/three.module.js';
 import { createFace } from './face.js';
 import { createRivals } from './rivals.js';   // t753u: two players at the cabinet share the climb   // t748u/t782u: the TITAN face ("Can you reach the top?")
 
-const N = 50, AIR_SPEED = 6.2, MIN_SEP = 10;
+const N = 20, AIR_SPEED = 6.2, MIN_SEP = 10, LUCKY = 10;   // t787u: 20 levels; platform 10 is the moving checkpoint
 const PITCH_MIN = -0.22, PITCH_MAX = 1.12;
 const FLY = { drain: 0.125, fill: 0.16, min: 0.08, up: 3.4, down: 2.4 };
 const R = 0.32, PH = 1.82, HI_KEY = 'arcade_skytower_best', RUN_CAP = 50;
-const FLY_TICKETS = 50, FLY_TICKET_VALUE = 1, TICKET_HIT_R = 0.82;   // t782u: more tickets, a mix of fast ones and some drifting slowly
+const FLY_TICKETS = 20, FLY_TICKET_VALUE = 1, TICKET_HIT_R = 0.82;   // t787u: 20 along the shorter climb, still a mix of fast and slow
 // Pad shapes (non-checkpoint only): tiny single-foot pads and long thin beams.
 const PAD = { tiny0: 1.15, tiny1: 1.0, beamW: 0.95, beamL0: 6.4, beamL1: 5.4, tinyP: 0.2, beamP: 0.3 };
 // Random gusts: calm gap, telegraph (streaks + HUD arrow + whoosh), then a push. Accel in m/s^2.
@@ -297,7 +297,7 @@ const starsGeo = new THREE.BufferGeometry();
 const stars = new THREE.Points(starsGeo, new THREE.PointsMaterial({ color: 0xffffff, size: 1.1, sizeAttenuation: true, transparent: true, opacity: 0, fog: false, depthWrite: false }));
 scene.add(stars);
 
-// t736u (Dave): day/night cycle by height. Full night (moon only) at platform 10, day at 20, and so on every 10.
+// t736u (Dave): day/night cycle by height. Full night (moon only) at platform 10, day at 20 (and so on every 10).
 const SKY = { cycle: 10, moonDist: 260, moonR: 9.5 };
 const moonL = new THREE.DirectionalLight(0x9fb8ff, 0); moonL.position.set(-6, 20, 8); scene.add(moonL);
 function moonTex() {
@@ -347,10 +347,15 @@ for (let i = 0; i < 48; i++) {
   clouds.add(m);
 }
 
-function isCheck(i) { return i === 1 || (i - 1) % 10 === 0; }
+function isCheck(i) { return i === 1 || i === LUCKY; }   // t787u: start + the 10th (larger, moving) checkpoint
 function isSlider(i) { return i >= 4 && i < N && !isCheck(i) && (i - 4) % 3 === 0; }
 function hopFuel(from) { return 0.54 + 0.32 * ((from - 1) / Math.max(1, N - 2)); }
-function gapYOf(from) { return hopFuel(from) * (1 / FLY.drain) * FLY.up; }
+function gapYOf(from) {
+  // t787u: the hop onto the moving 10th pad is shorter vertically so a modest tank can still make the height;
+  // the horizontal slide is what you time when fuel is low.
+  if (from === LUCKY - 1) return 0.40 * (1 / FLY.drain) * FLY.up;
+  return hopFuel(from) * (1 / FLY.drain) * FLY.up;
+}
 function gapXZOf(from) {
   const wobble = 0.94 + 0.12 * (0.5 + 0.5 * Math.sin(from * 1.73));
   return hopFuel(from) * (1 / FLY.drain) * AIR_SPEED * 0.90 * wobble;
@@ -358,6 +363,7 @@ function gapXZOf(from) {
 function sizeOf(i) {
   if (i === 1) return 12;
   if (i === N) return 9.5;
+  if (i === LUCKY) return 14.5;   // t787u: larger than the other checkpoints
   if (isCheck(i)) return 11;
   // A few studs wide (about 4 down to 3), shrinking slightly toward space, always landable.
   return 3.15 - 0.75 * (i - 1) / (N - 1);
@@ -495,6 +501,18 @@ function buildPlatform(i) {
   platforms.push(p); return p;
 }
 for (let i = 1; i <= N; i++) buildPlatform(i);
+// t787u: the 10th checkpoint slides along the hop from 9, far enough that a low tank can't reach it
+// at the far end, but a full tank always can; at the near end a modest ~40% tank is enough.
+{
+  const a = platforms[LUCKY - 2], b = platforms[LUCKY - 1], c = platforms[LUCKY];
+  const dx = b.x - a.x, dz = b.z - a.z, len = Math.hypot(dx, dz) || 1;
+  const maxAir = (1 / FLY.drain) * AIR_SPEED;
+  // Far end of 9→10 needs a nearly full tank; hop 10→11 must still stay within 90% after you land.
+  let amp = Math.max(6, 0.96 * maxAir - len);
+  const next = Math.hypot(c.x - b.x, c.z - b.z);
+  amp = Math.min(amp, Math.max(6, 0.90 * maxAir - next));
+  b.slide = { dirx: dx / len, dirz: dz / len, amp, speed: 0.42, t0: 0, ox: b.x, oz: b.z, dx: 0, dz: 0 };
+}
 {
   const fin = platforms[N - 1];
   earth.position.set(fin.x + 85, fin.top - 236, fin.z + 145);
@@ -721,7 +739,7 @@ function levelAt(y) {
   }
   return N;
 }
-// 0 = full day, 1 = full night (moon only). Cosine ease: night at 10/30/50, day at 20/40, half-way (dusk/dawn) at 5/15/25/35/45.
+// 0 = full day, 1 = full night (moon only). Cosine ease: night at 10, day at 20, half-way (dusk/dawn) at 5/15.
 function nightAt(level) { return 0.5 - 0.5 * Math.cos(Math.PI * Math.max(0, level) / SKY.cycle); }
 const C3 = (t, h, b) => [new THREE.Color(t), new THREE.Color(h), new THREE.Color(b)];   // sky [top, horizon, below]
 const SK = {
@@ -738,7 +756,7 @@ function angDiff(a, b) { let d = a - b; while (d > Math.PI) d -= Math.PI * 2; wh
 function setSky(dt) {
   const h = player.position.y, t = THREE.MathUtils.clamp(h / yOf(N), 0, 1);
   const level = levelAt(h), n = nightAt(level);
-  const dawn = Math.floor(Math.max(0, level) / SKY.cycle) % 2 === 1;   // 10→20, 30→40 brighten (dawn); 0→10, 20→30, 40→50 darken (dusk)
+  const dawn = Math.floor(Math.max(0, level) / SKY.cycle) % 2 === 1;   // 10→20 brightens (dawn); 0→10 darkens (dusk)
   const space = THREE.MathUtils.smoothstep(t, 0.86, 1.0);              // last few pads blend into outer space
   const midC = dawn ? SK.dawn : SK.dusk;
   for (let j = 0; j < 3; j++) {
@@ -914,7 +932,7 @@ function resolveY(x, z, y, vy, boxes) {
   return { y, vy, grounded };
 }
 
-function lastCheck(i) { return i <= 1 ? 1 : 1 + 10 * Math.floor((i - 1) / 10); }
+function lastCheck(i) { return (i >= LUCKY && i < N) ? LUCKY : 1; }
 function placeOn(i, jitter) {
   i = Math.max(1, Math.min(N, i | 0));
   const p = platforms[i - 1];
@@ -931,7 +949,8 @@ function onReach(i) {
   if (i > G.best) { G.best = i; if (G.run && !window.__DEMO) saveBest(i); }
   if (G.run && !window.__DEMO && !TK.awarded['p' + i]) {
     TK.awarded['p' + i] = 1;
-    if (i > 1 && (i - 1) % 10 === 0 && i < N) give(2, 'cp' + i);
+    if (i === LUCKY) give(2, 'cp' + i);
+    if (i === LUCKY && G.run && !window.__DEMO) try { face.sayLucky(); } catch (e) {}
     if (i === N) { give(7, 'win'); finish(); }
   } else if (i === N && G.run) finish();
   hud();
@@ -1384,8 +1403,8 @@ function updateSlides() {
     const sl = p.slide;
     if (!sl) continue;
     const u = Math.sin(G.t * sl.speed + sl.t0) * sl.amp;
-    const nx = sl.ox + (sl.axis === 'x' ? u : 0);
-    const nz = sl.oz + (sl.axis === 'z' ? u : 0);
+    const nx = sl.ox + (sl.dirx != null ? sl.dirx * u : (sl.axis === 'x' ? u : 0));
+    const nz = sl.oz + (sl.dirz != null ? sl.dirz * u : (sl.axis === 'z' ? u : 0));
     sl.dx = nx - p.x; sl.dz = nz - p.z;
     p.x = nx; p.z = nz;
     p.g.position.x = nx; p.g.position.z = nz;
@@ -1713,7 +1732,7 @@ const api = {
   face, rivals, SHOT, eyeBeams, BEAM_STATS, BEAM_SPEED, fireEyeBeams, liveExtra,
   PAD, WIND, shapeOf, dimsOf, windGust, updateWind, windAccelAt, drawWind, heightK, get wind() { return G.wind; },
   SKY, levelAt, nightAt, setSky, skyDome, get sky() { return G.sky; }, moon, moonL, sun, hemi, stars,
-  N, R, PH, FLY, AIR_SPEED, MIN_SEP, PITCH_MIN, PITCH_MAX, RUN_CAP, FLY_TICKETS, FLY_TICKET_VALUE, GUN_AIM_TIME, GUN_REST, GUN_AIM, poseMonkeyGun, gunBarrelDir, tickets, collectFlyTicket, resetFlyTickets, spawnFlyTickets, sizeOf, offsetOf, yOf, isCheck, isSlider, hopFuel, gapYOf, gapXZOf, lookDrag, updateCamera, updateSlides, TK, D, G, player, platforms, lasers, aliens, shots, earth, world: scene, camera, renderer,
+  N, LUCKY, R, PH, FLY, AIR_SPEED, MIN_SEP, PITCH_MIN, PITCH_MAX, RUN_CAP, FLY_TICKETS, FLY_TICKET_VALUE, GUN_AIM_TIME, GUN_REST, GUN_AIM, poseMonkeyGun, gunBarrelDir, tickets, collectFlyTicket, resetFlyTickets, spawnFlyTickets, sizeOf, offsetOf, yOf, isCheck, isSlider, hopFuel, gapYOf, gapXZOf, lookDrag, updateCamera, updateSlides, TK, D, G, player, platforms, lasers, aliens, shots, earth, world: scene, camera, renderer,
   fly: setFly, fire, setFire, spawnAlien, placeOn, step, give, playerCols, CHARGE_T, BEAM_T,
   get platform() { return G.platform; },
   get won() { return G.won; },
@@ -1729,9 +1748,9 @@ const api = {
       camera.position.set(7.6, 2.55, 8.6); camera.lookAt(0.15, 1.05, 0.1);
       setSky();
     } else if (kind === 'mid') {
-      placeOn(21);
-      const p = platforms[20];
-      if (platforms[21]) platforms[21].g.visible = false;
+      placeOn(12);
+      const p = platforms[11];
+      if (platforms[12]) platforms[12].g.visible = false;
       const a = spawnAlien({ x: p.x + 2.6, y: p.top + 1.52, z: p.z + 0.2, r: 0.08 });
       a.cx = a.x; a.cz = a.z; a.cy = a.y;
       G.face = Math.atan2(a.x - player.position.x, a.z - player.position.z);
@@ -1874,10 +1893,10 @@ const api = {
       }
       setSky();
     } else if (kind === 'tickets' || kind === 'ticketHit') {
-      placeOn(21);
+      placeOn(12);
       window.__DEMO = true; D.on = false; G.hold = false;
       bannerEl.classList.remove('on');
-      const p = platforms[20];
+      const p = platforms[11];
       G.face = 0.35; player.rotation.y = G.face;
       const fx = Math.sin(G.face), fz = Math.cos(G.face);
       const rx = Math.cos(G.face), rz = -Math.sin(G.face);
