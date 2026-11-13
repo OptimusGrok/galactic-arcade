@@ -11,7 +11,7 @@ const HI_KEY = 'neonarcade.neonbricks.hi';
 // ================= RULES ENGINE (verbatim from Neon Bricks 3D) =================
 const W=10,H=22,HID=2;
 const TYPES=['I','O','T','S','Z','J','L'];
-const HEX={I:'#1fb6e8',O:'#ffcd03',T:'#a040c8',S:'#14b04a',Z:'#e3000b',J:'#0a5ad6',L:'#ff7a1a'};
+const HEX={I:'#1fb6e8',O:'#ffcd03',T:'#a040c8',S:'#14b04a',Z:'#ff4a52',J:'#0a5ad6',L:'#ff7a1a'};   // t796u: Z was the darkest (#e3000b); brighter red stays readable on the window themes
 const SHAPES={I:[[0,0,0,0],[1,1,1,1],[0,0,0,0],[0,0,0,0]],O:[[1,1],[1,1]],T:[[0,1,0],[1,1,1],[0,0,0]],S:[[0,1,1],[1,1,0],[0,0,0]],Z:[[1,1,0],[0,1,1],[0,0,0]],J:[[1,0,0],[1,1,1],[0,0,0]],L:[[0,0,1],[1,1,1],[0,0,0]]};
 const rotCW=m=>m.map((row,i)=>row.map((_,j)=>m[m.length-1-j][i]));
 const CELLS={};
@@ -161,7 +161,7 @@ function joy(jx, jy, dt) {   // joystick / keys: left-right auto-repeat, down = 
   const d = jx > 0.45 ? 1 : jx < -0.45 ? -1 : 0;
   if (d !== rep.dir) { rep.dir = d; rep.t = 0; if (d) move(d); } else if (d) { rep.t += dt; while (rep.t >= DAS) { move(d); rep.t -= ARR; } }
   G.soft = jy > 0.6 && Math.abs(jy) > Math.abs(jx); }
-const api = { G, grp, panel, get shown() { return grp.visible; }, playing: false, zoom: false, zoomK: 0, near: false, clears: 0, starts: 0, rotates: 0, moves: 0,
+const api = { G, grp, panel, HEX, get shown() { return grp.visible; }, playing: false, zoom: false, zoomK: 0, near: false, clears: 0, starts: 0, rotates: 0, moves: 0,
   get mats() { return [brickMat, ghostMat]; },
   start() { if (api.playing) return; hideT = 0; show(true); newGame(); api.playing = true; api.starts++; boardDirty = true; G.events.length = 0; boardDirty = true; msg = ''; drawPanel(); onState && onState(true); },
   stop, rotate() { if (api.playing && rotate(1)) api.rotates++; }, hardDrop() { if (api.playing) hardDrop(); },

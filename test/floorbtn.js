@@ -1,4 +1,4 @@
-// t795u: no top-left FLOOR/WALLS tab; tickets sit top-left in its place; floor/walls live in Options.
+// t795u/t796u: no top-left FLOOR/WALLS tab; gold tickets sit in the very top-left corner, Viking chip to their right; floor/walls live in Options.
 // A different floor or wall costs 1 ticket while walking (re-pick free, 0 tickets -> NEED 1 TICKET).
 // node test/floorbtn.js [phone]
 const { open } = require('./lib');
@@ -9,8 +9,12 @@ const SH = process.env.NOSHOTS ? 0 : 1;
   const L = await page.evaluate(() => { const r = id => { const e = document.getElementById(id); if (!e) return null; const b = e.getBoundingClientRect(); return { x: b.x, y: b.y, w: b.width, h: b.height, r: b.right, b: b.bottom, vis: getComputedStyle(e).display !== 'none' && b.width > 2 && b.height > 2 }; };
     return { fb: r('flBtn'), tix: r('tix'), n: document.querySelectorAll('#tix').length, home: r('bExit'), mute: r('bMute') || r('mute'), fs: r('bFs') }; });
   chk(!L.fb || !L.fb.vis, 'no FLOOR/WALLS tab in the top left ' + JSON.stringify(L.fb));
-  chk(L.n === 1 && L.tix && L.tix.vis && L.tix.x <= 12 && L.tix.y <= 12, 'one ticket counter in the top-left corner ' + JSON.stringify(L.tix));
+  chk(L.n === 1 && L.tix && L.tix.vis && L.tix.x <= 8 && L.tix.y <= 8, 'gold ticket counter in the very top-left corner ' + JSON.stringify(L.tix));
   chk([L.home, L.mute, L.fs].every(o => !o || !o.w || o.x > L.tix.r || o.y > L.tix.b), 'no overlap with the top-right buttons ' + JSON.stringify([L.home, L.mute, L.fs]));
+  await page.evaluate(() => { const p = window.__arcade.play; p.tickets.total = 2; localStorage.setItem('neonarcade.tickets', '2'); localStorage.setItem('neonarcade.vikingTickets', '2'); window.__neonSync && window.__neonSync(); if (p.showVix) p.showVix(); });
+  await page.waitForTimeout(200);
+  const V = await page.evaluate(() => { const r = id => { const e = document.getElementById(id); if (!e) return null; const b = e.getBoundingClientRect(); return { x: b.x, y: b.y, w: b.width, h: b.height, r: b.right, b: b.bottom, vis: getComputedStyle(e).display !== 'none' && b.width > 2 && b.height > 2 }; }; return { tix: r('tix'), vix: r('vix') }; });
+  chk(V.vix && V.vix.vis && V.vix.x >= V.tix.r && V.vix.x - V.tix.r <= 12 && Math.abs(V.vix.y - V.tix.y) <= 2, 'Viking ticket sits directly to the right of the gold ticket ' + JSON.stringify(V));
   await page.evaluate(() => { const p = window.__arcade.play; p.tickets.total = 2; localStorage.setItem('neonarcade.tickets', '2'); window.__neonSync && window.__neonSync(); });
   const tap = async sel => { const b = await page.locator(sel).first().boundingBox(); if (PH) await page.touchscreen.tap(b.x + b.width / 2, b.y + b.height / 2); else await page.mouse.click(b.x + b.width / 2, b.y + b.height / 2); await page.waitForTimeout(700); };
   await tap('#bOpt');
