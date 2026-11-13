@@ -441,6 +441,7 @@
   // t749u: second line "Hey, watch it!" (../sfx/sky_face_hey.mp3, same voice + same chain, matched loudness) when the
   // player shoots the TITAN. Both lines share one voice gain + one source: a line never overlaps another (the
   // "hey" line is refused while any line is still playing — the face's cooldown handles the retry logic).
+  // t770u: both lines re-cut ~30% slower (rubberband time-stretch, tempo 0.70, formants + pitch kept: same deep voice; peaks matched).
   // voiceEnv(s) = loudness per 30 ms (0..1) so the face's mouth moves with the words (also when muted).
   const VoiceVol = 0.95;
   const LINES = { show: { url: '../sfx/sky_face_top.mp3' }, hey: { url: '../sfx/sky_face_hey.mp3' } };

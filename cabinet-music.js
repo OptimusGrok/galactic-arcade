@@ -8,9 +8,11 @@
 // Room music hook: music.js multiplies its target by (1 - window.__cabMusic.duck)  (see INTEGRATION.md).
 (function () {
   var VOL = 0.38, FADE = 0.6, RADIUS = 2.8, HYST = 0.5, MAX_CACHE = 3, BASE = '';
+  // t771u: strike = the game's own stage-1 track (HC 's1', 155 bpm), rendered offline from strike-play's engine: one pass of its
+  // 48-bar loop (after the intro), seamless. The other loops are kit compositions (cabinet-kit/audio/gen.py), not the games' music.
   // exact loop lengths (samples) let us skip mp3 encoder padding like music.js does; berserker reuses its own title music
   var TRACKS = {
-    strike: { src: 'audio/cab_strike.mp3', samples: 282240, rate: 22050 }, monkey: { src: 'audio/cab_monkey.mp3', samples: 358780, rate: 22050 },
+    strike: { src: 'audio/cab_strike.mp3', samples: 1638813, rate: 22050 }, monkey: { src: 'audio/cab_monkey.mp3', samples: 358780, rate: 22050 },
     nova: { src: 'audio/cab_nova.mp3', samples: 441000, rate: 22050 }, cyber: { src: 'audio/cab_cyber.mp3', samples: 341419, rate: 22050 },
     orc: { src: 'audio/cab_orc.mp3', samples: 320727, rate: 22050 }, ghost: { src: 'audio/cab_ghost.mp3', samples: 302400, rate: 22050 },
     roadster: { src: 'audio/cab_roadster.mp3', samples: 294000, rate: 22050 }, ds: { src: 'audio/cab_ds.mp3', samples: 504000, rate: 22050 },

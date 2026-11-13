@@ -295,7 +295,7 @@ const hall = new THREE.Group(); hall.name = 'hallway'; scene.add(hall);
   hall.add(nb, nt, nc);
 }
 // Closed LEVEL 2 steel doors across the hallway opening; frame front flush with room 1's north wall. Opening comes later (window.__level2Door).
-let l2door = null; import('./level2door.js').then(m => { l2door = m.setupLevel2Door({ THREE, parent: hall, mergeGeometries, x: 0, z: -HALF, width: DOOR_W, doorH: DOOR_H }); if (!warm.done) renderer.compileAsync(l2door.group, camera, scene).catch(() => {}); }).catch(e => console.warn('level2door', e));
+let l2door = null; import('./level2door.js').then(m => { l2door = m.setupLevel2Door({ THREE, parent: hall, mergeGeometries, x: 0, z: -HALF, width: DOOR_W, doorH: DOOR_H }); if (!warm.done) compileForPlay(l2door.group, camera, scene).catch(() => {}); }).catch(e => console.warn('level2door', e));
 
 // real lights: only a handful
 scene.add(new THREE.HemisphereLight(0x3a2060, 0x080410, 0.35));
@@ -670,7 +670,7 @@ function setFloor(mode) {
 window.__setFloor = setFloor;   // the saved/default floor is applied after setupTeleport (carpetWhite reads tp, still in its temporal dead zone here)   // the start screen's Options menu calls this
 // pre-compile the CHECKERS / LAVA shaders a few seconds after load so the first tap on those tiles doesn't stall the phone
 setTimeout(() => { try { const m0 = carpet.material, v0 = carpet.visible; carpet.visible = true;
-  for (const m of [checkMat, lavaMat, cobbleMat, iceMat]) if (m !== m0) { carpet.material = m; if (renderer.compileAsync) renderer.compileAsync(scene, camera).catch(() => {}); else renderer.compile(scene, camera); }
+  for (const m of [carpet.material, checkMat, lavaMat, cobbleMat, iceMat]) { carpet.material = m; compileForPlay(carpet, camera, scene).catch(() => {}); }   // t768u: just the floor, for the composer's target
   carpet.material = m0; carpet.visible = v0; } catch (e) {} }, 4000);
 
 // which room is the camera in, and can it see the other one through a doorway?
@@ -1676,7 +1676,8 @@ const demo = startStrikeDemo(strikeCab), ghostDemo = startGhostDemo(ghostCab), _
 // thread during the start screen's first frames. Load them only once the start screen is gone (or skipped), one per idle slot.
 { const idle = f => (window.requestIdleCallback ? requestIdleCallback(f, { timeout: 2000 }) : setTimeout(f, 300));
   const t = setInterval(() => { const S = window.__start; if (!(window.__skipStart || (S && S.dismissed) || !document.getElementById('start'))) return; clearInterval(t);
-    idle(() => { demo.attach(); idle(() => ghostDemo.attach()); }); }, 200); }
+    // t768u: not in the first seconds of play either (the strike demo's boot was ~0.4 s+ at 4x CPU right as the player arrived)
+    setTimeout(() => idle(() => { demo.attach(); setTimeout(() => idle(() => ghostDemo.attach()), 1500); }), window.__skipStart ? 0 : 4000); }, 200); }
 const _frus = new THREE.Frustum(), _pm = new THREE.Matrix4(), _sph = new THREE.Sphere();
 const stats = { frames: 0, cpu: 0, cpuAvg: 0, gapAvg: 16, quality: dpr, draws: 0, skipped: 0 };
 let last = performance.now(), slow = 0, fast = 0;
@@ -1685,15 +1686,39 @@ let paused = false, rafOn = true;
 // t295u start-screen freeze: the first room render compiled ~100 shader programs in one frame (getProgramParameter/link stalls,
 // ~8 s at 4x CPU in swiftshader, a visible freeze on a phone). While the opaque start screen is up, the room is not drawn; its shaders are
 // compiled in small slices (one top-level group per idle slot, KHR_parallel_shader_compile when the GPU has it). Play renders either way.
-const warm = { done: !!window.__skipStart || !document.getElementById('start'), n: 0, ms: 0 };
-if (!warm.done) { const idle = f => (window.requestIdleCallback ? requestIdleCallback(f, { timeout: 400 }) : setTimeout(f, 30));
+// t768u/t769u: the old slices waited an idle slot + a 10 ms isReady poll PER OBJECT (~330 objects -> 15+ s, often still running
+// when PLAY is pressed), compiled for the wrong target (see compileForPlay) and never forced the link, so the real link stall
+// landed in the first frames after PLAY. Now: time-boxed slices compile objects back to back until a NEW program appears,
+// then link it (getUniforms; with KHR_parallel_shader_compile only once it reports ready) in a later slice. When the list is
+// linked the room may draw behind the opaque start screen (that first hidden draw compiles the post passes too).
+const warm = { done: !!window.__skipStart || !document.getElementById('start'), n: 0, ms: 0, linked: 0, slices: 0 };
+if (!warm.done) { const idle = f => (window.requestIdleCallback ? requestIdleCallback(f, { timeout: 200 }) : setTimeout(f, 16));
   const seen = new WeakSet(), list = [], scan = () => { for (const o of scene.children) for (const c of (o.isGroup && o.children.length > 8 ? o.children : [o])) if (!seen.has(c)) { seen.add(c); list.push(c); } };
+  const par = !!(renderer.extensions && renderer.extensions.get('KHR_parallel_shader_compile')), linked = new WeakSet();
+  const link = end => { let wait = false; for (const p of renderer.info.programs) { if (linked.has(p)) continue; if (par && !p.isReady()) { wait = true; continue; }
+      linked.add(p); try { p.getUniforms(); } catch (e) {} warm.linked++; if (performance.now() > end) return false; } return !wait; };
   scan(); let rescans = 0;
-  const next = () => { if (warm.done) return; if (!list.length && rescans < 40) { rescans++; scan(); if (!list.length) return setTimeout(next, 250); }   // shop / window scenery arrive later: compile them too
-    const o = list.shift(); if (!o) { warm.done = true; return; } const t = performance.now();
-    (o.visible ? renderer.compileAsync(o, camera, scene) : Promise.resolve()).catch(() => {}).then(() => { warm.n++; warm.ms += performance.now() - t; idle(next); }); };
-  setTimeout(() => idle(next), 300); }
+  const slice = () => { if (window.__gaEntering || (window.__start && window.__start.dismissed)) { warm.done = true; return; }   // t768u: never compete with the entry frames
+    const t0 = performance.now(), end = t0 + 12; warm.slices++;
+    const l0 = warm.linked, tl0 = performance.now(); let linkedAll = link(end); const tl = performance.now() - tl0;
+    if (linkedAll) while (performance.now() < end) { if (!list.length) break;
+      const o = list.shift(), before = renderer.info.programs.length; try { compileForPlay(o, camera, scene, true); } catch (e) {} warm.n++;
+      if (renderer.info.programs.length !== before) { linkedAll = false; break; } }
+    warm.ms += performance.now() - t0; if (window.__warmDbg) window.__warmDbg.push([Math.round(t0), +(performance.now() - t0).toFixed(1), +tl.toFixed(1), warm.linked - l0, list.length, renderer.info.programs.length]);
+    if (!list.length && linkedAll) { warm.done = true;   // room may draw now; late scenery (shop / windows) keeps being picked up for a while
+      if (rescans++ < 40) { scan(); return setTimeout(() => idle(slice), list.length ? 0 : 250); } return; }
+    idle(slice); };
+  setTimeout(() => idle(slice), 300); }
 window.__warm = warm;
+// t768u/t769u entry lag: play renders the room through the composer into its half-float target (linear, no tone mapping in the
+// material shaders), but the warm-up compiled against the canvas (sRGB + tone mapping) -> different program keys, so ~45
+// programs (walls, cabinets, windows, monkey...) still compiled in the first frames after PLAY (3-6 s stall). Compile for the
+// target play really uses.
+function compileForPlay(o, cam, sc, sync) {
+  const prev = renderer.getRenderTarget(), t = composer && composer.readBuffer; if (t) renderer.setRenderTarget(t);
+  try { if (sync) { renderer.compile(o, cam, sc); return Promise.resolve(); } return renderer.compileAsync ? renderer.compileAsync(o, cam, sc) : (renderer.compile(o, cam, sc), Promise.resolve()); }
+  catch (e) { return Promise.reject(e); } finally { if (t) renderer.setRenderTarget(prev); } }
+window.__compileForPlay = compileForPlay;
 function frame(now) {
   syncJoyArm();
   const gap = Math.max(0, Math.min(100, now - last)); last = now;   // rAF time can be a hair before a resume timestamp
@@ -1729,7 +1754,7 @@ function frame(now) {
     ghostCab.userData.glow.intensity = ghostDemo.running ? 1.1 + Math.sin(now * 0.017) * 0.08 : 0.5;
   }
   if (spaceWin) spaceWin.update(now);
-  if (draw && (warm.done || !document.getElementById('start') || (window.__start && window.__start.dismissed))) { composer.render(); PS.lastDraw = now; PS.draws++; stats.draws = PS.draws; }   // t295u: the opaque start screen hides the room; let its shaders compile in slices first
+  if (draw && ((warm.done && !warm.drawn) || !document.getElementById('start') || (window.__start && window.__start.dismissed))) { if (warm.done) warm.drawn = true; composer.render(); PS.lastDraw = now; PS.draws++; stats.draws = PS.draws; }   // t295u: the opaque start screen hides the room; let its shaders compile in slices first
   else if (!draw) { PS.skipped++; stats.skipped = PS.skipped; }
   const cpu = performance.now() - t0;
   stats.frames++; stats.cpu = cpu; stats.cpuAvg += (cpu - stats.cpuAvg) * 0.05; stats.gapAvg += (gap - stats.gapAvg) * 0.05;

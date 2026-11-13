@@ -24,7 +24,7 @@ const OUT = '/workspace/galactic-shop/shots/';
   chk(!(await st()).dis, 'Enter with no name does not start');
   await tap('#gaIn'); await page.keyboard.type('   '); a = await st(); chk(!a.go, 'spaces only: still no button');
   await page.keyboard.press('Backspace'); await page.keyboard.press('Backspace'); await page.keyboard.press('Backspace');
-  const p0 = a.pos; await page.keyboard.type('wasd Dave Rocket 2026'); await page.waitForTimeout(2300); a = await st();   // PLAY waits 2 s after the first touch
+  const p0 = a.pos; await page.keyboard.type('wasd Dave Rocket 2026'); await page.waitForTimeout(2300); await page.waitForFunction(() => { const g = document.getElementById('gaGo'); return g && !g.hidden && g.getBoundingClientRect().height > 0; }, null, { timeout: 5000 }).catch(() => {}); a = await st();   // t768u: shader warm-up slices on the start screen (software GL) can push the 2 s timer a little   // PLAY waits 2 s after the first touch
   chk(a.go && a.val === 'wasd Dave Ro' && a.name === 'wasd Dave Ro', 'typed name (WASD letters) shows PLAY, capped at 12', a);
   chk(a.pos.join() === p0.join() && !a.dis, 'typing did not move the monkey or start the game', a.pos);
   chk(await page.evaluate(() => document.querySelectorAll('#gaP .gaRow').length === 0 && document.querySelectorAll('#gaWho .gaWho').length === 2), 'start screen: player select only, no accessory rows');
@@ -49,7 +49,7 @@ const OUT = '/workspace/galactic-shop/shots/';
   await page.reload({ timeout: 120000 }); await page.waitForFunction(() => window.__arcade && window.__arcade.stats.frames > 3 && window.__gaPlayer.tag, null, { timeout: 60000 }); await page.waitForTimeout(800);
   a = await st(); L = await look();
   chk(a.val === 'wasd Dave Ro' && !a.go && L.crown && L.cols['1d2452'] === 'd42a2a' && L.cols['4e2a14'] === 'b7862a' && L.cols['8a1e2c'] === '1f4fbf', 'after reload: name pre-filled, look re-applied, PLAY waits for a touch', { a, L });
-  await tap('#gaT'); await page.waitForTimeout(2300); a = await st(); chk(a.go, 'after reload: touch + 2 s shows PLAY', a);
+  await tap('#gaT'); await page.waitForTimeout(2300); await page.waitForFunction(() => { const g = document.getElementById('gaGo'); return g && !g.hidden && g.getBoundingClientRect().height > 0; }, null, { timeout: 5000 }).catch(() => {}); a = await st(); chk(a.go, 'after reload: touch + 2 s shows PLAY', a);
   await page.evaluate(() => window.__gaPlayer.pick('hat', 'helmet')); L = await look(); chk(L.helmet && !L.crown && !L.cap, 'helmet (saved look) works on the start monkey');
   chk(errors.filter(e => !/net::ERR_FAILED/.test(e)).length === 0, 'no page errors', errors.filter(e => !/net::ERR_FAILED/.test(e)));
   await o.close(); process.exit(ok ? 0 : 1);

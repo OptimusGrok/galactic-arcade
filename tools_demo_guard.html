@@ -5,4 +5,8 @@ const no=()=>Promise.reject(new Error('demo: network disabled'));window.fetch=no
 window.WebSocket=function(){throw new Error('demo: network disabled')};if(navigator.sendBeacon)navigator.sendBeacon=()=>false;
 window.AudioContext=undefined;window.webkitAudioContext=undefined;window.Audio=function(){return{play(){return Promise.resolve()},pause(){}}};
 window.requestAnimationFrame=()=>0;})();
+
+// t768u: 2D canvases CPU-backed: the sprite / city generators call getImageData hundreds of times at boot; on a GPU canvas each was a
+// readback (~2.5 s on the main thread right as the player entered the arcade). Same pixels, no readbacks.
+(function(){const gc=HTMLCanvasElement.prototype.getContext;HTMLCanvasElement.prototype.getContext=function(t,o){return t==='2d'?gc.call(this,t,Object.assign({willReadFrequently:true},o||{})):gc.apply(this,arguments)};})();
 </script>
