@@ -546,7 +546,7 @@ const G = {
 };
 
 const TK = { got: 0, run: 0, fly: 0, log: [], awarded: Object.create(null) };
-const rivals = createRivals({ scene, makeMonkey, makeAlien, player, G, N, banner: t => showBanner(t), live: liveExtra });
+const rivals = createRivals({ scene, makeMonkey, makeAlien, player, G, N, banner: t => showBanner(t), live: liveExtra, muzzle: () => muzzlePos(), playerCols });
 // t754u: what a watcher's cabinet screen in the room needs to draw this climb live (small; pads only every few packets)
 const r2l = v => Math.round(v * 100) / 100;
 function liveExtra(withPads) {
@@ -1120,7 +1120,7 @@ function fire(opts) {
   const L = { mesh, o: o.clone(), dir: dir.clone(), speed: 28, life: 1.5, alive: true, color: hue, k, hitR: TICKET_HIT_R * (1 + k * 0.9) };   // t782u range ~42 m; t785u scale with hold
   lasers.push(L);
   if (window.__skySnd) window.__skySnd.zap(hue);
-  { const q = v => Math.round(v * 1000) / 1000; SHOT.n++; SHOT.v = [q(o.x), q(o.y), q(o.z), q(dir.x), q(dir.y), q(dir.z), hue === 'red' ? 1 : 0]; }
+  { const q = v => Math.round(v * 1000) / 1000; SHOT.n++; SHOT.v = [q(o.x), q(o.y), q(o.z), q(dir.x), q(dir.y), q(dir.z), hue === 'red' ? 1 : 0, q(k)]; }
   return L;
 }
 
@@ -1771,7 +1771,7 @@ const api = {
   PAD, WIND, shapeOf, dimsOf, windGust, updateWind, windAccelAt, drawWind, heightK, get wind() { return G.wind; },
   SKY, levelAt, nightAt, setSky, skyDome, get sky() { return G.sky; }, moon, moonL, sun, hemi, stars,
   N, LUCKY, R, PH, FLY, AIR_SPEED, MIN_SEP, PITCH_MIN, PITCH_MAX, RUN_CAP, FLY_TICKETS, FLY_TICKET_VALUE, GUN_AIM_TIME, GUN_REST, GUN_AIM, poseMonkeyGun, gunBarrelDir, tickets, collectFlyTicket, resetFlyTickets, spawnFlyTickets, sizeOf, offsetOf, yOf, isCheck, isSlider, hopFuel, gapYOf, gapXZOf, lookDrag, updateCamera, updateSlides, TK, D, G, player, platforms, lasers, aliens, shots, earth, world: scene, camera, renderer,
-  fly: setFly, fire, setFire, spawnAlien, placeOn, step, give, playerCols, CHARGE_T, BEAM_T,
+  fly: setFly, fire, setFire, spawnAlien, placeOn, step, give, playerCols, muzzlePos, CHARGE_T, BEAM_T,
   get platform() { return G.platform; },
   get won() { return G.won; },
   get energy() { return G.energy; },

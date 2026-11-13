@@ -187,6 +187,66 @@
     RF.beam.mesh.position.copy(p); RF.beam.mesh.lookAt(p.x + Math.sin(f), p.y + 0.02, p.z + Math.cos(f));
   }
   function endBeam() { if (!RF.beam) return; if (RF.beam.mesh.parent) RF.beam.mesh.parent.remove(RF.beam.mesh); RF.beam = null; RF.beamT = 0; setChg(0); }
+  function faceDir() { var a = A(), f = a && a.st ? a.st.face : (a && a.monkey ? a.monkey.rotation.y : 0); return [Math.sin(f), 0.02, Math.cos(f)]; }
+  function laserSnap() {
+    var p = muzzlePos(); if (!p) return;
+    var a = A(), u = a && a.monkey && a.monkey.userData || {}, h = u.char === 'alien' ? 'red' : 'cyan';
+    var o = [+p.x.toFixed(3), +p.y.toFixed(3), +p.z.toFixed(3)], d = faceDir();
+    if (RF.beam) return { k: 1, b: +Math.max(0, RF.beamT).toFixed(2), o: o, d: d, h: h };
+    if (RF.held && RF.charge > 0.02 && !RF.chargeSpent) return { k: +Math.min(1, RF.charge / CHARGE_T).toFixed(3), b: 0, o: o, d: d, h: h };
+  }
+  var remFX = {};
+  function colsOf(h) { return BEAM_COL[h === 'red' ? 'alien' : 'monkey']; }
+  function clearPeer(pid) {
+    var r = remFX[pid]; if (!r) return;
+    if (r.ball && r.ball.parent) r.ball.parent.remove(r.ball);
+    if (r.beam && r.beam.mesh && r.beam.mesh.parent) r.beam.mesh.parent.remove(r.beam.mesh);
+    delete remFX[pid];
+  }
+  function placeRemoteBeam(r, lz) {
+    var a = A(), T = a.THREE, o = lz.o, d = lz.d, col = colsOf(lz.h);
+    if (!r.beam) {
+      var core = new T.MeshBasicMaterial({ color: col.a, toneMapped: false, depthWrite: false }), glow = new T.MeshBasicMaterial({ color: col.b, transparent: true, opacity: 0.45, toneMapped: false, depthWrite: false, blending: T.AdditiveBlending });
+      var g = new T.Group(); g.name = 'roomChargeBeamRemote';
+      g.add(new T.Mesh(new T.CylinderGeometry(0.11, 0.11, BEAM_LEN, 10, 1, true), core));
+      g.add(new T.Mesh(new T.CylinderGeometry(0.24, 0.24, BEAM_LEN, 10, 1, true), glow));
+      g.children.forEach(function (m) { m.rotation.x = Math.PI / 2; m.position.z = BEAM_LEN / 2; m.renderOrder = 5; });
+      a.scene.add(g); r.beam = { mesh: g, cols: col, energy: addBeamEnergy(T, g, BEAM_LEN, col) };
+    }
+    r.beam.mesh.position.set(o[0], o[1], o[2]); r.beam.mesh.lookAt(o[0] + d[0], o[1] + 0.02, o[2] + d[2]);
+  }
+  function placeRemoteBall(r, lz) {
+    var a = A(), T = a.THREE, o = lz.o, k = lz.k || 0, col = colsOf(lz.h);
+    if (r.beam) { if (r.beam.mesh.parent) r.beam.mesh.parent.remove(r.beam.mesh); r.beam = null; }
+    if (!r.ball) {
+      var mat = new T.MeshBasicMaterial({ color: 0xffe14a, transparent: true, opacity: 0.85, toneMapped: false, depthWrite: false, blending: T.AdditiveBlending });
+      r.ball = new T.Mesh(new T.SphereGeometry(0.12, 12, 10), mat); r.ball.name = 'roomChargeRemote'; r.ball.renderOrder = 6; a.scene.add(r.ball);
+    }
+    r.ball.visible = k > 0.02; r.ball.position.set(o[0], o[1], o[2]); r.ball.scale.setScalar(0.35 + k * 1.6);
+    r.ball.material.opacity = 0.35 + k * 0.6; r.ball.material.color.setHex(k > 0.7 ? col.a : 0xffe14a);
+  }
+  function syncPeer(pid, lz) {
+    if (!lz || (!(lz.b > 0) && !(lz.k > 0.02))) { clearPeer(pid); return; }
+    var r = remFX[pid] || (remFX[pid] = {}); r.lz = lz; r.at = performance.now();
+    if (lz.b > 0) { if (r.ball) { r.ball.visible = false; } placeRemoteBeam(r, lz); }
+    else placeRemoteBall(r, lz);
+  }
+  function tickRemotes(dt) {
+    var now = performance.now(), pid;
+    for (pid in remFX) {
+      var r = remFX[pid];
+      if (r.beam) tickBeamEnergy(r.beam, dt);
+      if (now - r.at > 1500) clearPeer(pid);
+    }
+  }
+  function remoteState() {
+    var out = [], pid;
+    for (pid in remFX) {
+      var r = remFX[pid], lz = r.lz || {};
+      out.push({ id: pid, k: lz.k || 0, b: lz.b || 0, o: lz.o, h: lz.h, hasBall: !!(r.ball && r.ball.visible), hasBeam: !!r.beam });
+    }
+    return out;
+  }
   function fire(opts) { opts = opts || {}; var a = A(); if (!a || !a.monkey || !RF.shown) return null;
     if (RF.beam) return null;
     if (!opts.fromRelease && RF.cool > 0) return null; RF.cool = COOL;
@@ -197,7 +257,7 @@
     else { hue = 'cyan'; RF.aimT = AIM_T; RF.aim = 1; pose(u, 1); mk.updateMatrixWorld(true); var mz = mk.getObjectByName('gaPistolMuzzle'); if (mz) mz.getWorldPosition(p); else p.set(mk.position.x, mk.position.y + 1.1, mk.position.z); }
     p.x += d[0] * (alien ? 0.1 : 0.04); p.z += d[2] * (alien ? 0.1 : 0.04);
     var o = [p.x, p.y, p.z], k = Math.max(0, Math.min(0.999, opts.k || 0)), L = spawn(o, d, hue, false, k); RF.shots++; RF.last = { o: o, d: d, hue: hue, char: alien ? 'alien' : 'monkey', t: performance.now(), k: k }; zap(hue);
-    try { if (window.__mp && window.__mp.zap) window.__mp.zap(o, d, hue); } catch (e) {}
+    try { if (window.__mp && window.__mp.zap) window.__mp.zap(o, d, hue, k); } catch (e) {}
     return L; }
   var L_ = function (x, y, k) { return x + (y - x) * k; };
   function pose(u, k) { var arm = u.arms && u.arms[1]; if (!arm) return; var pg = arm.hand && arm.hand.getObjectByName('gaPistol'); if (!pg) return; k = Math.max(0, Math.min(1, k));
@@ -223,7 +283,9 @@
     else if (RF.held) { RF.charge += dt; var ck = Math.min(1, RF.charge / CHARGE_T); setChg(ck); updateChargeBall(ck); tickChargeSnd(ck); if (RF.aimT < 0.1) RF.aimT = AIM_T; if (RF.charge >= CHARGE_T && !RF.chargeSpent) { RF.chargeSpent = true; startBeam(); } }
     else { stopChargeSnd(); if (chargeBall) hideChargeBall(); }
     if (RF.flash > 0) { RF.flash = Math.max(0, RF.flash - dt); if (u.bot && u.char === 'alien') u.bot.rotation.x = -0.18 * Math.min(1, RF.flash / 0.05); }
-    for (var i = RF.lasers.length - 1; i >= 0; i--) { var L = RF.lasers[i]; L.mesh.position.addScaledVector(L.dir, SPEED * dt); L.life -= dt; var op = Math.max(0, Math.min(1, L.life / FADE)); L.mesh.material.opacity = op; if (L.mesh.children[0]) L.mesh.children[0].material.opacity = op * 0.32; if (L.life <= 0) kill(L); } }
+    for (var i = RF.lasers.length - 1; i >= 0; i--) { var L = RF.lasers[i]; L.mesh.position.addScaledVector(L.dir, SPEED * dt); L.life -= dt; var op = Math.max(0, Math.min(1, L.life / FADE)); L.mesh.material.opacity = op; if (L.mesh.children[0]) L.mesh.children[0].material.opacity = op * 0.32; if (L.life <= 0) kill(L); }
+    tickRemotes(dt); }
   addEventListener('keydown', function (e) { if (e.code === 'KeyL' && !e.repeat && RF.shown && !(e.target && /INPUT|TEXTAREA/.test(e.target.tagName))) setHeld(true); });
   addEventListener('keyup', function (e) { if (e.code === 'KeyL') setHeld(false); });
+  RF.laserSnap = laserSnap; RF.syncPeer = syncPeer; RF.clearPeer = clearPeer; RF.remoteState = remoteState;
 })();
