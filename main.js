@@ -34,6 +34,9 @@ import { lavaPaths, PATH_HW } from './lavapaths.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 
 const MOBILE = matchMedia('(pointer:coarse)').matches || /Android|iPhone|iPad/i.test(navigator.userAgent) || (navigator.maxTouchPoints > 0 && matchMedia('(hover: none)').matches);
+// t767u: iPad (incl. iPadOS 'desktop' Safari = MacIntel + multi-touch) plays as held: no landscape lock, no 'turn sideways' hint
+const IPAD = /iPad/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+window.__isIPad = IPAD;
 // Phone power-save (Dave: cooler-running mode). On by default on touch/mobile. Caps draws at ~30fps
 // (physics still uses real dt), clamps pixel ratio, uses a cheaper bloom/reflection budget, and
 // throttles far cabinet screen updates. Toggle lives in OPTIONS (neonarcade.powersave).
@@ -1199,7 +1202,7 @@ function toggleFs() { const d = document; if (!d.fullscreenElement) d.documentEl
 function updateTurn() {
   const el = document.getElementById('turnHint'); if (!el) return;
   const portrait = MOBILE && innerHeight > innerWidth * 1.08;
-  el.classList.toggle('on', portrait && !document.body.classList.contains('upright'));   // t765u: no 'turn sideways' over an upright (portrait) game
+  el.classList.toggle('on', portrait && !IPAD && !document.body.classList.contains('upright'));   // t767u: never on iPad   // t765u: no 'turn sideways' over an upright (portrait) game
 }
 // t765u: Ghost 256 / Strike / Cybercity are upright games -> while one is open the phone goes back to normal portrait.
 // t766u: leaving one MUST go back to the side (landscape) view on a real phone. One owner of the lock: every request bumps
@@ -1214,6 +1217,7 @@ function goFs() { const r = document.documentElement, fs = r.requestFullscreen |
   if (isFs()) return Promise.resolve(true); oriLog('fullscreen');
   try { return Promise.resolve(fs.call(r)).then(() => true, () => false); } catch (e) { return Promise.resolve(false); } }
 function lockTo(kind) {
+  if (IPAD) { ++OR.seq; OR.want = null; st.orientLock = 'ipad'; updateTurn(); return; }   // t767u: iPad = as held, never lock / force fullscreen
   const seq = ++OR.seq, o = screen.orientation; OR.want = kind;
   if (!o || typeof o.lock !== 'function') { st.orientLock = 'unsupported'; updateTurn(); return; }
   if (kind === 'landscape' && typeof o.unlock === 'function') { try { o.unlock(); oriLog('unlock'); } catch (e) {} }   // drop the portrait lock first
@@ -1226,7 +1230,7 @@ function lockTo(kind) {
   updateTurn();
 }
 // fullscreen (re)entered later (eg the request above resolved after the lock was refused) -> re-apply what we want now
-document.addEventListener('fullscreenchange', () => { if (isFs() && OR.want && MOBILE) { const o = screen.orientation, seq = OR.seq, k = OR.want;
+document.addEventListener('fullscreenchange', () => { if (isFs() && OR.want && MOBILE && !IPAD) { const o = screen.orientation, seq = OR.seq, k = OR.want;
   if (o && typeof o.lock === 'function') { oriLog('relock:' + k); Promise.resolve().then(() => o.lock(k)).then(() => { if (seq === OR.seq) { st.orientLock = k === 'landscape' ? 'ok' : k; updateTurn(); } }, () => {}); } } });
 function orient(up) {
   document.body.classList.toggle('upright', !!up); st.orientUp = !!up;
@@ -1235,6 +1239,7 @@ function orient(up) {
   else { st.orientTried = true; lockTo('landscape'); }   // t766u: always back to the side view, like every other cabinet
 }
 function wantWide() {
+  if (IPAD) { st.orientTried = true; st.orientLock = 'ipad'; updateTurn(); return; }   // t767u
   if (!MOBILE) { st.orientLock = 'desktop'; updateTurn(); return; }
   st.orientTried = true;
   if (document.body.classList.contains('upright')) { updateTurn(); return; }   // an upright game is open: its exit restores landscape

@@ -8,11 +8,12 @@ async function open(opts = {}) {
   const chromeBins = ['/home/box/.cache/ms-playwright/chromium-1248/chrome-linux64/chrome', '/opt/ungoogled-chromium/chrome'];
   const executablePath = chromeBins.find(f => fs.existsSync(f));
   const browser = await chromium.launch({ executablePath, args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] });
-  const ctx = await browser.newContext(opts.phone ? { viewport: { width: opts.w || 390, height: opts.h || 844 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true } : { viewport: { width: opts.w || 1280, height: opts.h || 720 } });
+  const ctx = await browser.newContext(opts.phone ? Object.assign({ viewport: { width: opts.w || 390, height: opts.h || 844 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true }, opts.ua ? { userAgent: opts.ua } : {}) : { viewport: { width: opts.w || 1280, height: opts.h || 720 } });
   const page = await ctx.newPage(); const errors = [], requests = [];
   ctx.on('request', r => requests.push(r.url()));
   await ctx.route(/supabase/i, opts.supa || (r => r.abort()));
   page.on('pageerror', e => errors.push(String(e))); page.on('console', m => { if (m.type() === 'error') errors.push(m.text()); });
+  if (opts.init) await page.addInitScript(opts.init);   // t767u: eg fake an iPad before any app script runs
   if (!opts.start) await page.addInitScript(() => { window.__skipStart = 1; });   // only test/start.js sees the start screen
   if (!opts.unloadWarn) await page.addInitScript(() => { window.__noUnloadWarn = 1; });   // tests reload freely; test/nosave.js checks the warning
   if (opts.shieldOpen) await page.addInitScript(() => { window.__sessSeed = Object.assign(window.__sessSeed || {}, { 'neonarcade.shieldOpen': '1' }); });   // hallway tests walk through the doorway
