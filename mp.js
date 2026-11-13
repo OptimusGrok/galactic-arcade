@@ -118,7 +118,8 @@ body.ingame #mpPill,body.ingame #mpBar,body.ingame #mpChat,body.ingame #mpTags,b
   // t753u cabinet presence: when I start a machine, remember when (wall clock) so every client orders the two players at a cabinet the same way
   let playKey = '', playSince = 0;
   function myPlay() { const a = animOf(), k = /^play:/.test(a) ? a.slice(5) : ''; if (k !== playKey) { playKey = k; playSince = k ? Date.now() : 0; } return k; }
-  function snap() { const p = monkey.position, a = animOf(); myPlay(); return { i: id, x: r2(p.x), y: r2(p.y), z: r2(p.z), r: Math.round(monkey.rotation.y * 100) / 100, m: roomOf(p), a, ps: playKey ? playSince : undefined, gb: window.__minigolf && window.__minigolf.ballSnap ? window.__minigolf.ballSnap() : undefined }; }   // t275u gb: my golf ball while putting
+  function laserSnap() { try { const R = window.__roomFire; return R && R.laserSnap ? R.laserSnap() : undefined; } catch (e) { return undefined; } }
+  function snap() { const p = monkey.position, a = animOf(); myPlay(); return { i: id, x: r2(p.x), y: r2(p.y), z: r2(p.z), r: Math.round(monkey.rotation.y * 100) / 100, m: roomOf(p), a, ps: playKey ? playSince : undefined, gb: window.__minigolf && window.__minigolf.ballSnap ? window.__minigolf.ballSnap() : undefined, lz: laserSnap() }; }   // t275u gb; t798u lz: charge / beam
   let ch = null, lib = null, client = null, lastSent = '', lastAt = 0, sendTimer = 0, joinedAt = 0, retry = 0, retryT = 0, joinT = 0, gen = 0;
   function send(event, payload) { if (!ch || M.state !== 'on') return false; try { const r = ch.send({ type: 'broadcast', event, payload }); if (r && r.catch) r.catch(() => {}); } catch (e) { return false; } M.sent++; M.bytes += JSON.stringify(payload).length; return true; }
   function tick() { if (M.state !== 'on') return; const s = snap(), j = JSON.stringify(s), now = performance.now();
@@ -158,10 +159,12 @@ body.ingame #mpPill,body.ingame #mpBar,body.ingame #mpChat,body.ingame #mpTags,b
     g.traverse(o => { if (o.isMesh && o.geometry && seen(o)) { TB.setFromObject(o); if (TB.max.y > top) top = TB.max.y; } }); return top > -1e8 ? Math.max(1.75, top - g.position.y + 0.12) : 1.75; }
   // t741u laser pistol shots (roomfire.js): cosmetic bolts only, ~3/s max per player, drawn on everyone else's screen; no hits, no PVP
   let zapAt = 0; const zapIn = new Map(), num3 = a => Array.isArray(a) && a.length === 3 && a.every(v => typeof v === 'number' && isFinite(v) && Math.abs(v) < 500);
-  M.zap = (o, d, c) => { const now = performance.now(); if (now - zapAt < 200 || !num3(o) || !num3(d)) return false; zapAt = now;
-    const r = v => Math.round(v * 1000) / 1000, ok = send('zap', { i: id, o: o.map(r), d: d.map(r), c: c === 'red' ? 'red' : 'cyan' }); if (ok) M.zapSent = (M.zapSent || 0) + 1; return ok; };
+  M.zap = (o, d, c, k) => { const now = performance.now(); if (now - zapAt < 200 || !num3(o) || !num3(d)) return false; zapAt = now;
+    const r = v => Math.round(v * 1000) / 1000, kk = (typeof k === 'number' && isFinite(k)) ? Math.max(0, Math.min(0.999, k)) : 0;
+    const ok = send('zap', { i: id, o: o.map(r), d: d.map(r), c: c === 'red' ? 'red' : 'cyan', k: kk }); if (ok) M.zapSent = (M.zapSent || 0) + 1; return ok; };
   function onZap(pl) { if (!pl || !pl.i || pl.i === id || !M.peers.has(pl.i) || !num3(pl.o) || !num3(pl.d)) return; const now = performance.now(); if (now - (zapIn.get(pl.i) || 0) < 150) return; zapIn.set(pl.i, now); M.recv++;
-    M.zapRecv = (M.zapRecv || 0) + 1; try { if (window.__roomFire) window.__roomFire.spawn(pl.o, pl.d, pl.c === 'red' ? 'red' : 'cyan', true); } catch (e) {} }
+    M.zapRecv = (M.zapRecv || 0) + 1; const kk = (typeof pl.k === 'number' && isFinite(pl.k)) ? Math.max(0, Math.min(0.999, pl.k)) : 0;
+    try { if (window.__roomFire) window.__roomFire.spawn(pl.o, pl.d, pl.c === 'red' ? 'red' : 'cyan', true, kk); } catch (e) {} }
   function onLook(pl) { if (!pl || !pl.i || pl.i === id || !pl.look || typeof pl.look !== 'object') return; const p = M.peers.get(pl.i); if (!p) return; M.recv++;
     paint(p, { look: pl.look }); if (pl.name) { p.name = String(pl.name).slice(0, 14); p.tag.textContent = p.name; } }
   function peer(pid, meta) { let p = M.peers.get(pid);
@@ -169,12 +172,14 @@ body.ingame #mpPill,body.ingame #mpBar,body.ingame #mpChat,body.ingame #mpTags,b
       const tag = el('div', { className: 'mpTag' }, tags); tag.addEventListener('click', e => { e.stopPropagation(); toggleMute(pid); });
       p = { id: pid, name: 'Monkey', g, tag, cur: null, tgt: null, a: 'idle', m: 'room1', last: performance.now(), phase: 0, phase0: (parseInt(pid.slice(-3), 36) || 0) % 7, bub: {}, kind: 'monkey' }; M.peers.set(pid, p); }
     if (meta) paint(p, meta); else if (!p.lookKey) paint(p, { hue: 0 }); if (meta && meta.name) p.name = String(meta.name).slice(0, 14); p.tag.textContent = p.name; p.tag.classList.toggle('mute', M.muted.has(pid)); return p; }
-  function drop(pid) { const p = M.peers.get(pid); if (!p) return; if (p.ball) { scene.remove(p.ball); p.ball.geometry.dispose(); p.ball.material.dispose(); } scene.remove(p.g); p.g.traverse(o => { if (o.isMesh) o.material.dispose(); }); p.tag.remove(); for (const k in p.bub) p.bub[k].el.remove(); M.peers.delete(pid); skyIn.delete(pid); strikeIn.delete(pid); }
+  function drop(pid) { const p = M.peers.get(pid); if (!p) return; if (p.ball) { scene.remove(p.ball); p.ball.geometry.dispose(); p.ball.material.dispose(); } scene.remove(p.g); p.g.traverse(o => { if (o.isMesh) o.material.dispose(); }); p.tag.remove(); for (const k in p.bub) p.bub[k].el.remove(); M.peers.delete(pid); skyIn.delete(pid); strikeIn.delete(pid); try { if (window.__roomFire && window.__roomFire.clearPeer) window.__roomFire.clearPeer(pid); } catch (e) {} }
   function toggleMute(pid) { if (M.muted.has(pid)) M.muted.delete(pid); else M.muted.add(pid); LSs('neonarcade.mpMuted', JSON.stringify([...M.muted])); const p = M.peers.get(pid); if (p) { p.tag.classList.toggle('mute', M.muted.has(pid)); if (M.muted.has(pid)) clearBub(p, 'chat'); } renderLog(); }
   M.toggleMute = toggleMute;
   function onState(s) { if (!s || s.i === id || typeof s.x !== 'number') return; M.recv++; const p = peer(s.i); p.last = performance.now();
     p.tgt = { x: s.x, y: s.y || 0, z: s.z, r: s.r || 0 }; if (!p.cur) p.cur = Object.assign({}, p.tgt); p.a = String(s.a || 'idle'); p.m = String(s.m || 'room1');
-    p.gb = Array.isArray(s.gb) && s.gb.length === 3 && s.gb.every(Number.isFinite) ? s.gb : null; p.ps = Number.isFinite(s.ps) && s.ps > 0 ? s.ps : undefined; }
+    p.gb = Array.isArray(s.gb) && s.gb.length === 3 && s.gb.every(Number.isFinite) ? s.gb : null; p.ps = Number.isFinite(s.ps) && s.ps > 0 ? s.ps : undefined;
+    p.lz = s.lz && typeof s.lz === 'object' && num3(s.lz.o) && num3(s.lz.d) ? { k: Math.max(0, Math.min(1, +s.lz.k || 0)), b: Math.max(0, +s.lz.b || 0), o: s.lz.o, d: s.lz.d, h: s.lz.h === 'red' ? 'red' : 'cyan' } : null;
+    try { if (window.__roomFire && window.__roomFire.syncPeer) window.__roomFire.syncPeer(s.i, p.lz); } catch (e) {} }
   // ---------- t753u: cabinet presence ----------
   // A player inside a machine still stands in front of it for everyone else, in Grok's playing pose (leaning in, one hand
   // circling the stick, the other tapping buttons). Two at one machine stand side by side: the one who started first
@@ -208,8 +213,9 @@ body.ingame #mpPill,body.ingame #mpBar,body.ingame #mpChat,body.ingame #mpTags,b
     rivals() { const now = performance.now(), out = []; for (const [pid, r] of skyIn) { const p = M.peers.get(pid); if (!p || now - r.at > 2500 || p.a !== 'play:skytower') continue; out.push({ id: pid, s: r.s, at: r.at, name: p.name, look: p.look || null }); } return out; } };
   function onSky(pl) { if (!pl || !pl.i || pl.i === id || !M.peers.has(pl.i) || !fin(pl.x) || !fin(pl.y) || !fin(pl.z)) return; M.recv++; M.skyRecv = (M.skyRecv || 0) + 1;
     const s = { x: pl.x, y: pl.y, z: pl.z, r: fin(pl.r) ? pl.r : 0, p: Math.max(1, Math.min(99, pl.p | 0)), h: Math.max(0, Math.min(3, pl.h | 0)), w: pl.w ? 1 : 0, wt: fin(pl.wt) ? pl.wt : 0, f: pl.f ? 1 : 0, a: pl.a ? 1 : 0, c: pl.c === 'alien' ? 'alien' : 'monkey', run: pl.run ? 1 : 0,
-      zn: pl.zn | 0, z0: Array.isArray(pl.z0) && pl.z0.length === 7 && pl.z0.every(v => typeof v === 'number' && isFinite(v)) ? pl.z0 : null,
-      cy: fin(pl.cy) ? pl.cy : 0, nt: fin(pl.nt) ? Math.max(0, Math.min(1, pl.nt)) : 0, fc: nums(pl.fc, 6), bm: lists(pl.bm, 4, 6) };   // t754u: live cabinet screen
+      zn: pl.zn | 0, z0: Array.isArray(pl.z0) && (pl.z0.length === 7 || pl.z0.length === 8) && pl.z0.every(v => typeof v === 'number' && isFinite(v)) ? pl.z0 : null,
+      ck: fin(pl.ck) ? Math.max(0, Math.min(1, pl.ck)) : 0, bt: fin(pl.bt) ? Math.max(0, pl.bt) : 0, bo: nums(pl.bo, 3), bd: nums(pl.bd, 3),
+      cy: fin(pl.cy) ? pl.cy : 0, nt: fin(pl.nt) ? Math.max(0, Math.min(1, pl.nt)) : 0, fc: nums(pl.fc, 6), bm: lists(pl.bm, 4, 6) };   // t754u live cabinet; t798u ck/bt/bo/bd charge+beam
     const old = skyIn.get(pl.i), pd = lists(pl.pd, 10, 7);
     s.pd = pd || (old && old.s.pd) || null;   // platforms come every few packets: keep the last set
     skyIn.set(pl.i, { s, at: performance.now() }); }
