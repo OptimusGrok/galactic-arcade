@@ -202,7 +202,7 @@ export function createFace(scene) {
       if (F.speakT >= 0) { F.speakT -= dt; if (F.speakT < 0) { F.speakT = -1; F.say(); } }
       let o = 0.06 + 0.04 * Math.sin(F.t * 1.7);
       if (F.speaking) { F.sayK += dt; const k = F.sayK; const i = Math.floor(k / F.envDt);   // game time (pauses with the game; ~real time while playing)
-        const mime = F.line === 'hey' ? 1.3 : 2.4;
+        const mime = F.line === 'hey' ? 1.8 : 3.4;   // t770u: lines ~30% slower (same voice, time-stretched)
         if (F.env && i < F.env.length) o = F.env[i]; else if (!F.env && k < mime) o = 0.5 + 0.5 * Math.abs(Math.sin(k * 7.5)); else { F.speaking = false; F.line = ''; } }
       // anger: snaps in, holds ANGRY_T after the last hit, then eases back
       if (F.angryT > 0) { F.angryT -= dt; F.ang += (1 - F.ang) * (1 - Math.exp(-dt * 16)); } else F.ang += (0 - F.ang) * (1 - Math.exp(-dt * 2.6));

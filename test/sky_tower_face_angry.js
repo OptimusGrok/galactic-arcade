@@ -84,6 +84,7 @@ let ok = true; const chk = (c, m, x) => { console.log((c ? 'PASS ' : 'FAIL ') + 
   chk(b.hits >= 1 && b.hpLost === 1 && s.hp === 2 && s.sfxBeams === 1, 'a beam that connects takes exactly 1 heart (zap SFX played)', Object.assign({ hp: s.hp, sfx: s.sfxBeams }, b));
   chk(s.heys === 0 && s.by.hey === 0, 'even hit does not speak', s);
   // HIT 3 = hit 1: "Hey, watch it!"
+  await page.waitForTimeout(800);   // t770u: the opening line is ~30% slower (3.6 s file); let it finish before the "hey"
   await calm(); r = await shoot(); const m3 = await steps(20); s = await st();
   chk(r.hit && s.cycle === 3 && s.act === 'hey' && s.heys === 1 && s.by.hey === 1 && s.line === 'hey' && m3 > 0.4 && !s.vein, 'hit 3: angry + booms "Hey, watch it!" (mouth moves)', Object.assign({ m3 }, s));
   // HIT 4 = hit 2, this time the player dodges
@@ -91,7 +92,7 @@ let ok = true; const chk = (c, m, x) => { console.log((c ? 'PASS ' : 'FAIL ') + 
   chk(r.hit && s.cycle === 4 && r.act === 'beam' && b.fired === 2 && b.hits === 0 && b.misses === 2 && b.hpLost === 0 && s.hp === 2, 'hit 4: eye lasers again; sidestepping dodges them (no heart lost)', b);
   chk(s.by.hey === 1 && s.plays === 2, 'no extra / overlapping voice on the laser hit', s);
   // HIT 5/6: cycle repeats
-  await page.waitForTimeout(3300); await steps(10); await calm();
+  await page.waitForTimeout(4100); await steps(10); await calm();
   r = await shoot(); s = await st(); const a5 = s.act, h5 = s.by.hey;
   await calm(); r = await shoot(); const a6 = r.act; b = await beams(true); s = await st();
   chk(a5 === 'hey' && h5 === 2 && a6 === 'beam' && b.fired === 2 && s.cycle === 6, 'hits 5 and 6 repeat the cycle (hey, lasers)', { a5, h5, a6, b, cycle: s.cycle });
