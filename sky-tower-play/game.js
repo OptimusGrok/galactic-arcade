@@ -513,6 +513,7 @@ player.traverse(o => { if (o.name === 'gaThruster') flyFx.push(o); });
 
 const lasers = [], shots = [], aliens = [];
 const laserGeo = new THREE.BoxGeometry(0.07, 0.07, 0.85), laserMat = basic(0x48f2ff), laserMatRed = basic(0xff2a33);
+const CHARGE_T = 4, BEAM_T = 3, CHARGE_BEAM_LEN = 60, CHARGE_BEAM_R = 0.22;   // t783u/t785u: hold to charge
 const shotGeo = new THREE.SphereGeometry(0.16, 8, 6), shotMat = basic(0xff5030);
 
 const G = {
@@ -522,7 +523,7 @@ const G = {
   best: readBest(), cooldown: 0, fireHeld: false, flyHeld: false,
   ix: 0, iz: 0, joy: { on: false, x: 0, y: 0, pid: -1 }, lookPid: -1, lookX: 0, lookY: 0,
   phase: 0, camYaw: 0, camPitch: 0, shotLock: false, onPad: null, orbFlash: 0, bannerT: 0,
-  gunAim: 0, gunAimT: 0,
+  gunAim: 0, gunAimT: 0, charge: 0, charging: false, chargeSpent: false, beam: null, beamT: 0,
   wind: { phase: 'calm', t: 0, next: 6, dur: 2.4, dx: 1, dz: 0, str: 0, k: 0, accel: 0, gusts: 0, warns: 0, lock: false }
 };
 
@@ -708,7 +709,7 @@ function updateFlyTickets(dt) {
   updateSparks(dt);
 }
 function laserHitsTicket(L, t) {
-  return L.mesh.position.distanceTo(t.mesh.position) < TICKET_HIT_R;
+  return L.mesh.position.distanceTo(t.mesh.position) < (L.hitR || TICKET_HIT_R);
 }
 
 // Continuous platform level from height: exactly i standing on platform i, fractional while flying between pads.
@@ -966,40 +967,102 @@ function bump(dx, dz, force) {
   G.vx += (dx / L) * force; G.vz += (dz / L) * force; G.vy = Math.max(G.vy, 1.1);
 }
 
-function fire() {
-  if (G.cooldown > 0 || G.hold || (G.mode !== 'play' && !window.__DEMO)) return null;
+function playerCols() {
+  let lk = null;
+  try { if (window.parent && window.parent !== window && window.parent.__gaPlayer && window.parent.__gaPlayer.look) lk = window.parent.__gaPlayer.look(); } catch (e) {}
+  if (!lk) { try { lk = JSON.parse(localStorage.getItem('galacticarcade.player') || '{}'); } catch (e) { lk = {}; } }
+  const char = lk.char || (player.userData && player.userData.char) || 'monkey';
+  const HOOD = { navy: [0x1d2452, 0x141a3a], red: [0xd42a2a, 0x7a1414], blue: [0x2b62e8, 0x173a8a], green: [0x2fae3a, 0x16601c], yellow: [0xf2c418, 0x9a7a08], purple: [0x7a2bd6, 0x46137f], pink: [0xff5fb4, 0xb02a72], orange: [0xff7a1a, 0xa8460a], teal: [0x13b8a8, 0x0a6b62], black: [0x202026, 0x0c0c10], white: [0xe8eaf0, 0xa9adb8], galaxy: [0x2a1470, 0x160a40], lime: [0x86e02a, 0x4a8a10], maroon: [0x6e1430, 0x3c0818], sky: [0x6cc8ff, 0x2a7ab8] };
+  const SUIT = { suitgrey: [0x5a636e, 0x6a3a9a], suitred: [0xb3222f, 0x2b1a3e], suitgold: [0xc9971f, 0x6a3a9a], suitteal: [0x138a8a, 0x6a3a9a], suitwhite: [0xdfe4ea, 0x6a3a9a], suitblack: [0x22252b, 0x8a3ad0] };
+  if (char === 'alien') { const su = SUIT[lk.suit] || SUIT.suitgrey; return { a: su[0], b: su[1], char: 'alien' }; }
+  const ho = HOOD[lk.hoodie || 'navy'] || HOOD.navy; return { a: ho[0], b: ho[1], char: 'monkey' };
+}
+function muzzlePos() {
+  player.updateMatrixWorld(true);
+  const u = player.userData, o = new V3(), dir = new V3(Math.sin(G.face), 0.02, Math.cos(G.face));
+  if (u.char === 'alien' && u.botEye) { u.botEye.getWorldPosition(o); o.addScaledVector(dir, 0.1); }
+  else if (u.muzzle) { u.muzzle.getWorldPosition(o); o.addScaledVector(dir, 0.04); }
+  else if (u.gun) u.gun.getWorldPosition(o);
+  else o.set(player.position.x, player.position.y + 1.2, player.position.z);
+  return { o, dir };
+}
+function setChg(k) { try { bFire.style.setProperty('--chg', (Math.max(0, Math.min(1, k)) * 100).toFixed(1)); } catch (e) {} }
+let chargeBall = null;
+function hideChargeBall() { if (chargeBall) { scene.remove(chargeBall); chargeBall = null; } }
+function updateChargeBall(k) {
+  const { o } = muzzlePos();
+  if (!chargeBall) { chargeBall = new THREE.Mesh(new THREE.SphereGeometry(0.12, 12, 10), basic(0xffe14a, { transparent: true, opacity: 0.85 })); chargeBall.name = 'skyCharge'; chargeBall.renderOrder = 6; scene.add(chargeBall); }
+  chargeBall.visible = k > 0.02; chargeBall.position.copy(o); chargeBall.scale.setScalar(0.45 + k * 2.2); chargeBall.material.opacity = 0.35 + k * 0.6;
+  chargeBall.material.color.setHex(k > 0.7 ? playerCols().a : 0xffe14a);
+}
+function startChargeBeam() {
+  const col = playerCols(), { o, dir } = muzzlePos();
+  const g = new THREE.Group(); g.name = 'skyChargeBeam';
+  const core = basic(col.a), glow = basic(col.b, { transparent: true, opacity: 0.45 });
+  if (glow.blending !== undefined) glow.blending = THREE.AdditiveBlending;
+  const c = new THREE.Mesh(new THREE.CylinderGeometry(CHARGE_BEAM_R, CHARGE_BEAM_R, CHARGE_BEAM_LEN, 12, 1, true), core);
+  const gl = new THREE.Mesh(new THREE.CylinderGeometry(CHARGE_BEAM_R * 2.1, CHARGE_BEAM_R * 2.1, CHARGE_BEAM_LEN, 12, 1, true), glow);
+  [c, gl].forEach(m => { m.rotation.x = Math.PI / 2; m.position.z = CHARGE_BEAM_LEN / 2; m.renderOrder = 5; g.add(m); });
+  scene.add(g); G.beam = { mesh: g, cols: col, lastHit: -1 }; G.beamT = BEAM_T; hideChargeBall(); setChg(1);
+  if (player.userData.char === 'monkey') { G.gunAimT = GUN_AIM_TIME; G.gunAim = 1; poseMonkeyGun(1); }
+  else { G.orbFlash = 0.2; }
+  if (window.__skySnd) window.__skySnd.zap(col.char === 'alien' ? 'red' : 'cyan');
+}
+function placeChargeBeam() {
+  if (!G.beam) return;
+  const { o, dir } = muzzlePos();
+  G.beam.mesh.position.copy(o); G.beam.mesh.lookAt(o.x + dir.x, o.y + dir.y, o.z + dir.z);
+  return { o, dir, tip: o.clone().addScaledVector(dir, CHARGE_BEAM_LEN) };
+}
+function chargeBeamHits(o, tip) {
+  if (!G.beam || G.won) return;
+  const at = face.hit(o, tip); if (at && G.t - (G.beam.lastHit || -9) > 0.15) { G.beam.lastHit = G.t; face.shot(at); }
+  for (const a of aliens) {
+    if (!a.alive) continue;
+    const d = (function () { const abx = tip.x - o.x, aby = tip.y - o.y, abz = tip.z - o.z, l2 = abx * abx + aby * aby + abz * abz || 1;
+      const t = Math.max(0, Math.min(1, ((a.mesh.position.x - o.x) * abx + (a.mesh.position.y - o.y) * aby + (a.mesh.position.z - o.z) * abz) / l2));
+      return Math.hypot(o.x + abx * t - a.mesh.position.x, o.y + aby * t - a.mesh.position.y, o.z + abz * t - a.mesh.position.z); })();
+    if (d < 1.15 + CHARGE_BEAM_R) { a.alive = false; scene.remove(a.mesh); }
+  }
+  for (const t of tickets) {
+    if (t.collected) continue;
+    const d = (function () { const p = t.mesh.position, abx = tip.x - o.x, aby = tip.y - o.y, abz = tip.z - o.z, l2 = abx * abx + aby * aby + abz * abz || 1;
+      const k = Math.max(0, Math.min(1, ((p.x - o.x) * abx + (p.y - o.y) * aby + (p.z - o.z) * abz) / l2));
+      return Math.hypot(o.x + abx * k - p.x, o.y + aby * k - p.y, o.z + abz * k - p.z); })();
+    if (d < TICKET_HIT_R + CHARGE_BEAM_R) collectFlyTicket(t);
+  }
+}
+function endChargeBeam() {
+  if (!G.beam) return;
+  scene.remove(G.beam.mesh); G.beam = null; G.beamT = 0; setChg(0);
+}
+function fire(opts) {
+  opts = opts || {};
+  if (G.beam) return null;
+  if (G.hold || (G.mode !== 'play' && !window.__DEMO)) return null;
+  if (!opts.fromRelease && G.cooldown > 0) return null;
   G.cooldown = 0.28;
+  if (!opts.fromRelease) G.chargeSpent = true;
   const uPre = player.userData;
   if (uPre.char === 'monkey') {
     G.gunAimT = GUN_AIM_TIME;
     G.gunAim = 1;
     poseMonkeyGun(1);
   }
-  player.updateMatrixWorld(true);
+  const { o, dir } = muzzlePos();
   const u = player.userData;
-  const o = new V3(), dir = new V3(Math.sin(G.face), 0.02, Math.cos(G.face));
   let mat = laserMat, hue = 'cyan';
   if (u.char === 'alien' && u.botEye) {
-    u.botEye.getWorldPosition(o);
-    o.addScaledVector(dir, 0.1);
     mat = laserMatRed; hue = 'red';
     G.orbFlash = 0.16;
-    if (u.bot) {
-      u.bot.rotation.x = -0.18;
-      u.bot.rotation.y = 0;
-      u.bot.rotation.z = 0;
-    }
-  } else if (u.muzzle) {
-    u.muzzle.getWorldPosition(o);
-    o.addScaledVector(dir, 0.04);
-  } else if (u.gun) {
-    u.gun.getWorldPosition(o);
-  } else {
-    o.set(player.position.x, player.position.y + 1.2, player.position.z);
+    if (u.bot) { u.bot.rotation.x = -0.18; u.bot.rotation.y = 0; u.bot.rotation.z = 0; }
   }
+  const k = Math.max(0, Math.min(0.999, opts.k || 0));
   const mesh = new THREE.Mesh(laserGeo, mat);
-  mesh.position.copy(o); mesh.lookAt(o.x + dir.x, o.y + dir.y, o.z + dir.z); scene.add(mesh);
-  const L = { mesh, o: o.clone(), dir: dir.clone(), speed: 28, life: 1.5, alive: true, color: hue };   // t782u: range ~42 m so a shot still reaches the TITAN at the far end of its dolly
+  mesh.position.copy(o); mesh.lookAt(o.x + dir.x, o.y + dir.y, o.z + dir.z);
+  if (k > 0) mesh.scale.set(1 + k * 3, 1 + k * 3, 1 + k * 1.5);
+  scene.add(mesh);
+  const L = { mesh, o: o.clone(), dir: dir.clone(), speed: 28, life: 1.5, alive: true, color: hue, k, hitR: TICKET_HIT_R * (1 + k * 0.9) };   // t782u range ~42 m; t785u scale with hold
   lasers.push(L);
   if (window.__skySnd) window.__skySnd.zap(hue);
   { const q = v => Math.round(v * 1000) / 1000; SHOT.n++; SHOT.v = [q(o.x), q(o.y), q(o.z), q(dir.x), q(dir.y), q(dir.z), hue === 'red' ? 1 : 0]; }
@@ -1065,7 +1128,23 @@ function updateEyeBeams(dt) {
 function updateCombat(dt) {
   updateEyeBeams(dt);
   if (G.cooldown > 0) G.cooldown -= dt;
-  if (G.fireHeld && G.cooldown <= 0) fire();
+  // t783u/t785u: hold charges; release before 4 s = one scaled shot; 4 s = 3 s player-colour beam. DEMO attract still sprays.
+  if (window.__DEMO) {
+    if (G.fireHeld && G.cooldown <= 0) fire();
+  } else if (G.beam) {
+    G.beamT -= dt; const p = placeChargeBeam(); if (p) chargeBeamHits(p.o, p.tip); if (G.beamT <= 0) endChargeBeam();
+    if (player.userData.char === 'monkey' && G.gunAimT < 0.08) G.gunAimT = GUN_AIM_TIME;
+  } else if (G.fireHeld) {
+    if (!G.charging) { G.charging = true; G.charge = 0; G.chargeSpent = false; }
+    if (!G.chargeSpent) {
+      G.charge += dt; const ck = Math.min(1, G.charge / CHARGE_T); setChg(ck); updateChargeBall(ck);
+      if (player.userData.char === 'monkey' && G.gunAimT < 0.08) { G.gunAimT = GUN_AIM_TIME; }
+      if (G.charge >= CHARGE_T) { G.chargeSpent = true; startChargeBeam(); }
+    }
+  } else if (G.charging) {
+    if (!G.chargeSpent && !G.beam) fire({ k: Math.min(0.999, G.charge / CHARGE_T), fromRelease: true });
+    G.charging = false; G.charge = 0; setChg(0); hideChargeBall();
+  }
   for (const L of lasers) {
     if (!L.alive) continue;
     _lp.copy(L.mesh.position);
@@ -1503,6 +1582,7 @@ function demoPilot(dt) {
 }
 
 function resetWorld(keepPos) {
+  endChargeBeam(); hideChargeBall(); G.charge = 0; G.charging = false; G.chargeSpent = false; setChg(0);
   for (const L of lasers) scene.remove(L.mesh); lasers.length = 0; clearEyeBeams();
   for (const s of shots) scene.remove(s.mesh); shots.length = 0;
   for (const a of aliens) scene.remove(a.mesh); aliens.length = 0;
@@ -1547,7 +1627,7 @@ const D = { on: false, runs: 0, start: startDemo, stop: stopDemo };
 // input
 const keys = Object.create(null);
 function setFly(on) { G.flyHeld = !!on; }
-function setFire(on) { G.fireHeld = !!on; if (on) fire(); }
+function setFire(on) { G.fireHeld = !!on; if (on && window.__DEMO) fire(); }   // t783u: climb charges on hold; DEMO still shoots on press
 bFly.addEventListener('pointerdown', e => { e.preventDefault(); e.stopPropagation(); try { bFly.setPointerCapture(e.pointerId); } catch (err) {} setFly(true); });
 bFly.addEventListener('pointerup', e => { e.preventDefault(); setFly(false); });
 bFly.addEventListener('pointercancel', () => setFly(false));
@@ -1634,7 +1714,7 @@ const api = {
   PAD, WIND, shapeOf, dimsOf, windGust, updateWind, windAccelAt, drawWind, heightK, get wind() { return G.wind; },
   SKY, levelAt, nightAt, setSky, skyDome, get sky() { return G.sky; }, moon, moonL, sun, hemi, stars,
   N, R, PH, FLY, AIR_SPEED, MIN_SEP, PITCH_MIN, PITCH_MAX, RUN_CAP, FLY_TICKETS, FLY_TICKET_VALUE, GUN_AIM_TIME, GUN_REST, GUN_AIM, poseMonkeyGun, gunBarrelDir, tickets, collectFlyTicket, resetFlyTickets, spawnFlyTickets, sizeOf, offsetOf, yOf, isCheck, isSlider, hopFuel, gapYOf, gapXZOf, lookDrag, updateCamera, updateSlides, TK, D, G, player, platforms, lasers, aliens, shots, earth, world: scene, camera, renderer,
-  fly: setFly, fire, spawnAlien, placeOn, step, give,
+  fly: setFly, fire, setFire, spawnAlien, placeOn, step, give, playerCols, CHARGE_T, BEAM_T,
   get platform() { return G.platform; },
   get won() { return G.won; },
   get energy() { return G.energy; },
