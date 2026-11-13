@@ -1066,7 +1066,9 @@ function loadZoom() {
 }
 if (!MOBILE) loadZoom();   // desktop wheel zoom may persist; the hold-to-zoom button never writes this key
 cv.addEventListener('wheel', e => { setDist(st.dist + e.deltaY * 0.004); e.preventDefault(); }, { passive: false });
-function look(dx, dy) { st.lookT = st.t; st.yaw -= dx * 0.005; st.pitch = THREE.MathUtils.clamp(st.pitch + dy * 0.004, -0.6, 1.25); }
+const PITCH_MIN = -0.6, PITCH_MAX = 1.25, NB_PITCH_MIN = -1.35;   // t791u: while Neon Bricks is playing, allow looking further up so the top of the playfield is on screen
+function lookPitchRange() { const n = window.__neonBricks; return (n && n.playing && !n.zoom) ? [NB_PITCH_MIN, PITCH_MAX] : [PITCH_MIN, PITCH_MAX]; }
+function look(dx, dy) { st.lookT = st.t; st.yaw -= dx * 0.005; const r = lookPitchRange(); st.pitch = THREE.MathUtils.clamp(st.pitch + dy * 0.004, r[0], r[1]); }
 function defaultDist() { return (MOBILE && camera.aspect > 1.15) ? DIST_WIDE : DIST_PORTRAIT; }
 // touch: the bottom-left stick steers. The thumb and the dotted line stay inside the base; the
 // speed still follows the real finger, so a drag past the rim still walks faster up to a capped sprint.
@@ -1416,7 +1418,7 @@ flyStyle.textContent = '#flyHud{position:fixed;right:max(12px,env(safe-area-inse
   + '#flyMeter.low i{background:#ff3030}#bFly{width:74px;height:74px;border-radius:50%;border:3px solid #ffb020;background:radial-gradient(circle at 50% 42%,#4a2a08f2,#120804f2);color:#fff;font:900 16px/1 "Courier New",monospace;letter-spacing:.06em;text-shadow:0 0 8px #ff8a1a;box-shadow:0 0 14px #ff8a1a99,inset 0 0 12px #ff8a1a44;padding:0;cursor:pointer}'
   + '#bFly.on{border-color:#fff6d0;background:radial-gradient(circle at 50% 42%,#ff9a2acc,#3a1404f2)}'
   + '@media (pointer:fine){#bFly::after{content:"SPACE";display:block;margin-top:4px;font-size:9px;letter-spacing:.12em;color:#ffd098}}'
-  + 'body.ingame #flyHud{display:none!important}';
+  + 'body.ingame #flyHud,body.nbPlay #flyHud{display:none!important}';
 document.head.appendChild(flyStyle);
 const flyHudEl = document.createElement('div'); flyHudEl.id = 'flyHud';
 flyHudEl.innerHTML = '<b>ENERGY</b><div id="flyMeter" title="Jetpack energy"><i></i></div><button id="bFly" type="button" title="Hold to fly. Space does the same.">FLY</button>';
@@ -1436,7 +1438,7 @@ function flyBlocked() {
   if (golf && golf.aiming) return true;
   const S = window.__start; if (S && S.shown && !S.dismissed) return true;
   const F = window.__floorBtn; if (F && F.open) return true;
-  if (window.__optsOpen || (window.__wardrobe && window.__wardrobe.isOpen) || (window.__inv && window.__inv.open) || (window.__pool && window.__pool.open) || document.body.classList.contains('ingame')) return true;
+  if (window.__optsOpen || (window.__wardrobe && window.__wardrobe.isOpen) || (window.__inv && window.__inv.open) || (window.__pool && window.__pool.open) || document.body.classList.contains('ingame') || document.body.classList.contains('nbPlay')) return true;
   if (kiosk && kiosk.mode !== 'walk' && kiosk.mode !== 'pick') return true;
   for (let i = 0; i < FLY_MENUS.length; i++) { const e = document.getElementById(FLY_MENUS[i]); if (e && e.classList.contains('on')) return true; }
   return false;
@@ -1608,6 +1610,11 @@ function step(dt) {
     if (!st.camInit || camPos.distanceTo(camera.position) > 6) { camera.position.copy(camPos); st.camInit = true; }   // first frame / teleport
     else camera.position.lerp(camPos, 1 - Math.exp(-dt * 14));
     if (golf && golf.below) golf.camClamp(camera.position); else camPush(camera.position); camera.lookAt(camTarget);
+    // t791u: panning up (lower pitch) aims the look at the top of the Neon Bricks playfield, which the default chest look-at clips
+    if (nb && nb.playing && !nb.zoom && !st.fp) {
+      const box = new THREE.Box3().setFromObject(nb.grp), topY = box.max.y, k = THREE.MathUtils.clamp((0.25 - st.pitch) / (0.25 - NB_PITCH_MIN), 0, 1);
+      camera.lookAt(camTarget.x + 1.8 * k, THREE.MathUtils.lerp(camTarget.y, topY + 0.15, k), camTarget.z);
+    }
   }
 }
 function animateMonkey(dt) {
@@ -1861,7 +1868,7 @@ kiosk = setupKiosk({ room, camera, monkey, st, play, blockers });
   const bMove = mk('nbMove', '<svg viewBox="0 0 24 24" fill="none" stroke="#fff6b0" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 12a8 8 0 1 1-2.4-5.7"/><path d="M20 4v5h-5"/></svg>MOVE', 'Rotate the block');
   const bExit = mk('nbExit', '&times;', 'Leave Neon Bricks');
   nb = setupNeonBricks({ THREE, room, HALF, getMonkey: () => monkey, st, onState: on => {
-    document.body.classList.toggle('nbPlay', on); if (on) { st.yaw = -Math.PI / 2; st.pitch = Math.min(st.pitch, 0.25); joyClear && joyClear(); } else bZoom.classList.remove('locked'); } });
+    document.body.classList.toggle('nbPlay', on); if (on) { st.yaw = -Math.PI / 2; st.pitch = Math.min(st.pitch, 0.25); joyClear && joyClear(); try { flyCut(); } catch (e) {} } else { bZoom.classList.remove('locked'); st.pitch = THREE.MathUtils.clamp(st.pitch, PITCH_MIN, PITCH_MAX); } } });
   bPlay.addEventListener('pointerdown', e => { e.stopPropagation(); nb.start(); });
   bMove.addEventListener('pointerdown', e => { e.stopPropagation(); nb.rotate(); });
   bExit.addEventListener('pointerdown', e => { e.stopPropagation(); nb.stop('exit'); });

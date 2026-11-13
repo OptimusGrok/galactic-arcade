@@ -2,6 +2,7 @@
 // score/level panel in the right-hand pane, PLAY pops up at the window, joystick/keys move, MOVE (in the backpack's place) rotates,
 // ZOOM once = playfield full screen / again = back, game over / exit gives the backpack + walking back.
 // t781u: the game is NOT drawn until PLAY (only the button at the window); the player fades out (0.3 s) and is gone while playing, others see it too.
+// t791u: while playing, hide FIRE and FLY (restore on exit); pan the camera up far enough to see the top of the playfield.
 // node test/neon_bricks_window.js
 const { open } = require('./lib');
 let ok = true; const chk = (c, m, x) => { console.log((c ? 'PASS ' : 'FAIL ') + m + (x !== undefined ? ' ' + JSON.stringify(x).slice(0, 400) : '')); if (!c) ok = false; };
@@ -31,9 +32,22 @@ const vis = (page, sel) => page.evaluate(s => { const e = document.querySelector
     window.__nbProgs0 = new Set(A.renderer.info.programs.map(p => p.id)); return { progs: A.renderer.info.programs.length, tag: !!A.monkey.getObjectByName('gaNameTag'), n: ms.length }; });
   chk(await vis(page, '#bPack'), 'backpack still there before playing');
   const tapEl = async sel => { const r = await page.evaluate(s => { const b = document.querySelector(s).getBoundingClientRect(); return [b.x + b.width / 2, b.y + b.height / 2]; }, sel); await page.mouse.click(r[0], r[1]); };
+  // t791u: equip the jetpack + laser pistol so FIRE and FLY are on, then they must hide while playing
+  await page.evaluate(() => {
+    const own = JSON.parse(localStorage.getItem('galacticarcade.wardrobeOwned') || '[]');
+    for (const k of ['back:jetpack', 'hand:pistol']) if (!own.includes(k)) own.push(k);
+    localStorage.setItem('galacticarcade.wardrobeOwned', JSON.stringify(own));
+    const G = window.__gaPlayer; if (G) { G.pick('back', 'jetpack'); G.pick('hand', 'pistol'); }
+    const A = window.__arcade; for (let i = 0; i < 8; i++) A.step(1 / 60);
+    if (window.__roomFire) window.__roomFire.update(0);
+  });
+  const hud0 = { fire: await vis(page, '#bFire'), fly: await vis(page, '#flyHud'), bFly: await vis(page, '#bFly') };
+  chk(hud0.fire && hud0.fly && hud0.bFly, 't791u: FIRE and FLY are offered before Neon Bricks starts', hud0);
   await tapEl('#nbPlay'); await page.waitForTimeout(300);
   const s1 = await page.evaluate(() => ({ p: window.__neonBricks.playing, body: document.body.classList.contains('nbPlay'), st: window.__neonBricks.G.state, yaw: window.__arcade.st.yaw }));
   chk(s1.p && s1.body && s1.st === 'play', 'tapping PLAY starts the game', s1);
+  const hud1 = { fire: await vis(page, '#bFire'), fly: await vis(page, '#flyHud'), bFly: await vis(page, '#bFly') };
+  chk(!hud1.fire && !hud1.fly && !hud1.bFly, 't791u: FIRE and FLY hide while Neon Bricks is playing', hud1);
   const sh = await page.evaluate(() => ({ g: window.__neonBricks.grp.visible, p: window.__neonBricks.panel.visible }));
   chk(sh.g && sh.p, 't781u: the playfield + score panel appear when PLAY is tapped', sh);
   // player fade (driven at 60 Hz steps; software GL here is a few fps)
@@ -102,10 +116,31 @@ const vis = (page, sel) => page.evaluate(s => { const e = document.querySelector
   await page.mouse.move(300, 150); await page.mouse.down(); for (let i = 1; i <= 8; i++) await page.mouse.move(300 + i * 15, 150); await page.mouse.up(); await page.waitForTimeout(100);
   const yaw1 = await page.evaluate(() => window.__arcade.st.yaw);
   chk(Math.abs(yaw1 - yaw0) > 0.05 && (await page.evaluate(() => window.__neonBricks.playing)), 'swiping still turns the camera while playing', { yaw0, yaw1 });
+  // t791u: pan up (pitch to the Neon Bricks look-up limit) until the top of the playfield is on screen
+  const top0 = await page.evaluate(() => {
+    const A = window.__arcade, nb = A.neonBricks, T = A.THREE, cam = A.camera, b = new T.Box3().setFromObject(nb.grp);
+    cam.updateMatrixWorld();
+    const ys = [[b.min.x, b.max.y, b.min.z], [b.max.x, b.max.y, b.max.z], [b.min.x, b.max.y, b.max.z], [b.max.x, b.max.y, b.min.z]].map(p => new T.Vector3(...p).project(cam).y);
+    return { pitch: A.st.pitch, maxY: Math.max(...ys), minY: Math.min(...ys) };
+  });
+  const top1 = await page.evaluate(() => {
+    const A = window.__arcade, nb = A.neonBricks, T = A.THREE, cam = A.camera;
+    A.st.pitch = -1.35; A.st.lookT = A.st.t;
+    for (let i = 0; i < 60; i++) { nb.restoreCam(cam); A.step(1 / 60); nb.update(1 / 60); if (nb.camera(cam)) A.monkey.visible = false; }
+    cam.updateMatrixWorld();
+    const b = new T.Box3().setFromObject(nb.grp);
+    const pts = [[b.min.x, b.max.y, b.min.z], [b.max.x, b.max.y, b.max.z], [b.min.x, b.max.y, b.max.z], [b.max.x, b.max.y, b.min.z]].map(p => new T.Vector3(...p).project(cam));
+    const ys = pts.map(p => p.y);
+    return { pitch: A.st.pitch, maxY: Math.max(...ys), minY: Math.min(...ys), on: pts.every(p => p.y <= 1.05 && p.y >= -1.15) };
+  });
+  chk(top1.pitch <= -1.3 && top1.maxY <= 1.05 && top1.on, 't791u: panning the camera up shows the top of the Neon Bricks playfield', { top0, top1 });
   // exit -> backpack + walking back
   await tapEl('#nbExit'); await page.waitForTimeout(200);
   const ex = await page.evaluate(() => ({ p: window.__neonBricks.playing, body: document.body.classList.contains('nbPlay') }));
   chk(!ex.p && !ex.body && (await vis(page, '#bPack')) && !(await vis(page, '#nbMove')), 'exit: backpack back, MOVE gone', ex);
+  await page.evaluate(() => { const A = window.__arcade; for (let i = 0; i < 8; i++) A.step(1 / 60); if (window.__roomFire) window.__roomFire.update(0); });
+  const hud2 = { fire: await vis(page, '#bFire'), fly: await vis(page, '#flyHud'), bFly: await vis(page, '#bFly') };
+  chk(hud2.fire && hud2.fly && hud2.bFly, 't791u: FIRE and FLY return after leaving Neon Bricks', hud2);
   const back = await page.evaluate(() => { const A = window.__arcade, m0 = window.__nbMats0; for (let i = 0; i < 25; i++) { A.step(1 / 60); A.nbFade(1 / 60); } let r = 0, tr = 0; A.monkey.traverse(o => { if (o.material && m0.includes(o.material)) r++; }); return { k: A.playerFade, vis: A.monkey.visible, r, n: m0.length, g: A.neonBricks.grp.visible, p: A.neonBricks.panel.visible }; });
   chk(back.k === 1 && back.vis && back.r === back.n, 't781u: on exit the player fades back in (original materials back)', back);
   chk(!back.g && !back.p, 't781u: game hidden again after exit', back);
