@@ -1811,10 +1811,9 @@ kiosk = setupKiosk({ room, camera, monkey, st, play, blockers });
     nova: ['NOVA TETHER', 0x3fb8ff], cyber: ['CYBERCITY', 0xff3fd0], blaster: ['BLASTER', 0xfff03a], pip: ['SUPER PIP QUEST', 0xff7ad9], bb: ['BURROW BUSTER', 0xffb02e],
     rockfall: ['ROCKFALL RUSH', 0xff8a2a], skytower: ['SKY TOWER', 0x5fe0ff], roadster: ['MARS ROADSTER', 0xff4a2a] };
   const list = Object.keys(FEATURED).map(k => { const [cab, key] = FEATURED[k]; return { cab, key, title: T[key][0], color: T[key][1], wall: true }; });
-  list.push({ cab: clawCab, key: 'claw', title: 'CLAW MACHINE', color: 0xff2bd6, scale: 0.55, normal: new THREE.Vector3(0, 0, 1) });
-  const dsTop = DS.TOP + 0.8 + 2.45;   // top of its curved screen (dscab.js: platform + SY0 + SH)
-  list.push({ cab: dsCab, key: 'deadsignal', title: 'DEAD SIGNAL', color: 0x22d8ff, normal: new THREE.Vector3(0, 0, 1), at: new THREE.Vector3(0, dsTop + 0.5, Z2 + DS.SCR_Z - 0.1) });
-  const signs = buildNeonSigns(THREE, mergeGeometries, list, { HALF, aniso: Math.min(8, renderer.capabilities.getMaxAnisotropy()) });
+  list.push({ cab: clawCab, key: 'claw', title: 'CLAW MACHINE', color: 0xff2bd6, scale: 0.7, normal: new THREE.Vector3(0, 0, 1) });
+  // DEAD SIGNAL: no extra sign; the VR station already carries its own game-styled DEAD SIGNAL / VR sign above the screen (dscab.js)
+  const signs = buildNeonSigns(THREE, mergeGeometries, list, { HALF, renderer, aniso: Math.min(8, renderer.capabilities.getMaxAnisotropy()) });
   scene.add(signs); window.__neonSigns = signs; }
 const opts = setupOpts({ play, kiosk, shield, st, monkey, setFloor, getFloor: () => floorMode, setWalls, getWalls: () => wallsMode, setWindow, getWindow: () => windowMode, HALF, Z2 });
 requestAnimationFrame(frame);
