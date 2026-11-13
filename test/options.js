@@ -47,7 +47,7 @@ const PH = process.argv[2] === 'phone', sfx = PH ? '_phone' : '';
   wl = await ev(() => { const A = window.__arcade, m = A.wallMat.map; return { w: A.walls, ls: localStorage.getItem('neonarcade.walls'), src: m && m.image && m.image.src }; });
   chk(wl.w === 'viking' && wl.ls === 'viking' && /viking_walls\.jpg/.test(wl.src), 'VIKING puts the rune texture on the walls (saved) ' + JSON.stringify(wl));
   await tap('#optX');
-  const bands = () => ev(() => ['Pink', 'Amber', 'Cyan'].map(n => { const m = window.__arcade.room.getObjectByName('wallBand' + n); return m ? m.visible : null; }));
+  const bands = () => ev(() => ['Cyan'].map(n => { const m = window.__arcade.room.getObjectByName('wallBand' + n); return m ? m.visible : null; }));
   chk((await bands()).every(v => v === false), 'Viking walls: the 3 coloured wall bands are hidden');
   chk(await ev(() => window.__opts && window.__opts.snapshot().walls === 'viking'), 'save snapshot records the walls choice');
   await reload();

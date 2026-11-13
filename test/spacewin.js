@@ -7,7 +7,7 @@ const { open } = require('./lib'); const PH = process.argv[2] === 'phone', sfx =
     const east = A.cabinets.filter(c => c.userData.wall === 'east').length, feat = A.featured.map(c => c.userData.wall + ':' + c.userData.index);
     const tube = A.room.getObjectByName('wallNeonRun').geometry.attributes.position; let eastTop = 0, eastN = 0;
     for (let i = 0; i < tube.count; i++) { v.fromBufferAttribute(tube, i); if (v.x > 11.8) { eastN++; eastTop = Math.max(eastTop, v.y); } }
-    let bandEast = 0; for (const n of ['Pink', 'Amber', 'Cyan']) { const g = A.room.getObjectByName('wallBand' + n).geometry.attributes.position; for (let i = 0; i < g.count; i++) if (g.getX(i) > 11.6 && Math.abs(g.getZ(i)) < 11.5) bandEast++; }
+    let bandEast = 0; for (const n of ['Cyan']) { const g = A.room.getObjectByName('wallBand' + n).geometry.attributes.position; for (let i = 0; i < g.count; i++) if (g.getX(i) > 11.6 && Math.abs(g.getZ(i)) < 11.5) bandEast++; }
     const r2east = A.room2.getObjectByName('wall3').visible;
     return { glass: !!W && W.glass.visible, east, feat, eastN, eastTop: +eastTop.toFixed(3), bandEast, wall3: A.room.getObjectByName('wall3').visible, r2east, cube: !!W.cube, envU: 'uEnv' in W.mat.uniforms, total: A.cabinets.length + A.featured.length }; });
   console.log(JSON.stringify(r));

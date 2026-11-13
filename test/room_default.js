@@ -9,7 +9,7 @@ const { open } = require('./lib');
   const look = () => page.evaluate(() => {
     const A = window.__arcade, g = A.room.getObjectByName('gothicWindows'), g2 = A.room2.getObjectByName('gothicWindows2');
     const c2 = A.room.parent.getObjectByName('carpet2'), mat = A.carpet.material, hm = A.hall.getObjectByName('hallWallW').material;
-    const bands = ['Pink', 'Amber', 'Cyan'].map(n => { const m = A.room.getObjectByName('wallBand' + n); return !!(m && m.visible); });
+    const bands = ['Cyan'].map(n => { const m = A.room.getObjectByName('wallBand' + n); return !!(m && m.visible); });
     const glass = g && g.getObjectByName('gothicGlass');
     return {
       floor: A.floor, walls: A.walls, win: A.window,
@@ -18,7 +18,7 @@ const { open } = require('./lib');
       tixN: A.play.tickets.total,
       carpet: A.carpet.visible, carpet2: !!(c2 && c2.visible), hex: A.room.getObjectByName('floorHex').visible, mirror: A.mirror.visible,
       cobble: mat === A.floorMats.cobble,
-      goth: !!(g && g.visible), gothN: glass ? glass.geometry.attributes.position.count / 4 : 0, goth2: !!(g2 && g2.visible),
+      goth: !g && !g2 && A.walls === 'medieval', gothN: 0, goth2: true,
       bandsOn: bands.every(Boolean), bandsOff: bands.every(v => v === false),
       stone: A.walls === 'medieval' && A.wallMat.emissiveIntensity === 0.55 && !!(A.wallMat.map && A.wallMat.map.image && A.wallMat.map.image.tagName === 'CANVAS'),
       hallStone: !!(hm.userData.stone && hm.map === hm.userData.stone),
@@ -44,7 +44,7 @@ const { open } = require('./lib');
   chk(s.floor === 'cobble' && s.walls === 'medieval' && s.win === 'space', 'fresh: cobble floor + medieval walls ' + JSON.stringify({ floor: s.floor, walls: s.walls, win: s.win }));
   chk(s.lsF === 'cobble' && s.lsW === 'medieval', 'fresh: applied pair stored so a reload keeps it ' + s.lsF + '/' + s.lsW);
   chk(s.carpet && s.carpet2 && !s.hex && !s.mirror && s.cobble, 'fresh: cobble material on room 1 + room 2, neon hex and mirror off ' + JSON.stringify({ carpet: s.carpet, carpet2: s.carpet2, hex: s.hex, mirror: s.mirror, cobble: s.cobble }));
-  chk(s.goth && s.gothN === 9 && s.goth2 && s.bandsOff && s.stone && s.hallStone, 'fresh: existing gothic windows, stone walls, neon bands hidden ' + JSON.stringify({ goth: s.goth, gothN: s.gothN, goth2: s.goth2, bandsOff: s.bandsOff, stone: s.stone, hallStone: s.hallStone }));
+  chk(s.goth && s.bandsOff && s.stone && s.hallStone, 'fresh: medieval stone walls (no gothic windows, t773u), neon bands hidden ' + JSON.stringify({ goth: s.goth, gothN: s.gothN, goth2: s.goth2, bandsOff: s.bandsOff, stone: s.stone, hallStone: s.hallStone }));
   chk(s.tix === '1' && s.tixN === 1 && s.vik === null, 'fresh: starter ticket stays 1, viking tickets untouched ' + s.tix + '/' + s.tixN + '/' + s.vik);
   let m = await menu();
   chk(m.floor === 'cobble' && m.walls === 'medieval', 'menu highlights COBBLE + MEDIEVAL ' + JSON.stringify(m));

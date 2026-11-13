@@ -11,7 +11,8 @@ import { buildGhostCabinet, startGhostDemo, tickGhostDemo } from './ghostcab.js'
 import { buildBerserkerCabinet } from './berserkcab.js';
 import { buildMonkeyCabinet } from './monkeycab.js';
 import { setupSpaceWindow } from './spacewin.js';
-import { stoneWallTex, gothicWindows } from './medieval.js';
+import { stoneWallTex } from './medieval.js';
+import { buildNeonSigns } from './neonsigns.js';
 import { buildOrcCabinet } from './orccab.js';
 import { buildCyberCabinet } from './cybercitycab.js';
 import { buildBlasterCabinet } from './blastercab.js';
@@ -174,13 +175,11 @@ const portalMat = new THREE.ShaderMaterial({ uniforms: portalU, vertexShader: 'v
     }` });
 portalMat.name = 'portalWalls';
 const R2_WIN = 1, R2_WALLS = [0, 2, 3];   // t235: room 2's local wall 1 (world +x, on the right as you walk in) is a window like room 1's east wall
-let stoneTex = null, gothWins = null, r2Ready = false, portalHallMat = null;   // r2Ready: room 2 + hallway exist (setWalls runs once before they are built)   // MEDIEVAL walls (t230): built on first pick
+let stoneTex = null, r2Ready = false, portalHallMat = null;   // r2Ready: room 2 + hallway exist (setWalls runs once before they are built)   // MEDIEVAL walls (t230): built on first pick
 function setWalls(mode) {
   wallsMode = mode === 'viking' || mode === 'portals' || mode === 'medieval' ? mode : 'current'; if (mode === 'windows') setWindow('jungle'); const v = wallsMode === 'viking', po = wallsMode === 'portals', md = wallsMode === 'medieval';
-  if (md && !stoneTex) { stoneTex = stoneWallTex(THREE, renderer); stoneTex.repeat.set(4, +(H / 6).toFixed(3)); gothWins = gothicWindows(THREE, mergeGeometries, HALF, H); room.add(gothWins); }
-  if (md && r2Ready && !room2.getObjectByName('gothicWindows2')) { const g2 = gothicWindows(THREE, mergeGeometries, HALF, H, R2_WALLS, gothWins); g2.name = 'gothicWindows2'; room2.add(g2); }   // t234/t235: room 2 too (shares materials; not on its right-hand window wall)
-  if (gothWins) gothWins.visible = md; const g2 = r2Ready && room2.getObjectByName('gothicWindows2'); if (g2) g2.visible = md;
-  if (r2Ready) ['Pink', 'Amber', 'Cyan'].forEach(n => { const b = room2.getObjectByName('wallBand' + n); if (b) b.visible = wallsMode === 'current'; });   // room 2's cloned bands follow room 1's
+  if (md && !stoneTex) { stoneTex = stoneWallTex(THREE, renderer); stoneTex.repeat.set(4, +(H / 6).toFixed(3)); }   // t773u: plain stone, no stained-glass windows
+  if (r2Ready) { const b = room2.getObjectByName('wallBandCyan'); if (b) b.visible = wallsMode === 'current'; }   // room 2's cloned bands follow room 1's
   if (r2Ready) { const hw0 = hall.getObjectByName('hallWallW'), hm = hw0.userData.mat0 || hw0.material; if (!hm.userData.map0) hm.userData.map0 = hm.map;
     if (md && !hm.userData.stone) { hm.userData.stone = stoneTex.clone(); hm.userData.stone.repeat.set(+(HALL_L / 6).toFixed(3), +(DOOR_H / 6).toFixed(3)); hm.userData.stone.needsUpdate = true; }
     hm.map = md ? hm.userData.stone : hm.userData.map0; hm.emissiveMap = md ? hm.userData.stone : null; hm.color.setHex(md ? 0x8a8078 : 0x2a1840); hm.emissive.setHex(md ? 0xffffff : 0); hm.emissiveIntensity = md ? 0.55 : 1; hm.roughness = md ? 0.95 : 0.85; hm.needsUpdate = true; }
@@ -250,23 +249,18 @@ for (const hx of hexes) {
   const shaft = new THREE.Mesh(new THREE.CylinderGeometry(hx.r * 0.85, hx.r * 1.35, H - 1, 6, 1, true), sm);
   shaft.position.set(hx.x, (H - 1) / 2, hx.z); shaft.rotation.y = Math.PI / 6; shaft.name = 'lightShaft'; room.add(shaft);
 }
-// wall neon: ceiling edge strips + soffit ledge above the cabinet rows
-const edge = [], edgeLedge = [], edgeAmber = [], edgeCyan = [], bandsNoEast = [[], [], []], ledges = [];
+// wall neon: ceiling edge strips + the high cyan band (t773u: the dark soffit shelf above the cabinet rows and its pink/amber edge bands are gone)
+const edge = [], edgeCyan = [], bandsNoEast = [[]];
 for (let i = 0; i < 4; i++) {
   const a = i * Math.PI / 2, s = Math.sin(a), c = Math.cos(a);
   const P = (u, y, d) => new THREE.Vector3(-s * (HALF - d) + c * u, y, -c * (HALF - d) - s * u);
   edge.push(barGeo(P(-HALF, H - 0.1, 0.1), P(HALF, H - 0.1, 0.1), 0.08));
-  edgeLedge.push(barGeo(P(-10.2, 3.12, 1.64), P(10.2, 3.12, 1.64), 0.07));
-  edgeAmber.push(barGeo(P(-10.2, 3.64, 1.64), P(10.2, 3.64, 1.64), 0.05));
   edgeCyan.push(barGeo(P(-HALF, 6.2, 0.05), P(HALF, 6.2, 0.05), 0.045));
-  if (i !== 3) [edgeLedge, edgeAmber, edgeCyan].forEach((L, k) => bandsNoEast[k].push(L[L.length - 1]));   // room 1's east wall becomes the space window
-  // ledge body
-  const ledge = new THREE.Mesh(new THREE.BoxGeometry(20.4, 0.5, 1.6), new THREE.MeshStandardMaterial({ color: 0x140c20, roughness: 0.7 }));
-  ledge.position.copy(P(0, 3.38, 0.8)); ledge.rotation.y = a; ledge.name = 'ledge' + i; ledges.push(ledge); room.add(ledge);
+  if (i !== 3) bandsNoEast[0].push(edgeCyan[edgeCyan.length - 1]);   // room 1's east wall becomes the space window
 }
 room.add(new THREE.Mesh(mergeGeometries(edge), neon(C.pink, 3 * PINK_K)));
-wallBands = [new THREE.Mesh(mergeGeometries(edgeLedge), neon(C.pink, 3 * PINK_K)), new THREE.Mesh(mergeGeometries(edgeAmber), neon(C.amber, 2.2)), new THREE.Mesh(mergeGeometries(edgeCyan), neon(C.cyan, 1.8))];
-wallBands.forEach((m, k) => { m.name = 'wallBand' + ['Pink', 'Amber', 'Cyan'][k]; room.add(m); });   // the 3 coloured horizontal wall bands (hidden with Viking walls)
+wallBands = [new THREE.Mesh(mergeGeometries(edgeCyan), neon(C.cyan, 1.8))];
+wallBands.forEach(m => { m.name = 'wallBandCyan'; room.add(m); });   // the coloured horizontal wall bands (hidden with Viking walls)
 wallBands.forEach(m => { m.visible = wallsMode === 'current'; });
 
 // ---------- hallway north of the doorway (z = -HALF .. -HALF-HALL_L) ----------
@@ -501,7 +495,7 @@ const obbs = blockers.filter(b => b.kind === 'obb');
 // ---------- room 2: identical shell, rotated 180deg north of the hallway, 19 blank cabinets (instanced) ----------
 const room2 = new THREE.Group(); room2.name = 'room2'; room2.position.set(0, 0, Z2); room2.rotation.y = Math.PI; scene.add(room2);
 {
-  const skip = new Set([mirror, floorTop, floorBase1, ...cabinets, ...featured, ...spots, gothWins]);
+  const skip = new Set([mirror, floorTop, floorBase1, ...cabinets, ...featured, ...spots]);
   for (const ch of room.children) if (!skip.has(ch)) room2.add(ch.clone());
   const plane = new THREE.PlaneGeometry(HALF * 2, HALF * 2);
   const m2 = new Reflector(plane, { textureWidth: Math.round(innerWidth * dpr * Q.refl), textureHeight: Math.round(innerHeight * dpr * Q.refl), color: 0x8a8a96 });
@@ -547,7 +541,7 @@ const dsCab = buildDeadSignalStation(); dsCab.rotation.y = Math.PI; room2.add(ds
 // ---------- room 1 east wall -> space window (after room 2 cloned the shell, so room 2 keeps its wall, plinth and cabinets) ----------
 {
   room.getObjectByName('wall3').visible = false;
-  for (const n of ['plinth_east', 'plinthLip_east', 'plinthLip2_east', 'ledge3']) room.getObjectByName(n).visible = false;
+  for (const n of ['plinth_east', 'plinthLip_east', 'plinthLip2_east']) room.getObjectByName(n).visible = false;
   for (let i = blockers.length - 1; i >= 0; i--) if (blockers[i].kind === 'plinth' && blockers[i].wall === 'east') blockers.splice(i, 1);
   wallBands.forEach((m, k) => { m.geometry = mergeGeometries(bandsNoEast[k]); });   // the coloured bands stop at the glass
   wn.geometry = wallTubeGeo([...cabinets, ...featured], true);                       // pink tube runs flat along the bottom of the glass
@@ -558,9 +552,9 @@ const dsCab = buildDeadSignalStation(); dsCab.rotation.y = Math.PI; room2.add(ds
 {
   const nm = wallNames[R2_WIN];
   room2.getObjectByName('wall' + R2_WIN).visible = false;
-  for (const n of ['plinth_' + nm, 'plinthLip_' + nm, 'plinthLip2_' + nm, 'ledge' + R2_WIN]) { const o = room2.getObjectByName(n); if (o) o.visible = false; }
+  for (const n of ['plinth_' + nm, 'plinthLip_' + nm, 'plinthLip2_' + nm]) { const o = room2.getObjectByName(n); if (o) o.visible = false; }
   const keep = [0, 1, 2, 3].filter(i => i !== R2_WIN);
-  ['Pink', 'Amber', 'Cyan'].forEach((n, k) => { room2.getObjectByName('wallBand' + n).geometry = mergeGeometries(keep.map(i => [edgeLedge, edgeAmber, edgeCyan][k][i])); });
+  room2.getObjectByName('wallBandCyan').geometry = mergeGeometries(keep.map(i => edgeCyan[i]));
   room2.getObjectByName('wallNeonRun').geometry = wallTubeGeo([...cabinets, ...featured, ...eastGhostCabs].filter(c => c.userData.wall !== nm), false, R2_WIN);
   const g = spaceWin.glass, m2 = g.material.clone(); m2.uniforms.uT = g.material.uniforms.uT; m2.uniforms.uNear = { value: 0 };   // no monkey-reflection pass on this one
   const g2 = new THREE.Mesh(g.geometry, m2); g2.position.set(-g.position.x, g.position.y, -g.position.z); g2.rotation.y = Math.PI; g2.name = 'spaceWindow'; room2.add(g2);   // same name: windows.js hides both for JUNGLE / BEACH
@@ -1812,6 +1806,16 @@ kiosk = setupKiosk({ room, camera, monkey, st, play, blockers });
   blockers.push({ minX: x0, maxX: x0 + 2 * cw, minZ: z0, maxZ: z0 + 2 * cd, kind: 'cabinet', name: 'claw' });
   playables.push(clawCab);
   badge('12', '#ffe000', cx, CLAW.BASE_H + CLAW.GLASS_H + CLAW.TOP_H + 0.55, cz, { n: 12, key: 'r1:claw', game: 'claw' }); }
+// ---------- t773u NEON NAME SIGNS: each machine's game name in neon above it (neonsigns.js: one atlas texture, one merged mesh) ----------
+{ const T = { strike: ['STRIKE', 0xff3b3b], berserker: ['BERSERKER', 0xff6a1a], monkey: ['MONKEY CROSSING', 0xffd23a], ghost: ['GHOST 256', 0xb46bff], orc: ['ORC ATTACK', 0x4dff5a],
+    nova: ['NOVA TETHER', 0x3fb8ff], cyber: ['CYBERCITY', 0xff3fd0], blaster: ['BLASTER', 0xfff03a], pip: ['SUPER PIP QUEST', 0xff7ad9], bb: ['BURROW BUSTER', 0xffb02e],
+    rockfall: ['ROCKFALL RUSH', 0xff8a2a], skytower: ['SKY TOWER', 0x5fe0ff], roadster: ['MARS ROADSTER', 0xff4a2a] };
+  const list = Object.keys(FEATURED).map(k => { const [cab, key] = FEATURED[k]; return { cab, key, title: T[key][0], color: T[key][1], wall: true }; });
+  list.push({ cab: clawCab, key: 'claw', title: 'CLAW MACHINE', color: 0xff2bd6, scale: 0.55, normal: new THREE.Vector3(0, 0, 1) });
+  const dsTop = DS.TOP + 0.8 + 2.45;   // top of its curved screen (dscab.js: platform + SY0 + SH)
+  list.push({ cab: dsCab, key: 'deadsignal', title: 'DEAD SIGNAL', color: 0x22d8ff, normal: new THREE.Vector3(0, 0, 1), at: new THREE.Vector3(0, dsTop + 0.5, Z2 + DS.SCR_Z - 0.1) });
+  const signs = buildNeonSigns(THREE, mergeGeometries, list, { HALF, aniso: Math.min(8, renderer.capabilities.getMaxAnisotropy()) });
+  scene.add(signs); window.__neonSigns = signs; }
 const opts = setupOpts({ play, kiosk, shield, st, monkey, setFloor, getFloor: () => floorMode, setWalls, getWalls: () => wallsMode, setWindow, getWindow: () => windowMode, HALF, Z2 });
 requestAnimationFrame(frame);
 
