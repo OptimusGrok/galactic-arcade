@@ -29,13 +29,13 @@ export function setupPlay(A) {
   const demoUI = document.getElementById('demoUI'), dInsert = document.getElementById('dInsert'), dCredit = document.getElementById('dCredit'), bTicket = document.getElementById('bTicket');
   const coarse = matchMedia('(pointer:coarse)').matches;
   const MACHINES = {
-    strike: { key: 'strike', cab: A.strikeCab, src: 'strike-play/index.html', credits: 0, games: 0, aspect: 9 / 16, cost: 5,
+    strike: { key: 'strike', upright: 1, cab: A.strikeCab, src: 'strike-play/index.html', credits: 0, games: 0, aspect: 9 / 16, cost: 5,
       start(w) { const S = w.STRIKE; S.start(0); S.G.credits = 0; },
       demo(w) { w.__demo.start(); }, stopDemo(w) { w.__demo.stop(); if (w.__board) w.__board.stop(); }, board(w) { if (w.__board) w.__board.start(); },   // credit loaded: live WORLD TOP 10;: one credit = one game
       scene(w) { const sc = w.STRIKE.G.scene; return sc === 'play' || sc === 'pause' ? 'play' : sc === 'gameover' ? 'over' : sc === 'entry' ? 'entry' : sc === 'scores' ? 'scores' : sc === 'title' ? 'title' : sc; },
       active(w) { return w.STRIKE.G.scene === 'play'; },
       hold(w) { if (w.STRIKE.G.scene !== 'play') return false; w.pauseGame(); return true; }, unhold(w) { if (w.STRIKE.G.scene === 'pause') w.resumeGame(); }, overHold: 0, scoresHold: 6000 },
-    ghost: { key: 'ghost', cab: A.ghostCab, src: 'ghost-play/index.html', credits: 0, games: 0, aspect: 152 / 276, cost: 5,
+    ghost: { key: 'ghost', upright: 1, cab: A.ghostCab, src: 'ghost-play/index.html', credits: 0, games: 0, aspect: 152 / 276, cost: 5,
       demo(w) { w.__demo.start(); }, stopDemo(w) { w.__demo.stop(); },
       start(w) { const g = w.__ghost; g.G.muted = false; try { g.Snd.setMuted(false); g.Snd.unlock && g.Snd.unlock(); } catch (e) {} g.startGame(); },
       scene(w) { const s = w.__ghost.G.state; return s === 'play' || s === 'dying' || s === 'pause' ? 'play' : s === 'over' ? 'over' : s; },
@@ -58,7 +58,7 @@ export function setupPlay(A) {
       scene(w) { if (w.__orcAdv) return 'play'; const s = w.__TD.G.state; return s === 'lost' || s === 'won' ? 'over' : s === 'title' ? 'title' : 'play'; },
       active(w) { return !!w.__TD && w.__TD.G.state === 'play'; },
       hold(w) { if (!w.__TD) return false; const G = w.__TD.G; if (G.state !== 'play' || G.paused) return false; G.paused = true; return true; }, unhold(w) { if (w.__TD) w.__TD.G.paused = false; }, overHold: 5000, scoresHold: 0 },
-    cyber: { key: 'cyber', cab: A.cyberCab, src: 'cybercity-play/index.html', credits: 0, games: 0, aspect: (A.cyberCab && A.cyberCab.userData.aspect) || 4 / 3, cost: 5,   // 5 tickets = 1 credit = one 15-minute run
+    cyber: { key: 'cyber', upright: 1, cab: A.cyberCab, src: 'cybercity-play/index.html', credits: 0, games: 0, aspect: (A.cyberCab && A.cyberCab.userData.aspect) || 4 / 3, cost: 5,   // 5 tickets = 1 credit = one 15-minute run
       start(w) { w.__cyber.start(); },
       demo(w) { w.__demo.start(); }, stopDemo(w) { w.__demo.stop(); },
       scene(w) { const s = w.__cyber.scene(); return s === 'over' ? 'over' : s === 'play' ? 'play' : 'title'; },
@@ -210,6 +210,7 @@ export function setupPlay(A) {
     // t753u: two players max at one machine (they stand side by side); a third waits / watches
     try { const M = window.__mp; if (M && M.state === 'on' && M.cabFull && M.cabFull(m.key)) { P.blocked++; P.fullBlocked = (P.fullBlocked || 0) + 1; if (M.flash) M.flash('2 players max at this machine - wait for a spot', 2500); return; } } catch (e) {}
     P.cur = m; refresh(); ui.classList.remove('on'); if (m.onStart) m.onStart();
+    if (m.upright) try { window.__orient && window.__orient(true); } catch (e) {}   // t765u: upright game -> phone back to normal portrait, full screen
     P.zooms++;
     if (m.prep) { P.mode = 'prep'; P.t = 0; P.pcam = null; P.cam0 = camera.position.clone(); P.look0 = monkey.position.clone().setY(1.25); m.anim('on', 0); }   // walk-up + headset on first, then zoomIn()
     else zoomIn(m);
@@ -243,6 +244,7 @@ export function setupPlay(A) {
     try { if (TV.open) closeView(); } catch (e) {}
     try { f.contentWindow.document.body.style.display = 'none'; } catch (e) {} setTimeout(() => f.remove(), 500); P.frame = null;
     if (P.cur.onExit) P.cur.onExit();
+    if (P.cur.upright || document.body.classList.contains('upright')) try { window.__orient && window.__orient(false); } catch (e) {}
     const m = P.cur, back = monkey.position.clone().setY(monkey.position.y + 1.25), out = back.clone().addScaledVector(m.cab.userData.inward, 2.6).setY(2.1);
     curve = new THREE.CatmullRomCurve3([camera.position.clone(), back.clone().lerp(camera.position, 0.4), back, out]); look0.copy(back); look1.copy(screenInfo(m).c);
     A.pause(false); window.focus(); showTix();

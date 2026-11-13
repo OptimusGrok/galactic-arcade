@@ -1199,7 +1199,22 @@ function toggleFs() { const d = document; if (!d.fullscreenElement) d.documentEl
 function updateTurn() {
   const el = document.getElementById('turnHint'); if (!el) return;
   const portrait = MOBILE && innerHeight > innerWidth * 1.08;
-  el.classList.toggle('on', portrait);
+  el.classList.toggle('on', portrait && !document.body.classList.contains('upright'));   // t765u: no 'turn sideways' over an upright (portrait) game
+}
+// t765u: Ghost 256 / Strike / Cybercity are upright games -> while one is open the phone goes back to normal portrait
+// (release the arcade's landscape lock, ask for portrait, full screen); leaving restores the wide arcade view.
+function orient(up) {
+  document.body.classList.toggle('upright', !!up); st.orientUp = !!up;
+  if (!MOBILE) { updateTurn(); return; }
+  const o = screen.orientation;
+  if (up) {
+    const root = document.documentElement, fs = root.requestFullscreen || root.webkitRequestFullscreen;
+    if (fs && !document.fullscreenElement) Promise.resolve(fs.call(root)).catch(() => {});
+    if (o && typeof o.lock === 'function') Promise.resolve(o.lock('portrait')).then(() => { st.orientLock = 'portrait'; }).catch(() => { try { o.unlock && o.unlock(); } catch (e) {} st.orientLock = 'unlocked'; });
+    else if (o && typeof o.unlock === 'function') { try { o.unlock(); } catch (e) {} }
+  } else if (st.orientTried) { wantWide(); return; }
+  else if (o && typeof o.unlock === 'function') { try { o.unlock(); } catch (e) {} }
+  updateTurn();
 }
 function wantWide() {
   if (!MOBILE) { st.orientLock = 'desktop'; updateTurn(); return; }
@@ -1211,7 +1226,7 @@ function wantWide() {
     Promise.resolve(o.lock('landscape')).then(() => { st.orientLock = 'ok'; updateTurn(); }).catch(() => { st.orientLock = 'failed'; updateTurn(); });
   } else { st.orientLock = 'unsupported'; updateTurn(); }
 }
-window.__wantWide = wantWide;
+window.__wantWide = wantWide; window.__orient = orient;
 document.getElementById('bView').onclick = toggleView;
 document.getElementById('bFs').onclick = toggleFs;
 if (matchMedia('(display-mode: fullscreen), (display-mode: standalone)').matches) document.getElementById('bFs').style.display = 'none';
