@@ -4,6 +4,7 @@
 // t781u: the game is NOT drawn until PLAY (only the button at the window); the player fades out (0.3 s) and is gone while playing, others see it too.
 // t791u: while playing, hide FIRE and FLY (restore on exit); pan the camera up far enough to see the top of the playfield.
 // t795u: while playing, replace the joystick with a D-pad (restore the joystick on exit).
+// t796u: smaller PLAY button; the darkest block (Z) is a lighter red, readable on the window themes.
 // node test/neon_bricks_window.js
 const { open } = require('./lib');
 let ok = true; const chk = (c, m, x) => { console.log((c ? 'PASS ' : 'FAIL ') + m + (x !== undefined ? ' ' + JSON.stringify(x).slice(0, 400) : '')); if (!c) ok = false; };
@@ -27,6 +28,14 @@ const vis = (page, sel) => page.evaluate(s => { const e = document.querySelector
   await page.evaluate(() => { const A = window.__arcade; A.monkey.position.set(9.6, 0, 0.2); A.st.vel && A.st.vel.set && A.st.vel.set(0, 0, 0); });
   await page.waitForTimeout(400);
   chk(await vis(page, '#nbPlay'), 'walking to the middle of the window pops up PLAY');
+  const playSz = await page.evaluate(() => { const b = document.getElementById('nbPlay').getBoundingClientRect(), cs = getComputedStyle(document.getElementById('nbPlay')); return { w: +b.width.toFixed(1), h: +b.height.toFixed(1), fs: parseFloat(cs.fontSize), padT: parseFloat(cs.paddingTop) }; });
+  chk(playSz.h <= 50 && playSz.w <= 230 && playSz.fs <= 16 && playSz.h >= 32 && playSz.w >= 110, 't796u: PLAY button is smaller but still tappable ' + JSON.stringify(playSz));
+  const cols = await page.evaluate(() => {
+    const H = window.__neonBricks.HEX, lum = h => { const n = parseInt(h.slice(1), 16); return 0.299 * ((n >> 16) & 255) + 0.587 * ((n >> 8) & 255) + 0.114 * (n & 255); };
+    const L = Object.fromEntries(Object.entries(H).map(([k, v]) => [k, +lum(v).toFixed(1)]));
+    return { H, L, z: H.Z, zL: L.Z };
+  });
+  chk(/^#ff/i.test(cols.z) && cols.zL > 100 && cols.z !== '#e3000b', 't796u: the darkest block (Z) is a lighter red, readable on the window ' + JSON.stringify(cols));
   const hid1 = await page.evaluate(() => ({ g: window.__neonBricks.grp.visible, p: window.__neonBricks.panel.visible }));
   chk(!hid1.g && !hid1.p, 't781u: at the window only the PLAY button shows (no game drawn)', hid1);
   const before = await page.evaluate(() => { const A = window.__arcade, ms = []; A.nbWarm(); A.monkey.traverse(o => { if (o.material) ms.push(o.material); }); window.__nbMats0 = ms;

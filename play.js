@@ -296,7 +296,7 @@ export function setupPlay(A) {
   // ---- VIKING TICKET (from clearing BERSERKER Stage I): its own count, its own HUD chip and enlarged view; does nothing else yet ----
   const VKEY = 'neonarcade.vikingTickets', vixEl = document.getElementById('vix'), vixN = document.getElementById('vixN'), V = { total: 0, got: 0 };
   try { V.total = Math.max(0, parseInt(localStorage.getItem(VKEY), 10) || 0); } catch (e) {}
-  const showVix = () => { vixN.textContent = String(V.total); vixEl.style.display = V.total > 0 ? '' : 'none'; vixEl.classList.toggle('ingame', P.mode === 'game'); try { const r = tixEl.getBoundingClientRect(); if (r.width) { const g = P.mode === 'game'; vixEl.style.left = (g ? r.right + 6 : r.left) + 'px'; vixEl.style.top = (g ? r.top : r.bottom + 4) + 'px'; vixEl.style.minWidth = r.width + 'px'; } } catch (e) {} };   // tight under the gold ticket (in a game: beside it, in the top strip by the close X - t757u)
+  const showVix = () => { vixN.textContent = String(V.total); vixEl.style.display = V.total > 0 ? '' : 'none'; vixEl.classList.toggle('ingame', P.mode === 'game'); try { const r = tixEl.getBoundingClientRect(); if (r.width) { vixEl.style.left = (r.right + 6) + 'px'; vixEl.style.top = r.top + 'px'; vixEl.style.minWidth = r.width + 'px'; } } catch (e) {} };   // t796u: Viking chip sits directly to the right of the gold ticket (walk and cabinet)
   addEventListener('resize', () => setTimeout(showVix, 50));
   try { vikingArt(document.getElementById('vixIco'), 30); } catch (e) {}
   function vikingAward(game) {
