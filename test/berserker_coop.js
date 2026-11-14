@@ -44,9 +44,15 @@ const NAMES = LIVE ? ['HostP1', 'JoinP2'] : ['Dave', 'Zed'];
   await S(b, 'w.__B.cheat.inv = true; return 1;');
   await b.waitForFunction(() => { const C = document.getElementById('game').contentWindow.__bzCoop; return C && C.role === 'guest' && C.snaps > 0 && C.p2on; }, null, { timeout: 20000 }).catch(() => {});
   await a.waitForFunction(() => { const C = document.getElementById('game').contentWindow.__bzCoop; return C && C.role === 'host' && C.p2on; }, null, { timeout: 12000 }).catch(() => {});
-  // wait out intro on the real requestAnimationFrame loop (no C.steps) so both Vikings are drawn in-frame
-  await a.waitForFunction(() => { const w = document.getElementById('game').contentWindow; return w.__B && w.__B.G().state === 'play'; }, null, { timeout: 12000 }).catch(() => {});
-  await a.waitForTimeout(700);
+  // wait out intro and the 1.8s landing warp (loop skips drawing P1 while G.warp>0.8) so both Vikings are in-frame
+  for (const p of [a, b]) await p.waitForFunction(() => {
+    const w = document.getElementById('game') && document.getElementById('game').contentWindow;
+    const G = w && w.__B && w.__B.G && w.__B.G();
+    return G && G.state === 'play' && !(G.warp > 0.8);
+  }, null, { timeout: 12000 }).catch(() => {});
+  await a.waitForTimeout(400);
+  await S(a, 'C.steps(2); return 1;');
+  await S(b, 'C.steps(2); return 1;');
 
   const ha = await S(a, 'return C.hud();');
   const hb = await S(b, 'return C.hud();');

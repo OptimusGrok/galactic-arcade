@@ -1466,6 +1466,7 @@ window.__gaContinue = {
   }
   function followP2() {
     if (I2.tx == null || !P2 || C.p2out) return;
+    if (I2.x || I2.y) return;
     I2.since = (I2.since || 0) + 1;
     const ahead = Math.min(I2.since, 6), ex = I2.tx + (I2.vx || 0) * ahead, ey = I2.ty + (I2.vy || 0) * ahead;
     const dx = ex - P2.x, dy = ey - P2.y, d = Math.hypot(dx, dy) || 1;
@@ -1477,12 +1478,14 @@ window.__gaContinue = {
   function sendInput() {
     const M = mp(); if (!M || !M.berserker || C.gone) return;
     const now = performance.now(); if (now - lastIn < 72) return;
-    if (!flushQ()) return;
+    flushQ();
     let bits = 0; if (I2.A || BT.A) bits |= 1; if (I2.D || BT.D) bits |= 2; if (I2.T || BTL.T || BT.T) bits |= 4; if (I2.R || BTL.R || BT.R) bits |= 8; if (I2.O || BTL.O || BT.O) bits |= 16;
     const o = { typ: 'in', k: bits, x: +((C.role === 'guest' ? (I2.x || J.x) : I2.x) || 0).toFixed(3), y: +((C.role === 'guest' ? (I2.y || J.y) : I2.y) || 0).toFixed(3) };
     if (C.role === 'guest') { const gx = (J && (J.x || J.y)) ? J : I2; o.x = +(gx.x || 0).toFixed(3); o.y = +(gx.y || 0).toFixed(3); I2.x = gx.x; I2.y = gx.y; }
     if (SM.pred) { o.tx = +SM.pred.x.toFixed(1); o.ty = +SM.pred.y.toFixed(1); }
-    if (!M.berserker.send(o)) return;
+    const moving = !!(o.x || o.y);
+    const send = (moving && M.berserker.sendNow) ? M.berserker.sendNow : M.berserker.send;
+    if (!send.call(M.berserker, o)) return;
     lastIn = now; I2.T = I2.R = I2.O = I2.A = I2.D = 0; C.sent++; typN('s_', 'in');
   }
   function statePld() {
@@ -1551,13 +1554,17 @@ window.__gaContinue = {
   function applyIn(s) {
     if (!s) return;
     I2.A = !!(s.k & 1); I2.D = !!(s.k & 2); I2.T = !!(s.k & 4); I2.R = !!(s.k & 8); I2.O = !!(s.k & 16);
-    if (Number.isFinite(+s.tx) && Number.isFinite(+s.ty)) {
+    // t836u/v222: typ:'in' always carries the guest stick (x,y). A typ:'in' that also has
+    // tx/ty used to skip the stick and only follow the prediction, so a held joystick did
+    // not move P2 on the host if pred was sitting still.
+    I2.x = Number.isFinite(+s.x) ? +s.x : 0; I2.y = Number.isFinite(+s.y) ? +s.y : 0;
+    if (Number.isFinite(+s.tx) && Number.isFinite(+s.ty) && !(I2.x || I2.y)) {
       const tx = +s.tx, ty = +s.ty, n = Math.max(1, I2.since || 0);
       if (I2.tx != null && n < 30) { I2.vx = (tx - I2.tx) / n; I2.vy = (ty - I2.ty) / n; } else { I2.vx = 0; I2.vy = 0; }
       I2.tx = tx; I2.ty = ty; I2.since = 0;
     } else {
-      I2.tx = null;
-      I2.x = Number.isFinite(+s.x) ? +s.x : 0; I2.y = Number.isFinite(+s.y) ? +s.y : 0;
+      if (!(I2.x || I2.y)) I2.tx = null;
+      else { I2.tx = Number.isFinite(+s.tx) ? +s.tx : I2.tx; I2.ty = Number.isFinite(+s.ty) ? +s.ty : I2.ty; }
     }
   }
 
@@ -2090,9 +2097,22 @@ window.__gaContinue = {
       else sendHostKeep();
     }
   }
+  // t836u/v222: the original loop skips update() while G.warp>0 (~1.8s after startStage / CONTINUE)
+  // and the previous coop hook only ran coopNetIntro when state was not 'play', so typ:'in' and
+  // typ:'st' went silent for the whole landing warp — snapAge sat at ~2 s after CONTINUE, and a
+  // guest who had just sat down could not send the stick.
+  function coopNetTick() {
+    if (window.__DEMO) return;
+    coopNetIntro();
+    if (C.role === 'host' && (C.p2on || peekInPeer()) && performance.now() - (lastSt || 0) > 250) {
+      try { sendStateNow(); } catch (e) {}
+    }
+  }
   const _loop = loop;
   loop = function (now) {
-    try { if (!window.__DEMO && G && G.state !== 'play' && G.state !== 'pause') coopNetIntro(); } catch (e) {}
+    try {
+      if (!window.__DEMO && G && G.state !== 'pause' && (G.state !== 'play' || G.warp > 0)) coopNetTick();
+    } catch (e) {}
     return _loop.apply(this, arguments);
   };
   // t836u: __bz.start already calls newRun(); hooking both ran afterStart twice and could send typ:'host'
