@@ -10,7 +10,7 @@ const seed = () => { try { localStorage.setItem('neonarcade.vikingTickets', '3')
 const STATS = { ghost: [[0, 101, 390, 130]], monkey: [[0, 55, 110, 122], [300, 60, 390, 112], [315, 90, 378, 131]], cyber: [[120, 4, 270, 30]], claw: [] };
 (async () => {
   const W = +(process.env.PW || 390), H = +(process.env.PH || 844);
-  const keys = (process.env.KEYS || 'strike,ghost,cyber,monkey,claw').split(',');
+  const keys = (process.env.KEYS || 'strike,ghost,cyber,monkey,claw,bb').split(',');
   async function run(o, k, ipad) {
     const page = o.page;
     await page.waitForFunction(() => window.__arcade.play.mode === 'walk' && !document.getElementById('game'), null, { timeout: 30000 }).catch(() => {});
@@ -20,8 +20,9 @@ const STATS = { ghost: [[0, 101, 390, 130]], monkey: [[0, 55, 110, 122], [300, 6
     await page.waitForTimeout(3000);
     const r = await page.evaluate(() => {
       const R = id => { const e = document.getElementById(id); if (!e) return null; const cs = getComputedStyle(e); if (cs.display === 'none') return null; const b = e.getBoundingClientRect(); return { l: b.left, t: b.top, r: b.right, b: b.bottom }; };
-      let hud = 0; try { const w = document.getElementById('game').contentWindow; hud = w.__gaHudPx ? w.__gaHudPx() : 0; } catch (e) {}
-      return { X: R('bExit'), tix: R('tix'), vix: R('vix'), ui: R('ui'), hud, W: innerWidth, upPhone: document.body.classList.contains('upPhone'), upright: document.body.classList.contains('upright') };
+      let hud = 0, bb = null; try { const w = document.getElementById('game').contentWindow; hud = w.__gaHudPx ? w.__gaHudPx() : 0;
+        if (w.eval && /bb-play/.test(w.location.pathname)) bb = w.eval('({ cols: COLS, rows: ROWS, S, FX, FY, FW, FH, HUDSIDE, iw: innerWidth, ih: innerHeight })'); } catch (e) {}
+      return { X: R('bExit'), tix: R('tix'), vix: R('vix'), ui: R('ui'), hud, bb, frame: (b => [b.left, b.top, b.width, b.height].map(Math.round))(document.getElementById('game').getBoundingClientRect()), W: innerWidth, upPhone: document.body.classList.contains('upPhone'), upright: document.body.classList.contains('upright') };
     });
     await page.evaluate(() => window.__arcade.play.exit('x')).catch(() => {});
     await page.waitForTimeout(1200);
@@ -42,6 +43,13 @@ const STATS = { ghost: [[0, 101, 390, 130]], monkey: [[0, 55, 110, 122], [300, 6
       for (let i = 0; i < names.length; i++) for (let j = i + 1; j < names.length; j++) if (ov(els[names[i]], els[names[j]])) hits.push(names[i] + '/' + names[j]);
       chk(!hits.length, tag + ': X, ticket chips and option buttons do not overlap each other', hits);
       let stats = (STATS[k] || []).map(s => ({ l: s[0] * q, t: s[1] * q, r: s[2] * q, b: s[3] * q }));
+      if (k === 'bb') {   // t818u: Burrow Buster upright: full-screen portrait frame, a tall portrait dig field filling the width, HUD across the top
+        const b = r.bb || {}, fieldW = (b.FW || 0) * (b.S || 0), fieldH = ((b.FH || 0)) * (b.S || 0);
+        chk(r.frame[0] === 0 && r.frame[1] === 0 && r.frame[2] === r.W && b.ih > b.iw, tag + ': game is a full-screen portrait frame', { frame: r.frame, bb: b });
+        chk(!b.HUDSIDE && b.rows > b.cols && fieldW >= r.W * 0.95 && fieldH >= b.ih * 0.8 && (b.FY + b.rows * 32) * b.S <= b.ih + 1, tag + ': the dig field lays out in portrait (tall grid, fills the width and most of the height, bottom row on screen)', { b, fieldW, fieldH });
+        chk(r.hud > 30 && r.X.t >= r.hud && r.X.t <= r.hud + 12 && r.ui.t >= r.hud && r.ui.t <= r.hud + 12 && r.tix.b <= r.hud - 2, tag + ': tickets above the HUD, X and option buttons directly under the game stats', { hud: r.hud, X: r.X.t, ui: r.ui.t, tixB: r.tix.b });
+        stats = [{ l: 0, t: r.hud - 40 * (b.S || 1), r: r.W, b: r.hud }];
+      }
       if (k === 'strike') {
         chk(r.hud > 30 && r.X.t >= r.hud && r.X.t <= r.hud + 12 && r.ui.t >= r.hud && r.ui.t <= r.hud + 12, tag + ': X and option buttons sit directly under the P1 / P2 stats', { hud: r.hud, X: r.X.t, ui: r.ui.t });
         stats = [{ l: 0, t: 0, r: 92 * q, b: r.hud }, { l: r.W - 92 * q, t: 0, r: r.W, b: r.hud }];   // P1 stats left, P2 stats right
@@ -56,7 +64,7 @@ const STATS = { ghost: [[0, 101, 390, 130]], monkey: [[0, 55, 110, 122], [300, 6
   if (process.env.NO_IPAD !== '1') {
     const o = await open({ phone: true, w: 820, h: 1180, ua: IPAD_UA, init: `(${seed})()` }); o.page.setDefaultTimeout(60000);
     await o.page.evaluate(() => { const s = document.getElementById('start'); if (s) s.remove(); if (window.__start) window.__start.dismissed = true; });
-    for (const k of (process.env.IPAD_KEYS || 'strike,monkey').split(',')) {
+    for (const k of (process.env.IPAD_KEYS || 'strike,monkey,bb').split(',')) {
       const { r } = await run(o, k, true), tag = 'iPad ' + k + ' 820x1180';
       chk(!r.upPhone && r.X.l <= 6 && r.X.t <= 6 && r.tix.l < 120, tag + ': iPad layout unchanged (X tight top-left, tickets beside it)', { X: r.X, tix: r.tix, up: r.upPhone });
     }
