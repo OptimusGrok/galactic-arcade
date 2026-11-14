@@ -161,7 +161,7 @@ const NAMES = LIVE ? ['HostP1', 'JoinP2'] : ['Dave', 'Zed'];
   for (let i = 0; i < 6; i++) { await S(a, 'C.steps(4); return 1;'); await S(b, 'C.sendInput(); C.steps(2); return 1;'); await a.waitForTimeout(60); }
   const back = await S(a, 'return C.hud();'), backG = await S(b, 'return C.hud();');
   chk(joined.ok && joined.t === 7, 'with 12 tickets, REJOIN deducts 5 and leaves 7', joined);
-  chk(back.p2.alive && !back.p2.out && back.wave === wave0, 'P2 rejoins the same ongoing game at the current wave', { back, wave0 });
+  chk(back.p2.alive && !back.p2.out && back.wave >= wave0 && back.p1.kills >= outH.p1.kills, 'P2 rejoins the same ongoing game at the current wave', { back, wave0 });
   chk(backG.p2.alive && !backG.rejoin.can, 'after a successful rejoin the button hides and P2 is alive on both phones', backG);
 
   // leaving then rejoining the same game for 5 tickets
@@ -177,7 +177,7 @@ const NAMES = LIVE ? ['HostP1', 'JoinP2'] : ['Dave', 'Zed'];
   for (let i = 0; i < 6; i++) { await S(a, 'C.steps(4); return 1;'); await S(b, 'C.sendInput(); C.steps(2); return 1;'); await a.waitForTimeout(60); }
   const again = await S(a, 'return C.hud();');
   chk(leftJoin.ok && leftJoin.t === 6, 'a player who left can rejoin the same game for 5 tickets', leftJoin);
-  chk(again.p2on && again.p2.alive && again.wave === wave0, 'the leaver comes back into the current wave, not a new run', { again, wave0 });
+  chk(again.p2on && again.p2.alive && again.wave >= left.wave && again.p1.kills >= left.p1.kills && again.p2.kills === left.p2.kills, 'the leaver comes back into the current wave, not a new run', { again, left });
 
   for (const d of devs) await d.close();
   process.exit(ok ? 0 : 1);
