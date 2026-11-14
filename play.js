@@ -34,30 +34,30 @@ export function setupPlay(A) {
       demo(w) { w.__demo.start(); }, stopDemo(w) { w.__demo.stop(); if (w.__board) w.__board.stop(); }, board(w) { if (w.__board) w.__board.start(); },   // credit loaded: live WORLD TOP 10;: one credit = one game
       scene(w) { const sc = w.STRIKE.G.scene; return sc === 'play' || sc === 'pause' ? 'play' : sc === 'gameover' ? 'over' : sc === 'entry' ? 'entry' : sc === 'scores' ? 'scores' : sc === 'title' ? 'title' : sc; },
       active(w) { return w.STRIKE.G.scene === 'play'; },
-      hold(w) { if (w.STRIKE.G.scene !== 'play') return false; w.pauseGame(); return true; }, unhold(w) { if (w.STRIKE.G.scene === 'pause') w.resumeGame(); }, overHold: 0, scoresHold: 6000 },
+      hold(w) { if (w.STRIKE.G.scene !== 'play') return false; w.pauseGame(); return true; }, unhold(w) { if (w.STRIKE.G.scene === 'pause') w.resumeGame(); }, cont: 1, overHold: 0, scoresHold: 6000 },
     ghost: { key: 'ghost', upright: 1, cab: A.ghostCab, src: 'ghost-play/index.html', credits: 0, games: 0, aspect: 152 / 276, cost: 5,
       demo(w) { w.__demo.start(); }, stopDemo(w) { w.__demo.stop(); },
       start(w) { const g = w.__ghost; g.G.muted = false; try { g.Snd.setMuted(false); g.Snd.unlock && g.Snd.unlock(); } catch (e) {} g.startGame(); },
       scene(w) { const s = w.__ghost.G.state; return s === 'play' || s === 'dying' || s === 'pause' ? 'play' : s === 'over' ? 'over' : s; },
       active(w) { return w.__ghost.G.state === 'play'; },
-      hold(w) { const s = w.__ghost.G.state; if (s !== 'play' && s !== 'dying') return false; w.__ghost.togglePause(); return true; }, unhold(w) { if (w.__ghost.G.state === 'pause') w.__ghost.togglePause(); }, overHold: 4500, scoresHold: 0 },
+      hold(w) { const s = w.__ghost.G.state; if (s !== 'play' && s !== 'dying') return false; w.__ghost.togglePause(); return true; }, unhold(w) { if (w.__ghost.G.state === 'pause') w.__ghost.togglePause(); }, cont: 1, overHold: 4500, scoresHold: 0 },
     monkey: { key: 'monkey', upright: 1, cab: A.monkeyCab, src: 'monkey-play/index.html', credits: 0, games: 0, aspect: 9 / 16, cost: 5,   // t787u: play upright (portrait) like Ghost / Strike / Cybercity
       demo(w) { w.__demo.start(); }, stopDemo(w) { w.__demo.stop(); },
       start(w) { w.__HOLD = 0; w.__M.startGame(); },
       scene(w) { return w.__M.state; }, active(w) { return w.__M.state === 'play'; },
-      hold(w) { if (w.__M.state !== 'play') return false; w.__HOLD = 1; return true; }, unhold(w) { w.__HOLD = 0; }, overHold: 3500, scoresHold: 0 },
+      hold(w) { if (w.__M.state !== 'play') return false; w.__HOLD = 1; return true; }, unhold(w) { w.__HOLD = 0; }, cont: 1, overHold: 3500, scoresHold: 0 },
     berserker: { key: 'berserker', upright: 1, cab: A.berserkerCab, src: 'berserker-play/index.html', credits: 0, games: 0, aspect: 9 / 16, cost: 5,   // 5 tickets = 1 credit = the whole run incl. 3 continues
       demo(w) { w.__demo.start(); }, stopDemo(w) { w.__demo.stop(); },
       start(w) { w.__bz.start(); },
       scene(w) { const s = w.__B.G().state; return s === 'dead' || s === 'win' ? 'over' : s === 'title' ? 'title' : 'play'; },
       active(w) { return w.__B.G().state === 'play'; },
-      hold(w) { if (w.__B.G().state !== 'play') return false; w.togglePause(); return true; }, unhold(w) { if (w.__B.G().state === 'pause') w.togglePause(); }, overHold: 5000, scoresHold: 0 },
+      hold(w) { if (w.__B.G().state !== 'play') return false; w.togglePause(); return true; }, unhold(w) { if (w.__B.G().state === 'pause') w.togglePause(); }, cont: 1, overHold: 5000, scoresHold: 0 },
     orc: { key: 'orc', cab: A.orcCab, src: 'orc-play/index.html', credits: 0, games: 0, aspect: (A.orcCab && A.orcCab.userData.aspect) || 4 / 3, cost: 5,   // 5 tickets = 1 credit = the whole run
       demo(w) { w.__demo.start(); }, stopDemo(w) { w.__demo.stop(); },
       start(w) { w.__orc.start(); },
       scene(w) { if (w.__orcAdv) return 'play'; const s = w.__TD.G.state; return s === 'lost' || s === 'won' ? 'over' : s === 'title' ? 'title' : 'play'; },
       active(w) { return !!w.__TD && w.__TD.G.state === 'play'; },
-      hold(w) { if (!w.__TD) return false; const G = w.__TD.G; if (G.state !== 'play' || G.paused) return false; G.paused = true; return true; }, unhold(w) { if (w.__TD) w.__TD.G.paused = false; }, overHold: 5000, scoresHold: 0 },
+      hold(w) { if (!w.__TD) return false; const G = w.__TD.G; if (G.state !== 'play' || G.paused) return false; G.paused = true; return true; }, unhold(w) { if (w.__TD) w.__TD.G.paused = false; }, cont: 1, overHold: 5000, scoresHold: 0 },
     cyber: { key: 'cyber', upright: 1, cab: A.cyberCab, src: 'cybercity-play/index.html', credits: 0, games: 0, aspect: (A.cyberCab && A.cyberCab.userData.aspect) || 4 / 3, cost: 5,   // 5 tickets = 1 credit = one 15-minute run
       start(w) { w.__cyber.start(); },
       demo(w) { w.__demo.start(); }, stopDemo(w) { w.__demo.stop(); },
@@ -67,22 +67,22 @@ export function setupPlay(A) {
       demo(w) { w.__demo.start(); }, stopDemo(w) { w.__demo.stop(); },
       start(w) { w.__blaster.start(); },
       scene(w) { return w.__blaster.scene(); }, active(w) { return w.__blaster.S.mode === 'play'; },
-      hold(w) { return w.__blaster.hold(); }, unhold(w) { w.__blaster.unhold(); }, overHold: 4500, scoresHold: 0 },
+      hold(w) { return w.__blaster.hold(); }, unhold(w) { w.__blaster.unhold(); }, cont: 1, overHold: 4500, scoresHold: 0 },
     pip: { key: 'pip', cab: A.pipCab, src: 'pip-play/index.html', credits: 0, games: 0, aspect: (A.pipCab && A.pipCab.userData.aspect) || 4 / 3, cost: 5,   // SUPER PIP QUEST (#11, blank A): 5 tickets = 1 credit = one run of 5 lives
       demo(w) { w.__demo.start(); }, stopDemo(w) { w.__demo.stop(); },
       start(w) { w.__pip.start(); },
       scene(w) { return w.__pip.scene(); }, active(w) { return w.__pip.active(); },
-      hold(w) { return w.__pip.hold(); }, unhold(w) { w.__pip.unhold(); }, overHold: 4500, scoresHold: 0 },
+      hold(w) { return w.__pip.hold(); }, unhold(w) { w.__pip.unhold(); }, cont: 1, overHold: 4500, scoresHold: 0 },
     bb: { key: 'bb', upright: 1, cab: A.bbCab, src: 'bb-play/index.html', credits: 0, games: 0, aspect: (A.bbCab && A.bbCab.userData.aspect) || 4 / 5, cost: 5,   // BURROW BUSTER (#13, slot 2:4): 5 tickets = 1 credit = one game of 3 lives
       demo(w) { w.__demo.start(); }, stopDemo(w) { w.__demo.stop(); },
       start(w) { w.__bb.start(); },
       scene(w) { return w.__bb.scene(); }, active(w) { return w.__bb.active(); },
-      hold(w) { return w.__bb.hold(); }, unhold(w) { w.__bb.unhold(); }, overHold: 4500, scoresHold: 0 },
+      hold(w) { return w.__bb.hold(); }, unhold(w) { w.__bb.unhold(); }, cont: 1, overHold: 4500, scoresHold: 0 },
     rockfall: { key: 'rockfall', cab: A.rockfallCab, src: 'rockfall-play/index.html', credits: 0, games: 0, aspect: (A.rockfallCab && A.rockfallCab.userData.aspect) || 4 / 3, cost: 5,   // ROCKFALL RUSH (#14, slot 2:3): 5 tickets = 1 credit = one run of 3 lives
       demo(w) { w.__demo.start(); }, stopDemo(w) { w.__demo.stop(); },
       start(w) { w.__rockfall.start(); },
       scene(w) { return w.__rockfall.scene(); }, active(w) { return w.__rockfall.active(); },
-      hold(w) { return w.__rockfall.hold(); }, unhold(w) { w.__rockfall.unhold(); }, overHold: 4500, scoresHold: 0 },
+      hold(w) { return w.__rockfall.hold(); }, unhold(w) { w.__rockfall.unhold(); }, cont: 1, overHold: 4500, scoresHold: 0 },
     skytower: { key: 'skytower', cab: A.skyTowerCab, src: 'sky-tower-play/index.html', credits: 0, games: 0, aspect: (A.skyTowerCab && A.skyTowerCab.userData.aspect) || 16 / 9, cost: 5,   // SKY TOWER (#15, slot 2:2): 5 tickets = 1 credit = one climb of 50 platforms
       demo(w) { w.__demo.start(); }, stopDemo(w) { w.__demo.stop(); },
       start(w) { w.__skytower.start(); },
@@ -93,7 +93,7 @@ export function setupPlay(A) {
       start(w) { w.__nova.start(); },
       scene(w) { const m = w.NV.G.mode; return m === 'over' ? 'over' : m === 'title' ? 'title' : 'play'; },
       active(w) { return w.NV.G.mode === 'play'; },
-      hold(w) { const G = w.NV.G; if (G.mode !== 'play') return false; G.mode = 'pause'; return true; }, unhold(w) { const G = w.NV.G; if (G.mode === 'pause') G.mode = 'play'; }, overHold: 4500, scoresHold: 0 },
+      hold(w) { const G = w.NV.G; if (G.mode !== 'play') return false; G.mode = 'pause'; return true; }, unhold(w) { const G = w.NV.G; if (G.mode === 'pause') G.mode = 'play'; }, cont: 1, overHold: 4500, scoresHold: 0 },
     claw: { key: 'claw', upright: 1, cab: A.clawCab, src: 'claw-play/index.html', credits: 0, games: 0, aspect: (A.clawCab && A.clawCab.userData.aspect) || 1.4, cost: 1,   // t799u: play upright (portrait) like Monkey Crossing / Ghost / Strike / Cybercity. 1 ticket = 1 credit = one drop
       demo(w) { w.__demo.start(); }, stopDemo(w) { w.__demo.stop(); },
       start(w) { w.__clawA.start(); },
@@ -103,7 +103,7 @@ export function setupPlay(A) {
       demo(w) { w.__demo.start(); }, stopDemo(w) { w.__demo.stop(); },
       start(w) { w.__mrA.start(); },
       scene(w) { return w.__mrA.scene(); }, active(w) { return w.__mrA.scene() === 'play'; },
-      hold(w) { return w.__mrA.hold(); }, unhold(w) { w.__mrA.unhold(); }, overHold: 5000, scoresHold: 0,
+      hold(w) { return w.__mrA.hold(); }, unhold(w) { w.__mrA.unhold(); }, cont: 1, overHold: 5000, scoresHold: 0,
       onExit() { seatMonkey(A.roadsterCab, false); },
       // step-in (Dave: 'animating the player stepping into the seat'): walk to the side panel by the seat, swing a leg over, drop in, sit down
       prep: 1.8, anim(phase, k) { if (phase === 'on') stepIn(A.roadsterCab, k); },
@@ -114,7 +114,7 @@ export function setupPlay(A) {
       demo(w) { w.__demo.start(); }, stopDemo(w) { w.__demo.stop(); },
       start(w) { w.__dsA.start(); },
       scene(w) { return w.__dsA.scene(); }, active(w) { return w.__dsA.scene() === 'play'; },
-      hold(w) { return w.__dsA.hold(); }, unhold(w) { w.__dsA.unhold(); }, overHold: 5000, scoresHold: 0,
+      hold(w) { return w.__dsA.hold(); }, unhold(w) { w.__dsA.unhold(); }, cont: 1, overHold: 5000, scoresHold: 0,
       prep: 2.6, post: 1.9, anim(phase, k) { A.dsCab.userData.anim(phase, k, monkey, st); } },
   };
   if (!A.dsCab) delete MACHINES.ds;
@@ -205,10 +205,39 @@ export function setupPlay(A) {
     showTix(); rejoinRefresh(); return true;
   }
   P.tryRejoin = tryRejoin; P.rejoinCost = REJOIN_COST; P.toast = toast;
+
+  const CONTINUE_COST = 5, bContinue = document.getElementById('bContinue');
+  function contHook() { try { const w = P.frame && P.frame.contentWindow; return w && w.__gaContinue; } catch (e) { return null; } }
+  function continueRefresh() {
+    if (!bContinue) return;
+    const C = contHook(), m = P.cur, sc = P.scene;
+    const show = P.mode === 'game' && P.sub === 'play' && m && m.cont && C && C.can && C.can();
+    bContinue.classList.toggle('on', !!show);
+    if (show) bContinue.classList.toggle('need', T.total < CONTINUE_COST);
+  }
+  function hideContinue() { if (bContinue) bContinue.classList.remove('on', 'need'); }
+  function tryContinue() {   // v219: resume the same run from a lose / game-over for 5 tickets (arcade copies only)
+    const C = contHook(), m = P.cur;
+    if (P.mode !== 'game' || P.sub !== 'play' || !m || !m.cont || !C || !C.can || !C.can()) { P.blocked++; return false; }
+    if (T.total < CONTINUE_COST) { P.need++; if (bContinue) { bContinue.classList.add('need'); shake(bContinue); } buzz(); toast('NEED 5 TICKETS · YOU HAVE ' + T.total); return false; }
+    if (!P.spend(CONTINUE_COST)) { toast('NEED 5 TICKETS · YOU HAVE ' + T.total); return false; }
+    let ok = false; try { ok = !!C.go(); } catch (e) { ok = false; }
+    if (!ok) { P.addTickets(CONTINUE_COST); toast('CONTINUE FAILED'); continueRefresh(); return false; }
+    P.continues = (P.continues || 0) + 1; P.lastContinue = m.key;
+    P.over = false; P.goShown = false; clearTimeout(P.holdT); P.holdT = 0; over.style.display = 'none';
+    hideContinue();
+    try { P.frame.focus(); P.frame.contentWindow.focus(); } catch (e) {}
+    showTix(); return true;
+  }
+  P.tryContinue = tryContinue; P.continueCost = CONTINUE_COST;
+  if (bContinue) {
+    ['pointerdown', 'touchstart'].forEach(t => bContinue.addEventListener(t, ev => { ev.stopPropagation(); ev.preventDefault(); }, true));
+    bContinue.addEventListener('click', ev => { ev.stopPropagation(); ev.preventDefault(); tryContinue(); });
+  }
   function idle(m, w) { if (m.credits > 0 && m.board) m.board(w); else m.demo(w); }   // credit waiting -> machine's board (STRIKE: live high scores), else attract demo
   function toDemo(why) {   // after game over (and the score screens) -> back to the demo, not the room
     const m = P.cur, f = P.frame; if (!m || !f) return; clearTimeout(P.holdT); P.holdT = 0; over.style.display = 'none';
-    P.sub = 'demo'; P.over = false; P.goShown = false; P.demoReturns++; P.lastDemo = why;
+    P.sub = 'demo'; P.over = false; P.goShown = false; P.demoReturns++; P.lastDemo = why; hideContinue();
     try { idle(m, f.contentWindow); } catch (e) { console.warn('demo', e); } demoRefresh(); demoUI.classList.add('on'); }
   function screenInfo(m) { const s = m.cab.userData.screen; s.geometry.computeBoundingBox(); const c = s.geometry.boundingBox.getCenter(new THREE.Vector3()); s.localToWorld(c);
     const sz = s.geometry.boundingBox.getSize(new THREE.Vector3()), h = Math.hypot(sz.x, sz.y) * m.cab.scale.y; return { c, h }; }
@@ -249,6 +278,7 @@ export function setupPlay(A) {
   }
   function poll() { // game over -> its own score / high-score screen -> back out to the arcade
     try { if (P.mode === 'game' && P.cur && P.cur.key === 'berserker') rejoinRefresh(); } catch (e) {}
+    try { continueRefresh(); } catch (e) {}
     if (P.mode !== 'game' || P.over || P.sub !== 'play') return; const m = P.cur; let sc; try { sc = m.scene(P.frame.contentWindow); } catch (e) { return; }
     P.scene = sc;
     if (sc === 'over' && !P.goShown) { P.goShown = true; over.style.display = 'flex'; setTimeout(() => over.style.display = 'none', 1500);
@@ -257,7 +287,7 @@ export function setupPlay(A) {
     if (sc === 'title') toDemo('title');
   }
   function exit(why) {
-    if (P.mode !== 'game') return; clearInterval(P.poll); clearTimeout(P.holdT); P.holdT = 0; over.style.display = 'none';
+    if (P.mode !== 'game') return; clearInterval(P.poll); clearTimeout(P.holdT); P.holdT = 0; over.style.display = 'none'; hideContinue();
     P.lastExit = why; P.sub = null; demoUI.classList.remove('on'); P.mode = 'zoomOut'; P.t = 0; bExit.style.display = 'none'; document.body.dataset.cab = '';
     const f = P.frame; f.classList.remove('on');
     try { if (f.contentWindow && f.contentWindow.__skySnd) f.contentWindow.__skySnd.stop(); } catch (e) {}

@@ -3363,6 +3363,18 @@ addEventListener('load',boot);
     unhold() { if (G.state === 'paused') resumeGame(); },
     tickets() { return DS_A.run; }, cfg: DS_A,
   };
+  window.__gaContinue = {
+    can() { return !window.__DEMO && G.state === 'dead'; },
+  force() { if (G.state === 'ending') return false; if (G.P) G.P.dead = true; showScreen('death'); return G.state === 'dead'; },
+  mark() { if (G.run) G.run.kills = 7; if (G.P) { G.P.x = G.P.x || 0; } return this.snap(); },
+    go() {
+      if (!this.can()) return false;
+      const P = G.P; if (P) { P.dead = false; P.deadT = 0; if (!(P.hp > 0)) P.hp = 100; }
+      showScreen('play');
+      return G.state === 'play' && G.P && !G.P.dead;
+    },
+    snap() { const P = G.P || {}; return { hp: P.hp, dead: !!P.dead, state: G.state, x: P.x, y: P.y, kills: G.run && G.run.kills }; }
+  };
   window.__demo = { start() { window.__DEMO = true; document.documentElement.classList.add('dsDemo'); quiet(true); }, stop() { document.documentElement.classList.remove('dsDemo'); } };
   window.__dsTest = { addTicket, scatter, pay, near: () => G.items.filter(it => it.arcadeTix && !it.taken) };
 })();

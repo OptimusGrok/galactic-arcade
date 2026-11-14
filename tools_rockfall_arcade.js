@@ -44,4 +44,15 @@ window.__rockfall = { TK: TK, D: D, give: give,
   scene: function () { return OVER ? 'over' : (RUN || D.on) ? 'play' : 'title'; }, active: function () { return RUN && S.mode === 'play'; },
   get run() { return RUN; }, get over() { return OVER; }, get silent() { return quiet(); },
   hold: function () { if (!RUN || OVER) return false; HOLD = true; return true; }, unhold: function () { HOLD = false; }, get held() { return HOLD; } };
+window.__gaContinue = {
+  can: function () { return !D.on && !window.__DEMO && S.mode === 'over'; },
+  force: function () { if (S.mode === 'win') return false; S.lives = 0; S.alive = false; S.mode = 'over'; OVER = true; RUN = false; try { showOv('GAME OVER','Score '+S.score,''); } catch (e) {} return S.mode === 'over'; },
+  mark: function () { S.score = 12345; return this.snap(); },
+  go: function () {
+    if (!this.can()) return false;
+    OVER = false; RUN = true; S.lives = 1; resetCave(); S.mode = 'play'; try { hideOv(); } catch (e) {}
+    return S.mode === 'play' && S.alive;
+  },
+  snap: function () { return { score: S.score, lives: S.lives, mode: S.mode, won: !!S.won }; }
+};
 })();

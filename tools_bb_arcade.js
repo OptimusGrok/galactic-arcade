@@ -41,4 +41,17 @@ window.__bb = { TK: TK, D: D, BB: BB, G: G, give: give,
   scene: function () { return OVER ? 'over' : RUN || D.on ? 'play' : 'title'; }, active: function () { return RUN && (G.mode === 'play' || G.mode === 'ready'); },
   get run() { return RUN; }, get over() { return OVER; }, get silent() { return quiet(); },
   hold: function () { if (!RUN || OVER) return false; HOLD = true; return true; }, unhold: function () { HOLD = false; }, get held() { return HOLD; } };
+window.__gaContinue = {
+  can: function () { return !D.on && !window.__DEMO && (OVER || G.mode === 'over'); },
+  force: function () { if (G.mode === 'over') { OVER = true; RUN = false; return true; } G.lives = 0; G.mode = 'over'; G.modeT = 0; OVER = true; RUN = false; return true; },
+  mark: function () { G.score = 12345; G.round = Math.max(G.round, 2); return this.snap(); },
+  go: function () {
+    if (!this.can()) return false;
+    OVER = false; RUN = true; G.lives = 1;
+    var p = G.player; if (p) { p.x = p.sx; p.y = p.sy; p.dir = 'r'; p.moving = false; }
+    if (G.enemies) G.enemies.forEach(function (e) { if (e.st !== 'pop' && e.st !== 'crushed') { e.x = e.sx; e.y = e.sy; e.st = 'walk'; e.inDirt = false; e.inf = 0; e.flame = 0; e.flee = false; } });
+    G.mode = 'ready'; G.modeT = 0; return G.mode === 'ready' || G.mode === 'play';
+  },
+  snap: function () { return { score: G.score, round: G.round, lives: G.lives, mode: G.mode }; }
+};
 })();

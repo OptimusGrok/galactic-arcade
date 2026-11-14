@@ -59,6 +59,19 @@
     var b = G.bonus, got = TK.got; setTimeout(function () { go({ run: 1, got: got }, nx, b); }, 2000); };
   var _ds = D.start; D.start = function () { if (ARC_STAGE !== 1) { D.on = true; window.__DEMO = true; go({ demo: 1 }, 1); return; } _ds(); };   // the attract demo always plays stage 1
   window.__orc = { stage: ARC_STAGE, names: ARC_NAMES, start: function () { if (ARC_STAGE !== 1) { D.on = false; window.__DEMO = false; go({ run: 1, got: 0 }, 1); return; } realStart(0, 0); } };
+  window.__gaContinue = {
+    can: function () { return !window.__DEMO && window.__TD && window.__TD.G.state === 'lost'; },
+  force: function () { var G = window.__TD.G; if (G.state === 'won') return false; if (G.state === 'lost') return true; try { gameOver(false); } catch (e) { G.state = 'lost'; try { $('over').classList.remove('hidden'); } catch (x) {} } return G.state === 'lost'; },
+  mark: function () { var G = window.__TD.G; G.gold = 250; G.wave = Math.max(G.wave, 2); G.stats.kills = 18; return this.snap(); },
+    go: function () {
+      if (!this.can()) return false;
+      var G = window.__TD.G; G.lives = 10;
+      try { $('over').classList.add('hidden'); } catch (e) {}
+      G.state = 'play'; try { lastUI = ''; ui(); AU.setMode('build'); AU.music(true); } catch (e) {}
+      return G.state === 'play' && G.lives > 0;
+    },
+    snap: function () { var G = window.__TD.G; return { gold: G.gold, lives: G.lives, wave: G.wave, state: G.state, kills: G.stats && G.stats.kills }; }
+  };
   var pend = null; try { pend = JSON.parse(sessionStorage.getItem(RUN) || 'null'); sessionStorage.removeItem(RUN); } catch (e) {}
   if (pend) setTimeout(function () { if (pend.demo) D.start(); else if (pend.run) realStart(pend.got, urlBonus()); }, 0);
 })();

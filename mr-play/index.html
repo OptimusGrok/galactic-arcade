@@ -542,7 +542,8 @@ applySkin();show();requestAnimationFrame(loop);
       try { blip(1568, .12, 'triangle', .15); setTimeout(() => blip(2093, .14, 'triangle', .12), 70); } catch (e) {} } } };
   const _render = render; render = function (dt) { const t = performance.now() / 1000; for (const p of TK.picks) if (!p.taken) { p.s.position.y = p.y + Math.sin(t * 2 + p.z) * 0.25; p.s.material.rotation = Math.sin(t * 1.5 + p.z) * 0.15; } _render(dt); };
   // ---- end screen: no RETRY / MENU (a new race needs a credit) ----
-  const _finish = finish; finish = function (ok, why) { _finish(ok, why); TK.log.push('end:' + (ok ? 'ok' : 'fail')); };
+  let lastOk = true;
+  const _finish = finish; finish = function (ok, why) { lastOk = !!ok; _finish(ok, why); TK.log.push('end:' + (ok ? 'ok' : 'fail')); };
   // ---- DEMO autopilot: gas, steer to the road centre ahead, jump each gap and feather the jet in the air ----
   function pilot() {
     if (st === 'end' || st === 'menu') { if ((D.endT = (D.endT || 0) + 1) > 120) { D.endT = 0; D.restarts++; route = (route + 1) % 4; start(); } return; }
@@ -560,6 +561,13 @@ applySkin();show();requestAnimationFrame(loop);
   window.__mrA = { TK, D, pilot, place, scene() { return st === 'end' ? 'over' : st === 'menu' || st === 'gar' ? 'title' : 'play'; },
     start(r) { D.stop(); quiet(false); try { audio(); } catch (e) {} mode = 'tt'; route = r === undefined ? runs++ % 4 : r; start(); },
     hold() { if (st !== 'play') return false; st = 'pause'; show(); return true; }, unhold() { if (st === 'pause') { st = 'play'; show(); } } };
+  window.__gaContinue = {
+    can() { return !D.on && !window.__DEMO && st === 'end' && lastOk === false; },
+  force() { if (st === 'end' && lastOk === false) return true; try { finish(false, 'test'); } catch (e) { lastOk = false; st = 'end'; show(); } return st === 'end' && lastOk === false; },
+  mark() { score = 88; clock = 12.5; cpIdx = Math.max(cpIdx, 1); return this.snap(); },
+    go() { if (!this.can()) return false; try { doRespawn(); } catch (e) {} st = 'play'; show(); return st === 'play'; },
+    snap() { return { clock: clock, cpIdx: cpIdx, score: score, route: route, st: st, lastOk: lastOk }; }
+  };
 })();
 
 window.__TKON=1;

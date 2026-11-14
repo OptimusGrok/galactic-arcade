@@ -102,3 +102,27 @@ __D.bench = function (secs, ai) { __U.caution = 1; __U.near = 0; __U.prev = -1; 
     if (state === 'play' && !player.dead) { if (score > last) dist += score - last; last = score; } else last = 0; }
   window.setTimeout = ST; var live = score; __D.ai = 'ultra';
   return { simSecs: secs, deaths: __D.deaths, avgScore: +((__D.sumScore + live) / (__D.deaths + 1)).toFixed(1), best: M.max(__D.best, live), rowsGained: dist, causes: __D.causes, moves: __D.moves, near: __U.near, caution: +__U.caution.toFixed(2) }; };
+
+window.__gaContinue = {
+  can() { return !window.__DEMO && state === 'over'; },
+  force() { if (state === 'over') return true; try { document.getElementById('over').classList.add('on'); } catch (e) {} state = 'over'; return state === 'over'; },
+  mark() { score = 17; try { updHud(); } catch (e) {} return this.snap(); },
+  go() {
+    if (!this.can()) return false;
+    var z, x, r, found = false;
+    for (z = player.z | 0; z >= minRow && !found; z--) {
+      r = rows[z]; if (!r || r.type !== 'grass') continue;
+      x = Math.round(player.fx);
+      if (typeof __safe === 'function' && __safe(z, x)) found = true;
+      else if (!isTree(z, x)) found = true;
+      if (found) { player.z = player.fz = player.tz = z; player.x = player.fx = player.tx = x; }
+    }
+    if (!found) { player.z = player.fz = player.tz = 0; player.x = player.fx = player.tx = 0; }
+    player.dead = 0; player.deadT = 0; player.hop = 1; player.onLog = null; player.bump = 0;
+    try { document.getElementById('over').classList.remove('on'); } catch (e) {}
+    try { musDuck(0); } catch (e) {}
+    state = 'play';
+    return state === 'play' && !player.dead;
+  },
+  snap() { return { score: score, z: player.z, tickets: runT2, state: state, dead: !!player.dead }; }
+};

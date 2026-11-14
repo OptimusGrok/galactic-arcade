@@ -1300,6 +1300,13 @@ requestAnimationFrame(frame);
   D.start = function () { D.on = true; window.__DEMO = true; D.runs++; NV.god = true; quiet(true); TK.fly = []; newGame(); };
   D.stop = function () { D.on = false; window.__DEMO = false; NV.god = false; Object.assign(Input, { up: 0, down: 0, left: 0, right: 0, fire: false, startPressed: false, forcePressed: false, pausePressed: false }); };
   window.__nova = { TK, D, pilot, start() { D.stop(); quiet(false); try { Audio.init(); } catch (e) {} TK.run = 0; TK.fly = []; T.dx = T.dy = 0; T.stickId = null; newGame(); } };
+  window.__gaContinue = {
+    can() { return !D.on && !window.__DEMO && G.mode === 'over'; },
+  force() { if (G.mode === 'over') return true; gameOver(); return G.mode === 'over'; },
+  mark() { G.score = 12345; return this.snap(); },
+    go() { if (!this.can()) return false; G.lives = 1; spawnPlayer(); G.mode = 'play'; G.modeT = 0; return G.mode === 'play' && P.alive; },
+    snap() { return { score: G.score, stage: G.stage, loop: G.loop, lives: G.lives, mode: G.mode }; }
+  };
 })();
 
 </script>

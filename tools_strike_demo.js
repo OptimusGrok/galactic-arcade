@@ -26,3 +26,27 @@
   setInterval(function () { if (!B.on) return; if (G.scene !== 'scores') { G.scene = 'scores'; } G.sceneT = 0; Input.taps.length = 0; }, 100);   // hold the board: no auto return to title
   setInterval(function () { if (B.on) { B.fetches++; netFetchTop(); } }, 20000);
 })();
+
+(function () {
+  var fromLose = false;
+  var _gameOver = gameOver;
+  gameOver = function () { fromLose = true; return _gameOver.apply(this, arguments); };
+  var _newGame = newGame;
+  newGame = function () { fromLose = false; return _newGame.apply(this, arguments); };
+  window.__gaContinue = {
+    can() {
+      if (window.__DEMO || (window.__board && window.__board.on)) return false;
+      var sc = G.scene;
+      if (sc === 'gameover' || sc === 'continue') return true;
+      return (sc === 'entry' || sc === 'scores') && fromLose;
+    },
+    force() { if (this.can()) return true; if (window.__DEMO || (window.__board && window.__board.on)) return false; if (G.scene !== 'play' && G.scene !== 'pause') { try { newGame(0); G.credits = 0; } catch (e) {} G.scene = 'play'; } gameOver(); return this.can(); },
+  mark() { G.score = 12345; return this.snap(); },
+    go() {
+      if (!this.can()) return false;
+      G.lives = 2; G.bombs = 3; G.mult = 1; playerReset(false); G.scene = 'play'; G.sceneT = 0; fromLose = false;
+      return G.scene === 'play';
+    },
+    snap() { return { score: G.score, lives: G.lives, scene: G.scene, stage: G.stage, playT: G.playT }; }
+  };
+})();
