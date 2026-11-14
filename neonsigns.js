@@ -40,8 +40,119 @@ function drawIcon(g, key, S) {
     fillp(c => { c.arc(cx, cy - 8, 52, 0.15 * Math.PI, 0.85 * Math.PI, true); c.lineTo(cx - 36, cy + 70); c.lineTo(cx + 36, cy + 70); c.closePath(); });
     path(c => { c.arc(cx, cy - 4, 22, 0, 7); c.moveTo(cx - 10, cy + 40); c.lineTo(cx + 10, cy + 40); });
   } else if (key === 'berserker') {
-    path(c => { c.moveTo(cx - 16, cy + 78); c.lineTo(cx - 16, cy - 8); c.lineTo(cx - 8, cy - 8); c.lineTo(cx - 8, cy + 78); c.closePath(); c.moveTo(cx - 70, cy - 8); c.lineTo(cx + 8, cy - 50); c.lineTo(cx + 22, cy - 20); c.lineTo(cx - 36, cy + 18); c.closePath(); });
-  } else if (key === 'monkey') {
+    // t841u / v224: detailed neon Viking holding an axe — horned helmet, beard, shoulders/torso, bearded blade + haft
+    const steel = '#dce6f0', gold = '#ffe14a', fur = '#ff8a2a', wood = '#e0a058', ember = '#ff3a1a', wrap = '#c87840';
+    const stroke = (col, w, fn) => neonStroke(g, ctx => { ctx.beginPath(); fn(ctx); ctx.stroke(); }, col, w, col);
+    const fillc = (col, w, fn) => neonStroke(g, ctx => { ctx.beginPath(); fn(ctx); ctx.fill(); ctx.stroke(); }, col, w, col);
+    const vx = cx - 16; // shift the figure left so the raised axe stays inside the 12 px atlas crop
+    // tunic + broad shoulders
+    fillc(ember, 3, c => {
+      c.moveTo(vx - 66, cy + 22);
+      c.quadraticCurveTo(vx - 80, cy + 10, vx - 58, cy + 6);
+      c.lineTo(vx - 24, cy + 22);
+      c.lineTo(vx + 10, cy + 22);
+      c.lineTo(vx + 28, cy + 8);
+      c.quadraticCurveTo(vx + 54, cy + 12, vx + 62, cy + 28);
+      c.lineTo(vx + 46, cy + 86);
+      c.lineTo(vx - 42, cy + 86);
+      c.closePath();
+    });
+    // right arm reaching for the haft
+    fillc(ember, 3, c => {
+      c.moveTo(vx + 28, cy + 14);
+      c.quadraticCurveTo(vx + 58, cy + 10, vx + 66, cy + 36);
+      c.quadraticCurveTo(vx + 58, cy + 48, vx + 36, cy + 40);
+      c.closePath();
+    });
+    // fur collar
+    fillc(fur, 3, c => {
+      c.moveTo(vx - 48, cy + 16);
+      c.quadraticCurveTo(vx - 20, cy + 34, vx, cy + 28);
+      c.quadraticCurveTo(vx + 18, cy + 34, vx + 36, cy + 16);
+      c.quadraticCurveTo(vx + 20, cy + 8, vx, cy + 14);
+      c.quadraticCurveTo(vx - 20, cy + 8, vx - 48, cy + 16);
+      c.closePath();
+    });
+    // gold belt sitting on the tunic, below the beard
+    stroke(gold, 6, c => { c.moveTo(vx - 32, cy + 70); c.lineTo(vx + 32, cy + 70); });
+    fillc(gold, 2, c => { c.rect(vx - 6, cy + 64, 12, 14); });
+    // forked beard (ends above the belt)
+    fillc(fur, 3, c => {
+      c.moveTo(vx - 28, cy + 6);
+      c.quadraticCurveTo(vx - 38, cy + 30, vx - 26, cy + 50);
+      c.lineTo(vx - 22, cy + 66);
+      c.lineTo(vx - 8, cy + 46);
+      c.lineTo(vx, cy + 54);
+      c.lineTo(vx + 8, cy + 46);
+      c.lineTo(vx + 22, cy + 66);
+      c.lineTo(vx + 26, cy + 50);
+      c.quadraticCurveTo(vx + 38, cy + 30, vx + 28, cy + 6);
+      c.quadraticCurveTo(vx, cy + 20, vx - 28, cy + 6);
+      c.closePath();
+    });
+    // moustache
+    stroke(fur, 5, c => {
+      c.moveTo(vx - 16, cy + 4); c.quadraticCurveTo(vx, cy + 12, vx + 16, cy + 4);
+    });
+    // open face below the helmet rim
+    fillc(C, 3, c => { c.ellipse(vx, cy - 8, 24, 20, 0, 0, 7); });
+    g.fillStyle = '#0a0618';
+    g.beginPath(); g.arc(vx - 11, cy - 12, 6, 0, 7); g.arc(vx + 11, cy - 12, 6, 0, 7); g.fill();
+    // helmet dome sits on the brow, leaving the eyes and beard clear
+    fillc(steel, 3, c => {
+      c.moveTo(vx - 42, cy - 18);
+      c.quadraticCurveTo(vx - 46, cy - 74, vx, cy - 86);
+      c.quadraticCurveTo(vx + 46, cy - 74, vx + 42, cy - 18);
+      c.closePath();
+    });
+    // brow rim, cheek guards and nose guard
+    stroke(gold, 6, c => {
+      c.moveTo(vx - 44, cy - 20); c.quadraticCurveTo(vx, cy - 10, vx + 44, cy - 20);
+    });
+    fillc(steel, 3, c => {
+      c.moveTo(vx - 42, cy - 20); c.lineTo(vx - 46, cy + 10); c.lineTo(vx - 32, cy + 6); c.lineTo(vx - 30, cy - 16); c.closePath();
+    });
+    fillc(steel, 3, c => {
+      c.moveTo(vx + 42, cy - 20); c.lineTo(vx + 46, cy + 10); c.lineTo(vx + 32, cy + 6); c.lineTo(vx + 30, cy - 16); c.closePath();
+    });
+    stroke(gold, 6, c => { c.moveTo(vx, cy - 78); c.lineTo(vx, cy + 2); });
+    // horned helmet: horns curve up and slightly out (tips stay inside the top crop)
+    fillc(gold, 3, c => {
+      c.moveTo(vx - 30, cy - 58);
+      c.quadraticCurveTo(vx - 78, cy - 58, vx - 32, cy - 102);
+      c.quadraticCurveTo(vx - 46, cy - 74, vx - 16, cy - 62);
+      c.closePath();
+    });
+    fillc(gold, 3, c => {
+      c.moveTo(vx + 30, cy - 58);
+      c.quadraticCurveTo(vx + 72, cy - 58, vx + 32, cy - 102);
+      c.quadraticCurveTo(vx + 42, cy - 74, vx + 16, cy - 62);
+      c.closePath();
+    });
+    // wooden haft from the right hand up to the blade
+    stroke(wood, 10, c => { c.moveTo(vx + 52, cy + 42); c.lineTo(vx + 78, cy - 36); });
+    stroke(wrap, 7, c => { c.moveTo(vx + 58, cy + 26); c.lineTo(vx + 66, cy + 8); });
+    fillc(ember, 2, c => { c.arc(vx + 54, cy + 40, 8, 0, 7); }); // hand on the haft
+    // bearded axe head: socket on the haft, cutting edge curving into a downward beard
+    // rightmost point is vx+78+44 = cx+106 = 234, inside the 12 px crop
+    fillc(steel, 3, c => {
+      const hx = vx + 76, hy = cy - 42;
+      c.moveTo(hx - 14, hy - 10);
+      c.lineTo(hx + 4, hy - 18);
+      c.lineTo(hx + 12, hy - 4);
+      c.quadraticCurveTo(hx + 44, hy - 8, hx + 44, hy + 10);
+      c.quadraticCurveTo(hx + 30, hy + 44, hx - 2, hy + 34);
+      c.quadraticCurveTo(hx + 16, hy + 16, hx + 4, hy + 8);
+      c.lineTo(hx - 12, hy + 12);
+      c.closePath();
+    });
+    stroke('#ffffff', 3, c => {
+      const hx = vx + 76, hy = cy - 42;
+      c.moveTo(hx + 12, hy - 4);
+      c.quadraticCurveTo(hx + 44, hy - 8, hx + 44, hy + 10);
+      c.quadraticCurveTo(hx + 30, hy + 44, hx - 2, hy + 34);
+    });
+  } else if (key === 'monkey') {  } else if (key === 'monkey') {  } else if (key === 'monkey') {
     fillp(c => { c.arc(cx, cy + 6, 58, 0, 7); c.moveTo(cx - 70, cy - 8); c.arc(cx - 58, cy - 10, 22, 0, 7); c.moveTo(cx + 70, cy - 8); c.arc(cx + 58, cy - 10, 22, 0, 7); });
     g.fillStyle = '#0a0618'; g.beginPath(); g.arc(cx - 20, cy, 8, 0, 7); g.arc(cx + 20, cy, 8, 0, 7); g.fill();
     path(c => { c.arc(cx, cy + 22, 16, 0.15 * Math.PI, 0.85 * Math.PI); });
