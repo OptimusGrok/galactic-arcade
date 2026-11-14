@@ -30,8 +30,21 @@ let ok = true; const chk = (c, m, x) => { console.log((c ? 'PASS ' : 'FAIL ') + 
   chk(r.k <= 0.65, 't782u: dimmer than t775u (colour x' + r.k + ', was 0.85 / v188 1.3)');
   const I = r.icons || [];
   chk(r.iconMesh === 1 && I.length === S.length && want.every(k => I.some(i => i.key === k)), 'v216: one neon icon per machine, all in ONE extra mesh', { n: I.length, keys: I.map(i => i.key), meshes: r.iconMesh });
-  chk(I.every(i => i.top < 6.2 && i.h >= 0.28 && i.w >= 0.28), 'v216: each icon fits below the cyan band and is a readable size', I.map(i => [i.key, i.top, i.h]));
-  chk(I.every(i => { const s = S.find(s => s.key === i.key); return s && i.bottom >= s.top - 0.02 && i.bottom <= s.top + 0.22; }), 'v216: each icon sits just above its name sign', I.map(i => [i.key, i.bottom, (S.find(s => s.key === i.key) || {}).top]));
+  chk(I.every(i => i.top < 6.2 && i.top >= 5.95 && i.h >= 0.9 && i.w >= 0.28), 'v223: each icon is much bigger and nearly reaches the ceiling (small gap under the cyan band at 6.2)', I.map(i => [i.key, i.top, i.h, i.w]));
+  chk(I.every(i => { const s = S.find(s => s.key === i.key); return s && Math.abs(i.pos[0] - s.pos[0]) < 0.03 && Math.abs(i.pos[2] - s.pos[2]) < 0.03 && i.bottom >= s.top - 0.02 && i.bottom <= s.top + 0.22; }), 'v223: each icon is centred just above its name sign', I.map(i => [i.key, i.pos, i.bottom, (S.find(s => s.key === i.key) || {}).top]));
+  let iOverlap = [];
+  for (let i = 0; i < I.length; i++) for (let j = i + 1; j < I.length; j++) {
+    const a = I[i], b = I[j], sa = S.find(s => s.key === a.key), sb = S.find(s => s.key === b.key);
+    if (!sa || !sb || sa.normal.join() !== sb.normal.join()) continue;
+    if (Math.abs(a.pos[1] - b.pos[1]) < (a.h + b.h) / 2 && Math.hypot(a.pos[0] - b.pos[0], a.pos[2] - b.pos[2]) < (a.w + b.w) / 2) iOverlap.push([a.key, b.key]);
+  }
+  chk(iOverlap.length === 0, 'v223: no two icons overlap their neighbours', iOverlap);
+  const winHit = I.filter(i => {
+    const alongX = Math.abs(i.pos[0]) < 11.5; // north/south walls have |z|≈12, extent along x
+    const edge = alongX ? Math.abs(i.pos[0]) + i.w / 2 : Math.abs(i.pos[2]) + i.w / 2;
+    return edge > 11.85; // would reach the east/west window (or wall end) plane at |HALF|=12
+  }).map(i => [i.key, i.pos, i.w]);
+  chk(winHit.length === 0, 'v223: icons stay clear of the window walls', winHit);
   chk(errors.length === 0, 'no page errors', errors);
   await o.close(); process.exit(ok ? 0 : 1);
 })().catch(e => { console.log('FAIL exception ' + e.message); process.exit(1); });

@@ -42,7 +42,7 @@ const KB = [
   { id: 'roadster', k: ['mars roadster', 'roadster', 'racing', 'race', 'driving', 'car game', 'steering wheel'],
     a: 'MARS ROADSTER is the two-seat racing cabinet: sit in a seat, grab the wheel and race your roadster across Mars. 5 tickets = 1 credit = one race. Tip: brake a little before the big corners.' },
   { id: 'ds', k: ['dead signal', 'kessler', 'vr', 'headset', 'first person', 'fps'],
-    a: 'DEAD SIGNAL is the VR station in room 2: step on the platform, the headset goes on and you\'re in Kessler Deep. On a keyboard: WASD to move, mouse to look and fire, SHIFT sprint, E use, R reload, F light, 1-6 weapons, TAB map. 5 tickets = 1 credit.' },
+    a: 'DEAD SIGNAL is a VR station: step on the platform, the headset goes on and you\'re in Kessler Deep. On a keyboard: WASD to move, mouse to look and fire, SHIFT sprint, E use, R reload, F light, 1-6 weapons, TAB map. 5 tickets = 1 credit.' },
   { id: 'bricks', k: ['neon bricks', 'bricks', 'tetris', 'blocks', 'lego', 'big window', 'window game'],
     a: 'NEON BRICKS is the Tetris-style game with LEGO-style bricks in room 1\'s big window. Walk up to the middle of the window and press PLAY. Rotate and drop the falling pieces to clear lines; it has proper rotation kicks, T-spins and levels. Tip: keep the stack flat and leave one column open for a long piece.' },
   { id: 'pool', k: ['pool', '8 ball', '8-ball', 'eight ball', 'billiards', 'snooker', 'cue'],
@@ -50,7 +50,7 @@ const KB = [
   { id: 'golf', k: ['golf', 'mini golf', 'minigolf', 'galactic golf', 'basement', 'stairs'],
     a: 'GALACTIC GOLF is down the stairs beside my shop counter: a neon basement with holes themed on Strike, Ghost 256 and Monkey Crossing. The energy shield on the top step costs 5 tickets each visit. Each hole pays once per visit: hole in one +5, two strokes +4, three +3.' },
   { id: 'games', k: ['games', 'machines', 'cabinets', 'what can i play', 'what to play', 'list', 'arcade games', 'which game', 'best game', 'favourite game', 'favorite game', 'recommend'],
-    a: () => 'Here\'s what you can play: STRIKE (2-player co-op!), GHOST 256, MONKEY CROSSING, BERSERKER, ORC ATTACK, CYBERCITY, BLASTER, SUPER PIP QUEST, BURROW BUSTER, ROCKFALL RUSH, SKY TOWER, NOVA TETHER, the CLAW MACHINE, MARS ROADSTER, DEAD SIGNAL VR in room 2, NEON BRICKS in the big window, plus 8-BALL POOL and GALACTIC GOLF at my shop. ' + pick(['My favourite is STRIKE. Ask me about any of them!', 'I love GHOST 256. Ask me how to play any game!', 'Try SKY TOWER, it\'s a blast! Ask me about any game.']) },
+    a: () => 'Here\'s what you can play: STRIKE (2-player co-op!), GHOST 256, MONKEY CROSSING, BERSERKER, ORC ATTACK, CYBERCITY, BLASTER, SUPER PIP QUEST, BURROW BUSTER, ROCKFALL RUSH, SKY TOWER, NOVA TETHER, the CLAW MACHINE, MARS ROADSTER, DEAD SIGNAL VR, NEON BRICKS in the big window, plus 8-BALL POOL and GALACTIC GOLF at my shop. ' + pick(['My favourite is STRIKE. Ask me about any of them!', 'I love GHOST 256. Ask me how to play any game!', 'Try SKY TOWER, it\'s a blast! Ask me about any game.']) },
   { id: 'howplay', k: ['how do i play', 'how to play', 'start a game', 'play a game', 'insert coin', 'credit', 'credits', 'controls', 'play button'],
     a: 'Walk up to a cabinet and a PLAY button appears. Most games cost 5 tickets for 1 credit (the claw is 1 ticket). Press PLAY, the camera zooms onto the screen and the game starts. The ✕ top left takes you back out. Tell me which game and I\'ll explain its controls!' },
   // ---- tickets, money, prizes ----
@@ -74,8 +74,10 @@ const KB = [
     a: 'On a phone, drag the stick on the left to walk (drag further to run) and tap the right side to jump; a second finger turns the camera. On a computer: WASD or arrow keys to walk, SPACE to jump, E or Enter to use buttons. With the jetpack, hold jump to fly!' },
   { id: 'multiplayer', k: ['multiplayer', 'friends', 'friend', 'online', 'other players', 'players', 'chat with people', 'emote', 'emotes', 'room full'],
     a: 'The arcade is one shared public room for up to 10 players: you see each other walk around, emote and chat. Tickets and prizes stay on your own device. In STRIKE two of you can team up in co-op on two phones!' },
-  { id: 'rooms', k: ['hallway', 'room 2', 'shield', 'red shield', 'level 2', 'doors', 'unlock', 'unlock room', 'room 2', 'room two', 'room 1'],
-    a: 'Room 1 is the main arcade. The red energy shield across the hallway costs 10 tickets to unlock (UNLOCK in the pop-up), then the hallway leads to room 2 with DEAD SIGNAL VR. The teleporter pad in the corner goes to my shop.' },
+  { id: 'level2', k: ['level 2', 'level2', 'l2 door', 'level 2 door', 'open the door', 'open the level 2 door', 'how to open the door', 'how do i open the door', 'unlock the door', 'unlock level 2', 'unlock room 2', 'unlock room', 'room 2 door', 'room 2', 'room two', 'second room', 'whats in room 2', 'what is in room 2', 'whats in level 2', 'what is in level 2', 'secret room', 'hidden room', 'behind the door', 'next room', 'steel door', 'level two'],
+    a: 'The Level 2 door opens when you clear 4 lines at once, 3 times, in one Neon Bricks game. It stays open after that, unless you start a new unsaved game. What\'s behind it? That\'s a secret — open the door and see for yourself!' },
+  { id: 'rooms', k: ['hallway', 'room 1', 'main arcade', 'main room'],
+    a: 'Room 1 is the main arcade, packed with cabinets and the big Neon Bricks window. The teleporter pad in the corner goes to my shop.' },
   { id: 'floor', k: ['floor', 'walls', 'lava', 'decor', 'theme', 'space window'],
     a: 'The arcade has different floors (neon, carpet, checkers, lava, cobble, ice) and wall styles. Watch out on the lava floor: stick to the rock paths! The big east window looks out onto deep space.' },
   { id: 'dome', k: ['dome', 'golden ticket', 'dome ticket', 'secret'],
@@ -191,11 +193,25 @@ function doingLine() {
   return 'Just looking around the arcade. I\'m about to play every machine!';
 }
 
+function isLevel2Ask(text) {
+  const t = ' ' + text + ' ';
+  const about = /\b(level\s*2|level2|level two|l2|room\s*2|room two|second room|next room|secret room|hidden room)\b/.test(t);
+  const door = /\b(door|doors|steel door)\b/.test(t);
+  const how = /\b(open|unlock|how|get to|enter|go to|access|behind|inside|whats in|what is in|what.s in)\b/.test(t);
+  if ((about || door) && how) return true;
+  if (about && /\b(what|whats|where|secret|hidden)\b/.test(t)) return true;
+  if (door && how) return true;
+  return false;
+}
+function level2Answer() {
+  return 'The Level 2 door opens when you clear 4 lines at once, 3 times, in one Neon Bricks game. It stays open after that, unless you start a new unsaved game. What\'s behind it? That\'s a secret — open the door and see for yourself!';
+}
 function reply(raw) {
   const text = norm(raw);
   if (!text) return 'Type something and I\'ll answer!';
   const m = maths(raw); if (m) return m;
   const ts = timeSkill(text); if (ts && !/ticket/.test(text)) return ts;
+  if (isLevel2Ask(text)) return level2Answer();
   const words = text.split(' ').filter(Boolean);
   let best = null, bs = 0;
   for (const e of KB) { const s = scoreEntry(e, words, text); if (s > bs) { bs = s; best = e; } }

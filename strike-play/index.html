@@ -3474,11 +3474,11 @@ window.TicketArt = (function () {
 })();
 
 // STRIKE (arcade copy) t789u/t790u: 2-player online co-op through the arcade's existing multiplayer.
-// If P1 is already playing, P2 drops in from another phone and both fly at the same time. P2's ship is orange.
+// If P1 is already playing, P2 drops in from another phone and both fly at the same time. P2's ship is red.
 // Host (cabinet slot 0) simulates both ships and the world; the guest sends input and draws the host snapshot.
 // P1 stats (score, lives, shield/health, bombs) sit on the left of the HUD, P2's on the right, synced live.
 (function () {
-  const C = window.__strikeCoop = { role: 'solo', slot: 0, p2on: false, locked: false, peerAt: 0, sent: 0, recv: 0, snaps: 0, joins: 0, p2color: '#ff6e14', drawn: { p1: 0, p2: 0 }, drawnB: 0, left: 0 };
+  const C = window.__strikeCoop = { role: 'solo', slot: 0, p2on: false, locked: false, peerAt: 0, sent: 0, recv: 0, snaps: 0, joins: 0, p2color: '#e2242a', drawn: { p1: 0, p2: 0 }, drawnB: 0, left: 0, plasmaPaint: { p1: 0, p2: 0, crude: 0 } };
   const PL_KEYS = ['x', 'y', 'alive', 'inv', 'respawn', 'bank', 'fireT', 'misT', 'beamOn', 'beamTop', 'beamW', 'focus', 'entering', 'firing', 'moved', 'plasmaOn'];
   const ST_KEYS = ['score', 'lives', 'bombs', 'shield', 'shieldFx', 'weapon', 'wlv', 'chips', 'mult', 'medal', 'deaths', 'nextExt', 'multIdle'];
   const I2 = { keys: Object.create(null), pressed: Object.create(null), dragX: 0, dragY: 0, bombReq: false, ptrDown: false, botMove: null, autofire: false };
@@ -3555,18 +3555,62 @@ window.TicketArt = (function () {
     if (sl != null && cabN() >= 2) { become(sl === 0 ? 'host' : 'guest', sl); return C.role; }
     return C.role;
   }
+  // t837u: remake P2's ship as a red livery of the same hand-drawn fighter (hue-shift cool/blue paints to red,
+  // keep highlights, panel seams and rivets). The old source-atop orange wash flattened the detail into a glow.
+  function rgbToHsl(r, g, b) {
+    r /= 255; g /= 255; b /= 255;
+    const max = Math.max(r, g, b), min = Math.min(r, g, b), l = (max + min) / 2;
+    if (max === min) return [0, 0, l];
+    const d = max - min, sat = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+    let h;
+    if (max === r) h = ((g - b) / d + (g < b ? 6 : 0)) / 6;
+    else if (max === g) h = ((b - r) / d + 2) / 6;
+    else h = ((r - g) / d + 4) / 6;
+    return [h, sat, l];
+  }
+  function hslToRgb(h, sat, l) {
+    const hue2 = (p, q, t) => { if (t < 0) t += 1; if (t > 1) t -= 1; if (t < 1 / 6) return p + (q - p) * 6 * t; if (t < 1 / 2) return q; if (t < 2 / 3) return p + (q - p) * (2 / 3 - t) * 6; return p; };
+    let r, g, b;
+    if (!sat) r = g = b = l;
+    else { const q = l < 0.5 ? l * (1 + sat) : l + sat - l * sat, p = 2 * l - q; r = hue2(p, q, h + 1 / 3); g = hue2(p, q, h); b = hue2(p, q, h - 1 / 3); }
+    return [Math.round(r * 255), Math.round(g * 255), Math.round(b * 255)];
+  }
+  function recolorShip(src) {
+    const c = mkC(src.width, src.height), g = c.getContext('2d');
+    g.drawImage(src, 0, 0);
+    const im = g.getImageData(0, 0, c.width, c.height), d = im.data;
+    for (let i = 0; i < d.length; i += 4) {
+      if (d[i + 3] < 8) continue;
+      const [h, sat, l] = rgbToHsl(d[i], d[i + 1], d[i + 2]);
+      // cool / blue-cyan paints (the P1 livery) -> matching reds; leave reds, oranges, true neutrals, whites
+      if (sat > 0.06 && h > 0.45 && h < 0.78) {
+        const [nr, ng, nb] = hslToRgb((h + 0.42) % 1, sat, l);
+        d[i] = nr; d[i + 1] = ng; d[i + 2] = nb;
+      } else if (sat > 0.03 && sat <= 0.06 && h > 0.45 && h < 0.78) {
+        const [nr, ng, nb] = hslToRgb((h + 0.42) % 1, sat * 0.7, l);
+        d[i] = nr; d[i + 1] = ng; d[i + 2] = nb;
+      }
+    }
+    g.putImageData(im, 0, 0);
+    c.flash = src.flash;
+    return c;
+  }
+  function sprColors(cv) {
+    try {
+      const g = cv.getContext('2d'), im = g.getImageData(0, 0, cv.width, cv.height).data, set = new Set();
+      let r = 0, gv = 0, b = 0, n = 0;
+      for (let i = 0; i < im.length; i += 4) if (im[i + 3] > 20) { set.add((im[i] << 16) | (im[i + 1] << 8) | im[i + 2]); r += im[i]; gv += im[i + 1]; b += im[i + 2]; n++; }
+      return { colors: set.size, r: n ? +(r / n).toFixed(1) : 0, g: n ? +(gv / n).toFixed(1) : 0, b: n ? +(b / n).toFixed(1) : 0, px: n };
+    } catch (e) { return { colors: 0, r: 0, g: 0, b: 0, px: 0 }; }
+  }
   function tintSprites() {
     if (P2_SPR || !PLAYER_SPR || !PLAYER_SPR.length) return;
-    P2_SPR = PLAYER_SPR.map(src => {
-      const c = mkC(src.width, src.height), g = c.getContext('2d');
-      g.drawImage(src, 0, 0);
-      g.globalCompositeOperation = 'source-atop';
-      g.fillStyle = 'rgba(255,110,20,0.62)';
-      g.fillRect(0, 0, c.width, c.height);
-      c.flash = src.flash;
-      return c;
-    });
+    P2_SPR = PLAYER_SPR.map(src => recolorShip(src));
+    C.p2spr = P2_SPR[3];
+    C.p1sprStats = sprColors(PLAYER_SPR[3]);
+    C.p2sprStats = sprColors(P2_SPR[3]);
   }
+  C.tintSprites = tintSprites;
   function packShip(s, st) {
     return [+(s.x.toFixed(1)), +(s.y.toFixed(1)), s.alive ? 1 : 0, s.inv | 0, +((s.bank || 0).toFixed(2)),
       st.score | 0, st.lives | 0, st.bombs | 0, st.shield | 0, st.weapon || 'V', st.wlv | 0,
@@ -3579,8 +3623,7 @@ window.TicketArt = (function () {
     const Z = (s === pl) === !C.inP2 ? PLZ : PLZ2, out = [];
     for (let b = 0; b < Z.n && b < 3; b++) {
       const B = Z.beams[b], n = Math.min(B.live | 0, PLZ_MAX - 1), pts = [];
-      for (let i = 0; i <= n; i += 3) pts.push(B.x[i] | 0, B.y[i] | 0);
-      if (n % 3) pts.push(B.x[n] | 0, B.y[n] | 0);
+      for (let i = 0; i <= n; i++) pts.push(B.x[i] | 0, B.y[i] | 0);   // t837u: every point, so the guest draws the same whip as P1
       if (pts.length >= 4) out.push(pts);
     }
     return out.length ? out : 0;
@@ -3937,9 +3980,16 @@ window.TicketArt = (function () {
     if (!C.p2on || !pl2.alive || C.p2out || ((G2.lives | 0) < 0 && !pl2.alive)) return;
     C.drawn.p2++;
     tintSprites();
+    if (pl2.inv > 0 && (pl2.inv >> 2) % 2 === 0 && pl2.entering === 0 && G.bombT <= 0) return;
+    // engine flames: same structure as P1, in red (no extra hull wash / glow overlay)
+    ctx.globalCompositeOperation = 'lighter';
+    const fl = 6 + Math.sin(G.t * 1.3) * 2 + Math.random() * 2.5 + (pl2.moved && I2.keys && I2.keys.up ? 3 : 0);
+    for (const s of [-3.5, 3.5]) { ctx.drawImage(glow('#ff4020'), pl2.x + s - 5, pl2.y + 13, 10, fl + 8); ctx.drawImage(glow('#ffb080'), pl2.x + s - 3, pl2.y + 14, 6, fl + 2); ctx.drawImage(glow('#ffffff'), pl2.x + s - 1.5, pl2.y + 14, 3, fl * 0.6); }
+    ctx.globalCompositeOperation = 'source-over';
     const spr = (P2_SPR && P2_SPR[clamp(Math.round((pl2.bank + 1) * 3), 0, 6)]) || PLAYER_SPR[3];
     try { shadowBlit(spr, pl2.x, pl2.y); } catch (e) {}
     blit(spr, pl2.x, pl2.y, pl2.inv > 0 && (G.t & 2));
+    if ((G.t >> 4) & 1) { ctx.globalCompositeOperation = 'lighter'; ctx.drawImage(glow('#ff4040'), pl2.x - 16, pl2.y + 2, 6, 6); ctx.drawImage(glow('#40ff80'), pl2.x + 10, pl2.y + 2, 6, 6); ctx.globalCompositeOperation = 'source-over'; }
   }
   function renderGuest() {
     ctx.setTransform(S, 0, 0, S, 0, 0); ctx.imageSmoothingEnabled = false;
@@ -3961,6 +4011,8 @@ window.TicketArt = (function () {
     }
     drawGuestShots();
     drawGuestBeam(pl, G); if (C.p2on) drawGuestBeam(pl2, G2);
+    try { if (pl.alive && !C.p1out) drawPlasmaOf(pl, G, PLZ); } catch (e) {}
+    try { if (C.p2on && pl2.alive && !C.p2out) drawPlasmaOf(pl2, G2, PLZ2); } catch (e) {}
     drawP2Ship();
     try { drawLasers(); } catch (e) {}
     drawGuestBullets();
@@ -4032,20 +4084,31 @@ window.TicketArt = (function () {
     }
     ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over';
   }
+  // t837u: unpack a packed plasma path into a PLZ-shaped buffer so drawPlasma paints the original whip
+  function applyPlz(s, Z) {
+    const P = s.plz || [];
+    Z.n = 0;
+    for (let b = 0; b < 3; b++) {
+      const B = Z.beams[b], pts = P[b];
+      if (!pts || pts.length < 4) { B.live = 0; continue; }
+      let n = 0;
+      for (let i = 0; i + 1 < pts.length && n < PLZ_MAX; i += 2) { B.x[n] = pts[i]; B.y[n] = pts[i + 1]; n++; }
+      B.live = Math.max(0, n - 1); if (n >= 2) Z.n = b + 1;
+    }
+  }
+  function drawPlasmaOf(s, st, Z) {
+    if (!s || !s.alive || !Z) return;
+    if (s.plz) applyPlz(s, Z);
+    if (!s.plasmaOn && !Z.n) return;
+    const keep = { n: PLZ.n, grow: PLZ.grow, beams: PLZ.beams, x: pl.x, y: pl.y, alive: pl.alive, wlv: G.wlv };
+    PLZ.n = Z.n; PLZ.grow = Z.grow; PLZ.beams = Z.beams; pl.x = s.x; pl.y = s.y; pl.alive = s.alive; if (st && st.wlv) G.wlv = st.wlv | 0;
+    try { drawPlasma(); C.plasmaPaint[s === pl2 ? 'p2' : 'p1']++; } finally {
+      PLZ.n = keep.n; PLZ.grow = keep.grow; PLZ.beams = keep.beams; pl.x = keep.x; pl.y = keep.y; pl.alive = keep.alive; G.wlv = keep.wlv;
+    }
+  }
   function drawGuestBeam(s, st) {
     if (!s.alive) return;
-    if (s.plasmaOn) {
-      ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = 0.7; try { ctx.drawImage(glow('#d070ff'), s.x - 14, s.y - 22, 28, 28); } catch (e) {}
-      const P = s.plz || [];
-      for (let b = 0; b < P.length; b++) {
-        const pts = P[b]; if (!pts || pts.length < 4) continue;
-        for (const [lw, col, al] of [[5, '#9a40ff', 0.35], [2.5, '#d890ff', 0.8], [1, '#ffffff', 0.9]]) {
-          ctx.globalAlpha = al; ctx.strokeStyle = col; ctx.lineWidth = lw; ctx.lineCap = 'round'; ctx.lineJoin = 'round'; ctx.beginPath();
-          ctx.moveTo(s.x, s.y - 12); for (let i = 0; i < pts.length; i += 2) ctx.lineTo(pts[i] + (i ? 0 : 0), pts[i + 1]); ctx.stroke();
-        }
-      }
-      ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over';
-    }
+    // t837u: the purple homing plasma is drawn with the original drawPlasma (drawPlasmaOf / withP2), not this crude polyline
     if (!s.beamOn) return;
     const w = s.beamW || 6, top = Math.max(-5, s.beamTop), y0 = s.y - 12, h = y0 - top; if (h <= 0) return;
     ctx.globalAlpha = 0.75; ctx.fillStyle = '#b00804'; ctx.fillRect(s.x - w * 0.75, top, w * 1.5, h);
@@ -4242,7 +4305,7 @@ window.TicketArt = (function () {
     if (pl.alive && C.role !== 'guest') C.drawn.p1++;
     _dp();
     if (C.role === 'guest') return;
-    if (C.p2on && pl2.alive) { drawGuestBeam(pl2, G2); try { withP2(() => drawPlasma()); } catch (e) {} }
+    if (C.p2on && pl2.alive) { drawGuestBeam(pl2, G2); try { withP2(() => { drawPlasma(); C.plasmaPaint.p2++; }); } catch (e) {} }
     drawP2Ship();
   };
 
