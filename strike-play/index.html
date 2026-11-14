@@ -3452,7 +3452,7 @@ window.TicketArt = (function () {
 // Host (cabinet slot 0) simulates both ships and the world; the guest sends input and draws the host snapshot.
 // P1 stats (score, lives, shield/health, bombs) sit on the left of the HUD, P2's on the right, synced live.
 (function () {
-  const C = window.__strikeCoop = { role: 'solo', slot: 0, p2on: false, locked: false, peerAt: 0, sent: 0, recv: 0, snaps: 0, joins: 0, p2color: '#ff6e14' };
+  const C = window.__strikeCoop = { role: 'solo', slot: 0, p2on: false, locked: false, peerAt: 0, sent: 0, recv: 0, snaps: 0, joins: 0, p2color: '#ff6e14', drawn: { p1: 0, p2: 0 }, drawnB: 0, left: 0 };
   const PL_KEYS = ['x', 'y', 'alive', 'inv', 'respawn', 'bank', 'fireT', 'misT', 'beamOn', 'beamTop', 'beamW', 'focus', 'entering', 'firing', 'moved', 'plasmaOn'];
   const ST_KEYS = ['score', 'lives', 'bombs', 'shield', 'shieldFx', 'weapon', 'wlv', 'chips', 'mult', 'medal', 'deaths', 'nextExt', 'multIdle'];
   const I2 = { keys: Object.create(null), pressed: Object.create(null), dragX: 0, dragY: 0, bombReq: false, ptrDown: false, botMove: null, autofire: false };
@@ -3578,13 +3578,15 @@ window.TicketArt = (function () {
     }
     return out;
   }
+  const EB_PACK = 140;
   function packWorld() {
     const e = [], b = [], E = enemies.items, B = ebul.items;
     for (let i = 0; i < E.length && e.length < 40; i++) {
       const t = E[i]; if (t.alive) e.push([t.x | 0, t.y | 0, t.kind || 'fighter', t.flash ? 1 : 0]);
     }
-    for (let i = 0; i < B.length && b.length < 70; i++) { const u = B[i]; if (u.alive) b.push([u.x | 0, u.y | 0]); }
-    return { e, b, s: packShots(), sc: +((G.scrollPos || 0).toFixed(2)), stg: G.stage | 0, ph: G.phase, t: G.playT | 0 };
+    // t813u: enemy bullets now carry velocity + kind (were bare [x,y], drawn as 2px dots under the enemies on P2's phone)
+    for (let i = 0; i < B.length && b.length < EB_PACK; i++) { const u = B[i]; if (u.alive && u.y > -12 && u.y < H + 12 && u.x > -12 && u.x < W + 12) b.push([u.x | 0, u.y | 0, +u.vx.toFixed(2), +u.vy.toFixed(2), u.k | 0]); }
+    return { e, b, s: packShots(), o: (C.p1out ? 1 : 0) | (C.p2out ? 2 : 0), sc: +((G.scrollPos || 0).toFixed(2)), stg: G.stage | 0, ph: G.phase, t: G.playT | 0 };
   }
   function swapP2() {
     for (let i = 0; i < PL_KEYS.length; i++) { const k = PL_KEYS[i], t = pl[k]; pl[k] = pl2[k]; pl2[k] = t; }
@@ -3662,6 +3664,7 @@ window.TicketArt = (function () {
   }
   function sendInput() {
     const M = mp(); if (!M || !M.strike) return;
+    if (C.gone) return;
     const now = performance.now(); if (now - lastIn < 72) return;   // t806u: relay throttles at 70 ms; faster sends were silently dropped
     if (!flushQ()) return;
     const k = Input.keys;
@@ -3695,7 +3698,11 @@ window.TicketArt = (function () {
     if (s.sc != null) G.scrollPos = +s.sc;
     if (s.ph) G.phase = s.ph;
     if (s.t != null) G.playT = s.t | 0;
-    C.visE = s.e || []; C.visB = s.b || [];
+    C.visE = s.e || [];
+    C.visB = (s.b || []).map(a => ({ x: +a[0], y: +a[1], vx: +a[2] || 0, vy: +a[3] || 0, k: clamp(a[4] | 0, 0, EB_R.length - 1) }));
+    // t813u: out-of-lives flags, so a player who is OUT and watching never has a ship drawn
+    C.p1out = !!((s.o | 0) & 1); C.p2out = !!((s.o | 0) & 2);
+    if (C.p1out) pl.alive = false; if (C.p2out) pl2.alive = false;
     C.visS = (s.s || []).map(a => ({ x: +a[0], y: +a[1], vx: +a[2] || 0, vy: +a[3] || 0, k: a[4] | 0, o: a[5] | 0, sp: a[6] | 0 }));
     C.p2on = s.p2 == null ? true : !!s.p2;
     C.peerAt = performance.now();
@@ -3709,12 +3716,49 @@ window.TicketArt = (function () {
       become('guest', 1);
       sendImp({ typ: 'join' }); C.joins++;
     }
-    if (pld.typ === 'in' && C.role === 'host') { applyIn(pld); C.ins = (C.ins || 0) + 1; }
+    if (pld.typ === 'bye') { onBye(pld); return; }
+    if (pld.typ === 'in' && C.role === 'host') { if (!C.p2on && C.leftAt && C.gid === pld.i) return; applyIn(pld); C.ins = (C.ins || 0) + 1; if (C.p2on) { C.gid = pld.i; C.gAt = performance.now(); } }
     if (pld.typ === 'st' && C.role === 'guest') { applySnap(pld); C.snapAt = performance.now(); }
-    if (pld.typ === 'join' && C.role === 'host') { if (!C.p2on) { resetP2(); C.p2on = true; } C.joins++; }
+    if (pld.typ === 'join' && C.role === 'host') { if (!C.p2on) { rejoinP2(pld.i); C.leftBye = false; } C.gid = pld.i; C.gAt = performance.now(); C.joins++; }
     if (pld.typ === 'end' && C.role === 'guest') endGuest('host ended');
     if (pld.typ === 'tk' && C.role === 'guest') { try { if (window.TicketArt && TicketArt.collect) TicketArt.collect('strike'); } catch (e) {} }
   }
+  // t813u: a player who leaves (closes the cabinet / page, or loses connection) is removed from the other phone.
+  // Leaving sends an explicit 'bye' (unthrottled); a guest that stops sending input for 5 s is dropped too.
+  const GUEST_SILENT = 5000;
+  function sendBye() {
+    if (C.role === 'solo' && !C.p2on) return;
+    const M = mp(); if (!M || !M.strike) return;
+    C.gone = true;   // leaving: stop sending input so the other phone does not pull this ship back in
+    try { (M.strike.sendNow || M.strike.send)({ typ: 'bye', r: C.role }); C.byeSent = (C.byeSent || 0) + 1; } catch (e) {}
+  }
+  function dropP2(why) {
+    if (!C.p2on) return;
+    C.p2on = false; pl2.alive = false; pl2.beamOn = false; pl2.plasmaOn = false; PLZ2.n = 0; I2.tx = null;
+    C.left++; C.lastLeft = why; C.leftAt = performance.now(); C.leftBye = why === 'bye';
+    C.p2out = false;
+    if (C.p1out && !window.__DEMO) { C.p1out = false; endCoop(); }   // P1 was only watching P2: nobody is flying now
+  }
+  function rejoinP2(id) {
+    // same phone coming back after a short silence (not a 'bye'): keep its score, it just flies back in
+    if (id && id === C.gid && C.leftAt && !C.leftBye && performance.now() - C.leftAt < 60000 && (G2.lives | 0) >= 0) {
+      pl2.x = W / 2 + 28; pl2.y = H + 20; pl2.alive = true; pl2.inv = 170; pl2.entering = 40; pl2.respawn = 0;
+    } else resetP2();
+    C.p2on = true; C.p1out = false; C.p2out = false; C.leftAt = 0; C.gid = id || C.gid; C.gAt = performance.now();
+  }
+  function onBye(pld) {
+    C.byes = (C.byes || 0) + 1;
+    if (C.role === 'host' && C.p2on && (!C.gid || pld.i === C.gid)) dropP2('bye');
+    else if (C.role === 'guest' && pld.r !== 'guest') endGuest('host left');
+  }
+  function hostWatch() {
+    if (!C.p2on) return;
+    const M = mp(), r = M && M.strike && M.strike.peers && C.gid ? M.strike.peers.get(C.gid) : null;
+    const last = Math.max(C.gAt || 0, r && r.s && r.s.typ !== 'bye' ? r.at : 0);
+    if (last && performance.now() - last > GUEST_SILENT) dropP2('silent');
+  }
+  addEventListener('pagehide', sendBye);
+  { const _rel = window.__gaRelease; window.__gaRelease = function () { sendBye(); if (_rel) return _rel.apply(this, arguments); }; }
   function hookMp() { const M = mp(); if (M && M.strike) M.strike.on = onMsg; }
   function hazardsP2() {
     if (!C.p2on || !pl2.alive || pl2.entering > 0) return;
@@ -3743,7 +3787,8 @@ window.TicketArt = (function () {
     }
   }
   function drawP2Ship() {
-    if (!C.p2on || !pl2.alive) return;
+    if (!C.p2on || !pl2.alive || C.p2out || ((G2.lives | 0) < 0 && !pl2.alive)) return;
+    C.drawn.p2++;
     tintSprites();
     const spr = (P2_SPR && P2_SPR[clamp(Math.round((pl2.bank + 1) * 3), 0, 6)]) || PLAYER_SPR[3];
     try { shadowBlit(spr, pl2.x, pl2.y); } catch (e) {}
@@ -3752,21 +3797,23 @@ window.TicketArt = (function () {
   function renderGuest() {
     ctx.setTransform(S, 0, 0, S, 0, 0); ctx.imageSmoothingEnabled = false;
     try { bgDraw(); } catch (e) { ctx.fillStyle = '#020010'; ctx.fillRect(0, 0, W, H); }
-    ctx.fillStyle = '#ffd0a0';
-    const B = C.visB || []; for (let i = 0; i < B.length; i++) ctx.fillRect((B[i][0] | 0) - 1, (B[i][1] | 0) - 1, 2, 2);
     const E = C.visE || [];
     for (let i = 0; i < E.length; i++) {
       const t = E[i]; let spr = null;
       try { spr = getSpr(t[2] || 'fighter', (STAGES[G.stage] || STAGES[0]).pal); } catch (e) {}
       if (spr) blit(spr, t[0], t[1], t[3]); else { ctx.fillStyle = '#ff4060'; ctx.fillRect(t[0] - 6, t[1] - 6, 12, 12); }
     }
-    if (pl.alive) {
+    // t813u: P1's ship is hidden when P1 is OUT, or when the host has gone quiet (left / lost connection)
+    const hostGone = (C.snapAge || 0) > 2500;
+    if (pl.alive && !C.p1out && !hostGone) {
+      C.drawn.p1++;
       try { const ps = playerFrame(); shadowBlit(ps, pl.x, pl.y); blit(ps, pl.x, pl.y, pl.inv > 0 && (G.t & 2)); }
       catch (e) { blit(PLAYER_SPR[3], pl.x, pl.y); }
     }
     drawGuestShots();
     drawGuestBeam(pl, G); if (C.p2on) drawGuestBeam(pl2, G2);
     drawP2Ship();
+    drawGuestBullets();
     renderHUD();
     const wait = (C.snapAge || 0) > 2500, out = (G2.lives | 0) < 0 && !pl2.alive;
     if (wait || out) {
@@ -3778,6 +3825,20 @@ window.TicketArt = (function () {
   function stepGuestShots() {
     const L = C.visS; if (!L) return;
     for (let i = 0; i < L.length; i++) { const u = L[i]; u.x += u.vx; u.y += u.vy; }
+    const B = C.visB; if (B) for (let i = 0; i < B.length; i++) { const u = B[i]; u.x += u.vx; u.y += u.vy; }
+  }
+  // t813u: enemy bullets on P2's phone, drawn like the host draws them (glow + sprite), on top of enemies and ships
+  function drawGuestBullets() {
+    const B = C.visB || []; let n = 0;
+    ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = 0.45;
+    for (let i = 0; i < B.length; i++) { const b = B[i]; const r = EB_R[b.k] * 2.2; try { ctx.drawImage(glow(EB_GC[b.k]), b.x - r, b.y - r, r * 2, r * 2); } catch (e) {} }
+    ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over';
+    for (let i = 0; i < B.length; i++) {
+      const b = B[i]; if (b.y < -12 || b.y > H + 12 || b.x < -12 || b.x > W + 12) continue; n++;
+      try { if (b.k === 3) blitRot(EB_SPR[3], b.x, b.y, Math.atan2(b.vy, b.vx) - Math.PI / 2); else blit(EB_SPR[b.k], b.x, b.y); }
+      catch (e) { ctx.fillStyle = EB_GC[b.k] || '#ff2010'; ctx.fillRect(b.x - 2, b.y - 2, 4, 4); }
+    }
+    C.drawnB = n;
   }
   function drawGuestShots() {
     const L = C.visS || []; ctx.globalCompositeOperation = 'lighter';
@@ -3946,7 +4007,12 @@ window.TicketArt = (function () {
     _upd();
     if (C.role === 'host') {
       // t807u: only a phone that is really playing (sending input / join) brings P2 in; presence alone (a phone in its demo) does not
-      if (!C.p2on && performance.now() - (C.endAt || -1e9) > 3000 && strikePeers().some(p => p.s && (p.s.typ === 'in' || p.s.typ === 'join') && p.at > (C.endAt || 0))) { resetP2(); C.p2on = true; C.p1out = false; C.p2out = false; C.joins++; }
+      if (!C.p2on && performance.now() - (C.endAt || -1e9) > 3000) {
+        const pr = strikePeers().find(p => p.s && (p.s.typ === 'in' || p.s.typ === 'join') && p.at > (C.endAt || 0) && p.at > (C.leftAt || 0) + 200);
+        if (pr && !(C.leftBye && pr.id === C.gid && pr.s.typ !== 'join')) { rejoinP2(pr.id); C.joins++; }
+      }
+      hostWatch();
+      if (C.p1out) pl.alive = false; if (C.p2out) pl2.alive = false;   // t813u: OUT players stay out (never revived / drawn)
       if (C.p2on) { followP2(); withP2(() => { updPlayer(); }); hazardsP2(); itemsP2(); ticketsP2(); }
       flushQ();
       if (C.p2on || strikePeers().length) sendState();
@@ -3964,6 +4030,8 @@ window.TicketArt = (function () {
   C.trace = [];
   const _dp = drawPlayer;
   drawPlayer = function () {
+    if (C.role === 'host' && C.p1out) pl.alive = false;   // t813u: an OUT player is never drawn
+    if (pl.alive && C.role !== 'guest') C.drawn.p1++;
     _dp();
     if (C.role === 'guest') return;
     if (C.p2on && pl2.alive) { drawGuestBeam(pl2, G2); try { withP2(() => drawPlasma()); } catch (e) {} }
@@ -3975,6 +4043,7 @@ window.TicketArt = (function () {
     hookMp();
     const already = recentHostSnap();
     C.p2on = false; snap = null; resetP2(); C.p1out = false; C.p2out = false; C.snapAt = 0;
+    C.gone = false; C.leftAt = 0; C.leftBye = false;
     SM.pred = null; SM.buf.length = 0; SM.off = null; SM.hx = null; SM.hy = null; SM.hEnter = 0;
     const r = _start.apply(this, arguments);
     // whoever starts a real game first is host; cabinet presence (demo) must not flip that
