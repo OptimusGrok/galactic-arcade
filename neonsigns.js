@@ -14,6 +14,108 @@ function neonStroke(g, draw, col, w, glow) {
   draw(g); g.shadowBlur = 0; g.globalAlpha = 0.95; draw(g); g.restore();
 }
 
+// t844u / t846u / v226: the in-game blue P1 fighter, ported from strike-play DRAW.player (v3.0) + pix/detail,
+// scaled into the icon with only a softened neon outline/glow (same ~45% dimmer treatment as the v225 Viking).
+function strikeBlueShip(g, S) {
+  const TAU = Math.PI * 2;
+  const mkC = (w, h) => { const c = document.createElement('canvas'); c.width = w; c.height = h; return c; };
+  const P = (x, pts, col) => { x.fillStyle = col; x.beginPath(); x.moveTo(pts[0], pts[1]); for (let i = 2; i < pts.length; i += 2) x.lineTo(pts[i], pts[i + 1]); x.closePath(); x.fill(); };
+  const M = (x, w, pts, col) => { P(x, pts, col); const q = pts.slice(); for (let i = 0; i < q.length; i += 2) q[i] = w - q[i]; P(x, q, col); };
+  const R = (x, a, b, w, h, col) => { x.fillStyle = col; x.fillRect(a, b, w, h); };
+  const MR = (x, W0, a, b, w, h, col) => { R(x, a, b, w, h, col); R(x, W0 - a - w, b, w, h, col); };
+  const pix = (c) => {
+    const x = c.getContext('2d'), w = c.width, h = c.height, d = x.getImageData(0, 0, w, h), p = d.data;
+    for (let i = 3; i < p.length; i += 4) p[i] = p[i] > 96 ? 255 : 0;
+    const m = new Uint8Array(w * h);
+    for (let y = 0; y < h; y++) for (let X = 0; X < w; X++) {
+      const i = y * w + X; if (p[i * 4 + 3]) continue;
+      if ((X > 0 && p[(i - 1) * 4 + 3] === 255) || (X < w - 1 && p[(i + 1) * 4 + 3] === 255) || (y > 0 && p[(i - w) * 4 + 3] === 255) || (y < h - 1 && p[(i + w) * 4 + 3] === 255)) m[i] = 1;
+    }
+    for (let i = 0; i < m.length; i++) if (m[i]) { p[i * 4] = 10; p[i * 4 + 1] = 8; p[i * 4 + 2] = 22; p[i * 4 + 3] = 255; }
+    const o = new Uint8ClampedArray(p);
+    const solid = i => o[i * 4 + 3] === 255 && !(o[i * 4] === 10 && o[i * 4 + 1] === 8 && o[i * 4 + 2] === 22);
+    for (let y = 0; y < h; y++) for (let X = 0; X < w; X++) {
+      const i = y * w + X; if (!solid(i)) continue;
+      const up = y > 0 && solid(i - w), lf = X > 0 && solid(i - 1), dn = y < h - 1 && solid(i + w), rt = X < w - 1 && solid(i + 1);
+      let k = 0; if (!up || !lf) k = 0.32; else if (!dn || !rt) k = -0.3;
+      if (k) for (let c = 0; c < 3; c++) { const v = o[i * 4 + c]; p[i * 4 + c] = k > 0 ? v + (255 - v) * k : v * (1 + k); }
+    }
+    x.putImageData(d, 0, 0);
+  };
+  const detail = (c) => {
+    const x = c.getContext('2d'), w = c.width, h = c.height, d = x.getImageData(0, 0, w, h), p = d.data, o = new Uint8ClampedArray(p);
+    const S0 = (X, Y) => X >= 0 && Y >= 0 && X < w && Y < h && o[(Y * w + X) * 4 + 3] === 255 && !(o[(Y * w + X) * 4] === 10 && o[(Y * w + X) * 4 + 1] === 8 && o[(Y * w + X) * 4 + 2] === 22);
+    const hs = (X, Y) => { let v = (X * 374761393 + Y * 668265263 + w * 2246822519) >>> 0; v = (v ^ (v >>> 13)) * 1274126177 >>> 0; return (v & 1023) / 1024; };
+    const step = h > 50 ? 7 : 5, cx = (w - 1) / 2;
+    for (let Y = 0; Y < h; Y++) for (let X = 0; X < w; X++) {
+      if (!S0(X, Y)) continue; const i = (Y * w + X) * 4, lum = (o[i] + o[i + 1] + o[i + 2]) / 3; if (lum > 235) continue;
+      let k = 1.12 - 0.3 * (Y / h) - 0.08 * Math.abs(X - cx) / (w / 2);
+      const inner = S0(X - 1, Y) && S0(X + 1, Y) && S0(X, Y - 1) && S0(X, Y + 1) && S0(X - 2, Y) && S0(X + 2, Y);
+      const band = (Y / step) | 0, ry = Y % step, vx = (X + (band & 1) * 3) % 6;
+      if (inner && ry === 0) k *= 0.74;
+      else if (inner && ry === 1) k *= 1.1;
+      else if (inner && w >= 24 && vx === 0 && hs(X, band) < 0.7) k *= 0.82;
+      else if (inner && w >= 30 && vx === 3 && ry === 2 && hs(band, X) < 0.5) k *= 1.3;
+      for (let q = 0; q < 3; q++) p[i + q] = Math.min(255, o[i + q] * k);
+    }
+    x.putImageData(d, 0, 0);
+  };
+  // exact strike-play DRAW.player (bank = 0, nose-up, the pose used when flying straight)
+  const sprite = mkC(30, 34), x = sprite.getContext('2d'), w = 30;
+  M(x, w, [16, 12, 28, 21, 29, 25, 18, 24], '#aab8d2');
+  M(x, w, [17, 13, 27, 20.5, 27.5, 21.5, 17, 15], '#dce6f6');
+  M(x, w, [18, 17, 26, 22, 26, 23.5, 18, 20.5], '#2f6cff');
+  M(x, w, [27, 18, 29.5, 19, 29.5, 26, 27, 25], '#ff4a4a');
+  M(x, w, [23.5, 13, 25, 13, 25, 21, 23.5, 21], '#58688a'); M(x, w, [24, 11, 24.5, 11, 24.5, 13, 24, 13], '#c8d4e8');
+  M(x, w, [20, 22, 21.5, 22, 21.5, 26, 20, 26], '#e8eef8');
+  M(x, w, [18, 23, 23, 28, 23.5, 32, 18, 29], '#8494b4'); M(x, w, [18, 24, 22, 28, 22, 29, 18, 26], '#b4c2da');
+  M(x, w, [17, 21, 20, 21, 20, 31, 17, 31], '#323a54'); M(x, w, [17.5, 21, 19.5, 21, 19.5, 23, 17.5, 23], '#141826');
+  M(x, w, [17.5, 29, 19.5, 29, 19.5, 32.5, 17.5, 32.5], '#ff9040'); M(x, w, [18, 31, 19, 31, 19, 32.5, 18, 32.5], '#ffe0a0');
+  M(x, w, [15, 0, 16.5, 4, 18, 13, 18, 28, 15, 31], '#e8eef8');
+  M(x, w, [15, 4, 16.5, 7, 16.5, 27, 15, 29], '#f8fbff');
+  P(x, [15, 31, 18, 28, 18, 13, 16.5, 4, 15, 0], 'rgba(30,40,80,0.28)');
+  R(x, 14.5, 0, 1, 3, '#9aa8c0');
+  x.fillStyle = '#0e3a9a'; x.beginPath(); x.ellipse(15, 11, 2.6, 4.6, 0, 0, TAU); x.fill();
+  x.fillStyle = '#2a80ff'; x.beginPath(); x.ellipse(15, 11.5, 1.9, 3.6, 0, 0, TAU); x.fill();
+  R(x, 13.8, 8, 1, 4, '#d8fcff'); R(x, 14.8, 8, 1, 1, '#ffffff');
+  R(x, 14, 16, 2, 10, '#2f6cff'); R(x, 14.5, 16, 1, 10, '#80b0ff'); R(x, 12.5, 26, 5, 1, '#5a6a8a'); R(x, 13, 18.5, 4, 1, '#a0b0cc');
+  MR(x, w, 20, 19, 1, 1, '#80f0ff'); MR(x, w, 13, 14, 1, 1, '#ff4a4a');
+  pix(sprite); detail(sprite);
+  const mkGlow = (col) => {
+    const c = mkC(32, 32), gx = c.getContext('2d'), gr = gx.createRadialGradient(16, 16, 0, 16, 16, 16);
+    gr.addColorStop(0, '#ffffff'); gr.addColorStop(0.25, col); gr.addColorStop(1, 'rgba(0,0,0,0)'); gx.fillStyle = gr; gx.fillRect(0, 0, 32, 32); return c;
+  };
+  // silhouette for a dim neon halo (blur 9 / alpha 0.5, same cut as the v225 Viking — do not touch neonStroke)
+  const sil = mkC(30, 34), silx = sil.getContext('2d');
+  silx.drawImage(sprite, 0, 0); silx.globalCompositeOperation = 'source-in'; silx.fillStyle = '#2f6cff'; silx.fillRect(0, 0, 30, 34);
+  const K = 6; // 180 x 204, stays inside the 12 px atlas crop
+  const dw = 30 * K, dh = 34 * K;
+  const ox = (S - dw) / 2, oy = (S - dh) / 2 - 6; // a little higher so the exhaust has room
+  g.save();
+  g.imageSmoothingEnabled = false;
+  g.shadowColor = '#2f6cff'; g.shadowBlur = 9; g.globalAlpha = 0.5;
+  g.drawImage(sil, ox, oy, dw, dh);
+  g.shadowBlur = 0; g.globalAlpha = 0.88;
+  g.drawImage(sil, ox, oy, dw, dh);
+  // in-game engine flames + wingtip lights, in icon space (same offsets as drawPlayer)
+  g.globalCompositeOperation = 'lighter';
+  g.globalAlpha = 0.7;
+  const cx0 = ox + 15 * K, cy0 = oy + 17 * K, fl = 8 * K;
+  for (const s of [-3.5, 3.5]) {
+    const px = cx0 + s * K, py = cy0;
+    g.drawImage(mkGlow('#2a80ff'), px - 5 * K, py + 13 * K, 10 * K, fl + 8 * K);
+    g.drawImage(mkGlow('#80e0ff'), px - 3 * K, py + 14 * K, 6 * K, fl + 2 * K);
+    g.drawImage(mkGlow('#ffffff'), px - 1.5 * K, py + 14 * K, 3 * K, fl * 0.6);
+  }
+  g.globalAlpha = 0.75;
+  g.drawImage(mkGlow('#ff4040'), cx0 - 16 * K, cy0 + 2 * K, 6 * K, 6 * K);
+  g.drawImage(mkGlow('#40ff80'), cx0 + 10 * K, cy0 + 2 * K, 6 * K, 6 * K);
+  g.globalCompositeOperation = 'source-over';
+  g.globalAlpha = 1;
+  g.drawImage(sprite, ox, oy, dw, dh);
+  g.restore();
+}
+
 function drawIcon(g, key, S) {
   const C = {
     strike: '#ff3b3b', ghost: '#b46bff', cyber: '#ff3fd0', orc: '#4dff5a', pip: '#ff7ad9',
@@ -25,7 +127,7 @@ function drawIcon(g, key, S) {
   const path = fn => neonStroke(g, ctx => { ctx.beginPath(); fn(ctx); ctx.stroke(); }, C, 6, C);
   const fillp = fn => neonStroke(g, ctx => { ctx.beginPath(); fn(ctx); ctx.fill(); ctx.stroke(); }, C, 3, C);
   if (key === 'strike') {
-    fillp(c => { c.moveTo(cx, cy - 70); c.lineTo(cx + 54, cy + 18); c.lineTo(cx + 18, cy + 8); c.lineTo(cx + 28, cy + 64); c.lineTo(cx, cy + 22); c.lineTo(cx - 28, cy + 64); c.lineTo(cx - 18, cy + 8); c.lineTo(cx - 54, cy + 18); c.closePath(); });
+    strikeBlueShip(g, S);
   } else if (key === 'ghost') {
     fillp(c => { c.arc(cx, cy - 10, 58, Math.PI, 0, false); c.lineTo(cx + 58, cy + 62); c.lineTo(cx + 36, cy + 42); c.lineTo(cx + 16, cy + 62); c.lineTo(cx, cy + 42); c.lineTo(cx - 16, cy + 62); c.lineTo(cx - 36, cy + 42); c.lineTo(cx - 58, cy + 62); c.closePath(); });
     g.fillStyle = '#0a0618'; g.beginPath(); g.arc(cx - 20, cy - 8, 10, 0, 7); g.arc(cx + 20, cy - 8, 10, 0, 7); g.fill();
