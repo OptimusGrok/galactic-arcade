@@ -1173,13 +1173,15 @@ __D.start = function () { __D.on = true; window.__DEMO = true; __D.runs++; __bzM
 __D.stop = function () { __D.on = false; window.__DEMO = false; J.x = J.y = 0; };
 window.__bz = { start() { __D.stop(); __bzMute(false); try { initAudio(); if (AC && AC.state != 'running') AC.resume(); } catch (e) {} ov(null); newRun(); }, TK };
 
-// BERSERKER (arcade copy) t827u/t830u: 2-player online co-op through the arcade's existing multiplayer, set up like Strike.
+// BERSERKER (arcade copy) t827u/t830u/t834u/t835u: 2-player online co-op through the arcade's existing multiplayer, set up like Strike.
 // Host (cabinet slot 0) simulates both Vikings and the world; the guest sends input and draws the host snapshot.
 // Guest predicts its own Viking and interpolates player 1 ~110 ms behind. Messages are capped at one per 70 ms.
 // A leaving player sends "bye"; 5 s with no input also drops them. An OUT / left player is not drawn.
 // The game continues for the remaining player. Each player scores their own kills and pickups.
 // Ability activations (Thor, Berserker rage, Odin) show their visuals and play their sounds on both screens.
 // t830u: an OUT or left player can REJOIN the same ongoing game at the current wave for 5 arcade tickets.
+// t834u: the remote Viking is a real Y-sorted sprite on both screens (not just HUD state); ability FX render for both players.
+// t835u: __gaHudPx reports the P1/P2 stats bottom so the arcade can sit X / option buttons under the HUD on an upright phone.
 (function () {
   const C = window.__bzCoop = { role: 'solo', slot: 0, p2on: false, locked: false, peerAt: 0, sent: 0, recv: 0, snaps: 0, joins: 0, rejoins: 0, p2color: '#ff6e14', drawn: { p1: 0, p2: 0 }, left: 0, rejoinCost: 5 };
   const I2 = { x: 0, y: 0, A: 0, D: 0, T: 0, R: 0, O: 0, since: 0, tx: null, ty: null, vx: 0, vy: 0 };
@@ -1237,10 +1239,31 @@ window.__bz = { start() { __D.stop(); __bzMute(false); try { initAudio(); if (AC
     if (C.peerAt) return performance.now() - C.peerAt < 4000;
     return !!(C.locked && C.role === 'host');
   }
-  function become(role, slot) { C.role = role; C.slot = slot; C.locked = true; if (role === 'guest') C.p2on = true; }
+  function become(role, slot) {
+    const prev = C.role;
+    C.role = role; C.slot = slot; C.locked = true;
+    if (role === 'guest') {
+      C.p2on = true;
+      if (prev !== 'guest') { try { sendJoinNow(); } catch (e) {} }
+    }
+  }
+  function sendJoinNow() {
+    const M = mp(); if (!M || !M.berserker) return;
+    const send = M.berserker.sendNow || M.berserker.send;
+    try { send.call(M.berserker, { typ: 'join' }); C.joins++; } catch (e) {}
+  }
+  function sendHostKeep() {
+    const M = mp(); if (!M || !M.berserker) return;
+    const send = M.berserker.sendNow || M.berserker.send;
+    try { send.call(M.berserker, { typ: 'host', state: (typeof G !== 'undefined' && G.state) || 'play' }); } catch (e) {}
+  }
   function refreshRole() {
     const M = mp();
     if (C.locked) {
+      if (C.role === 'host') {
+        const sl = slotNow();
+        if (sl === 1 && cabN() >= 2 && recentHostSnap()) { become('guest', 1); return C.role; }
+      }
       if (peerLive()) return C.role;
       C.role = 'solo'; C.locked = false; C.p2on = false; C.slot = 0;
       return C.role;
@@ -1461,7 +1484,11 @@ window.__bz = { start() { __D.stop(); __bzMute(false); try { initAudio(); if (AC
     const ev = [{ typ: typ, who: who || (C.inP2 ? 2 : 1) }];
     C.fxSent = (C.fxSent || 0) + 1; C.fxLog = (C.fxLog || []).concat(ev);
     // both screens hear it: host plays locally (the wrapped fn already did); guest gets the packet
-    sendImp({ typ: 'fx', ev: ev });
+    const M = mp();
+    if (M && M.berserker) {
+      const send = M.berserker.sendNow || M.berserker.send;
+      try { send.call(M.berserker, { typ: 'fx', ev: ev }); } catch (e) { sendImp({ typ: 'fx', ev: ev }); }
+    } else sendImp({ typ: 'fx', ev: ev });
     if (C.inP2) C.needSnap = true;
     else sendStateNow();
   }
@@ -1498,9 +1525,26 @@ window.__bz = { start() { __D.stop(); __bzMute(false); try { initAudio(); if (AC
     if (C.p1out && !window.__DEMO) { C.p1out = false; endCoop(); }
     syncRejoinBtn();
   }
+  function blockedAt(x, y, r) {
+    r = r || 16;
+    try {
+      const L = (G.stage === 0 && typeof V !== 'undefined' && V && V.colls) ? V.colls : obs;
+      if (!L) return false;
+      for (let i = 0; i < L.length; i++) {
+        const o = L[i]; if (!o) continue;
+        if (Math.hypot((o.x || 0) - x, (o.y || 0) - y) < r + (o.r || 20)) return true;
+      }
+    } catch (e) {}
+    return false;
+  }
   function placeNear(s, other) {
-    const x = other ? other.x + 36 : (s.x || WS / 2), y = other ? other.y : (s.y || WS / 2);
-    s.x = cl(x, s.r, WS - s.r); s.y = cl(y, s.r, WS - s.r);
+    const ox = other ? other.x : (s.x || WS / 2), oy = other ? other.y : (s.y || WS / 2);
+    const tries = [[40, 0], [-40, 0], [0, 40], [0, -40], [56, 24], [-56, 24], [48, -32], [-48, -32], [80, 0], [-80, 0], [0, 80], [64, 64]];
+    for (let i = 0; i < tries.length; i++) {
+      const x = cl(ox + tries[i][0], s.r, WS - s.r), y = cl(oy + tries[i][1], s.r, WS - s.r);
+      if (!blockedAt(x, y, (s.r || 12) + 10)) { s.x = x; s.y = y; return; }
+    }
+    s.x = cl(ox + 40, s.r, WS - s.r); s.y = cl(oy, s.r, WS - s.r);
   }
   function revive(s) {
     s.hp = s.max || 100; s.lives = Math.max(5, s.lives | 0); s.inv = 1.5; s.dashT = 0; s.hurtT = 0; s.rage = 0; s.energy = Math.max(s.energy || 0, 0); s.vx = 0; s.vy = 0;
@@ -1801,25 +1845,55 @@ window.__bz = { start() { __D.stop(); __bzMute(false); try { initAudio(); if (AC
     }
   };
 
+  function p2Live() { return !!(C.p2on && P2 && !C.p2out && P2.hp > 0); }
+  function addP2ToList(list) {
+    if (!p2Live() || !list || !list.push) return;
+    for (let i = 0; i < list.length; i++) if (list[i] && list[i]._p2) return;
+    const t = performance.now() / 1000;
+    list.push({ y: P2.y, _p2: 1, f: () => {
+      cx.save(); cx.shadowColor = C.p2color; cx.shadowBlur = 14;
+      withP2(() => _dpw(t));
+      cx.restore();
+      C.drawn.p2++;
+    } });
+  }
   const _draw = draw;
   draw = function () {
     const saved = pax;
     if ((C.p2on || C.role === 'guest') && pax2 && pax2.length) pax = saved.concat(pax2);
-    try { _draw(); } finally { pax = saved; }
+    // t834u: insert P2 into the Y-sort list at P2.y so a village house cannot bury the remote Viking
+    const _sort = Array.prototype.sort;
+    Array.prototype.sort = function (cmp) {
+      if (this && this.length && this[0] && typeof this[0].f === 'function' && typeof this[0].y === 'number') addP2ToList(this);
+      return _sort.apply(this, arguments);
+    };
+    try { _draw(); } finally { Array.prototype.sort = _sort; pax = saved; }
     if (C.tracing) { const a = P || { x: 0, y: 0 }, b = P2 || { x: 0, y: 0 }; C.trace.push([performance.now(), +a.x.toFixed(2), +a.y.toFixed(2), +b.x.toFixed(2), +b.y.toFixed(2)]); if (C.trace.length > 3000) C.trace.shift(); }
   };
   C.trace = [];
   const _dpw = drawPlayerW;
   drawPlayerW = function (t) {
     const hide1 = C.p1out || (C.role === 'host' && P && P.hp <= 0 && (P.lives | 0) <= 0 && C.p2on);
-    if (!hide1) _dpw(t);
-    if (C.p2on && P2 && !C.p2out && P2.hp > 0) {
-      withP2(() => {
-        cx.save(); cx.shadowColor = C.p2color; cx.shadowBlur = 14; _dpw(t); cx.restore();
-      });
-      C.drawn.p2++;
+    if (!hide1) { _dpw(t); C.drawn.p1++; }
+    // P2 is drawn from the Y-sort entry (addP2ToList), at the correct layer
+  };
+  const _drawRageFx = drawRageFx;
+  drawRageFx = function (t) {
+    _drawRageFx(t);
+    if (p2Live() && P2.rage > 0) withP2(() => _drawRageFx(t));
+  };
+  const _drawWW = drawWW;
+  drawWW = function (t) {
+    _drawWW(t);
+    if (p2Live() && P2.wwT > 0) withP2(() => _drawWW(t));
+  };
+  const _drawRavens = drawRavens;
+  drawRavens = function (t) {
+    _drawRavens(t);
+    if (ravens2 && ravens2.length) {
+      swapArr(ravens, ravens2);
+      try { _drawRavens(t); } finally { swapArr(ravens, ravens2); }
     }
-    if (!hide1) C.drawn.p1++;
   };
 
   const _hud = hud;
@@ -1863,21 +1937,89 @@ window.__bz = { start() { __D.stop(); __bzMute(false); try { initAudio(); if (AC
     C.p2on = false; snap = null; resetP2(); C.p1out = false; C.p2out = false; C.snapAt = 0;
     C.gone = false; C.leftAt = 0; C.leftBye = false;
     SM.pred = null; SM.buf.length = 0; SM.off = null; SM.hx = null; SM.hy = null;
-    if (already && already.typ === 'st' && (already.state === 'play' || already.state === 'intro' || already.state === 'clear')) {
-      become('guest', 1);
-      sendImp({ typ: 'join' }); C.joins++;
-      applySnap(already);
+    const sl = slotNow();
+    // typ:'host' (keepalive before any typ:'st') also means a host is already playing — do not start a second host
+    if ((already && (already.typ === 'st' || already.typ === 'host')) || (sl != null && sl > 0 && cabN() >= 2)) {
+      become('guest', sl != null ? sl : 1);
+      if (already && already.typ === 'st') applySnap(already);
     } else {
-      become('host', 0);
-      const M = mp(); if (M && M.berserker) M.berserker.send({ typ: 'host' });
+      become('host', sl != null ? sl : 0);
+      sendHostKeep();
     }
     syncRejoinBtn();
   }
+  // t834u: intro / warp / clear skip update(), so keep the host/guest handshake and typ:'host' alive
+  function coopNetIntro() {
+    hookMp(); refreshRole();
+    if (window.__DEMO) return;
+    if (C.role === 'guest') {
+      const M = mp(), oth = M && M.berserker && M.berserker.others && M.berserker.others()[0];
+      const st = (oth && oth.s && oth.s.typ === 'st') ? oth.s : ((oth && oth.st && oth.st.typ === 'st') ? oth.st : recentHostSnap());
+      if (st && st.typ === 'st') applySnap(st);
+      sendInput();
+      return;
+    }
+    if (C.role === 'host') {
+      if (!C.p2on) {
+        const pr = bzPeers().find(p => p.s && (p.s.typ === 'in' || p.s.typ === 'join' || p.s.typ === 'rejoin') && p.at > (C.endAt || 0));
+        if (pr) {
+          if (pr.s.typ === 'rejoin') doHostRejoin(pr.s); else { rejoinP2(pr.id, { fresh: pr.s.typ === 'join' }); C.joins++; }
+        }
+      }
+      if (C.p2on || bzPeers().length) sendState();
+      else sendHostKeep();
+    }
+  }
+  const _loop = loop;
+  loop = function (now) {
+    try { if (!window.__DEMO && G && G.state !== 'play' && G.state !== 'pause') coopNetIntro(); } catch (e) {}
+    return _loop.apply(this, arguments);
+  };
   const _bz = window.__bz && window.__bz.start;
   if (window.__bz) window.__bz.start = function () { const r = _bz && _bz.apply(this, arguments); afterStart(); return r; };
   const _newRun = newRun;
   newRun = function () { const r = _newRun.apply(this, arguments); if (!window.__DEMO) afterStart(); return r; };
 
+  // t835u: bottom of the P1 / P2 stats in CSS px (frame coords) so the arcade sits X under the left stats
+  // and the 3 option buttons (#ui: V / fullscreen / options) directly under the right-side P2 stats.
+  window.__gaHudPx = function () {
+    try {
+      const cv = document.getElementById('c') || document.querySelector('canvas'), r = cv.getBoundingClientRect();
+      const top = 8 + (parseInt(getComputedStyle(document.documentElement).getPropertyValue('--sat')) || 0) + (window.__gaTop || 0);
+      const coop = !(C.role === 'solo' && !C.p2on);
+      const bottom = top + (coop ? 72 : 68);
+      return r.top + bottom * (r.height / (H || r.height) || 1);
+    } catch (e) { return 0; }
+  };
+  C.worldToScreen = function (x, y) {
+    const sx = W / 2 + (x - cam.x) * SC, sy = H / 2 + (y - cam.y) * SC;
+    return { x: sx, y: sy, on: sx > 10 && sy > 10 && sx < W - 10 && sy < H - 10 };
+  };
+  C.sampleAt = function (wx, wy, rad) {
+    rad = rad || 18;
+    const p = C.worldToScreen(wx, wy), cv = document.getElementById('c');
+    if (!cv) return { on: false, hits: 0, max: 0, sx: p.x, sy: p.y };
+    const dpr = DPR || 1, ctx = cv.getContext('2d');
+    const cx0 = Math.max(0, Math.round(p.x * dpr - rad * dpr)), cy0 = Math.max(0, Math.round(p.y * dpr - rad * dpr));
+    const w = Math.min(cv.width - cx0, Math.round(rad * 2 * dpr)), h = Math.min(cv.height - cy0, Math.round(rad * 2 * dpr));
+    if (w < 2 || h < 2) return { on: p.on, hits: 0, max: 0, sx: p.x, sy: p.y };
+    const data = ctx.getImageData(cx0, cy0, w, h).data;
+    let hits = 0, maxv = 0;
+    for (let i = 0; i < data.length; i += 4) {
+      const r = data[i], g = data[i + 1], b = data[i + 2], a = data[i + 3];
+      if (a < 20) continue;
+      const v = r + g + b;
+      if (v > maxv) maxv = v;
+      // not the clear #050608 backdrop (sum 19)
+      if (v > 40) hits++;
+    }
+    return { on: p.on, hits, max: maxv, sx: +p.x.toFixed(1), sy: +p.y.toFixed(1), w, h };
+  };
+  C.paintOf = function (who) {
+    const pl = who === 2 ? P2 : P;
+    if (!pl) return { on: false, hits: 0 };
+    return Object.assign(C.sampleAt(pl.x, pl.y - 8, 20), { x: +pl.x.toFixed(1), y: +pl.y.toFixed(1) });
+  };
   C.hud = () => ({
     role: C.role, slot: C.slot, p2on: C.p2on, locked: !!C.locked, names: names(),
     p1: P ? { x: +P.x.toFixed(2), y: +P.y.toFixed(2), hp: +P.hp.toFixed(1), lives: P.lives | 0, kills: P.kills | 0, gold: P.gold | 0, energy: +(P.energy || 0).toFixed(1), rage: +(P.rage || 0).toFixed(2), alive: P.hp > 0 && !C.p1out, out: !!C.p1out } : null,
@@ -1885,7 +2027,7 @@ window.__bz = { start() { __D.stop(); __bzMute(false); try { initAudio(); if (AC
     wave: G.seqI | 0, stage: G.stage | 0, rejoin: { can: !!C.canRejoin(), shown: !!C.rejoinShown, need: !!C.rejoinNeed, cost: C.rejoinCost, blocked: C.rejoinBlocked || 0, n: C.rejoins || 0 }
   });
   C.steps = function (n, dt) { dt = dt || 1 / 60; for (let i = 0; i < (n || 1); i++) { try { if (hitstop > 0) hitstop -= dt; } catch (e) {} update(dt); try { fx(dt); } catch (e) {} draw(); } };
-  C.sendState = sendState; C.sendInput = sendInput; C.applyIn = applyIn; C.applySnap = applySnap;
+  C.sendState = sendState; C.sendStateNow = sendStateNow; C.sendInput = sendInput; C.applyIn = applyIn; C.applySnap = applySnap;
   C.withP2 = withP2; C.resetP2 = resetP2; C.sendBye = sendBye; C.dropP2 = dropP2;
   C.killP1 = () => { if (!P) return; P.lives = 1; P.hp = 0; P.inv = 0; try { die(); } catch (e) {} };
   C.killP2 = () => { if (!P2) return; withP2(() => { P.lives = 1; P.hp = 0; P.inv = 0; try { die(); } catch (e) {} }); };
@@ -1899,6 +2041,8 @@ window.__bz = { start() { __D.stop(); __bzMute(false); try { initAudio(); if (AC
   if (window.__B) window.__B.coop = C;
   C.syncRejoinBtn = syncRejoinBtn;
 })();
+
+
 
 window.__B={TM,draw:()=>draw(),G:()=>G,P:()=>P,ens:()=>ens,cheat,openShop,renderShop,tgt:()=>tgt,cam:()=>cam};
 resize();bakeAll();showBest();requestAnimationFrame(loop);

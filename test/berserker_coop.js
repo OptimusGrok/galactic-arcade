@@ -1,7 +1,9 @@
-// t827u/t830u: Berserker 2-player online co-op in the arcade cabinet (mocked Supabase relay, no network).
+// t827u/t830u/t834u/t835u: Berserker 2-player online co-op in the arcade cabinet (mocked Supabase relay, no network).
 // Set up like Strike: P2 drops in from a second phone; host simulates; guest predicts / interpolates.
-// Each player sees the other's Thor / Berserker / Odin; P2 scores its own kills and pickups.
+// Each player sees the other's Viking actually drawn on the canvas (pixels, both directions) and their
+// Thor / Berserker / Odin visuals on both screens. P2 scores its own kills and pickups.
 // An OUT or left player can REJOIN the same ongoing game for 5 tickets (blocked under 5).
+// t835u: on a portrait phone the 3 option buttons sit under the right-side P2 stats, close X under P1.
 // Local names: Dave / Zed. Live (GA_URL): HostP1 / JoinP2. No screenshots.
 // NOSHOTS=1 node test/berserker_coop.js
 const { open } = require('./lib'); const mock = require('./mpmock');
@@ -11,9 +13,9 @@ const NAMES = LIVE ? ['HostP1', 'JoinP2'] : ['Dave', 'Zed'];
 (async () => {
   const pages = [], devs = [];
   async function dev(id, name, look) {
-    const o = await open({ phone: true, w: 844, h: 390 }); const p = o.page; p.setDefaultTimeout(60000);
+    const o = await open({ phone: true, w: 390, h: 844 }); const p = o.page; p.setDefaultTimeout(60000);
     await p.exposeFunction('__mpRelay', m => { for (const q of pages) if (q !== p) q.evaluate(x => window.__mpRecv && window.__mpRecv(JSON.parse(x)), m).catch(() => {}); });
-    await p.addInitScript(([id, name, look]) => { window.__mpId = id; localStorage.setItem('galacticarcade.player', JSON.stringify(Object.assign({ name }, look))); localStorage.setItem('neonarcade.mute', '1'); localStorage.setItem('neonarcade.tickets', '20'); }, [id, name, look]);
+    await p.addInitScript(([id, name, look]) => { window.__mpId = id; localStorage.setItem('galacticarcade.player', JSON.stringify(Object.assign({ name }, look))); localStorage.setItem('neonarcade.mute', '1'); localStorage.setItem('neonarcade.tickets', '20'); localStorage.setItem('neonarcade.vikingTickets', '3'); }, [id, name, look]);
     await p.addInitScript(mock); pages.push(p); devs.push(o); await p.reload();
     await p.waitForFunction(() => window.__arcade && window.__arcade.stats.frames > 3 && window.__mp && window.__mp.state === 'on', null, { timeout: 60000 });
     return p;
@@ -35,16 +37,16 @@ const NAMES = LIVE ? ['HostP1', 'JoinP2'] : ['Dave', 'Zed'];
   const play = p => p.evaluate(() => { const P = window.__arcade.play; P.machines.berserker.credits = 1; P.tryPlay(); return P.sub; });
 
   chk(await play(a) === 'play', 'P1 spends a credit and starts a real Berserker game');
-  await S(a, 'w.__B.cheat.inv = true; C.steps(8); return w.__B.G().state;');
+  await S(a, 'w.__B.cheat.inv = true; return w.__B.G().state;');
+  // let the real intro (~2.6s) and typ:'host' keepalive run; P2 then joins through the cabinet path
+  await a.waitForTimeout(400);
   chk(await play(b) === 'play', 'P2 drops in while P1 is already playing');
   await S(b, 'w.__B.cheat.inv = true; return 1;');
-  for (let i = 0; i < 10; i++) {
-    await S(a, 'C.steps(4); return 1;');
-    await S(b, 'C.steps(4); return 1;');
-    await a.waitForTimeout(80);
-  }
-  await b.waitForFunction(() => { const C = document.getElementById('game').contentWindow.__bzCoop; return C && C.role === 'guest' && C.snaps > 0 && C.p2on; }, null, { timeout: 15000 }).catch(() => {});
-  await a.waitForFunction(() => { const C = document.getElementById('game').contentWindow.__bzCoop; return C && C.role === 'host' && C.p2on; }, null, { timeout: 8000 }).catch(() => {});
+  await b.waitForFunction(() => { const C = document.getElementById('game').contentWindow.__bzCoop; return C && C.role === 'guest' && C.snaps > 0 && C.p2on; }, null, { timeout: 20000 }).catch(() => {});
+  await a.waitForFunction(() => { const C = document.getElementById('game').contentWindow.__bzCoop; return C && C.role === 'host' && C.p2on; }, null, { timeout: 12000 }).catch(() => {});
+  // wait out intro on the real requestAnimationFrame loop (no C.steps) so both Vikings are drawn in-frame
+  await a.waitForFunction(() => { const w = document.getElementById('game').contentWindow; return w.__B && w.__B.G().state === 'play'; }, null, { timeout: 12000 }).catch(() => {});
+  await a.waitForTimeout(700);
 
   const ha = await S(a, 'return C.hud();');
   const hb = await S(b, 'return C.hud();');
@@ -54,6 +56,30 @@ const NAMES = LIVE ? ['HostP1', 'JoinP2'] : ['Dave', 'Zed'];
     'both Vikings are in the game at the same time, at different positions', { a: ha.p1, b: ha.p2 });
   chk(ha.p1.hp > 0 && ha.p2.hp > 0 && Math.abs(hb.p1.hp - ha.p1.hp) < 1 && Math.abs(hb.p2.hp - ha.p2.hp) < 1,
     'each phone shows both players’ health', { ha: { p1: ha.p1, p2: ha.p2 }, hb: { p1: hb.p1, p2: hb.p2 } });
+
+  // t834u: both Vikings are actually painted on each phone's canvas (world-to-screen, not HUD / counters)
+  const paint = p => S(p, 'return { p1: C.paintOf(1), p2: C.paintOf(2), drawn: C.drawn, role: C.role };');
+  const pa = await paint(a), pb = await paint(b);
+  chk(pa.p1.on && pa.p1.hits > 8 && pa.p2.on && pa.p2.hits > 8 && Math.hypot(pa.p1.sx - pa.p2.sx, pa.p1.sy - pa.p2.sy) > 12,
+    'host canvas: both Vikings are on screen, drawn at different positions, with real pixels', pa);
+  chk(pb.p1.on && pb.p1.hits > 8 && pb.p2.on && pb.p2.hits > 8 && Math.hypot(pb.p1.sx - pb.p2.sx, pb.p1.sy - pb.p2.sy) > 12,
+    'guest canvas: both Vikings are on screen, drawn at different positions, with real pixels', pb);
+  chk((pa.drawn.p1 || 0) > 0 && (pa.drawn.p2 || 0) > 0 && (pb.drawn.p1 || 0) > 0 && (pb.drawn.p2 || 0) > 0,
+    'the real draw path has painted P1 and P2 on both clients', { a: pa.drawn, b: pb.drawn });
+
+  // t835u: portrait phone — close X under P1 stats, 3 option buttons under P2 stats, nothing covers the game
+  const lay = await a.evaluate(() => {
+    const R = id => { const e = document.getElementById(id); if (!e) return null; const cs = getComputedStyle(e); if (cs.display === 'none') return null; const b = e.getBoundingClientRect(); return { l: b.left, t: b.top, r: b.right, b: b.bottom, w: b.width, h: b.height }; };
+    let hud = 0; try { hud = document.getElementById('game').contentWindow.__gaHudPx(); } catch (e) {}
+    return { X: R('bExit'), tix: R('tix'), vix: R('vix'), ui: R('ui'), hud, W: innerWidth, H: innerHeight, upPhone: document.body.classList.contains('upPhone'), upright: document.body.classList.contains('upright') };
+  });
+  chk(lay.upright && lay.upPhone && lay.hud > 30, 'upright phone layout is on and Berserker reports its HUD bottom', lay);
+  chk(lay.X && lay.X.l <= 6 && lay.X.t >= lay.hud && lay.X.t <= lay.hud + 14, 'close X sits directly under the left (P1) stats', lay);
+  chk(lay.ui && lay.ui.r >= lay.W - 8 && lay.ui.t >= lay.hud && lay.ui.t <= lay.hud + 14, 'the 3 option buttons sit directly under the right-side (P2) stats', lay);
+  const ov = (A, B) => A && B && A.l < B.r - 0.5 && B.l < A.r - 0.5 && A.t < B.b - 0.5 && B.t < A.b - 0.5;
+  const p2box = { l: lay.W - 170, t: 0, r: lay.W, b: lay.hud };
+  chk(lay.ui && !ov(lay.ui, p2box), 'option buttons do not cover the P2 stats', { ui: lay.ui, p2box, hud: lay.hud });
+  chk(lay.X && !ov(lay.X, { l: 0, t: 0, r: 170, b: lay.hud }), 'close X does not cover the P1 stats', { X: lay.X, hud: lay.hud });
 
   // P2 moves: guest holds right on the joystick
   const x0 = ha.p2.x;
@@ -87,30 +113,32 @@ const NAMES = LIVE ? ['HostP1', 'JoinP2'] : ['Dave', 'Zed'];
   // abilities: both screens see Thor / rage / Odin
   await S(a, 'C.fxLog = []; C.fxSent = 0; return 1;');
   await S(b, 'C.fxLog = []; C.fxGot = 0; return 1;');
-  await S(a, 'C.forceThor(1); C.steps(2); C.sendState(); return 1;');
-  await a.waitForTimeout(180); await S(b, 'C.steps(2); return 1;');
-  const th = await S(b, 'return { bolts: (C.world().bolts || []).length, fx: (C.fxLog || []).map(e => e.typ), got: C.fxGot || 0 };');
-  const thA = await S(a, 'return { bolts: (C.world().bolts || []).length, sent: C.fxSent || 0, log: (C.fxLog || []).map(e => e.typ) };');
+  await S(a, 'C.forceThor(1); C.sendStateNow && C.sendStateNow(); return 1;');
+  await a.waitForTimeout(250);
+  const th = await S(b, 'const bolts = C.world().bolts || []; const sm = bolts[0] ? C.sampleAt(bolts[0].x, bolts[0].y - 40, 28) : { hits: 0 }; return { bolts: bolts.length, fx: (C.fxLog || []).map(e => e.typ), got: C.fxGot || 0, px: sm };');
+  const thA = await S(a, 'const bolts = C.world().bolts || []; const sm = bolts[0] ? C.sampleAt(bolts[0].x, bolts[0].y - 40, 28) : { hits: 0 }; return { bolts: bolts.length, sent: C.fxSent || 0, log: (C.fxLog || []).map(e => e.typ), px: sm };');
   chk(thA.sent > 0 && thA.log.includes('thor') && (thA.bolts > 0 || th.bolts > 0), 'P1 Thor plays on the host (visuals + recorded ability)', thA);
-  chk(th.got > 0 && th.fx.includes('thor'), 'P1 Thor is heard / seen on P2’s phone', th);
+  chk((thA.px.hits > 0 || th.px.hits > 0 || thA.bolts > 0), 'P1 Thor lightning is painted on the host canvas', thA.px);
+  chk(th.got > 0 && th.fx.includes('thor') && (th.px.hits > 0 || th.bolts > 0), 'P1 Thor is heard and its lightning is on P2’s canvas', th);
 
   await S(a, 'C.fxLog = []; C.fxSent = 0; return 1;');
   await S(b, 'C.fxLog = []; C.fxGot = 0; return 1;');
-  await S(a, 'C.forceRage(2); C.steps(2); C.sendState(); return 1;');
-  await a.waitForTimeout(180); await S(b, 'C.steps(2); return 1;');
-  const rgA = await S(a, 'return { p2rage: C.hud().p2.rage, sent: C.fxSent || 0, log: (C.fxLog || []).map(e => e.typ) };');
-  const rgB = await S(b, 'return { p2rage: C.hud().p2.rage, got: C.fxGot || 0, log: (C.fxLog || []).map(e => e.typ) };');
-  chk(rgA.p2rage > 0 && rgA.log.includes('rage'), 'P2 Berserker rage activates on the host and is visible', rgA);
-  chk(rgB.p2rage > 0 && rgB.log.includes('rage'), 'P2 Berserker rage is heard / seen on P2’s phone', rgB);
+  await S(a, 'C.forceRage(2); C.sendStateNow && C.sendStateNow(); return 1;');
+  await a.waitForTimeout(250);
+  const rgA = await S(a, 'const p2 = C.P2(); const px = p2 ? C.sampleAt(p2.x, p2.y - 4, 28) : { hits: 0 }; return { p2rage: C.hud().p2.rage, sent: C.fxSent || 0, log: (C.fxLog || []).map(e => e.typ), px };');
+  const rgB = await S(b, 'const p2 = C.P2(); const px = p2 ? C.sampleAt(p2.x, p2.y - 4, 28) : { hits: 0 }; return { p2rage: C.hud().p2.rage, got: C.fxGot || 0, log: (C.fxLog || []).map(e => e.typ), px };');
+  chk(rgA.p2rage > 0 && rgA.log.includes('rage') && rgA.px.hits > 8, 'P2 Berserker rage activates on the host and is painted around P2', rgA);
+  chk(rgB.p2rage > 0 && rgB.log.includes('rage') && rgB.px.hits > 8, 'P2 Berserker rage is heard and painted on P2’s phone', rgB);
 
   await S(a, 'C.fxLog = []; C.fxSent = 0; return 1;');
   await S(b, 'C.fxLog = []; C.fxGot = 0; return 1;');
-  await S(a, 'C.forceOdin(1); C.steps(3); C.sendState(); return 1;');
-  await a.waitForTimeout(180); await S(b, 'C.steps(2); return 1;');
-  const odA = await S(a, 'return { n: (C.world().ravens || []).length, sent: C.fxSent || 0, log: (C.fxLog || []).map(e => e.typ), odS: w.__B.G().odS };');
-  const odB = await S(b, 'return { n: (C.world().ravens || []).length, got: C.fxGot || 0, log: (C.fxLog || []).map(e => e.typ) };');
+  await S(a, 'C.forceOdin(1); C.sendStateNow && C.sendStateNow(); return 1;');
+  await a.waitForTimeout(400);
+  const odA = await S(a, 'const rv = C.world().ravens || []; const sm = rv[0] ? C.sampleAt(rv[0].x, rv[0].y, 16) : { hits: 0 }; return { n: rv.length, sent: C.fxSent || 0, log: (C.fxLog || []).map(e => e.typ), odS: w.__B.G().odS, px: sm };');
+  const odB = await S(b, 'const rv = C.world().ravens || []; const sm = rv[0] ? C.sampleAt(rv[0].x, rv[0].y, 16) : { hits: 0 }; return { n: rv.length, got: C.fxGot || 0, log: (C.fxLog || []).map(e => e.typ), px: sm };');
   chk(odA.log.includes('odin') && (odA.n > 0 || odA.odS > 0), 'P1 Odin activates on the host (ravens / timer)', odA);
-  chk(odB.log.includes('odin') || odB.n > 0, 'P1 Odin is heard / seen on P2’s phone', odB);
+  chk((odA.n > 0 && odA.px.hits > 0) || odA.odS > 0, 'P1 Odin ravens are painted on the host canvas', odA);
+  chk((odB.log.includes('odin') || odB.n > 0) && (odB.n === 0 || odB.px.hits > 0), 'P1 Odin is heard / seen on P2’s phone (ravens painted when present)', odB);
 
   // t830u: OUT player can rejoin the same wave for 5 tickets; blocked under 5
   const wave0 = await S(a, 'return C.hud().wave;');

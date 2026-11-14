@@ -46,7 +46,7 @@ export function setupPlay(A) {
       start(w) { w.__HOLD = 0; w.__M.startGame(); },
       scene(w) { return w.__M.state; }, active(w) { return w.__M.state === 'play'; },
       hold(w) { if (w.__M.state !== 'play') return false; w.__HOLD = 1; return true; }, unhold(w) { w.__HOLD = 0; }, overHold: 3500, scoresHold: 0 },
-    berserker: { key: 'berserker', cab: A.berserkerCab, src: 'berserker-play/index.html', credits: 0, games: 0, aspect: 9 / 16, cost: 5,   // 5 tickets = 1 credit = the whole run incl. 3 continues
+    berserker: { key: 'berserker', upright: 1, cab: A.berserkerCab, src: 'berserker-play/index.html', credits: 0, games: 0, aspect: 9 / 16, cost: 5,   // 5 tickets = 1 credit = the whole run incl. 3 continues
       demo(w) { w.__demo.start(); }, stopDemo(w) { w.__demo.stop(); },
       start(w) { w.__bz.start(); },
       scene(w) { const s = w.__B.G().state; return s === 'dead' || s === 'win' ? 'over' : s === 'title' ? 'title' : 'play'; },
@@ -322,7 +322,7 @@ export function setupPlay(A) {
   // t808u: PHONE + upright cabinet: ticket chips (gold + Viking) centred at the top; close X directly under the game's left
   // stats, the 3 option buttons (#ui) directly under its right stats, so nothing covers the game's HUD. iPad keeps its layout.
   // Offsets are CSS px at a 390 px wide phone (scaled with the width); Strike reports its own HUD bottom (__gaHudPx).
-  const UP_HUD = { ghost: { x: 48, o: 52, t: 52 }, cyber: { x: 4, o: 4, t: 32 }, monkey: { x: 124, o: 136, t: 4 }, claw: { x: 4, o: 4, t: 4 }, strike: { x: 4, o: 4, t: 4 }, bb: { x: 4, o: 4, t: 4 } };   // bb (t818u) reports its own HUD bottom (__gaHudPx)
+  const UP_HUD = { ghost: { x: 48, o: 52, t: 52 }, cyber: { x: 4, o: 4, t: 32 }, monkey: { x: 124, o: 136, t: 4 }, claw: { x: 4, o: 4, t: 4 }, strike: { x: 4, o: 4, t: 4 }, bb: { x: 4, o: 4, t: 4 }, berserker: { x: 4, o: 4, t: 4 } };   // bb / Strike / Berserker report their own HUD bottom (__gaHudPx)
   const upEls = () => [document.getElementById('bExit'), tixEl, vixEl, document.getElementById('ui')];
   let upOn = false;
   function upLayout() {
