@@ -7,8 +7,11 @@
 // t830u: an OUT or left player can REJOIN the same ongoing game at the current wave for 5 arcade tickets.
 // t834u: the remote Viking is a real Y-sorted sprite on both screens (not just HUD state); ability FX render for both players.
 // t835u: __gaHudPx reports the P1/P2 stats bottom so the arcade can sit X / option buttons under the HUD on an upright phone.
+// t836u: two real phones (separate identity, real relay, staggered entry) must keep exactly one host. A late typ:'host'
+// from a joiner with a smaller id must not evict the first player; typ:'in' registers P2; guests retry typ:'join'
+// until typ:'st' arrives; a guest with no live host takes the sim back; CONTINUE re-announces the handshake.
 (function () {
-  const C = window.__bzCoop = { role: 'solo', slot: 0, p2on: false, locked: false, peerAt: 0, sent: 0, recv: 0, snaps: 0, joins: 0, rejoins: 0, p2color: '#ff6e14', drawn: { p1: 0, p2: 0 }, left: 0, rejoinCost: 5 };
+  const C = window.__bzCoop = { role: 'solo', slot: 0, p2on: false, locked: false, peerAt: 0, sent: 0, recv: 0, snaps: 0, joins: 0, rejoins: 0, p2color: '#ff6e14', drawn: { p1: 0, p2: 0 }, left: 0, rejoinCost: 5, typ: {}, seen: {} };
   const I2 = { x: 0, y: 0, A: 0, D: 0, T: 0, R: 0, O: 0, since: 0, tx: null, ty: null, vx: 0, vy: 0 };
   const AB_KEYS = ['rgReady', 'rgT', 'odReady', 'odT', 'odS', 'odN', 'odAcc', 'odHits', 'odSpawned'];
   const P2ab = { rgReady: 0, rgT: 0, odReady: 0, odT: 0, odS: 0, odN: 0, odAcc: 0, odHits: 0, odSpawned: 0 };
@@ -50,11 +53,35 @@
     } catch (e) {}
     return out;
   }
+  function noteSeen(pld) {
+    if (!pld || !pld.i || pld.i === myId()) return;
+    C.seen = C.seen || {};
+    C.seen[pld.i] = { typ: pld.typ, at: performance.now(), p2: pld.p2, s: pld };
+  }
+  function typN(side, typ) { const k = side + typ; C.typ[k] = (C.typ[k] || 0) + 1; }
+  // t836u: a live host is typ:'st' or typ:'host' seen recently in THIS iframe's clock (parent r.at is a
+  // different time origin, so bzPeers() ages can go negative and a typ:'host' never looks stale).
+  // Do not treat a remembered typ:'st' as live once that peer's last packet is typ:'in' / typ:'join'.
+  function liveHostPkt() {
+    const now = performance.now(), seen = C.seen || {};
+    for (const pid in seen) {
+      const r = seen[pid]; if (!r || now - r.at > 1500) continue;
+      if (r.at <= (C.endAt || 0)) continue;
+      if (r.typ === 'st' || r.typ === 'host') return r;
+    }
+    return null;
+  }
   function recentHostSnap() {
-    const L = bzPeers();
+    const live = liveHostPkt();
+    if (live && live.s) return live.s;
+    const L = bzPeers(), now = performance.now();
     for (let i = 0; i < L.length; i++) {
-      const s = (L[i].s && (L[i].s.typ === 'st' || L[i].s.typ === 'host')) ? L[i].s : L[i].st;
-      if (s && (s.typ === 'st' || s.typ === 'host') && L[i].at > (C.endAt || 0)) return s;
+      const raw = L[i].s;
+      const s = (raw && (raw.typ === 'st' || raw.typ === 'host')) ? raw : null;
+      if (!s || L[i].at <= (C.endAt || 0)) continue;
+      const age = now - L[i].at;
+      if (age > 2000) continue;
+      return s;
     }
     return null;
   }
@@ -69,18 +96,60 @@
     C.role = role; C.slot = slot; C.locked = true;
     if (role === 'guest') {
       C.p2on = true;
+      C.guestAt = performance.now();
       if (prev !== 'guest') { try { sendJoinNow(); } catch (e) {} }
+    } else if (role === 'host') {
+      C.hostAt = performance.now();
     }
   }
   function sendJoinNow() {
     const M = mp(); if (!M || !M.berserker) return;
     const send = M.berserker.sendNow || M.berserker.send;
-    try { send.call(M.berserker, { typ: 'join' }); C.joins++; } catch (e) {}
+    try { send.call(M.berserker, { typ: 'join' }); C.joins++; typN('s_', 'join'); C.lastJoinAt = performance.now(); } catch (e) {}
   }
   function sendHostKeep() {
     const M = mp(); if (!M || !M.berserker) return;
     const send = M.berserker.sendNow || M.berserker.send;
-    try { send.call(M.berserker, { typ: 'host', state: (typeof G !== 'undefined' && G.state) || 'play' }); } catch (e) {}
+    try { send.call(M.berserker, { typ: 'host', state: (typeof G !== 'undefined' && G.state) || 'play' }); typN('s_', 'host'); } catch (e) {}
+  }
+  function peekInPeer() {
+    const now = performance.now(), seen = C.seen || {};
+    for (const pid in seen) {
+      const r = seen[pid]; if (!r || now - r.at > 4000) continue;
+      if (r.typ === 'in' || r.typ === 'join' || r.typ === 'rejoin') return { id: pid, typ: r.typ, s: r.s };
+    }
+    return bzPeers().find(p => p.s && (p.s.typ === 'in' || p.s.typ === 'join' || p.s.typ === 'rejoin')) || null;
+  }
+  function retryJoin() {
+    if (C.role !== 'guest') return;
+    if (C.p2out || C.gone) return;
+    // typ:'st' with p2:0 means the host dropped us (leave / OUT) — official typ:'rejoin' only
+    if (snap && snap.p2 === 0) return;
+    const now = performance.now();
+    const got = C.snapAt && now - C.snapAt < 800 && snap && snap.p2;
+    if (got) return;
+    if (C.lastJoinAt && now - C.lastJoinAt < 400) return;
+    try { sendJoinNow(); } catch (e) {}
+  }
+  // t836u: if typ:'st' never arrives, the slot-0 player (or any guest, once the other side is also a guest)
+  // must take the sim back. Otherwise both Vikings freeze and typ:'st' never starts.
+  function takeHostIfSilent() {
+    if (C.role === 'host' || window.__DEMO) return false;
+    if (liveHostPkt()) return false;
+    const now = performance.now();
+    const sl = slotNow();
+    // Slot 0 (first at the cabinet) recovers quickly if both became guests.
+    // Slot 1 must not steal during a short typ:'st' gap (host on the CONTINUE overlay).
+    const need = sl === 0 ? 1200 : 4000;
+    const waitFrom = Math.max(C.snapAt || 0, C.guestAt || 0);
+    if (waitFrom && now - waitFrom < need) return false;
+    if (!waitFrom && C.hostAt && now - C.hostAt < need) return false;
+    become('host', sl != null ? sl : 0);
+    const pr = peekInPeer();
+    if (pr) { if (pr.typ === 'rejoin' && pr.s) doHostRejoin(pr.s); else rejoinP2(pr.id, { fresh: pr.typ === 'join' }); }
+    sendHostKeep();
+    try { sendStateNow(); } catch (e) {}
+    return true;
   }
   function refreshRole() {
     const M = mp();
@@ -179,6 +248,7 @@
     dt = dt || 1 / 60;
     if (!C.p2on || C.p2out || !P2 || P2.hp <= 0) { SM.pred = null; return; }
     if (!SM.pred) SM.pred = { x: P2.x, y: P2.y };
+    if (C.role === 'guest' && typeof J !== 'undefined' && J && (J.x || J.y)) { I2.x = J.x || 0; I2.y = J.y || 0; }
     let mx = I2.x || 0, my = I2.y || 0;
     const m = Math.hypot(mx, my); if (m > 1) { mx /= m; my /= m; }
     const spd = (P2.spd || 120) * (1 + ((P2.b && P2.b.swift) || 0) * 0.1);
@@ -220,16 +290,16 @@
     if (C.role === 'guest') { const gx = (J && (J.x || J.y)) ? J : I2; o.x = +(gx.x || 0).toFixed(3); o.y = +(gx.y || 0).toFixed(3); I2.x = gx.x; I2.y = gx.y; }
     if (SM.pred) { o.tx = +SM.pred.x.toFixed(1); o.ty = +SM.pred.y.toFixed(1); }
     if (!M.berserker.send(o)) return;
-    lastIn = now; I2.T = I2.R = I2.O = I2.A = I2.D = 0; C.sent++;
+    lastIn = now; I2.T = I2.R = I2.O = I2.A = I2.D = 0; C.sent++; typN('s_', 'in');
   }
   function statePld() {
-    return Object.assign({ typ: 'st', ht: Math.round(performance.now()), p: packPl(P), q: packPl(P2), p2: C.p2on ? 1 : 0, n: names() }, packWorld());
+    return Object.assign({ typ: 'st', ht: Math.round(performance.now()), gen: C.gen | 0, p: packPl(P), q: packPl(P2), p2: C.p2on ? 1 : 0, n: names() }, packWorld());
   }
   function sendStateNow() {
     const M = mp(); if (!M || !M.berserker) return false;
     const send = M.berserker.sendNow || M.berserker.send;
     if (!send.call(M.berserker, statePld())) return false;
-    lastSt = performance.now(); C.sent++; return true;
+    lastSt = performance.now(); C.sent++; typN('s_', 'st'); return true;
   }
   let wantSt = false, stTimer = 0;
   function sendState() { wantSt = true; trySendState(false); }
@@ -241,11 +311,17 @@
     if (!force && !flushQ()) { later(); return; }
     const send = force ? (M.berserker.sendNow || M.berserker.send) : M.berserker.send;
     if (!send.call(M.berserker, statePld())) { later(); return; }
-    lastSt = now; wantSt = false; C.sent++;
+    lastSt = now; wantSt = false; C.sent++; typN('s_', 'st');
   }
   function applySnap(s) {
     if (!s || s.typ !== 'st') return;
     if (s === snap) return;
+    const ht = Number.isFinite(+s.ht) ? +s.ht : 0;
+    if (snap && Number.isFinite(+snap.ht) && ht && ht < +snap.ht) return;
+    if ((s.gen != null && s.gen !== C.gen) || (P && s.p && (s.p[7] | 0) !== (P.lives | 0))) {
+      SM.buf.length = 0; SM.pred = null; SM.off = null;
+    }
+    if (s.gen != null) C.gen = s.gen;
     snap = s; C.snaps++;
     if (!P2) resetP2();
     unpackPl(s.p, P); unpackPl(s.q, P2);
@@ -320,15 +396,26 @@
 
   function onMsg(pld) {
     if (!pld || pld.i === myId()) return;
-    C.recv++; C.peerAt = performance.now();
-    if ((pld.typ === 'st' || pld.typ === 'host') && C.role === 'host' && pld.i && String(pld.i) < String(myId() || '')) {
+    C.recv++; C.peerAt = performance.now(); noteSeen(pld); typN('r_', pld.typ || '?');
+    // t836u: only the late cabinet slot yields. A typ:'host' from a smaller id must not evict slot 0.
+    if ((pld.typ === 'st' || pld.typ === 'host') && C.role === 'host' && slotNow() === 1) {
       become('guest', 1);
-      sendImp({ typ: 'join' }); C.joins++;
+      sendJoinNow();
     }
     if (pld.typ === 'bye') { onBye(pld); return; }
-    if (pld.typ === 'in' && C.role === 'host') { if (!C.p2on && C.leftAt && C.gid === pld.i && !C.wantRejoin) return; applyIn(pld); C.ins = (C.ins || 0) + 1; if (C.p2on) { C.gid = pld.i; C.gAt = performance.now(); } }
+    if (pld.typ === 'in' && C.role === 'host') {
+      if (!C.p2on && C.leftAt && C.gid === pld.i && !C.wantRejoin) return;
+      if (!C.p2on) { rejoinP2(pld.i); C.leftBye = false; }
+      applyIn(pld); C.ins = (C.ins || 0) + 1; C.gid = pld.i; C.gAt = performance.now();
+    }
     if (pld.typ === 'st' && C.role === 'guest') { applySnap(pld); C.snapAt = performance.now(); }
-    if (pld.typ === 'join' && C.role === 'host') { if (!C.p2on) { rejoinP2(pld.i, { fresh: true }); C.leftBye = false; } C.gid = pld.i; C.gAt = performance.now(); C.joins++; }
+    if (pld.typ === 'join' && C.role === 'host') {
+      // A typ:'join' retry must not auto-bring back a leaver (they pay typ:'rejoin') or wipe their score.
+      if (!C.p2on) {
+        if (C.leftAt && C.gid === pld.i) { C.gAt = performance.now(); C.joins++; }
+        else { rejoinP2(pld.i, { fresh: !C.leftAt }); C.leftBye = false; C.gid = pld.i; C.gAt = performance.now(); C.joins++; }
+      } else { C.gid = pld.i; C.gAt = performance.now(); C.joins++; }
+    }
     if (pld.typ === 'rejoin' && C.role === 'host') { doHostRejoin(pld); }
     if (pld.typ === 'end' && C.role === 'guest') endGuest('host ended');
     if (pld.typ === 'tk' && C.role === 'guest') { try { if (window.TicketArt && TicketArt.collect) TicketArt.collect('berserker'); } catch (e) {} }
@@ -633,9 +720,13 @@
     hookMp(); refreshRole();
     if (window.__DEMO) { if (C.role !== 'solo' || C.p2on) { C.role = 'solo'; C.locked = false; C.p2on = false; } return _update(dt); }
     if (C.role === 'guest') {
-      const sa = performance.now() - (C.snapAt || C.peerAt || performance.now());
+      retryJoin();
+      if (takeHostIfSilent()) { /* fall through to the host sim below */ }
+    }
+    if (C.role === 'guest') {
+      const sa = performance.now() - (C.snapAt || C.guestAt || performance.now());
       C.snapAge = sa;
-      if (sa > 10000) { endGuest('host silent'); return; }
+      if (sa > 10000 && !liveHostPkt()) { endGuest('host silent'); return; }
       const M = mp(), oth = M && M.berserker && M.berserker.others && M.berserker.others()[0];
       const st = (oth && oth.s && oth.s.typ === 'st') ? oth.s : ((oth && oth.st && oth.st.typ === 'st') ? oth.st : recentHostSnap());
       if (st && st.typ === 'st') applySnap(st);
@@ -651,8 +742,8 @@
     if (C.role === 'host') {
       if (!C.p2on && performance.now() - (C.endAt || -1e9) > 3000) {
         const pr = bzPeers().find(p => p.s && (p.s.typ === 'in' || p.s.typ === 'join' || p.s.typ === 'rejoin') && p.at > (C.endAt || 0) && p.at > (C.leftAt || 0) + 200);
-        if (pr && !(C.leftBye && pr.id === C.gid && pr.s && pr.s.typ !== 'join' && pr.s.typ !== 'rejoin')) {
-          if (pr.s.typ === 'rejoin') doHostRejoin(pr.s); else { rejoinP2(pr.id, { fresh: pr.s.typ === 'join' }); C.joins++; }
+        if (pr && !(C.leftAt && pr.id === C.gid && pr.s && pr.s.typ !== 'rejoin')) {
+          if (pr.s.typ === 'rejoin') doHostRejoin(pr.s); else { rejoinP2(pr.id, { fresh: pr.s.typ === 'join' && !C.leftAt }); C.joins++; }
         }
       }
       hostWatch();
@@ -759,17 +850,24 @@
   function afterStart() {
     hookMp();
     const already = recentHostSnap();
-    C.p2on = false; snap = null; resetP2(); C.p1out = false; C.p2out = false; C.snapAt = 0;
+    const liveIn = peekInPeer();
+    const sl = slotNow();
+    C.p2on = false; snap = null; resetP2(); C.p1out = false; C.p2out = false; C.snapAt = 0; C.gen = (C.gen | 0) + 1;
     C.gone = false; C.leftAt = 0; C.leftBye = false;
     SM.pred = null; SM.buf.length = 0; SM.off = null; SM.hx = null; SM.hy = null;
-    const sl = slotNow();
     // typ:'host' (keepalive before any typ:'st') also means a host is already playing — do not start a second host
     if ((already && (already.typ === 'st' || already.typ === 'host')) || (sl != null && sl > 0 && cabN() >= 2)) {
       become('guest', sl != null ? sl : 1);
+      sendJoinNow(); // t836u: re-announce after CONTINUE / newRun even if we were already guest
       if (already && already.typ === 'st') applySnap(already);
     } else {
       become('host', sl != null ? sl : 0);
+      if (liveIn) {
+        if (liveIn.typ === 'rejoin' && liveIn.s) doHostRejoin(liveIn.s);
+        else rejoinP2(liveIn.id, { fresh: liveIn.typ === 'join' });
+      }
       sendHostKeep();
+      if (C.p2on) { try { sendStateNow(); } catch (e) {} }
     }
     syncRejoinBtn();
   }
@@ -777,6 +875,10 @@
   function coopNetIntro() {
     hookMp(); refreshRole();
     if (window.__DEMO) return;
+    if (C.role === 'guest') {
+      retryJoin();
+      if (takeHostIfSilent()) { /* become host and fall through */ }
+    }
     if (C.role === 'guest') {
       const M = mp(), oth = M && M.berserker && M.berserker.others && M.berserker.others()[0];
       const st = (oth && oth.s && oth.s.typ === 'st') ? oth.s : ((oth && oth.st && oth.st.typ === 'st') ? oth.st : recentHostSnap());
@@ -787,8 +889,8 @@
     if (C.role === 'host') {
       if (!C.p2on) {
         const pr = bzPeers().find(p => p.s && (p.s.typ === 'in' || p.s.typ === 'join' || p.s.typ === 'rejoin') && p.at > (C.endAt || 0));
-        if (pr) {
-          if (pr.s.typ === 'rejoin') doHostRejoin(pr.s); else { rejoinP2(pr.id, { fresh: pr.s.typ === 'join' }); C.joins++; }
+        if (pr && !(C.leftAt && pr.id === C.gid && pr.s && pr.s.typ !== 'rejoin')) {
+          if (pr.s.typ === 'rejoin') doHostRejoin(pr.s); else { rejoinP2(pr.id, { fresh: pr.s.typ === 'join' && !C.leftAt }); C.joins++; }
         }
       }
       if (C.p2on || bzPeers().length) sendState();
@@ -800,10 +902,32 @@
     try { if (!window.__DEMO && G && G.state !== 'play' && G.state !== 'pause') coopNetIntro(); } catch (e) {}
     return _loop.apply(this, arguments);
   };
-  const _bz = window.__bz && window.__bz.start;
-  if (window.__bz) window.__bz.start = function () { const r = _bz && _bz.apply(this, arguments); afterStart(); return r; };
+  // t836u: __bz.start already calls newRun(); hooking both ran afterStart twice and could send typ:'host'
+  // then immediately become guest, which (with id-based yield) left both phones as guests.
   const _newRun = newRun;
   newRun = function () { const r = _newRun.apply(this, arguments); if (!window.__DEMO) afterStart(); return r; };
+  // Arcade CONTINUE (__gaContinue.go) resumes the same run without newRun — re-announce so the guest
+  // is not left on the death typ:'st' (lives 0) and the host keeps P2 in the new wave.
+  if (window.__gaContinue && typeof window.__gaContinue.go === 'function') {
+    const _go = window.__gaContinue.go.bind(window.__gaContinue);
+    window.__gaContinue.go = function () {
+      const r = _go.apply(this, arguments);
+      if (!r || window.__DEMO) return r;
+      C.p1out = false; C.gone = false;
+      C.gen = (C.gen | 0) + 1;
+      SM.buf.length = 0; SM.pred = null; SM.off = null;
+      if (C.role === 'guest') sendJoinNow();
+      else {
+        const pr = peekInPeer();
+        if (pr && !C.p2on) {
+          if (pr.typ === 'rejoin' && pr.s) doHostRejoin(pr.s);
+          else rejoinP2(pr.id, { fresh: pr.typ === 'join' });
+        }
+        try { sendStateNow(); } catch (e) {}
+      }
+      return r;
+    };
+  }
 
   // t835u: bottom of the P1 / P2 stats in CSS px (frame coords) so the arcade sits X under the left stats
   // and the 3 option buttons (#ui: V / fullscreen / options) directly under the right-side P2 stats.

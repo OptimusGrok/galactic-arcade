@@ -13,7 +13,7 @@ module.exports = () => { window.__mpMock = { createClient() { const list = [];  
     state: 'joining', subscribe(cb) { ch._cb = cb; setTimeout(() => { if (window.__mpMockDead) { ch.state = 'errored'; cb('TIMED_OUT'); } else { ch.state = 'joined'; cb('SUBSCRIBED'); } }, 10); return ch; },
     track(meta) { mine = meta; pres[key] = [meta]; relay({ t: 'pj', k: key, m: meta }); fire('presence'); return Promise.resolve('ok'); },
     untrack() { mine = null; delete pres[key]; relay({ t: 'pl', k: key }); fire('presence'); return Promise.resolve('ok'); },
-    send({ event, payload }) { window.__mpMockLog.sent.push(event); relay({ t: 'b', event, payload }); return Promise.resolve('ok'); },
+    send({ event, payload }) { window.__mpMockLog.sent.push(event); const go = () => relay({ t: 'b', event, payload }); const d = window.__mpMockDelay | 0; if (d > 0) setTimeout(go, d); else go(); return Promise.resolve('ok'); },
     presenceState() { return pres; } };
   // test hook: the socket silently dies (phone sleep / network drop): channel errors, nothing relayed until __mpMockDead is cleared
   window.__mpMockKill = () => { relay({ t: 'pl', k: key }); window.__mpMockDead = 1; ch.state = 'errored'; if (ch._cb) ch._cb('CHANNEL_ERROR'); };
