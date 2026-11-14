@@ -1,7 +1,8 @@
-// t836u: real two-phone Berserker co-op (no mocked parent.__mp). Two separate browser
-// contexts (separate storage), portrait phone + touch, real Supabase relay (__mpLive).
+// t836u/v222: real two-phone Berserker co-op (no mocked parent.__mp). Two separate browser
+// processes (separate storage), portrait phone + touch, real Supabase relay (__mpLive).
 // P2 joins 10–30 s after P1 has started (after intro), and the reverse; also after CONTINUE.
-// Instruments typ counts, role, p2on. No screenshots.
+// Guest / host movement is driven by real pointer events on the on-screen #joy (cabinet path),
+// not by poking J. Instruments typ counts, role, p2on, warp, snapAge. No screenshots.
 // NOSHOTS=1 node test/berserker_coop_live.js
 // GA_URL=https://optimusgrok.github.io/galactic-arcade/index.html NOSHOTS=1 node test/berserker_coop_live.js
 const { chromium } = require('/workspace/burrow-buster/node_modules/playwright');
@@ -95,13 +96,18 @@ function serve() {
       }
     } catch (e) {}
     const h = C && C.hud && C.hud();
+    let J = null, I2 = null;
+    try { const W = C && C.world && C.world(); J = W && W.J && { x: +W.J.x, y: +W.J.y, id: W.J.id }; I2 = C.I2 && { x: +C.I2.x, y: +C.I2.y }; } catch (e) {}
+    const joy = w && w.document && w.document.getElementById('joy');
+    const jr = joy && joy.getBoundingClientRect();
     return {
       role: C && C.role, slot: C && C.slot, p2on: C && C.p2on, locked: C && C.locked,
       snaps: C && C.snaps, sent: C && C.sent, recv: C && C.recv, joins: C && C.joins, ins: C && C.ins,
-      snapAge: C && C.snapAge, typ: C && C.typ, state: G && G.state,
+      snapAge: C && C.snapAge, typ: C && C.typ, state: G && G.state, warp: G && +((G.warp || 0).toFixed(2)),
       cabN: M && M.cabCount && M.cabCount('berserker'),
       bzSent: M && M.bzSent, bzRecv: M && M.bzRecv,
-      p1: h && h.p1, p2: h && h.p2, peers,
+      p1: h && h.p1, p2: h && h.p2, peers, J, I2,
+      joy: jr && { off: joy.classList.contains('off'), w: Math.round(jr.width), h: Math.round(jr.height), x: Math.round(jr.x), y: Math.round(jr.y) },
       mp: M && { state: M.state, id: M.id }
     };
   });
@@ -111,29 +117,61 @@ function serve() {
       return w && w.__B && w.__B.G && w.__B.G().state === 'play';
     }, null, { timeout: 15000 }).catch(() => {});
   }
-  async function moved(ph, who, holdMs) {
-    const before = await net(ph);
-    await ph.page.evaluate(who => {
-      const w = document.getElementById('game').contentWindow, C = w.__bzCoop;
-      const hold = () => {
-        try {
-          const J = C && C.world && C.world().J;
-          if (J) { J.x = 1; J.y = 0; }
-          if (who === 2 && C && C.I2) { C.I2.x = 1; C.I2.y = 0; }
-        } catch (e) {}
+  async function waitPlay(ph) {
+    await ph.page.waitForFunction(() => {
+      const w = document.getElementById('game') && document.getElementById('game').contentWindow;
+      const G = w && w.__B && w.__B.G && w.__B.G();
+      return G && G.state === 'play' && !(G.warp > 0.05);
+    }, null, { timeout: 12000 }).catch(() => {});
+  }
+  // Real cabinet path: pointer events on the iframe's #joy, same as a finger on the phone.
+  async function holdJoy(ph, dir, holdMs) {
+    const start = await ph.page.evaluate(dir => {
+      const f = document.getElementById('game'), w = f && f.contentWindow, doc = f && f.contentDocument;
+      const joy = doc && doc.getElementById('joy');
+      if (!joy) return { ok: false, why: 'no #joy' };
+      if (joy.classList.contains('off')) return { ok: false, why: 'joy off', state: w.__B && w.__B.G && w.__B.G().state, warp: w.__B && w.__B.G && w.__B.G().warp };
+      const r = joy.getBoundingClientRect();
+      const cx = r.left + r.width / 2, cy = r.top + r.height / 2;
+      const tx = cx + (dir.x || 0) * r.width * 0.42, ty = cy + (dir.y || 0) * r.height * 0.42;
+      const fire = (type, x, y) => {
+        const ev = new PointerEvent(type, { bubbles: true, cancelable: true, pointerId: 17, pointerType: 'touch', clientX: x, clientY: y, buttons: type === 'pointerup' || type === 'pointercancel' ? 0 : 1, view: w, isPrimary: true });
+        joy.dispatchEvent(ev);
       };
-      hold();
-      w.__holdJ = setInterval(hold, 16);
-    }, who);
-    await ph.page.waitForTimeout(holdMs || 1200);
-    const after = await net(ph);
-    const a = who === 2 ? (before.p2 || {}) : (before.p1 || {}), b = who === 2 ? (after.p2 || {}) : (after.p1 || {});
-    const d = Math.hypot((b.x || 0) - (a.x || 0), (b.y || 0) - (a.y || 0));
+      fire('pointerdown', cx, cy);
+      fire('pointermove', tx, ty);
+      w.__joyHold = setInterval(() => fire('pointermove', tx, ty), 32);
+      const J = w.__bzCoop && w.__bzCoop.world && w.__bzCoop.world().J;
+      return { ok: true, J: J && { x: +J.x.toFixed(3), y: +J.y.toFixed(3), id: J.id }, box: { w: Math.round(r.width), h: Math.round(r.height) } };
+    }, dir);
+    return start;
+  }
+  async function releaseJoy(ph) {
     await ph.page.evaluate(() => {
-      const w = document.getElementById('game').contentWindow, C = w && w.__bzCoop;
-      try { if (w.__holdJ) clearInterval(w.__holdJ); const J = C && C.world && C.world().J; if (J) { J.x = 0; J.y = 0; } if (C && C.I2) { C.I2.x = 0; C.I2.y = 0; } } catch (e) {}
+      const f = document.getElementById('game'), w = f && f.contentWindow, doc = f && f.contentDocument;
+      const joy = doc && doc.getElementById('joy');
+      try { if (w.__joyHold) clearInterval(w.__joyHold); w.__joyHold = 0; } catch (e) {}
+      if (!joy) return;
+      const r = joy.getBoundingClientRect();
+      const ev = new PointerEvent('pointerup', { bubbles: true, cancelable: true, pointerId: 17, pointerType: 'touch', clientX: r.left + r.width / 2, clientY: r.top + r.height / 2, buttons: 0, view: w, isPrimary: true });
+      joy.dispatchEvent(ev);
     });
-    return { d, before: a, after: b, net: after };
+  }
+  async function movedTouch(driver, who, observer) {
+    const beforeD = await net(driver), beforeO = observer ? await net(observer) : null;
+    const held = await holdJoy(driver, { x: 1, y: 0 }, 0);
+    await driver.page.waitForTimeout(1600);
+    const afterD = await net(driver), afterO = observer ? await net(observer) : null;
+    await releaseJoy(driver);
+    await driver.page.waitForTimeout(200);
+    const pick = (n) => who === 2 ? (n && n.p2) || {} : (n && n.p1) || {};
+    const dSelf = Math.hypot((pick(afterD).x || 0) - (pick(beforeD).x || 0), (pick(afterD).y || 0) - (pick(beforeD).y || 0));
+    const dObs = afterO ? Math.hypot((pick(afterO).x || 0) - (pick(beforeO).x || 0), (pick(afterO).y || 0) - (pick(beforeO).y || 0)) : null;
+    const in0 = (beforeO && beforeO.ins) || (beforeD.ins) || 0;
+    const in1 = (afterO && afterO.ins) || (afterD.ins) || 0;
+    const typ0 = (driver === observer || !observer) ? (beforeD.typ && beforeD.typ.s_in) : (beforeD.typ && beforeD.typ.s_in);
+    const typ1 = afterD.typ && afterD.typ.s_in;
+    return { held, dSelf, dObs, in0, in1, typ0, typ1, beforeD, afterD, beforeO, afterO };
   }
   function coopOk(label, a, b) {
     chk(a.role === 'host' && a.p2on && a.p2 && a.p2.alive, label + ': host has P2 in the game', a);
@@ -165,19 +203,18 @@ function serve() {
   console.log('A guest', JSON.stringify(b).slice(0, 800));
   coopOk('A P2 joins ' + (DELAY_MS / 1000) + 's after P1', a, b);
 
-  const m1 = await moved(p1, 1, 1400);
-  await p2.page.waitForTimeout(400);
-  const gAfter = await net(p2);
-  const p1Seen = Math.hypot((gAfter.p1 && gAfter.p1.x || 0) - (m1.before.x || 0), (gAfter.p1 && gAfter.p1.y || 0) - (m1.before.y || 0));
-  chk(m1.d > 8, 'A host P1 actually moved on the host screen', m1);
-  chk(p1Seen > 8 || (gAfter.p1 && Math.hypot((gAfter.p1.x || 0) - (m1.after.x || 0), (gAfter.p1.y || 0) - (m1.after.y || 0)) < 40 && m1.d > 8),
-    'A guest screen shows P1 moving (not a frozen snapshot)', { p1Seen, hostMove: m1.d, guestP1: gAfter.p1, hostP1: m1.after });
+  await waitPlay(p1); await waitPlay(p2);
+  const m1 = await movedTouch(p1, 1, p2);
+  chk(m1.held && m1.held.ok, 'A host #joy accepted a real pointer press', m1.held);
+  chk(m1.dSelf > 8, 'A host P1 actually moved on the host screen from the on-screen stick', { dSelf: m1.dSelf, J: m1.held && m1.held.J, p1: m1.afterD && m1.afterD.p1 });
+  chk(m1.dObs > 8, 'A guest screen shows P1 moving (not a frozen snapshot)', { dObs: m1.dObs, guestP1: m1.afterO && m1.afterO.p1, hostP1: m1.afterD && m1.afterD.p1 });
 
-  const m2 = await moved(p2, 2, 1400);
-  await p1.page.waitForTimeout(500);
-  a = await net(p1);
-  const p2Seen = Math.hypot((a.p2 && a.p2.x || 0) - (m2.before.x || 0), (a.p2 && a.p2.y || 0) - (m2.before.y || 0));
-  chk(p2Seen > 6 || (a.p2 && a.p2.alive && m2.d > 6), 'A host screen shows P2 moving after guest input', { p2Seen, guestMove: m2.d, hostP2: a.p2, guestP2: m2.after });
+  const m2 = await movedTouch(p2, 2, p1);
+  console.log('A guest stick typ in', JSON.stringify({ held: m2.held, typ0: m2.typ0, typ1: m2.typ1, in0: m2.in0, in1: m2.in1, dSelf: m2.dSelf, dObs: m2.dObs, J: m2.afterD && m2.afterD.J, I2: m2.afterO && m2.afterO.I2 }).slice(0, 800));
+  chk(m2.held && m2.held.ok && (m2.held.J && Math.abs(m2.held.J.x) > 0.2), 'A guest #joy accepted a real pointer press and J.x is held right', m2.held);
+  chk((m2.typ1 || 0) > (m2.typ0 || 0), 'A guest typ in packets were sent while the stick was held', { typ0: m2.typ0, typ1: m2.typ1, in0: m2.in0, in1: m2.in1 });
+  chk(m2.dSelf > 8, 'A guest screen shows P2 moving from the on-screen stick', { dSelf: m2.dSelf, guestP2: m2.afterD && m2.afterD.p2 });
+  chk(m2.dObs > 8, 'A host screen shows P2 moving after guest stick input', { dObs: m2.dObs, hostP2: m2.afterO && m2.afterO.p2, hostI2: m2.afterO && m2.afterO.I2, ins: [m2.in0, m2.in1] });
 
   // CONTINUE on the host, then confirm co-op still runs
   const forced = await p1.page.evaluate(() => {
@@ -190,14 +227,22 @@ function serve() {
     return p.sub === 'play' && b && b.classList.contains('on');
   }, null, { timeout: 8000 }).then(() => true).catch(() => false);
   const used = shown ? await p1.page.evaluate(() => { const p = window.__arcade.play; p.tickets.total = 12; return p.tryContinue(); }) : false;
-  await p1.page.waitForTimeout(2000);
-  await p2.page.waitForTimeout(500);
-  a = await net(p1); b = await net(p2);
-  console.log('A after CONTINUE', JSON.stringify({ forced, shown, used, a, b }).slice(0, 900));
   chk(forced === true && used === true, 'A host CONTINUE ran', { forced, shown, used });
+  let samples = [];
+  for (let i = 0; i < 12; i++) {
+    await p2.page.waitForTimeout(200);
+    a = await net(p1); b = await net(p2);
+    samples.push({ t: (i + 1) * 200, snapAge: b.snapAge, warp: a.warp, st: b.typ && b.typ.r_st, lives: [a.p1 && a.p1.lives, b.p1 && b.p1.lives] });
+  }
+  const early = samples.find(s => s.t <= 600 && s.snapAge != null && s.snapAge < 800);
+  const lateS = samples.filter(s => s.t >= 1600);
+  const lateFresh = lateS.length && lateS.every(s => s.snapAge != null && s.snapAge < 800);
+  a = await net(p1); b = await net(p2);
+  console.log('A after CONTINUE', JSON.stringify({ forced, shown, used, samples, a: { role: a.role, p2on: a.p2on, typ: a.typ, p1: a.p1, warp: a.warp }, b: { role: b.role, p2on: b.p2on, typ: b.typ, snapAge: b.snapAge, p1: b.p1 } }).slice(0, 1200));
   coopOk('A after CONTINUE', a, b);
-  chk((b.snapAge == null || b.snapAge < 1500) && a.p1 && b.p1 && a.p1.lives === b.p1.lives,
-    'A after CONTINUE the guest has a fresh typ:\'st\' matching the host run', { snapAge: b.snapAge, hostP1: a.p1, guestP1: b.p1, typA: a.typ, typB: b.typ });
+  chk(early && lateFresh && a.p1 && b.p1 && a.p1.lives === b.p1.lives,
+    'A after CONTINUE typ st is fresh during the landing warp and still fresh after it, matching the host run',
+    { early, lateS, snapAge: b.snapAge, samples, hostP1: a.p1, guestP1: b.p1 });
 
   await exitCab(p1); await exitCab(p2);
 
