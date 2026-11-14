@@ -32,6 +32,7 @@ const byId = Object.fromEntries(ITEMS.map(i => [i.id, i]));
 
 // Shared Grok robot builder (shopkeeper + arcade visitor). Same look Dave signed off on (t569).
 // Returns { root, arms, head, faceTex, drawFace }. Caller positions/scales the root.
+import chat from './grokchat.js';   // t810u: CHAT with Grok (shared panel + offline knowledge base)
 export function buildGrokClerk() {
   const canvasTex = (w, h, draw) => { const c = document.createElement('canvas'); c.width = w; c.height = h; const g = c.getContext('2d'); draw(g, w, h); const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4; return { t, c, g }; };
   const grok = new THREE.Group(); grok.name = 'grokClerk';
@@ -786,6 +787,7 @@ export function setupShop({ scene, tp, play, monkey, camera, st } = {}) {
   const stop = e => { e.stopPropagation(); };
   for (const el of [btn, holo]) { el.addEventListener('pointerdown', stop); el.addEventListener('touchstart', stop, { passive: true }); }
   const api = { open: false, near: false, said: [], buys: 0, stats, G, grok, extraBounds, camBounds, ITEMS, balance, openShop, closeShop, buy };
+  chat.register('clerk', { open() { if (api.open) closeShop(); happyT = Math.max(happyT, 1.5); return { state: 'shop' }; }, close() {}, talk(text) { talkT = Math.max(talkT, Math.min(4, 0.6 + String(text || '').length * 0.03)); happyT = talkT + 0.6; } });   // t810u
   function openShop() { if (api.open) return; api.open = true; btn.classList.remove('on'); fill(); holo.classList.add('on'); say(GREET);
     const k = window.__arcade && window.__arcade.keys; if (k) for (const c in k) k[c] = false; }
   function closeShop() { if (!api.open) return; api.open = false; holo.classList.remove('on'); holoDown = null;
@@ -1122,10 +1124,10 @@ export function setupShop({ scene, tp, play, monkey, camera, st } = {}) {
     syncHeld(); applyHeldVis();
     const inRoom = m.position.x > WXp / 2;
     if (inRoom && !wasIn && st) { st.pitch = 0.04; st.dist = Math.max(st.dist, 5.0); }   // shop-local camera: level, a bit closer (once per visit)
-    wasIn = inRoom; if (!inRoom) { if (btn.classList.contains('on')) btn.classList.remove('on'); for (const b of poolBtns) b.classList.remove('on'); poolApi.near = false; wardBtn.classList.remove('on'); wardApi.near = false; if (api.open) closeShop(); return; }
+    wasIn = inRoom; if (!inRoom) { if (chat.near.clerk) chat.setNear('clerk', false); if (chat.open && chat.ctx && chat.ctx.source === 'clerk') chat.close('left'); if (btn.classList.contains('on')) btn.classList.remove('on'); for (const b of poolBtns) b.classList.remove('on'); poolApi.near = false; wardBtn.classList.remove('on'); wardApi.near = false; if (api.open) closeShop(); return; }
     if (!goldClaimed) { goldG.rotation.y = t * 0.7; goldG.position.y = GOLD_Y + Math.sin(t * 1.5) * 0.1; }
     pushOut(m.position);
-    const busy = (tp && tp.locked) || (play && play.mode && play.mode !== 'walk') || !!document.querySelector('#inv.on');
+    const busy = (tp && tp.locked) || (play && play.mode && play.mode !== 'walk') || !!document.querySelector('#inv.on') || chat.open;   // t810u: typing Enter in the chat must not open the shop / pool / wardrobe
     if (!goldClaimed && !busy && st && st.fly && st.fly.air) {
       const gp = window.__gaPlayer;
       if (gp && gp.p && gp.p.back === 'jetpack') {
@@ -1135,6 +1137,7 @@ export function setupShop({ scene, tp, play, monkey, camera, st } = {}) {
     }
     api.near = !busy && Math.hypot(m.position.x - WXp - NP.x, m.position.z - NP.z) < 1.9;
     btn.classList.toggle('on', api.near && !api.open); if (api.open && !api.near && !busy) closeShop();
+    chat.setNear('clerk', api.near && !api.open);   // t810u: CHAT sits above SHOP while you're at the counter
     { const lx = m.position.x - WXp, lz = m.position.z, dx = Math.max(0, Math.abs(lx - PX) - PLW - 0.16), ds = POOLS.map(z => Math.hypot(dx, Math.max(0, Math.abs(lz - z) - PLL - 0.16)));
       const w = ds[1] < ds[0] ? 1 : 0; poolApi.which = w; poolApi.near = !busy && !poolApi.open && !api.open && ds[w] < 1.3;   // only the nearer table's button
       poolBtns.forEach((b, i) => b.classList.toggle('on', poolApi.near && i === w)); }
@@ -1145,7 +1148,9 @@ export function setupShop({ scene, tp, play, monkey, camera, st } = {}) {
     grok.position.y = Math.sin(t * 1.6) * 0.015; grok.rotation.z = Math.sin(t * 0.9) * 0.02;
     grok.getWorldPosition(tmp); const want = Math.atan2(m.position.x - tmp.x, m.position.z - tmp.z) - grok.rotation.y - 0 ;
     const yaw = THREE.MathUtils.clamp(((want + Math.PI) % (Math.PI * 2) + Math.PI * 2) % (Math.PI * 2) - Math.PI, -0.7, 0.7);
-    head.rotation.y += ((api.near || api.open ? yaw : Math.sin(t * 0.4) * 0.35) - head.rotation.y) * Math.min(1, dt * 4); head.rotation.x = Math.sin(t * 1.1) * 0.04;
+    const chatting = chat.open && chat.ctx && chat.ctx.source === 'clerk';
+    if (chatting) { grok.rotation.y = THREE.MathUtils.clamp(grok.rotation.y + yaw * Math.min(1, dt * 3), GYAW - 0.9, GYAW + 0.9); } else grok.rotation.y += (GYAW - grok.rotation.y) * Math.min(1, dt * 4);   // t810u: turns to you while chatting, back after
+    head.rotation.y += ((api.near || api.open || chatting ? yaw : Math.sin(t * 0.4) * 0.35) - head.rotation.y) * Math.min(1, dt * 4); head.rotation.x = Math.sin(t * 1.1) * 0.04;
     blinkT -= dt; if (blinkT < -0.12) blinkT = 2 + Math.random() * 3; talkT = Math.max(0, talkT - dt); happyT = Math.max(0, happyT - dt);
     const playing = !greetA.paused && !greetA.ended; const talking = talkT > 0 || playing, happy = happyT > 0 || playing || api.open;
     const tk = talking ? [0.15, 0.7, 1, 0.4][Math.floor(t * 11) % 4] : 0;

@@ -65,7 +65,7 @@ const OUT = '/workspace';
   chk(Math.abs(gap.scale - 0.665) < 0.01, 'playing scale ~0.665');
   chk(gap.gy === 0, 'on the floor');
   await page.waitForTimeout(350);
-  await page.screenshot({ path: OUT + '/grok-gap-play.png' });
+  if (!process.env.NOSHOTS) await page.screenshot({ path: OUT + '/grok-gap-play.png' });
   console.log('shot gap', fs.statSync(OUT + '/grok-gap-play.png').size);
 
   // Watch full-screen portrait (still frozen; openWatch itself does not need shop.update)
@@ -110,7 +110,7 @@ const OUT = '/workspace';
   chk(watchP.tickets === watchP.t0, 'tickets unchanged');
   chk(/watch=1/.test(watchP.src || ''), 'watch=1 on iframe');
   await page.waitForTimeout(800);
-  await page.screenshot({ path: OUT + '/grok-watch-portrait.png' });
+  if (!process.env.NOSHOTS) await page.screenshot({ path: OUT + '/grok-watch-portrait.png' });
   console.log('shot watch portrait', fs.statSync(OUT + '/grok-watch-portrait.png').size);
 
   // Landscape 844x390
@@ -154,8 +154,8 @@ const OUT = '/workspace';
   chk(Math.abs(watchL.frW - watchL.innerW) <= 2, 'landscape full width');
   chk(Math.abs(watchL.frH - watchL.innerH) <= 2, 'landscape full height');
   chk(watchL.ink > 1000, 'landscape iframe has game pixels');
-  await page.screenshot({ path: OUT + '/grok-watch-landscape.png' });
-  await page.screenshot({ path: OUT + '/grok-watch-landscape-page.png' });
+  if (!process.env.NOSHOTS) await page.screenshot({ path: OUT + '/grok-watch-landscape.png' });
+  if (!process.env.NOSHOTS) await page.screenshot({ path: OUT + '/grok-watch-landscape-page.png' });
   console.log('shot watch landscape', fs.statSync(OUT + '/grok-watch-landscape.png').size, 'page', fs.statSync(OUT + '/grok-watch-landscape-page.png').size);
 
   // Close returns to normal

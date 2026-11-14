@@ -1,4 +1,4 @@
-// Grok visits 30s after arcade entry, and each visit picks two eligible machines by seed, not by distance.
+// Grok visits 30s after arcade entry; the first machine is picked by seed, not by distance (t810u: then he tours every eligible machine).
 // node test/grok_when.js
 const { open } = require('./lib');
 const fs = require('fs');
@@ -134,7 +134,7 @@ const chk = (c, m, x) => { console.log((c ? 'PASS ' : 'FAIL ') + m + (x !== unde
   });
   const n0 = await page.evaluate(() => window.__arcade.stats.frames);
   await page.waitForFunction(n => window.__arcade.stats.frames > n + 1, n0, { timeout: 20000 });
-  await page.screenshot({ path: SHOT });
+  if (!process.env.NOSHOTS) await page.screenshot({ path: SHOT });
   await page.evaluate(() => { window.__arcade.simPause(true); window.__camOverride = null; });
   console.log('shot', JSON.stringify(shot));
   chk(shot.stood && shot.vis && shot.state === 'play' && shot.padD > 12 && shot.visit && !/strike|ghost/i.test(shot.name), 'Grok is playing a far cabinet, not the pad corner', shot);
@@ -176,12 +176,13 @@ const chk = (c, m, x) => { console.log((c ? 'PASS ' : 'FAIL ') + m + (x !== unde
       if ((V.state === 'walk' || V.state === 'return') && trail.length < 800) trail.push([+V.grok.position.x.toFixed(2), +V.grok.position.z.toFixed(2)]);
     }
     if (V.state !== 'done') V.skipTo('done');
-    const spots = [farA, farB].map(c => { const f = c.userData.front, face = c.userData.facing; return { x: f.x + -face.x * (window.__grokVisit.STAND_BACK || 0.42), z: f.z - face.z * (window.__grokVisit.STAND_BACK || 0.42) }; });
+    // t810u: the tour stands at every eligible machine, so every stand spot is allowed
+    const spots = list.map(c => { const f = c.userData.front, face = c.userData.facing; return { x: f.x + -face.x * (window.__grokVisit.STAND_BACK || 0.42), z: f.z - face.z * (window.__grokVisit.STAND_BACK || 0.42) }; });
     spots.push({ x: V.pad.x, z: V.pad.z });
-    let clipped = 0;
+    let clipped = 0; const cpts = [];
     for (const [x, z] of trail) {
       if (spots.some(s => Math.hypot(x - s.x, z - s.z) < 1.3)) continue;
-      if (V.pointBlocked(x, z)) clipped++;
+      if (V.pointBlocked(x, z)) { clipped++; if (cpts.length < 12) cpts.push([x, z]); }
     }
     const visitsLeft = list.filter(c => c.userData && c.userData.visit && c.userData.visit.on).map(c => c.name);
     return {
@@ -190,13 +191,13 @@ const chk = (c, m, x) => { console.log((c ? 'PASS ' : 'FAIL ') + m + (x !== unde
       span: +Math.hypot(farA.userData.front.x - farB.userData.front.x, farA.userData.front.z - farB.userData.front.z).toFixed(2),
       mid, machinesDone: V.machinesDone, state: V.state, player: A.play.tickets.total, tix0,
       said: (V.said || []).slice(),
-      clipped, trail: trail.length, visitsLeft, legs: legs.map(l => l.cab),
+      clipped, cpts, trail: trail.length, visitsLeft, legs: legs.map(l => l.cab),
     };
   });
   console.log('run', JSON.stringify(run));
   chk(run.da > 12 && run.db > 10 && run.span > 8 && run.mid.cab === run.farA && run.machinesDone >= 2 && run.state === 'done', 'a far-to-far visit plays 20 then 20 and leaves', run);
   chk(run.player === run.tix0 && run.player === 40 && run.said.length >= 1 && run.said.every(x => x === 'Hi im Grok') && run.visitsLeft.length === 0, 'player tickets stay put and visitor mode turns back off', run);
-  chk(run.clipped === 0 && run.trail > 8, 'the walk stays out of cabinets and walls', { clipped: run.clipped, trail: run.trail, legs: run.legs });
+  chk(run.clipped === 0 && run.trail > 8, 'the walk stays out of cabinets and walls', { clipped: run.clipped, at: run.cpts, trail: run.trail, legs: run.legs });
 
   const timing = await page.evaluate(() => {
     const V = window.__grokVisit, A = window.__arcade, Sh = window.__shop, tp = window.__tp;
@@ -234,7 +235,7 @@ const chk = (c, m, x) => { console.log((c ? 'PASS ' : 'FAIL ') + m + (x !== unde
   chk(timing.began.state !== 'idle' && timing.began.started === 1 && timing.began.visited && timing.began.reason === 'enter' && timing.began.tix === timing.began.tix0, 'he appears once when the arcade is free and does not touch player tickets', timing.began);
   chk(timing.after.state === 'idle' && timing.after.same && timing.tix === 40, 'the visit does not repeat and the player still has 40 tickets', timing.after);
 
-  chk(fs.existsSync(SHOT) && fs.statSync(SHOT).size > 8000, 'screenshot written');
+  if (!process.env.NOSHOTS) chk(fs.existsSync(SHOT) && fs.statSync(SHOT).size > 8000, 'screenshot written');
   const real = errors.filter(e => !/ERR_FAILED|supabase|favicon|net::/i.test(e));
   chk(real.length === 0, 'no page errors ' + real.join('|'));
   await o.close();
