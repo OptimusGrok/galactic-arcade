@@ -136,6 +136,30 @@ function serve() {
   chk(b.snaps > snaps0, 'host still sends snapshots during the cabN flap', { snaps0, snaps: b.snaps });
   await p1.page.evaluate(() => { const M = window.__mp; if (M && M._cabCount) { M.cabCount = M._cabCount; delete M._cabCount; } });
 
+  // t802u: P2 fires from the second phone, and the second phone sees both players' shots and both ships move.
+  const G_ = (ph, js) => ph.page.evaluate(js => { const w = document.getElementById('game').contentWindow; return (new Function('S', 'C', 'w', js))(w.STRIKE, w.__strikeCoop, w); }, js);
+  await G_(p2, "w.eval('Opts.autofire = false'); S.Input.ptrDown = false; S.Input.keys.fire = false; return 1;");
+  await G_(p1, 'S.Input.ptrDown = true; return 1;');   // host finger down must fire only P1
+  await p1.page.waitForTimeout(2200);
+  const offN = await G_(p1, 'return C.shotCount();');
+  chk(offN.p2 === 0 && offN.p1 > 0, 'with fire released on the second phone, P2 does not fire; the host finger fires only P1', offN);
+  await G_(p1, 'S.Input.ptrDown = false; return 1;');
+  await G_(p2, 'S.Input.ptrDown = true; return 1;');   // phones fire by holding a finger down
+  await p1.page.waitForTimeout(1200);
+  const onN = await G_(p1, 'return C.shotCount();'), visN = await G_(p2, 'return C.visShots();');
+  chk(onN.p2 > 0, 'holding a finger on the second phone fires P2 shots on the host', onN);
+  chk(visN.p1 > 0 && visN.p2 > 0, 'the second phone sees both P1 and P2 shots', visN);
+  a = await hud(p1); b = await hud(p2);
+  const near = (p, q, t) => p && q && Math.hypot(p.x - q.x, p.y - q.y) < (t || 12);
+  chk(near(a.hud.p1, b.hud.p1) && near(a.hud.p2, b.hud.p2), 'both ships on the second phone match the host', { a: [a.hud.p1, a.hud.p2], b: [b.hud.p1, b.hud.p2] });
+  const m0 = b.hud;
+  await G_(p1, 'S.Input.dragX = -30; return 1;');
+  await G_(p2, 'S.Input.dragY = -30; return 1;');
+  await p1.page.waitForTimeout(900);
+  a = await hud(p1); b = await hud(p2);
+  chk(b.hud.p1.x < m0.p1.x - 10 && b.hud.p2.y < m0.p2.y - 10, 'on the second phone P1 moves (host drag) and P2 moves (guest drag)', { p1x: [m0.p1.x, b.hud.p1.x], p2y: [m0.p2.y, b.hud.p2.y] });
+  chk(near(a.hud.p1, b.hud.p1) && near(a.hud.p2, b.hud.p2) && inBounds(b.hud.p2) && inBounds(b.hud.p1), 'after moving, both ships match the host and stay on screen', { a: [a.hud.p1, a.hud.p2], b: [b.hud.p1, b.hud.p2] });
+
   // Watch a full minute: P2 stays visible and in bounds on both phones, roles stay locked.
   const t0 = Date.now();
   let n = 0, bad = null, lastSnaps = (await hud(p2)).snaps;
@@ -147,17 +171,18 @@ function serve() {
     });
     await p1.page.waitForTimeout(2000);
     a = await hud(p1); b = await hud(p2);
+    const vs = await G_(p2, 'return C.visShots();');
     n++;
-    const row = { t: Date.now() - t0, a: a.hud, b: b.hud, roles: [a.role, b.role], snaps: b.snaps, cab: [a.mp && a.mp.cabN, b.mp && b.mp.cabN] };
+    const row = { vs, t: Date.now() - t0, a: a.hud, b: b.hud, roles: [a.role, b.role], snaps: b.snaps, cab: [a.mp && a.mp.cabN, b.mp && b.mp.cabN] };
     if (!(a.role === 'host' && b.role === 'guest' && a.p2on && b.p2on && a.locked && b.locked
         && a.hud && a.hud.p2 && a.hud.p2.alive && b.hud && b.hud.p2 && b.hud.p2.alive
         && inBounds(a.hud.p2, true) && inBounds(b.hud.p2, true)
-        && inBounds(a.hud.p1, true) && b.snaps > lastSnaps)) {
+        && inBounds(a.hud.p1, true) && b.snaps > lastSnaps && vs.p2 > 0)) {
       bad = row; break;
     }
     lastSnaps = b.snaps;
   }
-  chk(!bad && n >= Math.floor(WATCH_MS / 2000) - 1, 'P2 stays on both screens, in bounds, with stable host/guest roles for a full minute', bad || { n, secs: WATCH_MS / 1000, last: { a: a.hud, b: b.hud, snaps: lastSnaps } });
+  chk(!bad && n >= Math.floor(WATCH_MS / 2000) - 1, 'P2 stays on both screens, in bounds, firing (seen on the second phone), with stable host/guest roles for ' + (WATCH_MS / 1000) + ' s', bad || { n, secs: WATCH_MS / 1000, last: { a: a.hud, b: b.hud, snaps: lastSnaps } });
 
   const errs = p1.errors.concat(p2.errors).filter(e => !/ERR_FAILED|Aborted/.test(e));
   chk(errs.length === 0, 'no page errors', errs.slice(0, 4));
