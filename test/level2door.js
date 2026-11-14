@@ -5,6 +5,7 @@ const { open } = require('./lib');
 (async () => {
   const { page, errors, close } = await open({ phone: true, w: 390, h: 700, shieldOpen: true }); let ok = true; const chk = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); if (!c) ok = false; };
   await page.waitForFunction(() => window.__level2Door, null, { timeout: 20000 }).catch(() => {});
+  await page.evaluate(() => { const D = window.__level2Door; if (D.unsave) D.unsave(); if (D.close) D.close({ force: true, snap: true }); });
   const d = await page.evaluate(() => {
     const A = window.__arcade, D = window.__level2Door; if (!D) return null;
     D.group.updateWorldMatrix(true, true);
@@ -20,11 +21,11 @@ const { open } = require('./lib');
     const rp = new A.THREE.Vector3(); D.group.getWorldPosition(rp);
     return { wallZ, frame, leaves, calls, dir: [dir.x, dir.y, dir.z], signZ: sp.z, signR: signR.x, hazZ, hazMinZ: hazB.min[2],
       label: D.label, signs: !!D.group.getObjectByName('level2SignL') && !!D.group.getObjectByName('level2SignR'),
-      leavesN: D.leaves.length, stub: D.open() === false && D.close() === false, inHall: D.group.parent && D.group.parent.name === 'hallway',
+      leavesN: D.leaves.length, canOpen: typeof D.open === 'function' && typeof D.close === 'function', inHall: D.group.parent && D.group.parent.name === 'hallway',
       pos: [rp.x, rp.z], align: D.align, doorW: A.DOOR_W, keypad: !!D.group.getObjectByName('level2Keypad') };
   });
   const hw = d && d.doorW / 2;
-  chk(d && d.leavesN === 2 && d.stub && d.inHall, 'LEVEL 2 doors exist in the hallway (two leaf pivots, open/close still inert) ' + JSON.stringify({ leaves: d && d.leavesN, stub: d && d.stub, inHall: d && d.inHall }));
+  chk(d && d.leavesN === 2 && d.canOpen && d.inHall, 'LEVEL 2 doors exist in the hallway (two leaf pivots, open/close enabled) ' + JSON.stringify({ leaves: d && d.leavesN, canOpen: d && d.canOpen, inHall: d && d.inHall }));
   chk(d && d.label === 'LEVEL 2' && d.signs && d.keypad, "'LEVEL 2' sign across both leaves, keypad kept");
   chk(d && d.calls <= 10, 'low draw calls (' + (d && d.calls) + ' meshes)');
   chk(d && Math.abs(d.frame.max[2] - d.wallZ) < 0.015 && d.frame.max[2] <= d.wallZ + 0.015, 'frame front flush with room-1 wall (frame z ' + (d && d.frame.max[2].toFixed(3)) + ', wall z ' + (d && d.wallZ.toFixed(3)) + ')');
@@ -50,6 +51,15 @@ const { open } = require('./lib');
   chk(Math.abs(pushed.a - (d.align.zFront + 0.3)) < 0.02, 'block() pushes a room-side overlap back into room 1 (z=' + pushed.a.toFixed(2) + ')');
   chk(Math.abs(pushed.b - (d.align.zBack - 0.3)) < 0.02, 'block() pushes a hall-side overlap back into the hallway (z=' + pushed.b.toFixed(2) + ')');
   chk(pushed.c[0] === 4 && pushed.c[1] === -11.2, 'block() does not touch a sideways point inside room 1');
+  // v216: open() swings the leaves and drops the collider; close() shuts it again
+  const opened = await page.evaluate(() => { const D = window.__level2Door, A = window.__arcade; D.open(true); for (let i = 0; i < 10; i++) A.step(1 / 60); return { open: D.open_, ang: [D.leaves[0].rotation.y, D.leaves[1].rotation.y] }; });
+  chk(opened.open && Math.abs(opened.ang[0] - Math.PI / 2) < 0.05 && Math.abs(opened.ang[1] + Math.PI / 2) < 0.05, 'open() swings both leaves into the hallway', opened);
+  const through = await step(0, -8, 0, 'KeyW', 280);
+  chk(through[1] < d.wallZ - 1.5, 'walking north from room 1 goes through the open door into the hallway (z=' + through[1].toFixed(2) + ')', through);
+  const shut = await page.evaluate(() => { const D = window.__level2Door, A = window.__arcade; D.close({ force: true, snap: true }); for (let i = 0; i < 6; i++) A.step(1 / 60); return { open: D.open_, ang: [D.leaves[0].rotation.y, D.leaves[1].rotation.y] }; });
+  chk(!shut.open && Math.abs(shut.ang[0]) < 0.05 && Math.abs(shut.ang[1]) < 0.05, 'close({force}) shuts the leaves again', shut);
+  const blocked = await step(0, -8, 0, 'KeyW', 240);
+  chk(blocked[1] > d.wallZ - 0.05 && blocked[1] < d.wallZ + 0.55, 'closed door blocks the hallway again (z=' + blocked[1].toFixed(2) + ')');
   await page.evaluate(() => { window.__arcade.monkey.position.set(0, 0, -6); window.__camOverride = { pos: [0.35, 1.7, -8.2], at: [0, 1.3, -12] }; });
   await page.waitForTimeout(500);
   await page.screenshot({ path: '/tmp/level2_room1_view.png' });

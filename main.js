@@ -290,7 +290,7 @@ const hall = new THREE.Group(); hall.name = 'hallway'; scene.add(hall);
   const nc = new THREE.Mesh(mergeGeometries(topC), neon(C.cyan, 1.8)); nc.name = 'hallNeonTopCyan';
   hall.add(nb, nt, nc);
 }
-// Closed LEVEL 2 steel doors across the hallway opening; frame front flush with room 1's north wall. Opening comes later (window.__level2Door).
+// LEVEL 2 steel doors across the hallway opening; frame front flush with room 1's north wall. Opens after 3 tetrises in one Neon Bricks game (window.__level2Door).
 let l2door = null; import('./level2door.js').then(m => { l2door = m.setupLevel2Door({ THREE, parent: hall, mergeGeometries, x: 0, z: -HALF, width: DOOR_W, doorH: DOOR_H }); if (!warm.done) compileForPlay(l2door.group, camera, scene).catch(() => {}); }).catch(e => console.warn('level2door', e));
 
 // real lights: only a handful
@@ -1309,7 +1309,7 @@ function collide(p) {
   if (golf && golf.below) { golf.collideBelow(p, R); return; }   // t275u: down in the mini golf room, golf.js owns the walls
   clampAreas(p, AREAS);
   if (shield) shield.block(p, R);
-  if (l2door) l2door.block(p, R);
+  if (l2door) { if (l2door.tick) l2door.tick(); l2door.block(p, R); }
   if (golf) golf.block(p, R);   // mini golf stairs + shield (golf.js)
   collideCabs(p, false);
 }
