@@ -1,13 +1,18 @@
 // t184 LAVA floor: step off a path -> sink with an orange flash + sizzle, respawn on the nearest path in < 0.6 s; key spots stay on the paths.
 // node test/lava.js [phone]
 const { open } = require('./lib');
-const PH = process.argv[2] === 'phone';
+const PH = process.argv[2] === 'phone', SH = process.env.NOSHOTS ? 0 : 1;
 (async () => { const { page, errors, close } = await open({ phone: PH, shieldOpen: true }); let ok = true; const chk = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); if (!c) ok = false; };
   const spots = await page.evaluate(() => { const A = window.__arcade, L = A.LAVA, out = {};
     const S = { spawn: [0, 5], kioskFront: [0, 2.3], doorN: [0, -12], hall: [0, -18], doorS2: [0, -17.1], room2: [0, -22], pad1: [-10.75, -10.75], dsFront: [0, -29 + 2.6], whitePad: [80, 0], movedPad: (() => { const p = window.__tp && window.__tp.PAD2; return p ? [p.x, p.z] : [999, 999]; })(), shopNP: [83.1, 0.16] };
-    A.playables.forEach((c, i) => { if (c === A.roadsterCab || c === A.dsCab || c.name === 'deadSignalStation') return; let x = c.position.x, z = c.position.z;   // stand 0.8 m in front of the cabinet face (10.55 from centre)
+    A.playables.forEach((c, i) => { if (c === A.roadsterCab || c === A.dsCab || c === A.clawCab || c.name === 'deadSignalStation' || c.name === 'clawCabinet') return; let x = c.position.x, z = c.position.z;   // stand 0.8 m in front of the cabinet face (10.55 from centre)
       if (Math.abs(x) > 11) x = Math.sign(x) * 9.75; else z = Math.sign(z) * 9.75; S['front_' + c.name] = [x, z]; });
     S.roadsterL = [6 + 2.95, 8.55]; S.roadsterR = [6 - 2.95, 8.55];
+    const cf = A.clawCab.userData.front, cb = A.clawCab.userData.box;
+    S.clawFront = [cf.x, cf.z];
+    S.clawE = [cb.maxX + 0.45, (cb.minZ + cb.maxZ) / 2];
+    S.clawW = [cb.minX - 0.45, (cb.minZ + cb.maxZ) / 2];
+    S.clawN = [(cb.minX + cb.maxX) / 2, cb.minZ - 0.45];
     for (const k in S) out[k] = L.onPath(S[k][0], S[k][1], 0.22); return out; });
   const off = Object.entries(spots).filter(([, v]) => !v).map(([k]) => k);
   chk(off.length === 0, 'all key spots are on a path (spawn, kiosk, doorways, hall, pads, DS, shop, ' + Object.keys(spots).length + ' spots incl. cabinet fronts) ' + off.join(','));
@@ -22,7 +27,7 @@ const PH = process.argv[2] === 'phone';
   chk(!p0, 'test point (5.2, 3.0) is lava');
   await page.evaluate(() => { const A = window.__arcade; A.setFloor('lava'); A.monkey.position.set(4.6, 0, 3.0); A.st.yaw = Math.PI * 0.85; }); await page.waitForTimeout(1200);
   await page.waitForFunction(() => window.__arcade.st.lavaFall && window.__arcade.st.lavaFall.t > 0.12, null, { timeout: 8000 }).catch(() => {});
-  await page.screenshot({ path: 'shots/lava_fall' + (PH ? '_phone' : '_desktop') + '.png' }); await page.waitForTimeout(1500);
+  if (SH) await page.screenshot({ path: 'shots/lava_fall' + (PH ? '_phone' : '_desktop') + '.png' }); await page.waitForTimeout(1500);
   const f = await fall('lava');
   chk(f.falls === 1 && f.rp && f.on && f.fx, 'off the path on LAVA: falls once and respawns on the path ' + JSON.stringify(f));
   chk(f.dt !== null && f.dt <= 0.6 && f.minY < -0.5, 'sinks into the lava and is back on the path in ' + f.dt + ' s (< 0.6 s)');
@@ -41,6 +46,17 @@ const PH = process.argv[2] === 'phone';
   const wk = await page.evaluate(() => { const A = window.__arcade, L = A.LAVA, p = window.__tp.PAD2, pts = [[p.x, p.z], [p.x + 1.2, p.z - 1.2], [p.x + 2.1, p.z - 2.1]]; for (let x = p.x + 2.1; x <= 80; x += 0.25) pts.push([x, p.z - 2.1]); for (let z = p.z - 2.1; z >= 0; z -= 0.25) pts.push([80 - 9.9, z]); for (let x = 80 - 9.9; x <= 80; x += 0.25) pts.push([x, 0]);
     return pts.filter(q => !L.onPath(q[0], q[1], 0)).length; });
   chk(wk === 0, 'the moved pad joins the white-room paths on foot (pad -> cabinet path -> centre spoke -> old pad spot)');
+  // claw path joins the existing network: kiosk ring -> east spur -> PLAY front, and all the way around the machine
+  const claw = await page.evaluate(() => { const A = window.__arcade, L = A.LAVA, u = A.clawCab.userData, f = u.front, b = u.box, p = 0.45;
+    const ring = [-1.9, 0], east = [b.maxX + p, (b.minZ + b.maxZ) / 2], front = [f.x, f.z];
+    const pts = [];
+    for (let i = 0; i <= 16; i++) { const k = i / 16; pts.push([ring[0] + (east[0] - ring[0]) * k, ring[1] + (east[1] - ring[1]) * k]); }
+    for (let i = 0; i <= 8; i++) { const k = i / 8; pts.push([east[0] + (front[0] - east[0]) * k, east[1] + (front[1] - east[1]) * k]); }
+    const loop = [[b.minX - p, b.maxZ + p], [b.maxX + p, b.maxZ + p], [b.maxX + p, b.minZ - p], [b.minX - p, b.minZ - p], [b.minX - p, b.maxZ + p]];
+    for (let s = 0; s < 4; s++) { const a = loop[s], c = loop[s + 1]; for (let i = 0; i <= 8; i++) { const k = i / 8; pts.push([a[0] + (c[0] - a[0]) * k, a[1] + (c[1] - a[1]) * k]); } }
+    const off = pts.filter(q => !L.onPath(q[0], q[1], 0.22));
+    return { frontOn: L.onPath(f.x, f.z, 0.22), n: pts.length, off: off.slice(0, 6), offN: off.length }; });
+  chk(claw.frontOn && claw.offN === 0, 'claw PLAY front and a walk from the kiosk ring around the machine stay on a path ' + JSON.stringify(claw));
   await page.evaluate(() => window.__arcade.setFloor('neon'));
   chk(errors.length === 0, 'no page errors ' + errors.join('|'));
   await close(); process.exit(ok ? 0 : 1); })();
