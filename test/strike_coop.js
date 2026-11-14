@@ -72,6 +72,43 @@ let ok = true; const chk = (c, m, x) => { console.log((c ? 'PASS ' : 'FAIL ') + 
   const movedB = await S(b, 'return C.hud().p2.x;');
   chk(movedA > x0 + 4 && movedB > x0 + 4, 'P2 input from the second phone moves the orange ship on both screens', { x0, movedA, movedB });
 
+  // t802u: P2 must fire. Guest holds fire off (autofire off, no finger); host's own finger must not fire P2.
+  const guestIn = async (js, n) => { for (let i = 0; i < (n || 4); i++) { await S(b, js + '; C.sendInput(); S.steps(2); return 1;'); await a.waitForTimeout(70); } };
+  await S(a, 'S.Input.keys.right = false; S.Input.ptrDown = true; return 1;');
+  await guestIn("w.eval('Opts.autofire = false'); S.Input.ptrDown = false; S.Input.keys.fire = false; S.Input.keys.right = false", 4);
+  await S(a, 'S.steps(120); return 1;');
+  const off = await S(a, 'return { n: C.shotCount(), ins: C.ins || 0 };');
+  chk(off.n.p2 === 0 && off.n.p1 > 0, 'with fire released on the second phone, P2 does not fire (the host finger only fires P1)', off);
+  await S(a, 'S.Input.ptrDown = false; return 1;');
+  // guest holds a finger down (how phones fire): host spawns orange P2 shots
+  await guestIn('S.Input.ptrDown = true', 4);
+  const fireCounts = [];
+  for (let i = 0; i < 4; i++) { await S(a, 'S.steps(6); return 1;'); fireCounts.push((await S(a, 'return C.shotCount();')).p2); await guestIn('S.Input.ptrDown = true', 1); }
+  chk(fireCounts.some(v => v > 0) && Math.max(...fireCounts) > 0, 'holding a finger on the second phone fires P2 shots on the host', fireCounts);
+  // the guest sees both players' shots in the snapshot
+  await S(a, 'S.steps(2); C.sendState(); return 1;'); await a.waitForTimeout(150);
+  await S(b, 'S.steps(1); return 1;');
+  const vis = await S(b, 'return C.visShots();'), hostN = await S(a, 'return C.shotCount();');
+  chk(vis.p1 > 0 && vis.p2 > 0, 'the second phone sees both P1 and P2 shots', { vis, hostN });
+  // guest shots move between snapshots
+  const y0s = await S(b, 'const L = C.visS.filter(u => u.o === 1); return L.length ? L[0].y : null;');
+  await S(b, 'S.steps(3); return 1;');
+  const y1s = await S(b, 'const L = C.visS.filter(u => u.o === 1); return L.length ? L[0].y : null;');
+  chk(y0s != null && y1s < y0s - 5, 'P2 shots fly up the second phone’s screen between snapshots', { y0s, y1s });
+  // both ships: guest positions match host within tolerance, and both move
+  await S(a, 'S.steps(2); C.sendState(); return 1;'); await a.waitForTimeout(150); await S(b, 'S.steps(1); return 1;');
+  const hA1 = await S(a, 'return C.hud();'), hB1 = await S(b, 'return C.hud();');
+  const near = (p, q) => Math.hypot(p.x - q.x, p.y - q.y) < 3;
+  chk(near(hA1.p1, hB1.p1) && near(hA1.p2, hB1.p2), 'both ships on the second phone match the host', { a: [hA1.p1, hA1.p2], b: [hB1.p1, hB1.p2] });
+  await S(a, 'S.Input.keys.left = true; return 1;');
+  for (let i = 0; i < 6; i++) { await S(a, 'S.steps(4); return 1;'); await guestIn('S.Input.keys.up = true', 1); }
+  await S(a, 'S.Input.keys.left = false; C.sendState(); return 1;'); await guestIn('S.Input.keys.up = false', 1);
+  await a.waitForTimeout(150); await S(b, 'S.steps(1); return 1;');
+  const hA2 = await S(a, 'return C.hud();'), hB2 = await S(b, 'return C.hud();');
+  chk(hB2.p1.x < hB1.p1.x - 4 && hB2.p2.y < hB1.p2.y - 4, 'on the second phone P1 moves left and P2 moves up', { p1: [hB1.p1.x, hB2.p1.x], p2: [hB1.p2.y, hB2.p2.y] });
+  chk(near(hA2.p1, hB2.p1) && near(hA2.p2, hB2.p2) && hB2.p2.x >= 0 && hB2.p2.x <= 270 && hB2.p2.y >= 0, 'after moving, both ships still match the host and P2 stays on screen', { a: [hA2.p1, hA2.p2], b: [hB2.p1, hB2.p2] });
+  await S(b, "w.eval('Opts.autofire = true'); S.Input.ptrDown = false; return 1;");
+
   // P1 takes a shield hit: guest HUD updates health on the left
   await S(a, 'S.G.shield = 1; C.sendState(); return S.G.shield;');
   await a.waitForTimeout(150);
