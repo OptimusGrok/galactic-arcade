@@ -160,6 +160,62 @@ function serve() {
   chk(b.hud.p1.x < m0.p1.x - 10 && b.hud.p2.y < m0.p2.y - 10, 'on the second phone P1 moves (host drag) and P2 moves (guest drag)', { p1x: [m0.p1.x, b.hud.p1.x], p2y: [m0.p2.y, b.hud.p2.y] });
   chk(near(a.hud.p1, b.hud.p1) && near(a.hud.p2, b.hud.p2) && inBounds(b.hud.p2) && inBounds(b.hud.p1), 'after moving, both ships match the host and stay on screen', { a: [a.hud.p1, a.hud.p2], b: [b.hud.p1, b.hud.p2] });
 
+  // t805u: P2's kills score to P2 (shown on the second phone); P2 picks up power-ups and fires the upgraded weapon.
+  await G_(p1, "w.eval('Opts.autofire = false'); S.Input.ptrDown = false; S.Input.keys.fire = false; return 1;");
+  await G_(p2, 'S.Input.ptrDown = true; return 1;');
+  await p1.page.waitForTimeout(1700);
+  const sc0 = await G_(p1, 'return { p1: S.G.score, p2: C.G2.score };');
+  for (let r = 0; r < 4; r++) {
+    await G_(p1, "w.eval('for (let i = 0; i < 2; i++) spawnE(\"fighter\", window.__strikeCoop.pl2.x, window.__strikeCoop.pl2.y - 50 - i * 16, \"lin\")'); return 1;");
+    await p1.page.waitForTimeout(500);
+  }
+  const sc1 = await G_(p1, 'return { p1: S.G.score, p2: C.G2.score };');
+  chk(sc1.p2 > sc0.p2 && sc1.p1 === sc0.p1, 'kills by P2’s shots add to P2’s score, not P1’s', { sc0, sc1 });
+  await p1.page.waitForTimeout(400);
+  const gs = (await hud(p2)).hud, hs = await G_(p1, 'return { p1: S.G.score, p2: C.G2.score };');
+  chk(gs.p2.score === hs.p2 && gs.p2.score > sc0.p2, 'the second phone shows P2’s own score on the right', { guest: gs.p2.score, host: hs });
+  let wp = null;
+  for (let r = 0; r < 8; r++) {
+    await G_(p1, "w.eval('dropItem(\"R\", window.__strikeCoop.pl2.x, window.__strikeCoop.pl2.y)'); return 1;");
+    await p1.page.waitForTimeout(200);
+    wp = await G_(p1, 'return { p1: [S.G.weapon, S.G.wlv], p2: [C.G2.weapon, C.G2.wlv] };');
+    if (wp.p2[0] === 'R' && wp.p2[1] >= 2) break;
+  }
+  chk(wp.p2[0] === 'R' && wp.p2[1] >= 2 && wp.p1[0] === 'V', 'P2 collects power-ups into its own weapon and level (P1 unchanged)', wp);
+  await p1.page.waitForTimeout(500);
+  const rs = await G_(p1, 'return S.pools.pshots.items.filter(u => u.alive && u.o === 1 && u.k === 1).length;');
+  chk(rs > 0, 'P2 fires the upgraded spread weapon', { spreadShots: rs });
+  const gw = (await hud(p2)).hud.p2;
+  chk(gw.weapon === 'R' && gw.wlv === wp.p2[1], 'the second phone shows P2’s weapon and level', gw);
+  await G_(p1, "w.eval('Opts.autofire = true'); return 1;");
+
+  // t806u: smooth motion over the real relay. P1 (host) and P2 (guest) both move for ~1.5 s; every rendered frame recorded.
+  a = await hud(p1);
+  const dirA = a.hud.p1.x < 135 ? 'right' : 'left', dirB = a.hud.p2.x < 135 ? 'right' : 'left';
+  await G_(p1, `C.trace.length = 0; C.tracing = true; S.Input.keys['${dirA}'] = true; return 1;`);
+  await G_(p2, `C.trace.length = 0; C.tracing = true; S.Input.keys['${dirB}'] = true; return 1;`);
+  await p1.page.waitForTimeout(1100);
+  await G_(p2, `S.Input.keys['${dirB}'] = false; return 1;`); await G_(p1, `S.Input.keys['${dirA}'] = false; return 1;`);
+  await p1.page.waitForTimeout(600);
+  const trA = await G_(p1, 'C.tracing = false; return C.trace.slice();'), trB = await G_(p2, 'C.tracing = false; return C.trace.slice();');
+  const smooth = (tr, ix) => {
+    // the moving window: frames between the first and last movement, middle 60%
+    const d = []; for (let i = 1; i < tr.length; i++) { const dt = tr[i][0] - tr[i - 1][0]; if (dt <= 0) continue; d.push({ dt, dist: Math.hypot(tr[i][ix] - tr[i - 1][ix], tr[i][ix + 1] - tr[i - 1][ix + 1]) }); }
+    let s0 = d.findIndex(e => e.dist > 0.05), s1 = d.length - 1; while (s1 > 0 && d[s1].dist <= 0.05) s1--;
+    const mv = s0 >= 0 ? d.slice(s0, s1 + 1) : [], m = mv.slice(Math.floor(mv.length * 0.2), Math.ceil(mv.length * 0.8));
+    if (m.length < 5) return { n: m.length, ok: false };
+    const v = m.map(e => e.dist / e.dt).sort((p, q) => p - q), med = v[v.length >> 1];
+    const stalls = m.filter(e => e.dist < 0.05).length, jumps = m.filter(e => e.dist / e.dt > med * 4 + 0.02).length, total = m.reduce((q, e) => q + e.dist, 0);
+    const r = { n: m.length, stallFrac: +(stalls / m.length).toFixed(2), jumpFrac: +(jumps / m.length).toFixed(2), medPxPerMs: +med.toFixed(3), total: +total.toFixed(1) };
+    r.ok = r.stallFrac <= 0.2 && r.jumpFrac <= 0.1 && total > 25; return r;
+  };
+  const sA2 = smooth(trA, 3), sB2 = smooth(trB, 3), sB1 = smooth(trB, 1);
+  chk(sA2.ok, 'P2’s ship moves smoothly on the host phone (no stalls or jumps frame to frame)', sA2);
+  chk(sB2.ok, 'P2’s own ship moves smoothly on the second phone (predicted locally)', sB2);
+  chk(sB1.ok, 'P1’s ship moves smoothly on the second phone (interpolated between snapshots)', sB1);
+  a = await hud(p1); b = await hud(p2);
+  chk(near(a.hud.p1, b.hud.p1) && near(a.hud.p2, b.hud.p2), 'after the smooth-motion run both ships settle to the same spot on both phones', { a: [a.hud.p1, a.hud.p2], b: [b.hud.p1, b.hud.p2] });
+
   // Watch a full minute: P2 stays visible and in bounds on both phones, roles stay locked.
   const t0 = Date.now();
   let n = 0, bad = null, lastSnaps = (await hud(p2)).snaps;
