@@ -3,6 +3,7 @@
 // t736u (Dave): in the arcade Grok only ever says "Hi im Grok" (once, on arrival). No other lines, no CHAT, no SHOP buttons.
 // Lazy from shop.js; no Arcade edits. Grok's tickets never touch the player's.
 import { buildGrokClerk } from './shop.js';
+import chat from './grokchat.js';   // t810u: CHAT with Grok (offline knowledge base)
 
 // t736u (Dave): exactly this wording, no apostrophe. It is the ONLY thing he says in the arcade.
 const HI = 'Hi im Grok';
@@ -17,7 +18,8 @@ const NEAR_R = 1.85;
 const WALK_SPD = 1.05;          // m/s calm walk
 const LOOK_AROUND_S = 3.4;
 const TIX_GOAL = 20;
-const TIX_EVERY = 2.5;          // seconds per Grok ticket during play
+const TIX_EVERY = 1.5;          // seconds per Grok ticket during play (t810u: 2.5 -> 1.5 so the all-machine tour stays ~30 s a cabinet)
+const REPEAT_AFTER = 90;        // t810u: seconds back in the shop before the next all-machine tour
 const TIX_EVERY_FAST = 0.12;
 
 function clipUrl(id) {
@@ -153,7 +155,7 @@ export function setupGrokVisit({ scene, tp, play, monkey, camera, st } = {}) {
     ready: true, state: 'idle', lookCount: 0, looks: 0, started: 0, finished: 0, said: [],
     cab: null, reason: null, fallAt: 1e9, sessT: 0, force: false,
     appearAfter: APPEAR_AFTER, entryT: 0, due: false, visited: false, rng: null,
-    near: false, watchOpen: false,
+    near: false, watchOpen: false, chatting: false, chats: 0, tour: [], toured: [], tours: 0, repeatAfter: REPEAT_AFTER, doneT: 0,
     tickets: 0, machinesDone: 0, tixGoal: TIX_GOAL,   // Grok's own winnings (never touch player tickets)
     start(reason = 'debug') { if (api.state !== 'idle' && api.state !== 'done') return false; api.force = true; api.reason = reason; begin(reason); return true; },
     get grok() { return grok; }, get pad() { return pad; }, get arms() { return arms; }, get legs() { return legs; }, get head() { return head; },
@@ -200,6 +202,7 @@ export function setupGrokVisit({ scene, tp, play, monkey, camera, st } = {}) {
       if (tp && tp.locked) return true;
       if (window.__shop && window.__shop.open) return true;
       if (api.watchOpen) return true;
+      if (chat.open) return true;
       if (window.__wardrobe && window.__wardrobe.isOpen) return true;
       if (document.querySelector('#inv.on')) return true;
       if (document.querySelector('#holo.on')) return true;
@@ -331,8 +334,19 @@ export function setupGrokVisit({ scene, tp, play, monkey, camera, st } = {}) {
     tixSpr.position.copy(ndc);
   }
 
+  // t810u (Dave): "Have grok play all the machines before returning to the shop". A tour = every eligible cabinet once,
+  // in featured order starting from a random one; then back to the pad (the shop), and again after REPEAT_AFTER.
+  function planTour() {
+    const list = eligibleCabs(); if (!list.length) return [];
+    const rnd = typeof api.rng === 'function' ? api.rng : Math.random;
+    let u = rnd(); if (!(u >= 0 && u < 1)) u = ((u % 1) + 1) % 1;
+    const i0 = Math.min(list.length - 1, Math.floor(u * list.length));
+    return list.slice(i0).concat(list.slice(0, i0));
+  }
+  api.planTour = planTour;
   function begin(reason) {
-    cab = pickCab();
+    api.tour = planTour(); api.toured = []; api.tours++;
+    cab = api.tour.shift() || null;
     if (!cab) { api.state = 'idle'; api.force = false; return; }
     api.cab = cab; api.reason = reason; api.started++; api.state = 'arrive'; phaseT = 0;
     queueClips();
@@ -448,12 +462,15 @@ export function setupGrokVisit({ scene, tp, play, monkey, camera, st } = {}) {
   function buildRoute(x0, z0, stand, host) {
     const app = approachOf(stand, host), pts = [];
     if (!segmentClear(x0, z0, app.x, app.z)) {
-      let via = VIAS[0];
-      for (let i = 0; i < VIAS.length; i++) {
-        const v = VIAS[i];
-        if (!pointBlocked(v.x, v.z) && segmentClear(x0, z0, v.x, v.z) && segmentClear(v.x, v.z, app.x, app.z)) { via = v; break; }
-      }
-      pts.push(via);
+      // t810u: the all-machine tour walks cabinet to cabinet, so one via is not always enough. Never default to the room centre
+      // (the ticket kiosk stands there): try one via, then two, then the least-blocked open via.
+      const open = VIAS.filter(v => !pointBlocked(v.x, v.z));
+      let path = null;
+      for (const v of open) if (segmentClear(x0, z0, v.x, v.z) && segmentClear(v.x, v.z, app.x, app.z)) { path = [v]; break; }
+      if (!path) for (const v of open) { if (!segmentClear(x0, z0, v.x, v.z)) continue; for (const w of open) if (w !== v && segmentClear(v.x, v.z, w.x, w.z) && segmentClear(w.x, w.z, app.x, app.z)) { path = [v, w]; break; } if (path) break; }
+      if (!path) { const cost = (ax, az, bx, bz) => { let n = 0; const L = Math.hypot(bx - ax, bz - az), k = Math.max(3, Math.ceil(L / 0.35)); for (let i = 1; i < k; i++) if (pointBlocked(ax + (bx - ax) * i / k, az + (bz - az) * i / k)) n++; return n; };
+        let best = open[0] || VIAS[1], bc = 1e9; for (const v of open) { const c = cost(x0, z0, v.x, v.z) + cost(v.x, v.z, app.x, app.z); if (c < bc) { bc = c; best = v; } } path = [best]; }
+      pts.push(...path);
     }
     if (Math.hypot(app.x - stand.x, app.z - stand.z) > 0.25) pts.push(app);
     pts.push({ x: stand.x, z: stand.z });
@@ -729,6 +746,7 @@ export function setupGrokVisit({ scene, tp, play, monkey, camera, st } = {}) {
 
   function showNear(on) {
     api.near = !!on;
+    try { chat.setNear('visitor', api.near); } catch (e) {}
   }
   function hideUI() {
     showNear(false); closeWatch(); watchB.classList.remove('on'); showTixHud(false);
@@ -879,7 +897,59 @@ export function setupGrokVisit({ scene, tp, play, monkey, camera, st } = {}) {
     } catch (e) {}
   }
 
+  // ---- t810u: CHAT. Opening freezes his state machine (phase clock, route, tickets), hides the robot hands on the controls and
+  // turns him to face the player; closing turns him back and restores the exact pose + phase so he carries on where he was.
+  let saved = null, resumeT = 0, chatT = 0;
+  const _pp = new THREE.Vector3();
+  function angTo(a, b) { let d = b - a; while (d > Math.PI) d -= Math.PI * 2; while (d < -Math.PI) d += Math.PI * 2; return d; }
+  function chatOpen() {
+    if (!grok.visible || api.state === 'idle' || api.state === 'done' || api.state === 'leave' || api.state === 'arrive') return false;
+    if (api.watchOpen) closeWatch(); watchB.classList.remove('on');
+    saved = { state: api.state, phaseT, yaw: grok.rotation.y, rx: grok.rotation.x, rz: grok.rotation.z, py: grok.position.y, hx: head.rotation.x, hy: head.rotation.y,
+      pL: palmL.visible, pR: palmR.visible, tixLeft: Math.max(0, nextTixAt - t), legs: legs.map(L => [L.hip.rotation.x, L.thigh.rotation.x]),
+      arms: arms.map(a => [a.sh.rotation.x, a.sh.rotation.y, a.sh.rotation.z, a.el.rotation.x, a.el.rotation.y, a.el.rotation.z]) };
+    palmL.visible = false; palmR.visible = false;
+    api.chatting = true; api.chats++; resumeT = 0; chatT = 0; happyT = Math.max(happyT, 1.5);
+    api.chatPaused = saved.state;
+    return { state: saved.state, cab: cab ? cabName(cab) : '' };
+  }
+  function chatClose() { if (!api.chatting) return; api.chatting = false; resumeT = 0.45; }
+  function chatTalk(text) { talkT = Math.max(talkT, Math.min(4, 0.6 + String(text || '').length * 0.03)); happyT = talkT + 0.6; }
+  api.facing = () => { const m = monkey || A().monkey; if (!m) return 9; return Math.abs(angTo(grok.rotation.y, Math.atan2(m.position.x - grok.position.x, m.position.z - grok.position.z))); };
+  function chatTick(dt) {
+    const k = Math.min(1, dt * 6);
+    if (api.chatting) {
+      chatT += dt;
+      const m = monkey || A().monkey;
+      if (m) { const want = Math.atan2(m.position.x - grok.position.x, m.position.z - grok.position.z); grok.rotation.y += angTo(grok.rotation.y, want) * k;
+        if (Math.hypot(m.position.x - grok.position.x, m.position.z - grok.position.z) > 4.5) { chat.close('far'); } }   // walked away: chat ends, he carries on
+      grok.rotation.x += (0 - grok.rotation.x) * k; grok.rotation.z += (0 - grok.rotation.z) * k;
+      grok.position.y = Math.sin(t * 1.6) * 0.015;
+      head.rotation.y += (0 - head.rotation.y) * k; head.rotation.x += (0.06 - head.rotation.x) * k;
+      for (const L of legs) { L.hip.rotation.x *= 1 - k; L.thigh.rotation.x *= 1 - k; }
+      if (talkT > 0) { const wv = arms[1]; wv.sh.rotation.x += (-0.5 - wv.sh.rotation.x) * k; wv.el.rotation.x += (-0.9 + Math.sin(t * 5) * 0.2 - wv.el.rotation.x) * k; arms[0].sh.rotation.x += (0 - arms[0].sh.rotation.x) * k; }
+      else idleArms(dt);
+      return;
+    }
+    // turning back
+    resumeT -= dt;
+    grok.rotation.y += angTo(grok.rotation.y, saved.yaw) * Math.min(1, dt * 9);
+    if (resumeT <= 0) {
+      resumeT = 0;
+      grok.rotation.y = saved.yaw; grok.rotation.x = saved.rx; grok.rotation.z = saved.rz; grok.position.y = saved.py;
+      head.rotation.x = saved.hx; head.rotation.y = saved.hy;
+      legs.forEach((L, i) => { L.hip.rotation.x = saved.legs[i][0]; L.thigh.rotation.x = saved.legs[i][1]; });
+      arms.forEach((a, i) => { const r = saved.arms[i]; a.sh.rotation.set(r[0], r[1], r[2]); a.el.rotation.set(r[3], r[4], r[5]); });
+      palmL.visible = saved.pL; palmR.visible = saved.pR;
+      api.state = saved.state; phaseT = saved.phaseT; nextTixAt = t + saved.tixLeft;
+      api.resumed = (api.resumed || 0) + 1; api.chatPaused = null; saved = null;
+    }
+  }
+  chat.register('visitor', { open: chatOpen, close: chatClose, talk: chatTalk });
+  api.chat = chat;
+
   function tick(dt) {
+    if (api.chatting || resumeT > 0) phaseT -= dt;   // frozen while chatting
     t += dt; api.sessT += dt; phaseT += dt;
     // stragglers only (begin already kicked the full queue); never decode during walk
     if (warmQ.length && (api.state === 'arrive' || api.state === 'greet' || api.state === 'look' || api.state === 'idle')) warmSlice(1);
@@ -895,12 +965,13 @@ export function setupGrokVisit({ scene, tp, play, monkey, camera, st } = {}) {
     }
     fx.tick(dt);
     tickTixFx(dt);
+    if (api.chatting || resumeT > 0) { chatTick(dt); return; }   // t810u: chat pauses whatever he was doing
 
     // near UI while visiting
     if (grok.visible && api.state !== 'idle' && api.state !== 'done' && api.state !== 'leave' && api.state !== 'arrive') {
       const near = playerNearGrok() && !busy() && !api.watchOpen;
       showNear(near);
-    } else if (api.state === 'idle' || api.state === 'done') {
+    } else if (api.state === 'idle' || api.state === 'done' || api.state === 'leave' || api.state === 'arrive') {
       showNear(false);
     }
 
@@ -918,6 +989,12 @@ export function setupGrokVisit({ scene, tp, play, monkey, camera, st } = {}) {
       if (api.watchOpen) closeWatch();
     }
 
+    if (api.state === 'done') {
+      // t810u: after a rest in the shop he comes back for another all-machine tour
+      if (playableArcade()) api.doneT += dt;
+      if (api.doneT >= api.repeatAfter && !busy()) { api.doneT = 0; begin('repeat'); }
+      return;
+    }
     if (api.state === 'idle') {
       // 30s after the player is in the arcade. The start screen and the entry beam do not count.
       // A menu or game at the due moment waits; it does not cancel the visit or spawn him early.
@@ -1052,7 +1129,8 @@ export function setupGrokVisit({ scene, tp, play, monkey, camera, st } = {}) {
       if (t >= tixHudAt) { tixHudAt = t + 0.12; placeTixHud(); }
       if (phaseT > (api.fast || api.reason === 'test' ? 0.5 : 2.2)) {
         idleArms(dt);
-        const next = api.machinesDone < 2 ? pickCab(cab) : null;
+        if (cab) api.toured.push(cabName(cab));
+        const next = api.tour.length ? api.tour.shift() : null;   // t810u: every machine before the shop
         if (next) {
           setVisit(cab, false);
           cab = next; api.cab = cab;

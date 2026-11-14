@@ -85,7 +85,7 @@ const fs = require('fs');
   chk(Math.abs(walkPose.leg0) > 0.2, 'visible step pose');
   chk(Math.abs(walkPose.headY) > 0.3, 'head turned');
   await page.waitForTimeout(500);
-  await page.screenshot({ path: S + 'grok5_walk.png' });
+  if (!process.env.NOSHOTS) await page.screenshot({ path: S + 'grok5_walk.png' });
   console.log('shot walk', fs.statSync(S + 'grok5_walk.png').size);
 
   // --- hands side ---
@@ -144,7 +144,7 @@ const fs = require('fs');
   console.log('handsMeta', JSON.stringify(handsMeta));
   chk(handsMeta.dL < 0.48 && handsMeta.dR < 0.48, 'hands reach toward controls dL=' + handsMeta.dL + ' dR=' + handsMeta.dR);
   await page.waitForTimeout(500);
-  await page.screenshot({ path: S + 'grok5_hands.png' });
+  if (!process.env.NOSHOTS) await page.screenshot({ path: S + 'grok5_hands.png' });
   console.log('shot hands', fs.statSync(S + 'grok5_hands.png').size);
 
   // --- grok6 close controls: ~1.2 m from panel, side+above, hands fill frame ---
@@ -232,7 +232,7 @@ const fs = require('fs');
   console.log('ctrlMeta', JSON.stringify(ctrlMeta));
   chk(ctrlMeta.dL < 0.40 && ctrlMeta.dR < 0.40, 'controls hands reach toward dL=' + ctrlMeta.dL + ' dR=' + ctrlMeta.dR);
   await page.waitForTimeout(400);
-  await page.screenshot({ path: S + 'grok6_controls.png' });
+  if (!process.env.NOSHOTS) await page.screenshot({ path: S + 'grok6_controls.png' });
   console.log('shot controls', fs.statSync(S + 'grok6_controls.png').size);
 
   // --- tickets: resume, pump to ~7, shot ---
@@ -263,7 +263,7 @@ const fs = require('fs');
   chk(tixSnap.hudOn && /🎟/.test(tixSnap.hud || ''), 'ticket HUD visible: ' + tixSnap.hud);
   chk(tixSnap.player === playerT0, 'player tickets unchanged during play');
   await page.waitForTimeout(500);
-  await page.screenshot({ path: S + 'grok4_tickets.png' });
+  if (!process.env.NOSHOTS) await page.screenshot({ path: S + 'grok4_tickets.png' });
   console.log('shot tickets', fs.statSync(S + 'grok4_tickets.png').size);
 
   // Finish two machines
@@ -290,16 +290,17 @@ const fs = require('fs');
   chk(fin.said.length >= 1 && fin.said.every(x => x === 'Hi im Grok'), 't736u: the whole two-machine visit, Grok only ever says "Hi im Grok" ' + JSON.stringify(fin.said));
   chk(fin.clips.every(c => c === 'hi_im_grok.mp3'), 'only the "Hi im Grok" voice clip is ever loaded ' + JSON.stringify(Array.from(new Set(fin.clips))));
 
-  // t736u: standing right next to Grok (greet / look / play / cheer) never shows CHAT or SHOP buttons, a chat panel, or extra lines
+  // t736u: standing right next to Grok never shows SHOP buttons, the old chat bubbles, or extra lines. t810u: the one 💬 CHAT button (#gcBtn,
+  // grokchat.js) now shows near him; the chat itself is covered by test/grok_chat.js
   const near = await page.evaluate(() => {
     const V = window.__grokVisit, A = window.__arcade, Sh = window.__shop;
     V.said.length = 0; V.fast = false;
     if (V.state === 'idle' || V.state === 'done') V.start('debug');
-    const seen = { btns: 0, chatOv: 0, anyChatShop: 0, near: 0, tpAtCab: 0, other: {}, states: new Set() };
+    const seen = { gc: 0, btns: 0, chatOv: 0, anyChatShop: 0, near: 0, tpAtCab: 0, other: {}, states: new Set() };
     for (let i = 0; i < 30 * 90 && V.state !== 'done'; i++) {
       if (V.grok.visible) { A.monkey.position.set(V.grok.position.x + 0.9, 0, V.grok.position.z + 0.4); }
       Sh.update(1 / 30);
-      seen.states.add(V.state); if (V.near) seen.near++;
+      seen.states.add(V.state); if (V.near) seen.near++; if (document.getElementById('gcBtn').classList.contains('on')) seen.gc++;
       if (document.getElementById('gvBtns') || document.getElementById('gvShop') || document.getElementById('gvChat')) seen.btns++;
       if (document.getElementById('gvChatOv') || document.querySelector('.gvChip, .gvMsg')) seen.chatOv++;
       // not Grok's, and they stay: the teleport pad's SHOP/ARCADE button (#tpBtn), the prize-shop counter (#shopBtn), the multiplayer bar's player chat (#mpChatB)
@@ -309,12 +310,13 @@ const fs = require('fs');
       if (V.state === 'play' && vis.some(b => b.id === 'tpBtn')) seen.tpAtCab++;
     }
     if (V.state !== 'done') V.skipTo('done');
-    return { said: V.said.slice(), btns: seen.btns, chatOv: seen.chatOv, anyChatShop: seen.anyChatShop, other: seen.other, tpAtCab: seen.tpAtCab, near: seen.near, states: Array.from(seen.states), chatOpen: V.chatOpen };
+    return { said: V.said.slice(), btns: seen.btns, chatOv: seen.chatOv, anyChatShop: seen.anyChatShop, other: seen.other, tpAtCab: seen.tpAtCab, near: seen.near, states: Array.from(seen.states), chatOpen: V.chatOpen, gc: seen.gc };
   });
   console.log('near', JSON.stringify(near));
   chk(near.near > 60 && near.states.includes('greet') && near.states.includes('play'), 'player stood next to Grok through greet + play ' + JSON.stringify({ near: near.near, states: near.states }));
   chk(near.said.length === 1 && near.said[0] === 'Hi im Grok', 'a full real-time visit: exactly one line, "Hi im Grok" ' + JSON.stringify(near.said));
-  chk(near.btns === 0 && near.chatOv === 0 && near.anyChatShop === 0 && near.chatOpen === undefined, 'no CHAT / SHOP buttons or chat panel near Grok ' + JSON.stringify(near));
+  chk(near.btns === 0 && near.chatOv === 0 && near.anyChatShop === 0 && near.chatOpen === undefined, 'no SHOP buttons or old chat bubbles near Grok ' + JSON.stringify(near));
+  chk(near.gc > 30, 't810u: the 💬 CHAT button shows while you stand next to Grok ' + near.gc);
 
   // WATCH button still present when near cab during play
   await page.evaluate(() => {
