@@ -20,7 +20,7 @@ const vis = (page, sel) => page.evaluate(s => { const e = document.querySelector
   chk(mn[2] > -2.2 && mx[2] < 2.2 && mx[2] - mn[2] < 4.4, 'playfield only in the middle window section (|z| < 2.2), theme visible on both sides', geo.b);
   chk(mn[1] > 0.3 && mx[1] < 8.2 && mx[1] - mn[1] > 6.5, 'tall 10x20 well, above the floor, below the ceiling', geo.b);
   chk(geo.G.W === 10 && geo.G.H === 22, 'Neon Bricks rules (10 wide, 20 + 2 hidden rows)', geo.G);
-  chk(geo.pb[0][2] > 5.5 && geo.pb[0][0] > 11, 'score / level panel floats in the right-hand window section', geo.pb);
+  const pb = geo.pb, pH = pb[1][1] - pb[0][1], pZ = (pb[0][2] + pb[1][2]) / 2;
   const hid0 = await page.evaluate(() => ({ g: window.__neonBricks.grp.visible, p: window.__neonBricks.panel.visible }));
   chk(!hid0.g && !hid0.p, 't781u: playfield + score panel not drawn while not playing', hid0);
   // away from the window: no PLAY

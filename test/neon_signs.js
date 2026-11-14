@@ -8,7 +8,7 @@ let ok = true; const chk = (c, m, x) => { console.log((c ? 'PASS ' : 'FAIL ') + 
   const r = await page.evaluate(() => { const A = window.__arcade, S = window.__neonSigns, out = { left: [] };
     for (const m of ['medieval', 'current', 'viking', 'portals']) { A.setWalls(m); [A.room, A.room2, A.hall].forEach(R => R.traverse(o => { if (/^ledge|gothic|wallBand(Pink|Amber)/.test(o.name)) out.left.push(m + ':' + o.name); })); }
     A.setWalls('medieval');
-    out.signs = S.userData.signs; out.meshes = 0; window.__arcade.room.parent.traverse(o => { if (o.name === 'neonSigns') out.meshes++; });
+    out.signs = S.userData.signs; out.icons = (S.userData.icons || (window.__neonIcons && window.__neonIcons.userData.icons) || []); out.iconMesh = 0; out.meshes = 0; window.__arcade.room.parent.traverse(o => { if (o.name === 'neonSigns') out.meshes++; if (o.name === 'neonIcons') out.iconMesh++; });
     out.map = !!S.material.map && S.material.map.image.width; out.src = S.material.map.image.src || ''; out.k = S.userData.k; out.transparent = S.material.transparent; out.depthWrite = S.material.depthWrite;
     out.featured = Object.keys(A.featured || {}).length; return out; });
   chk(r.left.length === 0, 'no wall shelf / ledge bands / stained-glass windows in any walls mode (both rooms + hallway)', r.left);
@@ -28,6 +28,10 @@ let ok = true; const chk = (c, m, x) => { console.log((c ? 'PASS ' : 'FAIL ') + 
   chk(overlap.length === 0, 'no two signs overlap', overlap);
   chk(r.transparent && !r.depthWrite && r.map === 1024 && /tex\/neon_signs\.webp/.test(r.src), 'styled atlas texture (tex/neon_signs.webp), transparent, no depth write', { map: r.map, src: r.src });
   chk(r.k <= 0.65, 't782u: dimmer than t775u (colour x' + r.k + ', was 0.85 / v188 1.3)');
+  const I = r.icons || [];
+  chk(r.iconMesh === 1 && I.length === S.length && want.every(k => I.some(i => i.key === k)), 'v216: one neon icon per machine, all in ONE extra mesh', { n: I.length, keys: I.map(i => i.key), meshes: r.iconMesh });
+  chk(I.every(i => i.top < 6.2 && i.h >= 0.28 && i.w >= 0.28), 'v216: each icon fits below the cyan band and is a readable size', I.map(i => [i.key, i.top, i.h]));
+  chk(I.every(i => { const s = S.find(s => s.key === i.key); return s && i.bottom >= s.top - 0.02 && i.bottom <= s.top + 0.22; }), 'v216: each icon sits just above its name sign', I.map(i => [i.key, i.bottom, (S.find(s => s.key === i.key) || {}).top]));
   chk(errors.length === 0, 'no page errors', errors);
   await o.close(); process.exit(ok ? 0 : 1);
 })().catch(e => { console.log('FAIL exception ' + e.message); process.exit(1); });

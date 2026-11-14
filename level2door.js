@@ -3,7 +3,7 @@
 // The slab extends into the hallway (negative z) and overlaps both side walls, so the opening is
 // sealed with no side gap and nothing of the frame sits out in room 1.
 // Leaves, rivets, centre latch, hinge barrels, keypad and the floor hazard threshold are the original
-// pieces. Each leaf is still its own hinge pivot; window.__level2Door.open()/close() stay inert.
+// pieces. Each leaf is its own hinge pivot; open() swings them into the hallway and drops the collider.
 // Cheap: one 512x256 canvas atlas (LEVEL 2 stencil / hazard stripes / keypad screen), 9 draw calls.
 export function setupLevel2Door({ THREE, parent, mergeGeometries, x = 0, z, width = 3.2, doorH = 3 }) {
   const HW = width / 2, jamb = 0.14, leafGap = -0.02, frameD = 0.2;   // leaves overlap 2 cm so the closed pair does not leak at the meeting stile
@@ -64,17 +64,45 @@ export function setupLevel2Door({ THREE, parent, mergeGeometries, x = 0, z, widt
   root.add(frame, scr, haz); parent.add(root);
   // ---- collider: thin slab across the whole opening. Pushes along z only, from either side. ----
   const xMin = x - HW, xMax = x + HW, zFront = z, zBack = z - frameD;
-  let isOpen = false;
+  const SAVE_KEY = 'neonarcade.level2.saved';
+  const OPEN_L = Math.PI / 2, OPEN_R = -Math.PI / 2, OPEN_MS = 800;
+  function readSaved() { try { return localStorage.getItem(SAVE_KEY) === '1'; } catch (e) { return false; } }
+  function writeSaved(on) { try { if (on) localStorage.setItem(SAVE_KEY, '1'); else localStorage.removeItem(SAVE_KEY); } catch (e) {} }
+  let isOpen = false, anim = null, raf = 0;
+  function pose(k) {
+    const e = k * k * (3 - 2 * k);
+    leaves[0].rotation.y = anim.fromL + (anim.toL - anim.fromL) * e;
+    leaves[1].rotation.y = anim.fromR + (anim.toR - anim.fromR) * e;
+  }
+  function tick() {
+    if (!anim) return;
+    const k = Math.min(1, (performance.now() - anim.t0) / OPEN_MS);
+    pose(k);
+    if (k >= 1) anim = null;
+  }
+  function kick() { if (raf) return; const loop = () => { raf = 0; if (!anim) return; tick(); raf = requestAnimationFrame(loop); }; raf = requestAnimationFrame(loop); }
+  function swing(wantOpen, snap) {
+    const toL = wantOpen ? OPEN_L : 0, toR = wantOpen ? OPEN_R : 0;
+    isOpen = wantOpen;
+    if (snap) { leaves[0].rotation.y = toL; leaves[1].rotation.y = toR; anim = null; return true; }
+    anim = { t0: performance.now(), fromL: leaves[0].rotation.y, fromR: leaves[1].rotation.y, toL, toR };
+    kick(); return true;
+  }
   function block(p, R) {
+    tick();
     if (isOpen) return;
     if (p.x <= xMin || p.x >= xMax) return;
     if (p.z <= zBack - R || p.z >= zFront + R) return;
     p.z = p.z < (zBack + zFront) * 0.5 ? zBack - R : zFront + R;
   }
   const api = window.__level2Door = { group: root, leaves, label: 'LEVEL 2', collider: { xMin, xMax, zFront, zBack },
-    align: { wallZ: z, frameFrontZ: zFront, leafFrontZ: z + pivotZ + T / 2, x0: xMin, x1: xMax, zBack, zFront, width, doorH }, block,
+    align: { wallZ: z, frameFrontZ: zFront, leafFrontZ: z + pivotZ + T / 2, x0: xMin, x1: xMax, zBack, zFront, width, doorH }, block, tick,
     get open_() { return isOpen; },
-    open() { return false; },    // TODO (Dave later): swing the hinge pivots and drop the collider. Not enabled.
-    close() { return false; } };
+    get saved() { return readSaved(); },
+    open(snap) { return swing(true, snap); },
+    close(opts) { const force = opts && opts.force; if (readSaved() && !force) return false; return swing(false, opts && opts.snap); },
+    save() { writeSaved(true); if (!isOpen) swing(true); return true; },
+    unsave() { writeSaved(false); return true; } };
+  if (readSaved()) swing(true, true);
   return api;
 }

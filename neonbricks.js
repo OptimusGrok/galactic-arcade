@@ -6,8 +6,14 @@
 // While playing: D-pad left/right moves (down = soft drop, up = rotate), the MOVE button (in the backpack's place) still rotates, ZOOM once = the
 // playfield fills the screen (again = back), swipes still turn the camera. Free play, no tickets (like the room's other free toys).
 // Cheap: 3 instanced meshes + 1 canvas panel (redrawn only when the numbers change), no lights added, all compiled by the warm-up.
+// v216: bigger/closer score panel with a live high score; line-clear beam + sound; Level 2 door opens after 3 tetrises in one game;
+// the playfield frame and the panel neon change colour every 30 s, always different colours from each other (t826u).
 export function setupNeonBricks({ THREE, room, HALF, getMonkey, st, canStart, onState }) {
 const HI_KEY = 'neonarcade.neonbricks.hi';
+const TETRIS_LINES = 4;          // a tetris. 5 lines at once is impossible with standard tetrominoes (the I piece spans at most 4).
+const TETRISES_TO_OPEN = 3;      // Level 2 door opens after this many tetrises in one Neon Bricks game
+const NEON_PERIOD = 30;          // seconds between frame / panel colour changes
+const NEON_PALETTE = ['#3ff3ff', '#ff3fd2', '#ffe14a', '#7d5cff', '#39ff14', '#ff6a1a'];
 // ================= RULES ENGINE (verbatim from Neon Bricks 3D) =================
 const W=10,H=22,HID=2;
 const TYPES=['I','O','T','S','Z','J','L'];
@@ -25,6 +31,7 @@ const G={state:'title',board:emptyBoard(),cur:null,hold:null,holdUsed:false,queu
 const LOCK_DELAY=0.5,MAX_RESETS=15;
 function emptyBoard(){return Array.from({length:H},()=>new Array(W).fill(0));}
 function emit(type,d){G.events.push(Object.assign({type},d||{}));}
+function addScore(n){G.score+=n;if(G.score>G.hi){G.hi=G.score;G.newHi=true;try{localStorage.setItem(HI_KEY,String(G.hi));}catch(e){}}}
 function refill(){while(G.queue.length<7){const b=TYPES.slice();for(let i=b.length-1;i>0;i--){const j=Math.floor(G.rand()*(i+1));const t=b[i];b[i]=b[j];b[j]=t;}G.queue.push(...b);}}
 function fits(t,r,x,y){for(const c of CELLS[t][r]){const cx=x+c[0],cy=y+c[1];if(cx<0||cx>=W||cy>=H)return false;if(cy>=0&&G.board[cy][cx])return false;}return true;}
 function gravInterval(lv){lv=Math.min(lv,20);return Math.pow(0.8-(lv-1)*0.007,lv-1);}
@@ -48,9 +55,9 @@ function rotate(dir){
  const nr=(c.r+dir+4)%4,ks=(c.t==='I'?KI:KJ)[''+c.r+nr];
  for(let i=0;i<ks.length;i++){const nx=c.x+ks[i][0],ny=c.y-ks[i][1];if(fits(c.t,nr,nx,ny)){c.x=nx;c.y=ny;c.r=nr;G.lastRot=true;G.lastKick=i;moveReset();checkLowest();emit('rotate',{kick:i});return true;}}
  return false;}
-function softDrop(){if(G.state!=='play'||!G.cur)return false;const c=G.cur;if(fits(c.t,c.r,c.x,c.y+1)){c.y++;G.score+=1;G.grav=0;G.lastRot=false;checkLowest();emit('soft');return true;}return false;}
+function softDrop(){if(G.state!=='play'||!G.cur)return false;const c=G.cur;if(fits(c.t,c.r,c.x,c.y+1)){c.y++;addScore(1);G.grav=0;G.lastRot=false;checkLowest();emit('soft');return true;}return false;}
 function ghostY(){const c=G.cur;let y=c.y;while(fits(c.t,c.r,c.x,y+1))y++;return y;}
-function hardDrop(){if(G.state!=='play'||!G.cur)return false;const c=G.cur;const y0=c.y,y1=ghostY();const d=y1-y0;if(d>0)G.lastRot=false;c.y=y1;G.score+=2*d;
+function hardDrop(){if(G.state!=='play'||!G.cur)return false;const c=G.cur;const y0=c.y,y1=ghostY();const d=y1-y0;if(d>0)G.lastRot=false;c.y=y1;addScore(2*d);
  emit('hard',{d,t:c.t,cells:CELLS[c.t][c.r].map(([dx,dy])=>[c.x+dx,y0+dy,y1+dy])});lock();return true;}
 function hold(){if(G.state!=='play'||!G.cur||G.holdUsed)return false;const t=G.cur.t,h=G.hold;G.hold=t;G.holdUsed=true;emit('hold',{t});spawn(h||undefined);return true;}
 function tspinType(){
@@ -72,7 +79,7 @@ function lock(){
  if(n>0){if(diff&&G.b2b){base*=1.5;b2bHit=true;}G.b2b=diff;G.combo++;}else G.combo=-1;
  let pts=base*G.level;if(n>0&&G.combo>0)pts+=50*G.combo*G.level;
  let perfect=n>0&&G.board.every(r=>r.every(x=>!x));if(perfect)pts+=[0,800,1200,1800,2000][n]*G.level;
- G.score+=pts;G.lines+=n;if(n===4)G.stats.tetrises++;if(ts&&n)G.stats.tspins++;G.stats.maxCombo=Math.max(G.stats.maxCombo,G.combo);
+ addScore(pts);G.lines+=n;if(n===TETRIS_LINES)G.stats.tetrises++;if(ts&&n)G.stats.tspins++;G.stats.maxCombo=Math.max(G.stats.maxCombo,G.combo);
  const oldLv=G.level;G.level=Math.floor(G.lines/10)+G.startLevel;
  if(n||ts)emit('clear',{rows,n,cleared,ts,b2b:b2bHit,combo:G.combo,pts,perfect});
  if(G.level>oldLv)emit('levelup',{level:G.level});
@@ -82,7 +89,7 @@ function update(dt){
  if(G.state!=='play'||!G.cur)return;
  const g=gravInterval(G.level),iv=G.soft?Math.max(g/20,0.02):g;
  G.grav+=dt;
- while(G.grav>=iv&&G.cur){G.grav-=iv;const c=G.cur;if(fits(c.t,c.r,c.x,c.y+1)){c.y++;if(G.soft){G.score+=1;emit('soft');}G.lastRot=false;checkLowest();}else{G.grav=0;break;}}
+ while(G.grav>=iv&&G.cur){G.grav-=iv;const c=G.cur;if(fits(c.t,c.r,c.x,c.y+1)){c.y++;if(G.soft){addScore(1);emit('soft');}G.lastRot=false;checkLowest();}else{G.grav=0;break;}}
  if(G.cur&&grounded()){G.lockT+=dt;if(G.lockT>=LOCK_DELAY)lock();}else G.lockT=0;}
 // ================= BRICK GEOMETRY (verbatim) =================
 function brickGeometry(){
@@ -109,6 +116,7 @@ function inst(n, mat, name) { const m = new THREE.InstancedMesh(BRICK, mat, n); 
 const boardM = inst(W * VIS, brickMat, 'nbBoard'), curM = inst(4, brickMat, 'nbCur'), ghostM = inst(4, ghostMat, 'nbGhost');
 // neon well outline (sides + floor), so the empty playfield reads against the sky
 const tubeC = new THREE.MeshBasicMaterial({ color: new THREE.Color(0x3ff3ff).multiplyScalar(1.6), fog: false }), tubeM = new THREE.MeshBasicMaterial({ color: new THREE.Color(0xff3fd2).multiplyScalar(1.6), fog: false });
+tubeC.name = 'nbFrame'; tubeM.name = 'nbFrame';
 for (const [w, h, x, y, m] of [[0.12, VIS + 0.4, -0.62, (VIS - 1) / 2, tubeC], [0.12, VIS + 0.4, W - 0.38, (VIS - 1) / 2, tubeC], [W + 0.36, 0.14, (W - 1) / 2, -0.62, tubeM]]) {
   const b = new THREE.Mesh(new THREE.BoxGeometry(w, h, 0.12), m); b.position.set(x, y, 0); b.name = 'nbWell'; grp.add(b); }
 const M4 = new THREE.Matrix4(), V3 = new THREE.Vector3(), camBase = { on: false, p: new THREE.Vector3(), q: new THREE.Quaternion() };
@@ -117,25 +125,32 @@ const put = (m, i, x, y, col) => { M4.makeTranslation(x, VIS - 1 - (y - HID), 0)
 let msg = '', msgT = 0;
 const pc = document.createElement('canvas'); pc.width = 512; pc.height = 640; const px = pc.getContext('2d');
 const ptex = new THREE.CanvasTexture(pc); ptex.colorSpace = THREE.SRGBColorSpace;
-const panel = new THREE.Mesh(new THREE.PlaneGeometry(3.0, 3.75), new THREE.MeshBasicMaterial({ map: ptex, transparent: true, depthWrite: false, fog: false }));
-panel.name = 'nbPanel'; panel.position.set(HALF - 0.3, 4.6, 7.6); panel.rotation.y = -Math.PI / 2; panel.renderOrder = 3; room.add(panel);
+const panel = new THREE.Mesh(new THREE.PlaneGeometry(4.2, 5.25), new THREE.MeshBasicMaterial({ map: ptex, transparent: true, depthWrite: false, fog: false }));
+panel.name = 'nbPanel'; panel.position.set(HALF - 0.55, 4.15, 5.15); panel.rotation.y = -Math.PI / 2; panel.renderOrder = 3; room.add(panel);
 let panelKey = '';
+let neonNow = () => performance.now() / 1000, neonIdx = -1, frameHex = NEON_PALETTE[0], panelHex = NEON_PALETTE[2];
+function neonPair(i) { const n = NEON_PALETTE.length, a = ((i % n) + n) % n, b = (a + 2) % n; return { i: a, frame: NEON_PALETTE[a], panel: NEON_PALETTE[b] }; }
+function applyNeon(force) {
+  const p = neonPair(Math.floor(neonNow() / NEON_PERIOD)); if (!force && p.i === neonIdx) return false;
+  neonIdx = p.i; frameHex = p.frame; panelHex = p.panel;
+  const fc = new THREE.Color(frameHex).multiplyScalar(1.6); tubeC.color.copy(fc); tubeM.color.copy(fc);
+  panelKey = ''; return true;
+}
 function drawPanel(msg) {
-  const nx = G.queue && G.queue[0], key = [G.state, G.score, G.level, G.lines, G.hi, nx, msg || ''].join('|'); if (key === panelKey) return; panelKey = key;
+  const nx = G.queue && G.queue[0], key = [G.state, G.score, G.level, G.lines, G.hi, nx, msg || '', panelHex].join('|'); if (key === panelKey) return; panelKey = key;
   const g = px, w = 512, h = 640; g.clearRect(0, 0, w, h);
-  g.fillStyle = 'rgba(8,4,20,0.45)'; g.beginPath(); g.roundRect(8, 8, w - 16, h - 16, 26); g.fill(); g.lineWidth = 4; g.strokeStyle = '#ff3fd2'; g.shadowColor = '#ff3fd2'; g.shadowBlur = 14; g.stroke(); g.shadowBlur = 0;
+  g.fillStyle = 'rgba(8,4,20,0.45)'; g.beginPath(); g.roundRect(8, 8, w - 16, h - 16, 26); g.fill(); g.lineWidth = 6; g.strokeStyle = panelHex; g.shadowColor = panelHex; g.shadowBlur = 18; g.stroke(); g.shadowBlur = 0;
   g.textAlign = 'center'; g.textBaseline = 'middle';
   const neonT = (t, y, size, col, glow) => { g.font = `900 ${size}px "Arial Black", Arial, sans-serif`; g.shadowColor = glow || col; g.shadowBlur = 16; g.fillStyle = col; g.fillText(t, w / 2, y); g.shadowBlur = 0; };
-  neonT('NEON', 62, 54, '#ffe14a', '#ff9a1a'); neonT('BRICKS', 118, 54, '#3ff3ff');
-  const row = (lab, val, y) => { g.font = '700 28px "Courier New", monospace'; g.fillStyle = '#c8b8ff'; g.fillText(lab, w / 2, y); neonT(String(val), y + 40, 44, '#ffffff', '#ff3fd2'); };
-  row('SCORE', G.score, 180); row('LEVEL', G.level, 280); row('LINES', G.lines, 380);
-  g.font = '700 24px "Courier New", monospace'; g.fillStyle = '#ffe14a'; g.fillText('HI ' + G.hi, w / 2, 470);
-  if (G.state === 'play' && nx) { g.font = '700 22px "Courier New", monospace'; g.fillStyle = '#c8b8ff'; g.fillText('NEXT', w / 2, 510);
-    const cs = CELLS[nx][0], s = 26, minx = Math.min(...cs.map(c => c[0])), maxx = Math.max(...cs.map(c => c[0])), miny = Math.min(...cs.map(c => c[1])), maxy = Math.max(...cs.map(c => c[1]));
-    const ox = w / 2 - (maxx - minx + 1) * s / 2, oy = 548 - (maxy - miny + 1) * s / 2 + 20;
+  neonT('NEON', 54, 58, panelHex, panelHex); neonT('BRICKS', 108, 58, panelHex, panelHex);
+  const row = (lab, val, y, col) => { g.font = '700 28px "Courier New", monospace'; g.fillStyle = '#c8b8ff'; g.fillText(lab, w / 2, y); neonT(String(val), y + 40, 48, '#ffffff', col || panelHex); };
+  row('SCORE', G.score, 160); row('HIGH SCORE', G.hi, 258); row('LEVEL', G.level, 356); row('LINES', G.lines, 454);
+  if (G.state === 'play' && nx) { g.font = '700 22px "Courier New", monospace'; g.fillStyle = '#c8b8ff'; g.fillText('NEXT', w / 2, 548);
+    const cs = CELLS[nx][0], s = 22, minx = Math.min(...cs.map(c => c[0])), maxx = Math.max(...cs.map(c => c[0])), miny = Math.min(...cs.map(c => c[1])), maxy = Math.max(...cs.map(c => c[1]));
+    const ox = w / 2 - (maxx - minx + 1) * s / 2, oy = 580 - (maxy - miny + 1) * s / 2 + 16;
     for (const [cx, cy] of cs) { const x = ox + (cx - minx) * s, y = oy + (cy - miny) * s; g.fillStyle = HEX[nx]; g.fillRect(x + 1, y + 1, s - 2, s - 2); g.fillStyle = 'rgba(255,255,255,0.35)'; g.beginPath(); g.arc(x + s / 2, y + s / 2, s * 0.28, 0, 7); g.fill(); }
-    if (msg) neonT(msg, 612, msg.length > 10 ? 28 : 34, '#fff6b0', '#ffe14a'); }
-  else { neonT(msg || (G.state === 'over' ? 'GAME OVER' : 'WALK UP + PLAY'), 560, msg && msg.length > 10 ? 30 : 36, '#ff6fd8'); }
+    if (msg) neonT(msg, 624, msg.length > 10 ? 24 : 30, '#fff6b0', panelHex); }
+  else { neonT(msg || (G.state === 'over' ? 'GAME OVER' : 'WALK UP + PLAY'), 580, msg && msg.length > 10 ? 30 : 36, panelHex); }
   ptex.needsUpdate = true; }
 // ---- render the board state into the instanced meshes ----
 let boardDirty = true;
@@ -148,10 +163,66 @@ function sync() {
 // ---- little sounds (shared arcade audio context, respects mute) ----
 function blip(f0, f1, dur, vol, type) { try { const ac = window.__unlockAC; if (!ac || window.__muted || (window.__mute && window.__mute.muted)) return; const t = ac.currentTime, o = ac.createOscillator(), g = ac.createGain();
   o.type = type || 'square'; o.frequency.setValueAtTime(f0, t); o.frequency.exponentialRampToValueAtTime(Math.max(30, f1), t + dur); g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(0.0001, t + dur); o.connect(g).connect(ac.destination); o.start(t); o.stop(t + dur + 0.02); } catch (e) {} }
+const beamMat = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.95, fog: false, depthWrite: false, blending: THREE.AdditiveBlending });
+beamMat.name = 'nbBeam';
+const beams = [];
+function spawnBeams(rows) {
+  for (const y of rows) {
+    const ly = VIS - 1 - (y - HID);
+    const bar = new THREE.Mesh(new THREE.BoxGeometry(W + 0.8, 0.55, 0.22), beamMat.clone());
+    bar.position.set((W - 1) / 2, ly, 0.2); bar.name = 'nbBeam'; bar.userData = { t: 0, life: 0.45, kind: 'bar', y };
+    const shard = new THREE.Mesh(new THREE.BoxGeometry(W + 0.4, 0.18, 0.08), beamMat.clone());
+    shard.position.set((W - 1) / 2, ly, 0.35); shard.name = 'nbBeamShard'; shard.userData = { t: 0, life: 0.45, kind: 'shard', y };
+    grp.add(bar, shard); beams.push(bar, shard);
+  }
+  api.beams = beams.length;
+}
+function tickBeams(dt) {
+  const col = new THREE.Color(frameHex);
+  for (let i = beams.length - 1; i >= 0; i--) {
+    const m = beams[i], u = m.userData; u.t += dt; const k = Math.min(1, u.t / u.life);
+    if (m.material && m.material.color) m.material.color.copy(col);
+    if (m.material) m.material.opacity = 0.95 * (1 - k) * (1 - k);
+    if (u.kind === 'bar') { m.scale.set(1 + k * 0.15, Math.max(0.08, 1 - k * 0.7), 1 + k * 4); m.position.z = 0.2 + k * 1.6; }
+    else { m.scale.set(1.1 + k * 0.4, 1, 1); m.position.z = 0.35 + k * 3.2; }
+    if (k >= 1) { grp.remove(m); if (m.geometry) m.geometry.dispose(); if (m.material && m.material !== beamMat) m.material.dispose(); beams.splice(i, 1); }
+  }
+  api.beams = beams.length;
+}
+function clearBeamSnd(n) {
+  try {
+    const ac = window.__unlockAC; if (!ac || window.__muted || (window.__mute && window.__mute.muted)) return;
+    const t0 = ac.currentTime;
+    const beep = (type, f0, f1, dur, vol, delay) => {
+      const o = ac.createOscillator(), g = ac.createGain();
+      o.type = type; o.frequency.setValueAtTime(f0, t0 + delay); o.frequency.exponentialRampToValueAtTime(Math.max(40, f1), t0 + delay + dur);
+      g.gain.setValueAtTime(0.0001, t0 + delay); g.gain.exponentialRampToValueAtTime(vol, t0 + delay + 0.02); g.gain.exponentialRampToValueAtTime(0.0001, t0 + delay + dur);
+      o.connect(g).connect(ac.destination); o.start(t0 + delay); o.stop(t0 + delay + dur + 0.02);
+    };
+    beep('sawtooth', 180, 1640, 0.32, 0.08, 0);
+    beep('sine', 720, 2200, 0.4, 0.055, 0.03);
+    beep('triangle', 420, 90, 0.45, 0.04, 0.1);
+    if (n >= TETRIS_LINES) beep('square', 1280, 2600, 0.22, 0.035, 0.06);
+  } catch (e) {}
+}
+function tryOpenDoor() {
+  const D = window.__level2Door; if (D && D.open) D.open();
+}
+function closeDoorOnExit() {
+  const D = window.__level2Door; if (!D || !D.close) return;
+  // Leaving a game that earned the door keeps it open so the player can walk through.
+  // A later unsaved new game closes it again. Saved unlocks persist.
+  if (D.saved || G.stats.tetrises >= TETRISES_TO_OPEN) return;
+  D.close();
+}
+function resetDoorForNewGame() {
+  const D = window.__level2Door; if (!D || !D.close || D.saved) return;
+  D.close({ snap: true });
+}
 function drain() { for (const e of G.events) {
   if (e.type === 'lock' || e.type === 'clear' || e.type === 'newgame' || e.type === 'hard') boardDirty = true;
   if (e.type === 'rotate') blip(660, 880, 0.05, 0.05); else if (e.type === 'move') blip(330, 300, 0.03, 0.03); else if (e.type === 'lock') blip(180, 90, 0.08, 0.07, 'triangle');
-  else if (e.type === 'clear' && e.n) { blip(500, 1400, 0.25, 0.07, 'sawtooth'); msg = e.n === 4 ? 'NEON BRICKS!' : ['', 'SINGLE', 'DOUBLE', 'TRIPLE'][e.n]; if (e.ts) msg = 'T-SPIN ' + msg; msgT = 1.4; api.clears++; }
+  else if (e.type === 'clear' && e.n) { clearBeamSnd(e.n); if (e.rows && e.rows.length) spawnBeams(e.rows); msg = e.n === TETRIS_LINES ? 'NEON BRICKS!' : ['', 'SINGLE', 'DOUBLE', 'TRIPLE'][e.n]; if (e.ts) msg = 'T-SPIN ' + msg; msgT = 1.4; api.clears++; if (G.stats.tetrises >= TETRISES_TO_OPEN) tryOpenDoor(); }
   else if (e.type === 'levelup') { msg = 'LEVEL ' + e.level; msgT = 1.4; }
   else if (e.type === 'gameover') { blip(400, 60, 0.9, 0.08, 'sawtooth'); stop('over'); } }
   G.events.length = 0; }
@@ -161,19 +232,30 @@ function joy(jx, jy, dt) {   // joystick / keys: left-right auto-repeat, down = 
   const d = jx > 0.45 ? 1 : jx < -0.45 ? -1 : 0;
   if (d !== rep.dir) { rep.dir = d; rep.t = 0; if (d) move(d); } else if (d) { rep.t += dt; while (rep.t >= DAS) { move(d); rep.t -= ARR; } }
   G.soft = jy > 0.6 && Math.abs(jy) > Math.abs(jx); }
-const api = { G, grp, panel, HEX, get shown() { return grp.visible; }, playing: false, zoom: false, zoomK: 0, near: false, clears: 0, starts: 0, rotates: 0, moves: 0,
+const api = { G, grp, panel, HEX, TETRIS_LINES, TETRISES_TO_OPEN, NEON_PERIOD, NEON_PALETTE, beams: 0,
+  get shown() { return grp.visible; }, playing: false, zoom: false, zoomK: 0, near: false, clears: 0, starts: 0, rotates: 0, moves: 0,
+  get frameColor() { return frameHex; }, get panelColor() { return panelHex; }, get neonIndex() { return neonIdx; },
+  setNeonNow(fn) { neonNow = fn; applyNeon(true); drawPanel(msg); },
   get mats() { return [brickMat, ghostMat]; },
-  start() { if (api.playing) return; hideT = 0; show(true); newGame(); api.playing = true; api.starts++; boardDirty = true; G.events.length = 0; boardDirty = true; msg = ''; drawPanel(); onState && onState(true); },
+  start() { if (api.playing) return; hideT = 0; show(true); resetDoorForNewGame(); newGame(); api.playing = true; api.starts++; boardDirty = true; G.events.length = 0; boardDirty = true; msg = ''; drawPanel(); onState && onState(true); },
   stop, rotate() { if (api.playing && rotate(1)) api.rotates++; }, hardDrop() { if (api.playing) hardDrop(); },
   move(d) { if (api.playing && move(d)) api.moves++; },
   joy, toggleZoom() { if (api.playing) api.zoom = !api.zoom; },
+  debugClear(n) {   // test hook: fill n complete rows at the bottom and run the real clear path (beam, sound, tetris count, door)
+    if (G.state !== 'play') newGame();
+    const rows = []; for (let i = 0; i < n; i++) { const y = H - 1 - i; for (let x = 0; x < W; x++) G.board[y][x] = 1; rows.push(y); }
+    const cleared = rows.map(y => G.board[y].slice());
+    rows.slice().sort((a, b) => b - a).forEach(y => G.board.splice(y, 1)); for (let i = 0; i < n; i++) G.board.unshift(new Array(W).fill(0));
+    if (n === TETRIS_LINES) G.stats.tetrises++;
+    G.lines += n; addScore(([0, 100, 300, 500, 800][n] || 0) * G.level);
+    emit('clear', { rows, n, cleared, ts: 0, b2b: false, combo: 0, pts: 0, perfect: false }); boardDirty = true; drain(); return { n, tetrises: G.stats.tetrises, hi: G.hi, score: G.score }; },
   update(dt) {
     const m = getMonkey(); api.near = !!(m && !api.playing && m.position.x > HALF - 4.2 && Math.abs(m.position.z - ZC) < 2.4 && m.position.y < 1);
     if (api.playing) { update(Math.min(dt, 0.1)); drain(); }
     if (msgT > 0) { msgT -= dt; if (msgT <= 0) msg = ''; }
     if (hideT > 0 && !api.playing) { hideT -= dt; if (hideT <= 0) { hideT = 0; show(false); } }
     api.zoomK += ((api.playing && api.zoom ? 1 : 0) - api.zoomK) * (1 - Math.exp(-dt * 7)); if (api.zoomK < 0.002) api.zoomK = 0;
-    sync(); drawPanel(msg); },
+    applyNeon(); tickBeams(dt); sync(); drawPanel(msg); },
   // ZOOM: frame the 10 x 20 playfield so it fills the screen, eased with zoomK
   restoreCam(cam) { if (camBase.on) { cam.position.copy(camBase.p); cam.quaternion.copy(camBase.q); camBase.on = false; } },   // undo last frame's zoom before the follow camera runs
   camera(cam) { if (api.zoomK <= 0) return false;
@@ -184,8 +266,8 @@ const api = { G, grp, panel, HEX, get shown() { return grp.visible; }, playing: 
     V3.copy(cam.position); cam.position.lerp(V3.set(zx, yc, ZC), k);
     const look = new THREE.Vector3(); cam.getWorldDirection(look); look.multiplyScalar(10).add(V3.copy(cam.position));
     cam.lookAt(look.lerp(new THREE.Vector3(X0, yc, ZC), k)); return k > 0.35; } };
-function stop(why) { if (!api.playing) return; api.playing = false; api.zoom = false; rep.dir = 0; G.soft = false; if (why !== 'over') G.state = 'title'; msg = ''; panelKey = ''; drawPanel(); if (why === 'over') hideT = 1.6; else show(false); onState && onState(false); }
+function stop(why) { if (!api.playing) return; api.playing = false; api.zoom = false; rep.dir = 0; G.soft = false; if (why !== 'over') G.state = 'title'; msg = ''; panelKey = ''; closeDoorOnExit(); drawPanel(); if (why === 'over') hideT = 1.6; else show(false); onState && onState(false); }
 // t781u: nothing in the window until PLAY is tapped; hidden again after game over (a short GAME OVER beat first) or exit
 let hideT = 0; function show(on) { grp.visible = panel.visible = on; } show(false);
-drawPanel(); sync();
+applyNeon(true); drawPanel(); sync();
 return api; }
