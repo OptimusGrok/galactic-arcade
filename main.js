@@ -1119,17 +1119,19 @@ function syncJoyArm() {
   if (!on) joyClear();
 }
 cv.addEventListener('touchstart', e => {
+  const nbOn = !!(window.__neonBricks && window.__neonBricks.playing);
   for (const t of e.changedTouches) {
-    if (joyId == null && inJoyZone(t.clientX, t.clientY)) { joyId = t.identifier; touches[t.identifier] = { kind: 'joy', x0: t.clientX, y0: t.clientY }; joyFrom(t.clientX, t.clientY); }
+    if (!nbOn && joyId == null && inJoyZone(t.clientX, t.clientY)) { joyId = t.identifier; touches[t.identifier] = { kind: 'joy', x0: t.clientX, y0: t.clientY }; joyFrom(t.clientX, t.clientY); }
     else touches[t.identifier] = { kind: 'look', x: t.clientX, y: t.clientY, x0: t.clientX, y0: t.clientY, t0: e.timeStamp, moved: 0 };
   }
+  if (nbOn && e.touches.length >= 2) { for (const t of e.touches) if (touches[t.identifier]) touches[t.identifier].kind = 'nbpinch'; }
   e.preventDefault();
 }, { passive: false });
 cv.addEventListener('touchmove', e => {
   for (const t of e.changedTouches) {
     const T = touches[t.identifier]; if (!T) continue;
     if (T.kind === 'joy') joyFrom(t.clientX, t.clientY);
-    else {
+    else if (T.kind !== 'nbpinch') {
       T.moved = Math.max(T.moved, Math.hypot(t.clientX - T.x0, t.clientY - T.y0));
       look((t.clientX - T.x) * 1.4, (t.clientY - T.y) * 1.4); T.x = t.clientX; T.y = t.clientY;
     }
@@ -1865,7 +1867,7 @@ kiosk = setupKiosk({ room, camera, monkey, st, play, blockers });
     + '#nbMove svg{width:40px;height:40px;margin-bottom:3px}#nbMove:active{transform:scale(.93)}'
     + '#nbExit{position:fixed;left:calc(max(8px,env(safe-area-inset-left)) + 4px);top:calc(max(8px,env(safe-area-inset-top)) + 70px);z-index:26;display:none;width:44px;height:44px;border-radius:50%;border:2px solid #ff3fd2;background:#0a0618ee;color:#fff;font:900 22px/1 Arial;cursor:pointer}'
     + 'body.nbPlay #nbMove,body.nbPlay #nbExit{display:flex;align-items:center;justify-content:center}body.nbPlay #bPack{visibility:hidden!important;pointer-events:none!important}body.nbPlay #nbPlay{display:none!important}'
-    + 'body.nbPlay #joy,body.nbPlay #joyLine{display:none!important}'
+    + 'body.nbPlay #joy,body.nbPlay #joyLine{display:none!important}body.nbPlay{touch-action:none}'
     + '#nbPad{display:none;position:fixed;left:max(22px,calc(env(safe-area-inset-left) + 14px));bottom:max(22px,calc(env(safe-area-inset-bottom) + 14px));width:120px;height:120px;z-index:21;pointer-events:none}'
     + 'body.nbPlay #nbPad{display:block}'
     + '#nbPad button{position:absolute;width:40px;height:40px;border-radius:10px;border:2px solid #3ff3ffaa;background:#0a0612ee;color:#dffbff;font:900 16px/1 sans-serif;padding:0;pointer-events:auto;touch-action:none;-webkit-tap-highlight-color:transparent;box-shadow:0 0 10px #3ff3ff66,inset 0 0 8px #ff3fd244;cursor:pointer}'
@@ -1904,6 +1906,31 @@ kiosk = setupKiosk({ room, camera, monkey, st, play, blockers });
   const canNb = () => play.mode === 'walk' && !(tp && tp.locked) && !(shop && shop.open) && !document.body.classList.contains('ingame') && !(window.__start && window.__start.shown && !window.__start.dismissed) && !document.querySelector('#inv.on');
   nbHud = () => { bPlay.classList.toggle('on', nb.near && canNb()); if (nb.near && !PF.warm) nbWarm(); };
   setTimeout(nbWarm, 9000);   // usually long before anyone reaches the window
+  // t827u: two-finger pinch anywhere (canvas, HUD, D-pad) zooms the playfield; one finger still moves / rotates / swipes
+  const NBP = { on: false, d0: 1, z0: 0 };
+  function nbPinchDist(list) { if (!list || list.length < 2) return 0; return Math.hypot(list[0].clientX - list[1].clientX, list[0].clientY - list[1].clientY) || 1; }
+  function nbPinchStart(e) {
+    if (!nb || !nb.playing || !e.touches || e.touches.length < 2) return false;
+    const d = nbPinchDist(e.touches);
+    if (!NBP.on) { NBP.on = true; NBP.d0 = d; NBP.z0 = nb.zoomAmt || 0; try { padOff(); } catch (err) {} }
+    for (const t of e.touches) {
+      if (touches[t.identifier]) touches[t.identifier].kind = 'nbpinch';
+      else touches[t.identifier] = { kind: 'nbpinch', x: t.clientX, y: t.clientY, x0: t.clientX, y0: t.clientY, t0: e.timeStamp, moved: 0 };
+    }
+    return true;
+  }
+  function nbPinchMove(e) {
+    if (!nb || !nb.playing || !NBP.on || !e.touches || e.touches.length < 2) return false;
+    nb.setZoomAmt((1 + NBP.z0) * (nbPinchDist(e.touches) / NBP.d0) - 1);
+    bZoom.classList.toggle('locked', nb.zoom);
+    return true;
+  }
+  function nbPinchEnd(e) { if (!e.touches || e.touches.length < 2) NBP.on = false; }
+  document.addEventListener('touchstart', e => { if (nbPinchStart(e) && e.cancelable) e.preventDefault(); }, { capture: true, passive: false });
+  document.addEventListener('touchmove', e => { if (nbPinchMove(e) && e.cancelable) e.preventDefault(); }, { capture: true, passive: false });
+  document.addEventListener('touchend', nbPinchEnd, { capture: true, passive: true });
+  document.addEventListener('touchcancel', nbPinchEnd, { capture: true, passive: true });
+  nb.pinch = NBP;
   window.__neonBricks = nb; }
 // ---------- t779u RANDOM ROOM: both rooms get a different floor / different walls (picked from the existing options) ----------
 // t817u: staggered: every 30 s ONE of them changes, alternating floor -> (30 s) walls -> (30 s) floor ...

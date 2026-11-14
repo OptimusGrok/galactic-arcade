@@ -98,10 +98,10 @@ function serve() {
   const sample = async () => {
     const g = await G_(p2, `const M = parent.__mp, r = M && M.strike && [...M.strike.peers.values()][0];
       return { role: C.role, p2on: C.p2on, scene: S.G.scene, snapAge: r ? Math.round(performance.now() - r.at) : -1, snaps: C.snaps,
-        visE: (C.visE || []).length, visB: (C.visB || []).length, vis: C.visShots(), p1: C.hud().p1, p2: C.hud().p2, mp: M && M.state, reason: M && M.reason,
+        visE: (C.visE || []).length, visB: (C.visB || []).length, visIt: (C.visIt || []).length, boss: (C.hud() && C.hud().boss) || C.visBs || null, vis: C.visShots(), p1: C.hud().p1, p2: C.hud().p2, mp: M && M.state, reason: M && M.reason,
         recv: M && M.strikeRecv, sent: M && M.strikeSent, q: 0 };`);
     const h = await G_(p1, `const M = parent.__mp; let size = 0; try { size = JSON.stringify(Object.assign({ typ: 'st' }, {})).length; } catch (e) {}
-      return { role: C.role, p2on: C.p2on, scene: S.G.scene, stage: S.G.stage, phase: S.G.phase, en: S.pools.enemies.count, ps: S.pools.pshots.count, eb: S.pools.ebul.count,
+      return { role: C.role, p2on: C.p2on, scene: S.G.scene, stage: S.G.stage, phase: S.G.phase, en: S.pools.enemies.count, ps: S.pools.pshots.count, eb: S.pools.ebul.count, items: S.pools.items.count, boss: C.hud().boss,
         shots: C.shotCount(), p1: C.hud().p1, p2: C.hud().p2, mp: M && M.state, reason: M && M.reason, sent: M && M.strikeSent, recv: M && M.strikeRecv, bytes: M && M.bytes, msent: M && M.sent };`);
     return { g, h };
   };
@@ -118,6 +118,9 @@ function serve() {
     await G_(p1, `const I = S.Input; I.dragX = ${(k % 5 < 2) ? -8 : 8}; return 1;`);
     for (const d of drops) if (!d.done && el >= d[0]) { d.done = 1; for (let j = 0; j < 3; j++) await G_(p1, `w.eval('dropItem("${d[1]}", window.__strikeCoop.pl2.x, window.__strikeCoop.pl2.y)'); return 1;`); }
     if (k % 5 === 0) await G_(p1, "w.eval('dropItem(\"chip\", window.__strikeCoop.pl2.x, window.__strikeCoop.pl2.y - 20)'); return 1;");
+    // t831u: leave a visible pickup on screen (away from both ships) and spawn a boss so the guest snapshot can show them
+    if (k === 2) await G_(p1, "w.eval('dropItem(\"medal\", 40, 50); dropItem(\"shield\", 200, 40);'); if (C.sendStateNow) C.sendStateNow(); return 1;");
+    if (k === 8 && !p1killed) await G_(p1, "if (!S.G.boss) { S.G.phase = 'boss'; w.eval('spawnBoss(\"hawk\", false)'); } if (C.sendStateNow) C.sendStateNow(); return 1;");
     if (!p1killed && Date.now() - t0 >= PHASE1) { p1killed = true; await G_(p1, 'C.killP1(); return 1;'); }
     await p1.page.waitForTimeout(1000);
     const s = await sample(); s.t = Math.round((Date.now() - t0) / 1000); s.phase = p1killed ? 2 : 1; rows.push(s);
@@ -139,6 +142,10 @@ function serve() {
   chk(badP1.length <= 1, 'P1’s ship stays visible on the second phone while P1 is alive', badP1.slice(0, 3).map(r => ({ t: r.t, g: r.g.p1, h: r.h.p1 })));
   chk(badE.length <= Math.max(1, live.length * 0.1), 'enemies keep rendering on the second phone', { bad: badE.length, of: live.length });
   chk(rows.some(r => r.g.p2.plz > 0) && rows.some(r => r.g.p2.beam), 'P2’s plasma and laser pickups are drawn on the second phone', { plz: rows.filter(r => r.g.p2.plz > 0).length, beam: rows.filter(r => r.g.p2.beam).length });
+  chk(rows.some(r => (r.g.visIt || 0) > 0 || (r.h.items || 0) === 0 && (r.g.visIt || 0) === 0) && rows.some(r => (r.g.visIt || 0) > 0),
+    'pickups appear on P2’s (guest) screen during the run', { guest: rows.filter(r => (r.g.visIt || 0) > 0).length, host: rows.filter(r => (r.h.items || 0) > 0).length });
+  chk(rows.some(r => r.g.boss && r.g.boss.id && r.g.boss.parts > 0),
+    'a boss appears on P2’s (guest) screen (parts and HP)', rows.filter(r => r.g.boss).slice(0, 3).map(r => ({ t: r.t, g: r.g.boss, h: r.h.boss })));
   chk(ph2.length >= 10 && ph2.every(r => !r.h.p1.alive) && ph2.filter(r => r.h.p2.alive).length >= ph2.length - 1, 'after P1’s last life the co-op game keeps going for P2 (P1 sits out)', { n: ph2.length, last: ph2[ph2.length - 1] && { h: ph2[ph2.length - 1].h.scene, g: ph2[ph2.length - 1].g.scene } });
   // both out -> both phones end cleanly (no frozen screen)
   await G_(p1, 'C.killP2(); return 1;');

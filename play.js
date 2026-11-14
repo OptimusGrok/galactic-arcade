@@ -169,7 +169,7 @@ export function setupPlay(A) {
     dCredit.textContent = 'CREDIT ' + m.credits + '  ·  ' + T.total + ' 🎟';
     bTicket.textContent = has ? (c > 1 ? 'INSERT ' + c + ' TICKETS · ' + c + ' 🎟' : 'INSERT TICKET · 1 🎟') : (c > 1 ? 'NEED ' + c + ' TICKETS' : 'NEED A TICKET'); bTicket.classList.toggle('need', !has);
     const dTag = document.getElementById('dTag'); if (dTag) dTag.style.visibility = m.credits > 0 && m.board ? 'hidden' : '';   // the live board is not a demo
-    dCost.textContent = c > 1 ? c + ' TICKETS TO PLAY' : m.key === 'claw' ? '1 TICKET TO PLAY' : ''; dCost.style.display = c > 1 || m.key === 'claw' ? '' : 'none'; }
+    dCost.textContent = c > 1 ? c + ' TICKETS TO PLAY' : m.key === 'claw' ? '1 TICKET TO PLAY' : ''; dCost.style.display = c > 1 || m.key === 'claw' ? '' : 'none'; try { rejoinRefresh(); } catch (e) {} }
   function buzz() { try { ac = ac || new (window.AudioContext || window.webkitAudioContext)(); const t = ac.currentTime, o = ac.createOscillator(), g = ac.createGain(); o.type = 'square'; o.frequency.setValueAtTime(180, t); o.frequency.linearRampToValueAtTime(110, t + 0.18); g.gain.setValueAtTime(0.06, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.22); o.connect(g).connect(ac.destination); o.start(t); o.stop(t + 0.25); } catch (e) {} }
   const shake = el => { el.classList.remove('shake'); void el.offsetWidth; el.classList.add('shake'); };
   function insertTicket() {   // demo view button: 1 ticket -> 1 credit
@@ -185,6 +185,26 @@ export function setupPlay(A) {
     const w = P.frame.contentWindow; m.credits -= 1; m.games++; P.plays++;
     try { m.stopDemo(w); m.start(w); } catch (e) { console.warn('game start', e); }
     P.sub = 'play'; P.over = false; P.goShown = false; clearTimeout(P.holdT); P.holdT = 0; demoUI.classList.remove('on'); try { P.frame.focus(); w.focus(); } catch (e) {} showTix(); }
+  const REJOIN_COST = 5, bRejoin = document.getElementById('bRejoin');
+  function coopOf() { try { const w = P.frame && P.frame.contentWindow; return w && (w.__bzCoop || (w.__B && w.__B.coop)) || null; } catch (e) { return null; } }
+  function rejoinRefresh() {
+    if (!bRejoin) return;
+    const C = coopOf(), show = P.mode === 'game' && P.sub === 'demo' && P.cur && P.cur.key === 'berserker' && C && C.canRejoin && C.canRejoin();
+    bRejoin.classList.toggle('on', !!show);
+    if (show) bRejoin.classList.toggle('need', T.total < REJOIN_COST);
+  }
+  function tryRejoin() {   // t830u: an out / left Berserker player can rejoin the same ongoing game for 5 tickets
+    const C = coopOf();
+    if (P.mode !== 'game' || !P.cur || P.cur.key !== 'berserker' || !C || !C.canRejoin || !C.canRejoin()) { P.blocked++; return false; }
+    if (T.total < REJOIN_COST) { P.need++; if (bRejoin) { bRejoin.classList.add('need'); shake(bRejoin); } buzz(); toast('NEED 5 TICKETS · YOU HAVE ' + T.total); return false; }
+    if (!P.spend(REJOIN_COST)) { toast('NEED 5 TICKETS · YOU HAVE ' + T.total); return false; }
+    const ok = C.rejoin && C.rejoin();
+    if (!ok) { P.addTickets(REJOIN_COST); toast('REJOIN FAILED'); rejoinRefresh(); return false; }
+    P.rejoins = (P.rejoins || 0) + 1; P.lastRejoin = 'berserker';
+    if (P.sub === 'demo') { try { P.cur.stopDemo(P.frame.contentWindow); } catch (e) {} P.sub = 'play'; P.over = false; P.goShown = false; clearTimeout(P.holdT); P.holdT = 0; demoUI.classList.remove('on'); try { P.frame.focus(); P.frame.contentWindow.focus(); } catch (e) {} }
+    showTix(); rejoinRefresh(); return true;
+  }
+  P.tryRejoin = tryRejoin; P.rejoinCost = REJOIN_COST; P.toast = toast;
   function idle(m, w) { if (m.credits > 0 && m.board) m.board(w); else m.demo(w); }   // credit waiting -> machine's board (STRIKE: live high scores), else attract demo
   function toDemo(why) {   // after game over (and the score screens) -> back to the demo, not the room
     const m = P.cur, f = P.frame; if (!m || !f) return; clearTimeout(P.holdT); P.holdT = 0; over.style.display = 'none';
@@ -228,6 +248,7 @@ export function setupPlay(A) {
     if (P.loaded) go(); else f.addEventListener('load', go, { once: true });
   }
   function poll() { // game over -> its own score / high-score screen -> back out to the arcade
+    try { if (P.mode === 'game' && P.cur && P.cur.key === 'berserker') rejoinRefresh(); } catch (e) {}
     if (P.mode !== 'game' || P.over || P.sub !== 'play') return; const m = P.cur; let sc; try { sc = m.scene(P.frame.contentWindow); } catch (e) { return; }
     P.scene = sc;
     if (sc === 'over' && !P.goShown) { P.goShown = true; over.style.display = 'flex'; setTimeout(() => over.style.display = 'none', 1500);
@@ -358,6 +379,7 @@ export function setupPlay(A) {
   homeQ.addEventListener('pointerdown', swallow); homeQ.addEventListener('click', e => { if (e.target === homeQ) homeAsk(false); });
   ['pointerdown', 'touchstart'].forEach(t => demoUI.addEventListener(t, e => e.stopPropagation(), { passive: true }));
   bTicket.addEventListener('click', e => { e.stopPropagation(); insertTicket(); });   // not a screen tap
+  if (bRejoin) bRejoin.addEventListener('click', e => { e.stopPropagation(); tryRejoin(); });
   demoUI.addEventListener('click', e => { if (e.target === bTicket) return; tryPlay(); });
   addEventListener('keydown', e => { if (TV.open) return; if (/^(Enter|KeyE|Space)$/.test(e.code)) { if (!e.repeat) { if (P.mode === 'game' && P.sub === 'demo') tryPlay(); else press(); } } if (e.code === 'Escape') exit('esc'); });
   // called every arcade frame; returns true when it owns the camera

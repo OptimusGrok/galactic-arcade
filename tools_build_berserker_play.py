@@ -24,7 +24,7 @@ s = inject(s, N, 'credits:hide retry', '</head>', '<style>#again,#dtitle,#wtitle
 # silent from the very first line (the demo starts muted; the arcade unmutes when a credit starts a game)
 i = s.index("let AC,master"); j = s.rindex('<script>', 0, i)
 s = s[:j] + '<script>' + open('tools_ticket_art.js').read() + '</script>\n<script>window.__MUTE=true;(function(){const pl=HTMLMediaElement.prototype.play;HTMLMediaElement.prototype.play=function(){if(window.__MUTE)this.muted=true;return pl.call(this)}})();</script>\n' + s[j:]
-a = 'window.__B={'; s = inject(s, N, 'tickets+demo:closure', a, open('tools_berserker_arcade.js').read() + '\n' + a)
+a = 'window.__B={'; s = inject(s, N, 'tickets+demo:closure', a, open('tools_berserker_arcade.js').read() + '\n' + open('tools_berserker_coop.js').read() + '\n' + a)
 g = open('tools_play_guard.html').read().replace("||x.origin==='https://kfupqtafhaflzaoqtenf.supabase.co'", "")
 assert 'supabase' not in g
 s = s.replace('<head>', '<head>' + g, 1)
