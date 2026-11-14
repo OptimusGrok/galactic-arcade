@@ -104,7 +104,13 @@ export function createRivals(o) {
       if (u.legs && u.arms) { if (s.a) { u.legs[0].leg.rotation.x = -0.35; u.legs[1].leg.rotation.x = -0.28; u.arms[1].sh.rotation.x = -0.55; }
         else { a.phase += dt * sp * 5.5; const w = Math.sin(a.phase) * Math.min(1, sp / 2); u.legs[0].leg.rotation.x = w * 0.55; u.legs[1].leg.rotation.x = -w * 0.55; u.arms[1].sh.rotation.x = w * 0.25; } }
       const fl = 0.78 + Math.sin(G.t * 28) * 0.22; for (const t of a.th) { t.visible = !!s.f; if (s.f) t.scale.set(0.9, fl, 0.9); }
-      if (s.zn !== a.zn) { a.zn = s.zn; if (s.z0) bolt(s.z0); }
+      if (s.zn !== a.zn) { a.zn = s.zn; if (s.z0) { bolt(s.z0); a.zapAt = nowT; a.zapPend = true; } }
+      // t815u: a rival monkey's gun arm hangs at his side, rises smoothly while he fires / charges, lowers ~0.5 s later
+      if (o.poseGun && s.c !== 'alien' && u.gun) {
+        const want = (a.zapPend || s.ck > 0.02 || s.bt > 0 || nowT - (a.zapAt || -1e9) < (o.aimTime ? o.aimTime() : 0.5) * 1000) ? 1 : 0, rt = o.rates ? o.rates() : [16, 7];
+        a.gunAim = a.gunAim || 0; a.gunAim += (want - a.gunAim) * (1 - Math.exp(-(want > a.gunAim ? rt[0] : rt[1]) * Math.max(0, dt))); if (a.gunAim < 0.002) a.gunAim = 0; if (a.zapPend && a.gunAim > 0.95) { a.zapPend = false; a.zapAt = nowT; }
+        try { o.poseGun(u, a.gunAim); } catch (e) {}
+      }
       syncLaser(a, s); if (a.beam) tickEnergy(a.beam, dt);
       if (s.w && !R.winners.has(r.id) && !G.won) R.winners.set(r.id, { name: r.name, wt: s.wt || Date.now() });
       if (s.w && !a.won) { a.won = true; if (!G.won && !R.first) { R.first = r.name; if (banner) banner(String(r.name || 'RIVAL').toUpperCase() + ' REACHED THE TOP FIRST!'); } } }
@@ -116,7 +122,7 @@ export function createRivals(o) {
   };
   R.remoteLaser = () => {
     const out = [];
-    for (const [id, a] of R.avatars) out.push({ id, hasBall: !!(a.ball && a.ball.visible), hasBeam: !!a.beam, ballY: a.ball && a.ball.visible ? a.ball.position.y : null, bolts: R.boltsShown, lastK: (R.bolts[R.bolts.length - 1] && R.bolts[R.bolts.length - 1].k) || 0 });
+    for (const [id, a] of R.avatars) out.push({ id, hasBall: !!(a.ball && a.ball.visible), hasBeam: !!a.beam, ballY: a.ball && a.ball.visible ? a.ball.position.y : null, bolts: R.boltsShown, lastK: (R.bolts[R.bolts.length - 1] && R.bolts[R.bolts.length - 1].k) || 0, gunAim: +(a.gunAim || 0).toFixed(3) });
     return { peers: out, boltsShown: R.boltsShown, boltsLive: R.bolts.length };
   };
   return R;

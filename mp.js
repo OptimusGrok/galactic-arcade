@@ -162,7 +162,7 @@ body.ingame #mpPill,body.ingame #mpBar,body.ingame #mpChat,body.ingame #mpTags,b
   M.zap = (o, d, c, k) => { const now = performance.now(); if (now - zapAt < 200 || !num3(o) || !num3(d)) return false; zapAt = now;
     const r = v => Math.round(v * 1000) / 1000, kk = (typeof k === 'number' && isFinite(k)) ? Math.max(0, Math.min(0.999, k)) : 0;
     const ok = send('zap', { i: id, o: o.map(r), d: d.map(r), c: c === 'red' ? 'red' : 'cyan', k: kk }); if (ok) M.zapSent = (M.zapSent || 0) + 1; return ok; };
-  function onZap(pl) { if (!pl || !pl.i || pl.i === id || !M.peers.has(pl.i) || !num3(pl.o) || !num3(pl.d)) return; const now = performance.now(); if (now - (zapIn.get(pl.i) || 0) < 150) return; zapIn.set(pl.i, now); M.recv++;
+  function onZap(pl) { if (!pl || !pl.i || pl.i === id || !M.peers.has(pl.i) || !num3(pl.o) || !num3(pl.d)) return; const now = performance.now(); if (now - (zapIn.get(pl.i) || 0) < 150) return; zapIn.set(pl.i, now); M.recv++; { const pz = M.peers.get(pl.i); if (pz) { pz.zapAt = now; pz.zapPend = true; } }
     M.zapRecv = (M.zapRecv || 0) + 1; const kk = (typeof pl.k === 'number' && isFinite(pl.k)) ? Math.max(0, Math.min(0.999, pl.k)) : 0;
     try { if (window.__roomFire) window.__roomFire.spawn(pl.o, pl.d, pl.c === 'red' ? 'red' : 'cyan', true, kk); } catch (e) {} }
   function onLook(pl) { if (!pl || !pl.i || pl.i === id || !pl.look || typeof pl.look !== 'object') return; const p = M.peers.get(pl.i); if (!p) return; M.recv++;
@@ -357,6 +357,7 @@ body.ingame #mpPill,body.ingame #mpBar,body.ingame #mpChat,body.ingame #mpTags,b
         u.legs[0].leg.rotation.x = fly ? 0.45 : s * amp; u.legs[1].leg.rotation.x = fly ? 0.45 : -s * amp;
         if (u.arms) { u.arms[0].sh.rotation.x = fly ? -0.85 : -s * amp * 0.8; u.arms[1].sh.rotation.x = fly ? -0.85 : s * amp * 0.8; } }
       if (slot) playPose(p, u, g, now / 1000); else if (p.posed) unpose(p, u, g);
+      if (!slot) try { const RF = window.__roomFire; if (RF && RF.poseRemote) RF.poseRemote(u, p, dt, now); } catch (e) {}   // t815u: their pistol arm up only while firing / charging
       if (u.tail) { const tk = 0.15 + Math.min(1, sp / 2.4) * 0.35 + (p.a === 'jump' || p.a === 'fly' || p.a === 'glide' ? 0.4 : 0); u.tail.rotation.z = Math.sin(now / 625 + p.phase) * tk; const seat = /^seat:/.test(p.a), backOn = !!(p.look && p.look.back && p.look.back !== 'none'); u.tail.visible = !seat && !!u.tail.children.length; u.pack.visible = !seat && !backOn; }
       if (u.bot && window.__arcade && window.__arcade.tickBot) window.__arcade.tickBot(u, now / 1000);
       if (p.flameA !== p.a) { p.flameA = p.a; if (!(p.thG && p.thG.parent)) { p.th = []; const pack = p.g.getObjectByName('gaBk_jetpack'); p.thG = pack || null;

@@ -85,6 +85,8 @@ const sideCam = (page, alien) => page.evaluate(alien => { const A = window.__arc
   await page.evaluate(() => { const A = window.__arcade; A.st.vel.set(0, 0, 0); A.st.face = 0.6; A.monkey.rotation.y = 0.6; window.__roomFire.cool = 0; }); await page.waitForTimeout(200);
   const muz = await page.evaluate(() => { const A = window.__arcade, p = new A.THREE.Vector3(); window.__roomFire.update(0); A.monkey.updateMatrixWorld(true); return 1; });
   await tapEl(page, '#bFire');
+  // t815u: the arm swings up smoothly (no snap); the bolt leaves from where the muzzle is once the arm is up
+  await page.waitForFunction(() => window.__roomFire.aim > 0.97, null, { timeout: 30000 }).catch(() => {});
   s = await page.evaluate(() => { const R = window.__roomFire, L = R.last, A = window.__arcade, p = new A.THREE.Vector3(); A.monkey.updateMatrixWorld(true); A.monkey.getObjectByName('gaPistolMuzzle').getWorldPosition(p);
     const sh = A.monkey.userData.arms[1].sh.rotation.x; return { shots: R.shots, hue: L && L.hue, char: L && L.char, o: L && L.o, d: L && L.d, muz: p.toArray(), dist: L ? Math.hypot(L.o[0] - p.x, L.o[1] - p.y, L.o[2] - p.z) : 99, face: A.st.face, aim: R.aim, sh, col: R.lasers[0] && R.lasers[0].mesh.material.color.getHexString() }; });
   chk(s.shots === 1 && s.hue === 'cyan' && s.char === 'monkey' && s.col === '48f2ff', 'monkey: a tap fires one cyan bolt', { shots: s.shots, hue: s.hue, col: s.col });
