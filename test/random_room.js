@@ -6,9 +6,9 @@ let ok = true; const chk = (c, m, x) => { console.log((c ? 'PASS ' : 'FAIL ') + 
   const o = await open({ w: 480, h: 300, randomRoom: true }), page = o.page, { errors } = o;
   await page.waitForFunction(() => window.__arcade && window.__randomRoom && window.__arcade.stats.frames > 3, null, { timeout: 120000 });
   const r0 = await page.evaluate(() => { const R = window.__randomRoom; return { period: R.period, n: R.n, saved: [localStorage.getItem('neonarcade.floor'), localStorage.getItem('neonarcade.walls')] }; });
-  chk(r0.period === 60, 'changes every minute (60 s)', r0);
+  chk(r0.period === 30, 'something changes every 30 s (t817u: floor and walls staggered)', r0);
   // speed the clock up so the test does not wait minutes
-  await page.evaluate(() => { const R = window.__randomRoom; R.t = 59; });
+  await page.evaluate(() => { const R = window.__randomRoom; R.t = 29; });
   await page.waitForFunction(() => window.__randomRoom.n >= 1, null, { timeout: 60000 });
   chk(true, 'the timer fires on its own (no call from the test)');
   await page.waitForFunction(() => window.__randomRoom.warmed, null, { timeout: 5000 }).catch(() => {});
@@ -17,11 +17,12 @@ let ok = true; const chk = (c, m, x) => { console.log((c ? 'PASS ' : 'FAIL ') + 
   await page.waitForFunction(() => window.__randomRoom.floorsWarm, null, { timeout: 30000 }).catch(() => {}); await page.waitForTimeout(1500);
   const res = await page.evaluate(async () => { const A = window.__arcade, R = window.__randomRoom, out = [], frames = n => new Promise(r => { const f0 = A.stats.frames; const c = () => A.stats.frames >= f0 + n ? r() : requestAnimationFrame(c); c(); });
     await frames(2); const p0 = A.renderer.info.programs.length;
-    for (let i = 0; i < 10; i++) { await frames(1); const f = A.floor, wl = A.walls, l = R.tick();
+    for (let i = 0; i < 16; i++) { await frames(1); const f = A.floor, wl = A.walls, l = R.tick();
       const r2w = A.room2.getObjectByName('wall0'), r1w = A.room.getObjectByName('wall0');
-      out.push({ from: [f, wl], to: [A.floor, A.walls], ms: l.ms, sameWalls: r1w.material === r2w.material }); }
+      out.push({ kind: l.kind, from: [f, wl], to: [A.floor, A.walls], ms: l.ms, sameWalls: r1w.material === r2w.material }); }
     await frames(3); return { out, p0, p1: A.renderer.info.programs.length, saved: [localStorage.getItem('neonarcade.floor'), localStorage.getItem('neonarcade.walls')] }; });
-  chk(res.out.every(x => x.to[0] !== x.from[0] && x.to[1] !== x.from[1]), 'each change picks a DIFFERENT floor and DIFFERENT walls', res.out.map(x => x.from.join('/') + '->' + x.to.join('/')));
+  chk(res.out.every(x => x.kind === 'floor' ? (x.to[0] !== x.from[0] && x.to[1] === x.from[1]) : (x.to[1] !== x.from[1] && x.to[0] === x.from[0])), 'each change swaps ONLY the floor or ONLY the walls, to a DIFFERENT option', res.out.map(x => x.kind + ':' + x.from.join('/') + '->' + x.to.join('/')));
+  chk(res.out.every((x, i) => i === 0 || x.kind !== res.out[i - 1].kind), 'floor and walls alternate (floor, 30 s later walls, 30 s later floor ...)', res.out.map(x => x.kind));
   const fl = new Set(res.out.map(x => x.to[0])), wa = new Set(res.out.map(x => x.to[1]));
   chk(fl.size >= 3 && wa.size >= 2, 'random across the existing options', { floors: [...fl], walls: [...wa] });
   chk(res.out.every(x => x.sameWalls), 'room 2 walls follow (both rooms)');

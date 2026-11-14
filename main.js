@@ -1904,19 +1904,21 @@ kiosk = setupKiosk({ room, camera, monkey, st, play, blockers });
   nbHud = () => { bPlay.classList.toggle('on', nb.near && canNb()); if (nb.near && !PF.warm) nbWarm(); };
   setTimeout(nbWarm, 9000);   // usually long before anyone reaches the window
   window.__neonBricks = nb; }
-// ---------- t779u RANDOM ROOM: every minute both rooms get a different floor and different walls (picked from the existing options) ----------
+// ---------- t779u RANDOM ROOM: both rooms get a different floor / different walls (picked from the existing options) ----------
+// t817u: staggered: every 30 s ONE of them changes, alternating floor -> (30 s) walls -> (30 s) floor ...
 // Overrides the menu for this visit only (the saved Options choice is put back in storage, so a reload starts from it). Shaders + textures are
 // pre-warmed once ~20 s in, so a swap is just a material change. window.__noRandomRoom (the test harness sets it) turns the timer off.
 { const FLOORS = Object.keys(floorMats),   // the mirror-reflecting NEON floor stays a menu-only pick: it costs a second scene render every frame (+ its own shader variants)
    WALLS = ['current', 'viking', 'portals', 'medieval'];
-  const RR = window.__randomRoom = { period: 60, t: 0, n: 0, warmed: false, last: null, log: [],
+  const RR = window.__randomRoom = { period: 30, t: 0, n: 0, next: 'floor', warmed: false, last: null, log: [],
     clipFloors() { let pl = null, ci = false; for (const m of [...Object.values(floorMats), (carpetWhite() || {}).material]) if (m && m.clippingPlanes && m.clippingPlanes.length) { pl = m.clippingPlanes; ci = m.clipIntersection; break; }
       if (!pl) return false; const cw = carpetWhite(); for (const m of [...Object.values(floorMats), cw && cw.userData.carpetMat]) if (m && m.clippingPlanes !== pl) { m.clippingPlanes = pl; m.clipIntersection = ci; m.needsUpdate = true; } return true; },
     pick(list, cur) { const o = list.filter(x => x !== cur); return o[Math.floor(Math.random() * o.length)]; },
     tick() { let sf = null, sw = null; try { sf = localStorage.getItem(FLOOR_KEY); sw = localStorage.getItem(WALLS_KEY); } catch (e) {}
-      const f = RR.pick(FLOORS, floorMode), w = RR.pick(WALLS, wallsMode), t0 = performance.now(); setFloor(f); setWalls(w); RR.clipFloors();
+      const kind = RR.next, f = kind === 'floor' ? RR.pick(FLOORS, floorMode) : floorMode, w = kind === 'walls' ? RR.pick(WALLS, wallsMode) : wallsMode, t0 = performance.now();
+      if (kind === 'floor') { setFloor(f); RR.clipFloors(); } else setWalls(w); RR.next = kind === 'floor' ? 'walls' : 'floor';
       try { if (sf == null) localStorage.removeItem(FLOOR_KEY); else localStorage.setItem(FLOOR_KEY, sf); if (sw == null) localStorage.removeItem(WALLS_KEY); else localStorage.setItem(WALLS_KEY, sw); } catch (e) {}
-      RR.n++; RR.t = 0; RR.last = { floor: f, walls: w, ms: +(performance.now() - t0).toFixed(1) }; RR.log.push(RR.last); if (RR.log.length > 20) RR.log.shift(); return RR.last; },
+      RR.n++; RR.t = 0; RR.last = { kind, floor: f, walls: w, ms: +(performance.now() - t0).toFixed(1) }; RR.log.push(RR.last); if (RR.log.length > 20) RR.log.shift(); return RR.last; },
     warm() { if (RR.warmed) return; RR.warmed = true; const w0 = wallsMode, f0 = floorMode; let sf = null, sw = null; try { sf = localStorage.getItem(FLOOR_KEY); sw = localStorage.getItem(WALLS_KEY); } catch (e) {}
       const objs = () => [room.getObjectByName('wall0'), r2Ready && room2.getObjectByName('wall0'), r2Ready && hall.getObjectByName('hallWallW')].filter(Boolean);
       try { for (const m of WALLS) { setWalls(m); for (const o of objs()) compileForPlay(o, camera, scene).catch(() => {}); }
