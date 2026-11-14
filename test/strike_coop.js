@@ -109,6 +109,55 @@ let ok = true; const chk = (c, m, x) => { console.log((c ? 'PASS ' : 'FAIL ') + 
   chk(near(hA2.p1, hB2.p1) && near(hA2.p2, hB2.p2) && hB2.p2.x >= 0 && hB2.p2.x <= 270 && hB2.p2.y >= 0, 'after moving, both ships still match the host and P2 stays on screen', { a: [hA2.p1, hA2.p2], b: [hB2.p1, hB2.p2] });
   await S(b, "w.eval('Opts.autofire = true'); S.Input.ptrDown = false; return 1;");
 
+  // t805u: kills by P2's shots score to P2 only, and the guest shows P2's score
+  await S(a, "w.eval('Opts.autofire = false'); S.Input.ptrDown = false; S.Input.keys.fire = false; S.Input.keys.left = false; S.steps(100); return 1;");
+  await guestIn('S.Input.ptrDown = true; S.Input.keys.up = false', 2);
+  const sc0 = await S(a, 'return { p1: S.G.score, p2: C.G2.score };');
+  for (let r = 0; r < 4; r++) {
+    await S(a, "w.eval('for (let i = 0; i < 2; i++) spawnE(\"fighter\", window.__strikeCoop.pl2.x, window.__strikeCoop.pl2.y - 50 - i * 16, \"lin\")'); return 1;");
+    for (let i = 0; i < 4; i++) { await S(a, 'S.steps(8); return 1;'); await guestIn('S.Input.ptrDown = true', 1); }
+  }
+  const sc1 = await S(a, 'return { p1: S.G.score, p2: C.G2.score };');
+  chk(sc1.p2 > sc0.p2 && sc1.p1 === sc0.p1, 'kills by P2’s shots add to P2’s score, not P1’s', { sc0, sc1 });
+  await a.waitForTimeout(100); await S(a, 'C.sendState(); return 1;'); await a.waitForTimeout(150); await S(b, 'S.steps(1); return 1;');
+  const gsc = await S(b, 'return C.hud();');
+  chk(gsc.p2.score === sc1.p2 && gsc.p1.score === sc1.p1, 'the second phone shows P2’s own score on the right', { guest: [gsc.p1.score, gsc.p2.score], host: sc1 });
+
+  // t805u: P2 picks up weapon power-ups, levels up, and fires the upgraded weapon
+  let wp = null;
+  for (let r = 0; r < 8; r++) {
+    await S(a, "w.eval('dropItem(\"R\", window.__strikeCoop.pl2.x, window.__strikeCoop.pl2.y)'); S.steps(2); return 1;");
+    wp = await S(a, 'return { p1: [S.G.weapon, S.G.wlv], p2: [C.G2.weapon, C.G2.wlv], items: C.p2items || 0 };');
+    if (wp.p2[0] === 'R' && wp.p2[1] >= 2) break;
+  }
+  chk(wp.p2[0] === 'R' && wp.p2[1] >= 2 && wp.p1[0] === 'V', 'P2 collects power-ups into its own weapon and level (P1 unchanged)', wp);
+  for (let i = 0; i < 3; i++) { await S(a, 'S.steps(6); return 1;'); await guestIn('S.Input.ptrDown = true', 1); }
+  const rs = await S(a, 'return S.pools.pshots.items.filter(u => u.alive && u.o === 1 && u.k === 1).length;');
+  chk(rs > 0, 'P2 fires the upgraded spread weapon', { spreadShots: rs });
+  await a.waitForTimeout(100); await S(a, 'C.sendState(); return 1;'); await a.waitForTimeout(150); await S(b, 'S.steps(1); return 1;');
+  const gw = await S(b, 'return C.hud().p2;');
+  chk(gw.weapon === 'R' && gw.wlv === wp.p2[1], 'the second phone shows P2’s weapon and level', gw);
+  await S(a, "w.eval('Opts.autofire = true'); return 1;");
+
+  // t806u: smooth motion. P1 (host) moves right while P2 (guest) moves left; record every rendered frame on both phones.
+  await S(a, 'C.trace.length = 0; C.tracing = true; S.Input.keys.right = true; return 1;');
+  await S(b, 'C.trace.length = 0; C.tracing = true; S.Input.keys.left = true; S.Input.ptrDown = false; return 1;');
+  await a.waitForTimeout(1100);
+  await S(b, 'S.Input.keys.left = false; return 1;'); await S(a, 'S.Input.keys.right = false; return 1;');
+  const trA = await S(a, 'C.tracing = false; return C.trace.slice();'), trB = await S(b, 'C.tracing = false; return C.trace.slice();');
+  const smooth = (tr, ix) => {
+    const d = []; for (let i = 1; i < tr.length; i++) { const dt = tr[i][0] - tr[i - 1][0]; if (dt <= 0) continue; d.push({ dt, dist: Math.hypot(tr[i][ix] - tr[i - 1][ix], tr[i][ix + 1] - tr[i - 1][ix + 1]) }); }
+    const m = d.slice(Math.floor(d.length * 0.2), Math.ceil(d.length * 0.8)); if (m.length < 5) return { n: m.length, ok: false };
+    const v = m.map(e => e.dist / e.dt).sort((p, q) => p - q), med = v[v.length >> 1];
+    const stalls = m.filter(e => e.dist < 0.05).length, jumps = m.filter(e => e.dist / e.dt > med * 4 + 0.02).length, total = m.reduce((s2, e) => s2 + e.dist, 0);
+    const r = { n: m.length, stallFrac: +(stalls / m.length).toFixed(2), jumpFrac: +(jumps / m.length).toFixed(2), medPxPerMs: +med.toFixed(3), total: +total.toFixed(1) };
+    r.ok = r.stallFrac <= 0.2 && r.jumpFrac <= 0.1 && total > 25; return r;
+  };
+  const sA2 = smooth(trA, 3), sB2 = smooth(trB, 3), sB1 = smooth(trB, 1);
+  chk(sA2.ok, 'P2’s ship moves smoothly on the host phone (no stalls or jumps frame to frame)', sA2);
+  chk(sB2.ok, 'P2’s own ship moves smoothly on the second phone (predicted locally)', sB2);
+  chk(sB1.ok, 'P1’s ship moves smoothly on the second phone (interpolated between snapshots)', sB1);
+
   // P1 takes a shield hit: guest HUD updates health on the left
   await S(a, 'S.G.shield = 1; C.sendState(); return S.G.shield;');
   await a.waitForTimeout(150);
