@@ -82,7 +82,10 @@ export function buildNeonSigns(THREE, mergeGeometries, list, opt = {}) {
   const A = NEON_ATLAS, MAXW = opt.maxW || 3.7, HALF = opt.HALF, WALL_D = 0.06;
   const quads = [], info = [], iconQuads = [], iconInfo = [];
   const atlas = makeIconAtlas();
-  const ICON = 0.52, ICON_GAP = 0.08, ICON_MAX_TOP = 6.05;
+  // t840u / v223: icons are much bigger and fill the space up to just under the cyan ceiling band (y=6.2, small gap).
+  // Kept centred on the sign; width shrinks if needed so neighbours and the east/west window planes stay clear.
+  const ICON_GAP = 0.08, ICON_CEIL_GAP = 0.15, ICON_MAX_TOP = 6.2 - ICON_CEIL_GAP, ICON_MIN = 0.28, ICON_SIDE_GAP = 0.16, ICON_WIN_MARGIN = 0.2;
+  const iconPending = [];
   for (const e of list) {
     const r = A.signs[e.key]; if (!r) continue;
     let w = r.m[0] * (e.scale || 1), h = r.m[1] * (e.scale || 1); if (w > MAXW) { h *= MAXW / w; w = MAXW; }
@@ -101,15 +104,37 @@ export function buildNeonSigns(THREE, mergeGeometries, list, opt = {}) {
     info.push({ title: e.title, key: e.key, color: '#' + new THREE.Color(e.color).getHexString(), pos: p.toArray().map(v => +v.toFixed(3)), w: +w.toFixed(3), h: +h.toFixed(3), normal: n.toArray().map(v => +v.toFixed(3)), bottom: +bottom.toFixed(3), top: +top.toFixed(3), cabTop: +b.max.y.toFixed(3) });
     const ir = atlas.rects[e.key];
     if (ir) {
-      let ih = ICON, iw = ICON; const room = ICON_MAX_TOP - top - ICON_GAP;
-      if (room < ih) ih = iw = Math.max(0.28, room);
-      const ip = p.clone(); ip.y = top + ICON_GAP + ih / 2;
-      const iu0 = ir.x / atlas.W, iu1 = (ir.x + ir.w) / atlas.W, iv1 = 1 - ir.y / atlas.H, iv0 = 1 - (ir.y + ir.h) / atlas.H;
-      const ig = new THREE.PlaneGeometry(iw, ih), iuv = ig.attributes.uv;
-      for (let i = 0; i < iuv.count; i++) iuv.setXY(i, iuv.getX(i) ? iu1 : iu0, iuv.getY(i) ? iv1 : iv0);
-      ig.rotateY(Math.atan2(n.x, n.z)); ig.translate(ip.x, ip.y, ip.z); iconQuads.push(ig);
-      iconInfo.push({ key: e.key, pos: ip.toArray().map(v => +v.toFixed(3)), w: +iw.toFixed(3), h: +ih.toFixed(3), bottom: +(ip.y - ih / 2).toFixed(3), top: +(ip.y + ih / 2).toFixed(3), signTop: +top.toFixed(3) });
+      // grow the icon so its top nearly touches the ceiling band, sitting just above the name sign
+      let ih = ICON_MAX_TOP - top - ICON_GAP;
+      if (ih < ICON_MIN) ih = Math.max(0.12, ICON_MAX_TOP - top - 0.04);
+      const ip = p.clone(); ip.y = Math.min(ICON_MAX_TOP - ih / 2, top + ICON_GAP + ih / 2);
+      iconPending.push({ e, ir, p, n, top, ih, iw: ih, ip });
     }
+  }
+  for (let i = 0; i < iconPending.length; i++) {
+    const A = iconPending[i];
+    let maxHalf = A.ih / 2;
+    for (let j = 0; j < iconPending.length; j++) {
+      if (i === j) continue;
+      const B = iconPending[j];
+      if (A.n.dot(B.n) < 0.9) continue;
+      const along = Math.hypot(A.p.x - B.p.x, A.p.z - B.p.z);
+      if (along < 0.05) continue;
+      maxHalf = Math.min(maxHalf, along / 2 - ICON_SIDE_GAP);
+    }
+    A.iw = Math.max(ICON_MIN, Math.min(A.ih, maxHalf * 2));
+    // stay clear of the window walls (room 1 east glass at x=+HALF, and the matching room-2 window)
+    const alongX = Math.abs(A.n.z) > Math.abs(A.n.x);
+    const coord = alongX ? A.p.x : A.p.z;
+    const maxW = 2 * (Math.max(0.01, (HALF || 12) - ICON_WIN_MARGIN - Math.abs(coord)));
+    if (maxW < A.iw) A.iw = Math.max(ICON_MIN, maxW);
+    A.ip.y = Math.min(ICON_MAX_TOP - A.ih / 2, A.top + ICON_GAP + A.ih / 2);
+    const ir = A.ir, iw = A.iw, ih = A.ih, ip = A.ip, n = A.n, top = A.top;
+    const iu0 = ir.x / atlas.W, iu1 = (ir.x + ir.w) / atlas.W, iv1 = 1 - ir.y / atlas.H, iv0 = 1 - (ir.y + ir.h) / atlas.H;
+    const ig = new THREE.PlaneGeometry(iw, ih), iuv = ig.attributes.uv;
+    for (let k = 0; k < iuv.count; k++) iuv.setXY(k, iuv.getX(k) ? iu1 : iu0, iuv.getY(k) ? iv1 : iv0);
+    ig.rotateY(Math.atan2(n.x, n.z)); ig.translate(ip.x, ip.y, ip.z); iconQuads.push(ig);
+    iconInfo.push({ key: A.e.key, pos: ip.toArray().map(v => +v.toFixed(3)), w: +iw.toFixed(3), h: +ih.toFixed(3), bottom: +(ip.y - ih / 2).toFixed(3), top: +(ip.y + ih / 2).toFixed(3), signTop: +top.toFixed(3) });
   }
   const tex = new THREE.TextureLoader().load(opt.src || 'tex/neon_signs.webp', t => { try { if (opt.renderer) opt.renderer.initTexture(t); } catch (err) {} if (opt.onLoad) opt.onLoad(t); });
   tex.colorSpace = THREE.SRGBColorSpace; tex.anisotropy = opt.aniso || 4;

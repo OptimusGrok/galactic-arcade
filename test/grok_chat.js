@@ -11,6 +11,7 @@ const QS = [
   ['where is the shop', /teleporter|pad/i], ['how do i change my hat', /wardrobe|accessories/i], ['how do I mute the music', /mute/i], ['can i play as an alien', /alien/i],
   ['who are you', /grok/i], ['what are you doing', /play|machine|arcade/i], ['ghots tips', /ghost 256/i], ['how does the claw machine work', /claw/i], ['tetris', /neon bricks/i],
   ['multiplayer?', /10 players|shared/i], ['what is the meaning of life?', /.{20,}/], ['whats the date today', /20\d\d/],
+  ['how do I open the Level 2 door', /4 lines|four lines/i], ['how do you unlock level 2', /neon bricks/i], ['whats in room 2', /secret/i],
 ];
 async function run(phone) {
   const tag = phone ? 'phone' : 'desktop';
@@ -62,6 +63,19 @@ async function run(phone) {
   const ans = await page.evaluate((QS) => QS.map(([q]) => window.__grokChat.ask(q)), QS);
   const bad = QS.map(([q, re], i) => ({ q, a: ans[i] })).filter((x, i) => !x.a || x.a.length < 8 || !QS[i][1].test(x.a));
   chk(!bad.length, tag + ': ' + QS.length + ' sample questions all get non-empty, relevant replies', bad);
+  // t838u: Level 2 door method, teased as a secret; never leak the room's contents
+  const doorQs = ['how do I open the Level 2 door', 'how do you open the level 2 door', 'how to unlock the level 2 door', 'how do I unlock room 2', 'how do I get to room 2', 'how do I open the door', 'whats in room 2', "what's behind the Level 2 door", 'what is in level 2', 'how do I open the steel door'];
+  const doorAns = await page.evaluate((qs) => qs.map(q => window.__grokChat.ask(q)), doorQs);
+  const doorOk = doorAns.map((a, i) => ({ q: doorQs[i], a }));
+  const methodMiss = doorOk.filter(x => !/4 lines at once/i.test(x.a) || !/3 times/i.test(x.a) || !/neon bricks/i.test(x.a) || !/unsaved/i.test(x.a) || !/secret/i.test(x.a));
+  const leaked = doorOk.filter(x => /dead signal|kessler|blank cabinet/i.test(x.a));
+  chk(!methodMiss.length, tag + ': any phrasing of the Level 2 door gets the Neon Bricks method, that it stays open unless a new unsaved game, and a secret tease', methodMiss);
+  chk(!leaked.length, tag + ': Level 2 / room 2 answers do not leak Dead Signal or blank cabinets', leaked);
+  const otherQs = ['what games are there', 'what is dead signal', 'where is the shop', 'tell me about the hallway', 'what is in room 1'];
+  const otherAns = await page.evaluate((qs) => qs.map(q => window.__grokChat.ask(q)), otherQs);
+  const otherLeak = otherQs.map((q, i) => ({ q, a: otherAns[i] })).filter(x => /in room 2/.test((x.a || '').toLowerCase()) || /blank cabinet/i.test(x.a || ''));
+  chk(!otherLeak.length, tag + ': no other answer leaks that Dead Signal / blank cabinets are in the Level 2 room', otherLeak);
+
   const scroll = await page.evaluate(() => { const L = document.getElementById('gcLog'); return { sh: L.scrollHeight, ch: L.clientHeight, st: Math.round(L.scrollTop) }; });
   chk(scroll.sh > scroll.ch && scroll.st + scroll.ch >= scroll.sh - 4, tag + ': reply log scrolls and stays at the newest reply', scroll);
   // close -> resume exactly

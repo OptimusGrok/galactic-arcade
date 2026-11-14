@@ -1,5 +1,5 @@
 // t789u/t790u: Strike 2-player online co-op in the arcade cabinet (mocked Supabase relay, no network).
-// P2 drops in from a second phone if P1 is already playing; both fly at once; P2's ship is a different colour.
+// P2 drops in from a second phone if P1 is already playing; both fly at once; P2's ship is red, with the same detail as P1's blue ship.
 // Each phone shows P1 stats (score, lives, shield/health, bombs) on the left and P2's on the right, synced live.
 // Arcade-copy tickets still award. No screenshots. 844x390.
 const { open } = require('./lib'); const mock = require('./mpmock');
@@ -55,13 +55,37 @@ let ok = true; const chk = (c, m, x) => { console.log((c ? 'PASS ' : 'FAIL ') + 
   chk(ha.p1.lives >= 0 && ha.p2.lives >= 0 && hb.p1.lives === ha.p1.lives && hb.p2.lives === ha.p2.lives,
     'lives are on the HUD for both players and match on both phones', { ha, hb });
 
-  const col = await S(a, `const c = document.createElement('canvas'); c.width = 8; c.height = 8; const g = c.getContext('2d');
-    g.drawImage(S.pl && w.PLAYER_SPR ? w.document.querySelector('canvas') : w.document.querySelector('canvas'), 0, 0);
-    // sample the two ship sprites: P1 original vs P2 tinted
-    const p1 = (typeof w.PLAYER_SPR !== 'undefined' && w.PLAYER_SPR[3]) ? w.PLAYER_SPR[3] : null;
-    const p2s = C.pl2 && w.PLAYER_SPR; 
-    return { p2color: C.p2color, hasP2: !!C.p2on, orange: /^#ff/i.test(C.p2color) };`);
-  chk(col.p2color === '#ff6e14' && col.hasP2, 'P2 flies a new ship in a different (orange) colour', col);
+  const col2 = await S(a, 'C.tintSprites && C.tintSprites(); return { p2color: C.p2color, hasP2: !!C.p2on, p1: C.p1sprStats || null, p2: C.p2sprStats || null };');
+  chk(col2.p2color === '#e2242a' && col2.hasP2, 'P2 flies a red ship (not the old orange wash)', col2);
+  chk(col2.p2 && col2.p1 && col2.p2.colors >= col2.p1.colors * 0.85 && col2.p2.r > col2.p2.b + 8 && col2.p2.r > col2.p2.g + 8, 'P2 red ship keeps P1-level detail (unique colours) and reads red, not a glowing wash', col2);
+
+  // t837u: P2's purple homing plasma is the original whip (same drawer, full path), on both phones
+  const plz = await (async () => {
+    await S(a, `C.tintSprites && C.tintSprites();
+      S.G.weapon = 'P'; S.G.wlv = 5; C.G2.weapon = 'P'; C.G2.wlv = 5;
+      S.pl.firing = true; S.pl.plasmaOn = true; C.pl2.firing = true; C.pl2.plasmaOn = true;
+      S.Input.keys.fire = true; S.Input.ptrDown = true; C.I2.keys.fire = true; C.I2.ptrDown = true;
+      C.plasmaPaint.p1 = 0; C.plasmaPaint.p2 = 0; C.plasmaPaint.crude = 0;
+      try { S.steps(4); } catch (e) {}
+      return 1;`);
+    await S(b, `S.G.weapon = 'P'; S.G.wlv = 5; C.G2.weapon = 'P'; C.G2.wlv = 5;
+      S.pl.plasmaOn = true; C.pl2.plasmaOn = true; S.Input.keys.fire = true; S.Input.ptrDown = true; C.sendInput(); return 1;`);
+    for (let i = 0; i < 8; i++) { await S(a, 'S.pl.plasmaOn = true; C.pl2.plasmaOn = true; S.Input.keys.fire = true; C.I2.keys.fire = true; S.steps(4); return 1;'); await S(b, 'S.Input.keys.fire = true; S.Input.ptrDown = true; C.sendInput(); S.steps(4); return 1;'); await a.waitForTimeout(50); }
+    const host = await S(a, `const Z = C.pl2 && C.G2; const pack = (function () {
+        const beams = [];
+        try {
+          // host PLZ2 lives on the swapped buffer; pack from a one-shot of packPlz if exposed, else from hud
+        } catch (e) {}
+        return { paint: Object.assign({}, C.plasmaPaint), p2on: !!C.p2on, p2plz: C.hud().p2.plz, p1w: S.G.weapon, p2w: C.G2.weapon, p2onPlz: !!C.pl2.plasmaOn };
+      })(); return pack;`);
+    const guest = await S(b, `return { paint: Object.assign({}, C.plasmaPaint), p2plz: C.hud().p2.plz, plzPts: (C.pl2 && C.pl2.plz && C.pl2.plz[0] && C.pl2.plz[0].length) || 0, p1Pts: (S.pl && S.pl.plz && S.pl.plz[0] && S.pl.plz[0].length) || 0, p2on: !!C.pl2.plasmaOn, p1on: !!S.pl.plasmaOn };`);
+    return { host, guest };
+  })();
+  chk(plz.host.p2on && plz.host.paint.p2 > 0 && plz.host.paint.crude === 0, 'host paints P2 plasma with the original whip drawer (not the crude guest polyline)', plz.host);
+  chk(plz.guest.paint.p2 > 0 && plz.guest.paint.p1 > 0 && plz.guest.paint.crude === 0, 'guest paints P1 and P2 plasma with the original whip drawer', plz.guest);
+  chk(plz.guest.plzPts >= 16, 'guest receives a full-detail plasma path (every point, not every 3rd)', plz.guest);
+  await S(a, `S.G.weapon = 'V'; S.G.wlv = 1; C.G2.weapon = 'V'; C.G2.wlv = 1; S.pl.plasmaOn = false; C.pl2.plasmaOn = false; S.pl.firing = false; C.pl2.firing = false; S.Input.keys.fire = false; S.Input.ptrDown = false; C.I2.keys.fire = false; C.I2.ptrDown = false; return 1;`);
+  await S(b, `S.G.weapon = 'V'; S.G.wlv = 1; C.G2.weapon = 'V'; C.G2.wlv = 1; S.Input.keys.fire = false; S.Input.ptrDown = false; C.sendInput(); return 1;`);
 
   // P2 moves right: guest holds right, host simulates, both HUDs show the new x
   const x0 = ha.p2.x;
@@ -70,7 +94,7 @@ let ok = true; const chk = (c, m, x) => { console.log((c ? 'PASS ' : 'FAIL ') + 
   for (let i = 0; i < 6; i++) { await S(a, 'S.steps(6); return 1;'); await S(b, 'S.Input.keys.right = true; C.sendInput(); S.steps(2); return 1;'); await a.waitForTimeout(60); }
   const movedA = await S(a, 'return C.hud().p2.x;');
   const movedB = await S(b, 'return C.hud().p2.x;');
-  chk(movedA > x0 + 4 && movedB > x0 + 4, 'P2 input from the second phone moves the orange ship on both screens', { x0, movedA, movedB });
+  chk(movedA > x0 + 4 && movedB > x0 + 4, 'P2 input from the second phone moves the red ship on both screens', { x0, movedA, movedB });
 
   // t802u: P2 must fire. Guest holds fire off (autofire off, no finger); host's own finger must not fire P2.
   const guestIn = async (js, n) => { for (let i = 0; i < (n || 4); i++) { await S(b, js + '; C.sendInput(); S.steps(2); return 1;'); await a.waitForTimeout(70); } };
@@ -80,7 +104,7 @@ let ok = true; const chk = (c, m, x) => { console.log((c ? 'PASS ' : 'FAIL ') + 
   const off = await S(a, 'return { n: C.shotCount(), ins: C.ins || 0 };');
   chk(off.n.p2 === 0 && off.n.p1 > 0, 'with fire released on the second phone, P2 does not fire (the host finger only fires P1)', off);
   await S(a, 'S.Input.ptrDown = false; return 1;');
-  // guest holds a finger down (how phones fire): host spawns orange P2 shots
+  // guest holds a finger down (how phones fire): host spawns P2 shots
   await guestIn('S.Input.ptrDown = true', 4);
   const fireCounts = [];
   for (let i = 0; i < 4; i++) { await S(a, 'S.steps(6); return 1;'); fireCounts.push((await S(a, 'return C.shotCount();')).p2); await guestIn('S.Input.ptrDown = true', 1); }

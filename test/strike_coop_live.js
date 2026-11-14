@@ -115,7 +115,7 @@ function serve() {
   await p1.page.waitForTimeout(400);
   a = await hud(p1); b = await hud(p2);
   const x1 = a.hud.p2.x, x1b = b.hud.p2.x;
-  chk(x1 > x0 + 8 && x1b > x0 + 8, 'P2 drag from the second phone moves the orange ship on both screens', { x0, x1, x1b });
+  chk(x1 > x0 + 8 && x1b > x0 + 8, 'P2 drag from the second phone moves the red ship on both screens', { x0, x1, x1b });
   chk(inBounds(a.hud.p2) && x1 < 250, 'a short drag does not rail P2 off the playfield', a.hud.p2);
   const guestDrag = b.drag;
   chk(guestDrag && Math.abs(guestDrag.x) < 0.2, 'guest consumes drag after sending it', guestDrag);
