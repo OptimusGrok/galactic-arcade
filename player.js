@@ -402,16 +402,18 @@
     + '#gaWBuyB{font:900 16px "Arial Black",Arial;padding:9px 16px;border-radius:10px;border:2px solid #ffd98a;background:#3a1a00;color:#ffe9a8;cursor:pointer}#gaWBuyB:disabled{opacity:.55;border-color:#888;color:#bbb;background:#222;cursor:default}'
     + '@media (max-height:640px){#gaT{font-size:clamp(24px,7vw,40px);margin-top:18px}.gaRow{padding:3px 4px}.gaO{height:32px}#gaNm{padding:5px 10px}'
     + '#gaWho{padding:6px 8px 2px;gap:4px}.gaWhoH{font-size:10px}.gaWho{min-height:0;height:40px;flex-direction:row;gap:6px;padding:4px 8px}.gaWhoI{font-size:16px}}'
-    + '@media (orientation:landscape) and (max-height:520px){#gaP{display:grid;grid-template-columns:minmax(0,34%) minmax(0,1fr);grid-template-rows:auto minmax(0,1fr) auto auto;gap:3px 10px;padding:6px 10px 6px;overflow:hidden;align-items:stretch}'
-    + '#gaT{grid-column:1;grid-row:1;margin:0;font-size:clamp(15px,5.2vh,24px)}'
-    + '#gaStage{grid-column:1;grid-row:2;min-height:0;width:100%;max-width:none}'
-    + '#gaNm{grid-column:1;grid-row:3 / span 2;align-self:end;padding:4px 8px}#gaNm label{font-size:11px;margin-bottom:2px;letter-spacing:.08em}#gaIn{padding:5px 8px;font-size:14px}'
-    + '#gaP>.gaBox:not(#gaNm){grid-column:2;grid-row:1 / span 2;align-self:center;max-height:100%;overflow:hidden}'
-    + '#gaGo{grid-column:2;grid-row:3;justify-self:center;padding:7px 26px;font-size:clamp(16px,5.4vh,26px)}'
-    + '#gaHint{grid-column:2;grid-row:4;min-height:0;justify-self:center;font-size:11px}'
+    // t809u: landscape phone start = big one-line title centred across the top, preview + name on the left,
+    // SELECT PLAYER buttons along the bottom right with PLAY (or the hint) directly above them.
+    + '@media (orientation:landscape) and (max-height:520px){#gaP{display:grid;grid-template-columns:minmax(0,40%) minmax(0,1fr);grid-template-rows:auto minmax(0,1fr) auto auto;gap:4px 14px;padding:max(6px,env(safe-area-inset-top)) max(10px,env(safe-area-inset-right)) max(6px,env(safe-area-inset-bottom)) max(10px,env(safe-area-inset-left));overflow:hidden;align-items:stretch}'
+    + '#gaT{grid-column:1 / -1;grid-row:1;justify-self:center;margin:0;white-space:nowrap;font-size:clamp(22px,10vh,44px);line-height:1}#gaT b,#gaT i{display:inline}#gaT i{margin-left:.35em}'
+    + '#gaStage{grid-column:1;grid-row:2 / span 2;min-height:0;width:100%;max-width:none}'
+    + '#gaNm{grid-column:1;grid-row:4;align-self:end;padding:4px 8px}#gaNm label{font-size:11px;margin-bottom:2px;letter-spacing:.08em}#gaIn{padding:5px 8px;font-size:14px}'
+    + '#gaP>.gaBox:not(#gaNm){grid-column:2;grid-row:4;align-self:end;justify-self:center;max-width:460px;overflow:hidden}'
+    + '#gaGo{grid-column:2;grid-row:3;align-self:end;justify-self:center;padding:7px 34px;font-size:clamp(18px,6.4vh,30px)}'
+    + '#gaHint{grid-column:2;grid-row:3;align-self:end;min-height:0;justify-self:center;font-size:12px;padding-bottom:4px}'
     + '.gaRow{padding:2px}.gaO{width:34px;height:28px;font-size:16px}.gaRow span{width:48px;font-size:10px}.gaAr{width:36px;height:44px;font-size:32px}'
-    + '#gaWho{padding:2px 6px 2px;gap:3px}.gaWhoH{font-size:9px;letter-spacing:.16em;text-shadow:0 0 5px #00e5ff,0 0 10px #0090ff}'
-    + '.gaWhoRow{gap:6px}.gaWho{min-height:0;height:28px;flex-direction:row;gap:5px;padding:2px 8px;font-size:10px;max-width:150px;border-radius:8px}.gaWhoI{font-size:14px}}'
+    + '#gaWho{padding:4px 8px 6px;gap:4px}.gaWhoH{font-size:10px;letter-spacing:.16em;text-shadow:0 0 5px #00e5ff,0 0 10px #0090ff}'
+    + '.gaWhoRow{gap:10px}.gaWho{min-height:0;height:clamp(34px,11vh,46px);flex-direction:row;gap:6px;padding:2px 10px;font-size:12px;max-width:190px;border-radius:10px}.gaWhoI{font-size:18px}}'
     // t738u/t739u: ACCESSORIES (shop) and WARDROBE in landscape = split view: the player as big as the height allows on the left, every row on the right,
     // icons/labels/arrows sized by wFit() (--oh/--ow/--of/--lw/--lf/--ah) so the rows fill the column. Portrait keeps the old stack.
     + '#gaW.gaSplit{display:grid;grid-template-columns:minmax(0,36%) minmax(0,1fr);grid-template-rows:auto minmax(0,1fr) auto auto;gap:6px 14px;padding:max(8px,env(safe-area-inset-top)) max(10px,env(safe-area-inset-right)) max(8px,env(safe-area-inset-bottom)) max(10px,env(safe-area-inset-left));overflow:hidden;align-items:stretch;justify-items:stretch}'

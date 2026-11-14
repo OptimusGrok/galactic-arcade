@@ -185,8 +185,10 @@ function serve() {
   await p1.page.waitForTimeout(500);
   const rs = await G_(p1, 'return S.pools.pshots.items.filter(u => u.alive && u.o === 1 && u.k === 1).length;');
   chk(rs > 0, 'P2 fires the upgraded spread weapon', { spreadShots: rs });
-  const gw = (await hud(p2)).hud.p2;
-  chk(gw.weapon === 'R' && gw.wlv === wp.p2[1], 'the second phone shows P2’s weapon and level', gw);
+  // a real enemy drop can be grabbed in between (eg a laser), so compare with the host's current P2 weapon, settled
+  let gw = null, hw = null;
+  for (let r = 0; r < 5; r++) { hw = await G_(p1, 'return [C.G2.weapon, C.G2.wlv];'); await p1.page.waitForTimeout(300); gw = (await hud(p2)).hud.p2; if (gw.weapon === hw[0] && gw.wlv === hw[1]) break; }
+  chk(gw.weapon === hw[0] && gw.wlv === hw[1] && (hw[0] !== 'R' || hw[1] >= wp.p2[1]), 'the second phone shows P2’s weapon and level', { gw, hw });
   await G_(p1, "w.eval('Opts.autofire = true'); return 1;");
 
   // t806u: smooth motion over the real relay. P1 (host) and P2 (guest) both move for ~1.5 s; every rendered frame recorded.
@@ -233,7 +235,7 @@ function serve() {
     if (!(a.role === 'host' && b.role === 'guest' && a.p2on && b.p2on && a.locked && b.locked
         && a.hud && a.hud.p2 && a.hud.p2.alive && b.hud && b.hud.p2 && b.hud.p2.alive
         && inBounds(a.hud.p2, true) && inBounds(b.hud.p2, true)
-        && inBounds(a.hud.p1, true) && b.snaps > lastSnaps && vs.p2 > 0)) {
+        && inBounds(a.hud.p1, true) && b.snaps > lastSnaps && (vs.p2 > 0 || b.hud.p2.beam || b.hud.p2.plz))) {   // fire = bullets, laser beam or plasma (real drops can switch weapon)
       bad = row; break;
     }
     lastSnaps = b.snaps;

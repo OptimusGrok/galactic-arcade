@@ -27,7 +27,7 @@ const PH = process.argv[2] === 'phone', sfx = PH ? '_phone' : '';
   chk(acc.who.length === 2 && acc.who[0][0] === 'monkey' && acc.who[1][0] === 'alien' && acc.whoH === 'SELECT PLAYER' && acc.name && acc.play,
     'start screen is player select plus name/PLAY ' + JSON.stringify(acc));
   chk(await page.title() === 'Galactic Arcade', 'page title is Galactic Arcade');
-  await page.screenshot({ path: 'shots/start' + sfx + '.png' });
+  if (!process.env.NOSHOTS) await page.screenshot({ path: 'shots/start' + sfx + '.png' });
   // taps off the controls and keys do nothing
   for (const [x, y] of [[0.5, 0.05], [0.03, 0.5], [0.97, 0.97]]) { if (PH) await page.touchscreen.tap(a.vw * x, a.vh * y); else await page.mouse.click(a.vw * x, a.vh * y); }
   if (!PH) { await page.keyboard.press('KeyE'); await page.keyboard.press('Enter'); await page.keyboard.press('Space'); }
