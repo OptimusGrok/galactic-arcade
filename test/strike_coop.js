@@ -139,6 +139,17 @@ let ok = true; const chk = (c, m, x) => { console.log((c ? 'PASS ' : 'FAIL ') + 
   chk(gw.weapon === 'R' && gw.wlv === wp.p2[1], 'the second phone shows P2’s weapon and level', gw);
   await S(a, "w.eval('Opts.autofire = true'); return 1;");
 
+  // t820u (2): P2 pickup messages and sounds play on the guest phone, not on the host
+  await S(a, 'C.clearToasts(); C.fxLog = []; C.fxSent = 0; return 1;');
+  await S(b, 'C.clearToasts(); C.fxLog = []; C.fxGot = 0; return 1;');
+  const fxA = await S(a, "w.eval('dropItem(\"up\", window.__strikeCoop.pl2.x, window.__strikeCoop.pl2.y)'); S.steps(3); return { sent: C.fxSent || 0, log: C.fxLog || [], toasts: C.uiToasts(), lives: C.G2.lives };");
+  await a.waitForTimeout(160); await S(a, 'C.sendState(); return 1;'); await a.waitForTimeout(150); await S(b, 'S.steps(2); return 1;');
+  const fxB = await S(b, 'return { got: C.fxGot || 0, log: C.fxLog || [], toasts: C.uiToasts() };');
+  chk(fxA.sent > 0 && fxA.log.some(e => e.typ === 'sfx') && fxA.log.some(e => e.typ === 'toast' && /1UP/.test(e.msg)) && fxA.toasts.every(m => !/1UP/.test(m)),
+    'P2 pickup message and sound do not play on P1’s phone', { fxA });
+  chk(fxB.got > 0 && fxB.toasts.some(m => /1UP/.test(m)) && fxB.log.some(e => e.typ === 'sfx'),
+    'P2 pickup message and sound play on P2’s (guest) phone', { fxB, fxA });
+
   // t806u: smooth motion. P1 (host) moves right while P2 (guest) moves left; record every rendered frame on both phones.
   await S(a, 'C.trace.length = 0; C.tracing = true; S.Input.keys.right = true; return 1;');
   await S(b, 'C.trace.length = 0; C.tracing = true; S.Input.keys.left = true; S.Input.ptrDown = false; return 1;');
@@ -157,6 +168,15 @@ let ok = true; const chk = (c, m, x) => { console.log((c ? 'PASS ' : 'FAIL ') + 
   chk(sA2.ok, 'P2’s ship moves smoothly on the host phone (no stalls or jumps frame to frame)', sA2);
   chk(sB2.ok, 'P2’s own ship moves smoothly on the second phone (predicted locally)', sB2);
   chk(sB1.ok, 'P1’s ship moves smoothly on the second phone (interpolated between snapshots)', sB1);
+
+  // t820u (1): P2's score multiplier winds down when P2 is idle, the same way P1's does
+  await S(a, "w.eval('Opts.autofire = false'); S.Input.ptrDown = false; C.I2.ptrDown = false; C.I2.keys.fire = false; C.I2.keys.up = false; C.G2.mult = 4; C.G2.multIdle = 0; for (let i = 0; i < 200; i++) { S.pools.enemies.clear(); S.pools.pshots.clear(); S.pools.items.clear(); S.steps(1); } return 1;");
+  const mid = await S(a, 'return { m: +C.G2.mult.toFixed(3), i: C.G2.multIdle };');
+  chk(mid.i >= 200 && mid.m < 3.95 && mid.m > 3.5, 'P2’s score multiplier winds down when P2 is idle', mid);
+  const midR = await S(a, 'C.G2.mult = 3; C.G2.multIdle = 200; const p1i = S.G.multIdle; C.withP2(() => { S.G.mult = Math.min(8, S.G.mult + 0.05); S.G.multIdle = 0; }); return { m: C.G2.mult, i: C.G2.multIdle, p1i, p1i2: S.G.multIdle };');
+  chk(midR.i === 0 && midR.m > 3 && midR.p1i2 === midR.p1i, 'a P2 score resets P2’s multiplier idle timer (P1’s is unchanged)', midR);
+  await S(a, "w.eval('Opts.autofire = true'); return 1;");
+
 
   // P1 takes a shield hit: guest HUD updates health on the left
   await S(a, 'S.G.shield = 1; C.sendState(); return S.G.shield;');
@@ -214,6 +234,9 @@ let ok = true; const chk = (c, m, x) => { console.log((c ? 'PASS ' : 'FAIL ') + 
   await a.waitForTimeout(100); await S(a, 'C.sendState(); return 1;'); await a.waitForTimeout(150);
   const dGuestP1 = await drawnN(b, 10);
   chk(p1o.p1out && p1o.p2on && dHostP1.p1 === 0 && dGuestP1.p1 === 0, 'OUT player 1’s ship is drawn on neither screen', { p1o, dHostP1, dGuestP1 });
+  // t820u (3): once P1 is out, enemies aim at P2, not at P1's last position
+  const aim = await S(a, "S.pl.x = 220; S.pl.y = 400; C.pl2.x = 40; C.pl2.y = 80; const a0 = C.aimA(100, 200); const toP2 = Math.atan2(C.pl2.y - 200, C.pl2.x - 100); const toP1 = Math.atan2(S.pl.y - 200, S.pl.x - 100); return { who: C.aimAt(), a0, toP2, toP1, d2: Math.abs(a0 - toP2), d1: Math.abs(a0 - toP1), p1out: !!C.p1out, p1alive: !!S.pl.alive, p2alive: !!C.pl2.alive };");
+  chk(aim.p1out && !aim.p1alive && aim.p2alive && aim.who === 'p2' && aim.d2 < 0.01 && aim.d1 > 0.2, 'once P1 is out, enemies aim at P2’s ship, not P1’s last position', aim);
   await S(a, "C.p1out = false; S.G.lives = 2; w.eval('playerReset(false)'); S.G.god = true; S.steps(2); return 1;");
 
   // t813u (2): when P2 leaves (closes the cabinet), the host removes P2’s ship straight away

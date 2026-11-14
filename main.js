@@ -1205,7 +1205,8 @@ function updateTurn() {
   const el = document.getElementById('turnHint'); if (!el) return;
   const portrait = MOBILE && innerHeight > innerWidth * 1.08;
   const watching = !!document.querySelector('#gvWatchOv.on');   // Grok's full-screen WATCH fills either orientation
-  el.classList.toggle('on', portrait && !IPAD && !document.body.classList.contains('upright') && !watching);   // t767u: never on iPad   // t765u: no 'turn sideways' over an upright (portrait) game
+  const poolOn = !!(window.__pool && window.__pool.open);   // t820u: pool's own close X must stay reachable on a phone
+  el.classList.toggle('on', portrait && !IPAD && !document.body.classList.contains('upright') && !watching && !poolOn);   // t767u: never on iPad   // t765u: no 'turn sideways' over an upright (portrait) game
   document.body.classList.toggle('turnPhone', el.classList.contains('on'));   // t812u: full-screen turn-sideways screen (start screen + arcade)
 }
 // t765u: Ghost 256 / Strike / Cybercity are upright games -> while one is open the phone goes back to normal portrait.
@@ -1249,7 +1250,7 @@ function wantWide() {
   if (document.body.classList.contains('upright')) { updateTurn(); return; }   // an upright game is open: its exit restores landscape
   lockTo('landscape');
 }
-window.__wantWide = wantWide; window.__orient = orient;
+window.__wantWide = wantWide; window.__orient = orient; window.__updateTurn = updateTurn;
 document.getElementById('bView').onclick = toggleView;
 document.getElementById('bFs').onclick = toggleFs;
 if (matchMedia('(display-mode: fullscreen), (display-mode: standalone)').matches) document.getElementById('bFs').style.display = 'none';

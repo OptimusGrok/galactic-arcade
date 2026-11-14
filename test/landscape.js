@@ -48,7 +48,8 @@ const fit = () => {
   await page.waitForTimeout(200);
   await page.click('#gaIn');
   await page.keyboard.type('NovaPilot');
-  await page.waitForTimeout(2300);
+  await page.waitForFunction(() => { const g = document.getElementById('gaGo'); return g && !g.hidden && g.getBoundingClientRect().height > 0; }, null, { timeout: 8000 }).catch(() => {});
+  await page.waitForTimeout(400);
   const named = await page.evaluate(fit);
   chk(named.go && named.bad.length === 0 && named.scroll <= 4, 'a valid name shows Play inside the landscape screen', named);
   if (SH) await page.screenshot({ path: START });
