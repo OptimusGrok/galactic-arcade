@@ -220,6 +220,7 @@ function resize(){
  else{place(pumpEl,vw-MG-P-6,vh-MG-P-6,P,P);place(mini,vw/2-73,vh-MG-44);}
  if(!touch)place(mini,HUDSIDE?Math.min(vw-146,fx+fw+rm/2-73):vw-150,HUDSIDE?vh-52:Math.max(4,HY*s-50));
 }
+window.__gaHudPx=()=>HUDSIDE?0:Math.round((HY+HH)*S);   // t818u: bottom of the HUD in CSS px, so the arcade puts its close X / options right under it on an upright phone
 addEventListener('resize',resize);addEventListener('orientationchange',()=>setTimeout(resize,200));if(window.visualViewport)visualViewport.addEventListener('resize',resize);
 
 /* ---------- SPRITES (original pixel art drawn in code) ---------- */
@@ -239,7 +240,7 @@ const dirtCv=document.createElement('canvas');dirtCv.width=FW;dirtCv.height=ROWS
 const STRATA=[['#f0b838','#c88a20','#ffd870'],['#d88020','#a85a10','#f0a050'],['#b84c20','#7e2c10','#d8703a'],['#7c2c14','#4c1608','#a04a2a']];
 function layerOf(r){return Math.max(0,Math.min(3,Math.floor((r-2)*4/(ROWS-2))));}
 function setGrid(c,r){if(c===COLS&&r===ROWS)return;COLS=c;ROWS=r;FW=c*T;FH=HUDH+r*T;dirtCv.width=FW;dirtCv.height=r*T;}
-function wantGrid(){const vw=innerWidth,vh=innerHeight;if(vh>vw*1.05){const s=vw/(14*T);return[14,Math.max(17,Math.min(30,Math.floor((vh/s-HUDH)/T)))];}
+function wantGrid(){const vw=innerWidth,vh=innerHeight;if(vh>vw*1.05){const s=vw/(14*T),top=(window.__gaTop||0)/s;return[14,Math.max(17,Math.min(30,Math.floor((vh/s-HUDH-top)/T)))];}   // t818u: leave room for the arcade strip above the HUD so the last row is not cut off
  const s=vh/(17*T);return[Math.max(14,Math.min(24,Math.floor((vw/s-272)/T))),17];}
 function paintDirt(){dctx.clearRect(0,0,FW,ROWS*T);let s=1234;const pr=()=>((s=(s*1103515245+12345)&0x7fffffff)/0x7fffffff);
  for(let r=2;r<ROWS;r++){const c=STRATA[layerOf(r)];dctx.fillStyle=c[0];dctx.fillRect(0,r*T,FW,T);

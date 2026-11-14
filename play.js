@@ -73,7 +73,7 @@ export function setupPlay(A) {
       start(w) { w.__pip.start(); },
       scene(w) { return w.__pip.scene(); }, active(w) { return w.__pip.active(); },
       hold(w) { return w.__pip.hold(); }, unhold(w) { w.__pip.unhold(); }, overHold: 4500, scoresHold: 0 },
-    bb: { key: 'bb', cab: A.bbCab, src: 'bb-play/index.html', credits: 0, games: 0, aspect: (A.bbCab && A.bbCab.userData.aspect) || 4 / 5, cost: 5,   // BURROW BUSTER (#13, slot 2:4): 5 tickets = 1 credit = one game of 3 lives
+    bb: { key: 'bb', upright: 1, cab: A.bbCab, src: 'bb-play/index.html', credits: 0, games: 0, aspect: (A.bbCab && A.bbCab.userData.aspect) || 4 / 5, cost: 5,   // BURROW BUSTER (#13, slot 2:4): 5 tickets = 1 credit = one game of 3 lives
       demo(w) { w.__demo.start(); }, stopDemo(w) { w.__demo.stop(); },
       start(w) { w.__bb.start(); },
       scene(w) { return w.__bb.scene(); }, active(w) { return w.__bb.active(); },
@@ -301,7 +301,7 @@ export function setupPlay(A) {
   // t808u: PHONE + upright cabinet: ticket chips (gold + Viking) centred at the top; close X directly under the game's left
   // stats, the 3 option buttons (#ui) directly under its right stats, so nothing covers the game's HUD. iPad keeps its layout.
   // Offsets are CSS px at a 390 px wide phone (scaled with the width); Strike reports its own HUD bottom (__gaHudPx).
-  const UP_HUD = { ghost: { x: 48, o: 52, t: 52 }, cyber: { x: 4, o: 4, t: 32 }, monkey: { x: 124, o: 136, t: 4 }, claw: { x: 4, o: 4, t: 4 }, strike: { x: 4, o: 4, t: 4 } };
+  const UP_HUD = { ghost: { x: 48, o: 52, t: 52 }, cyber: { x: 4, o: 4, t: 32 }, monkey: { x: 124, o: 136, t: 4 }, claw: { x: 4, o: 4, t: 4 }, strike: { x: 4, o: 4, t: 4 }, bb: { x: 4, o: 4, t: 4 } };   // bb (t818u) reports its own HUD bottom (__gaHudPx)
   const upEls = () => [document.getElementById('bExit'), tixEl, vixEl, document.getElementById('ui')];
   let upOn = false;
   function upLayout() {
