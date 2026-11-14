@@ -242,6 +242,20 @@ function serve() {
   }
   chk(!bad && n >= Math.floor(WATCH_MS / 2000) - 1, 'P2 stays on both screens, in bounds, firing (seen on the second phone), with stable host/guest roles for ' + (WATCH_MS / 1000) + ' s', bad || { n, secs: WATCH_MS / 1000, last: { a: a.hud, b: b.hud, snaps: lastSnaps } });
 
+  // t813u (1): enemy bullets reach P2's (guest) screen over the real relay, about as many as the host has, and are drawn
+  await G_(p1, "w.eval('ebul.clear && ebul.clear()'); for (let i = 0; i < 20; i++) w.eval('eb(' + (30 + i * 10) + ', ' + (50 + (i % 4) * 12) + ', Math.PI / 2, 0.5, ' + (i % 6) + ')'); return 1;");
+  await p1.page.waitForTimeout(700);
+  const ebH = await G_(p1, 'return S.pools.ebul.items.filter(u => u.alive && u.y > -12 && u.y < 640).length;');
+  const ebG = await G_(p2, 'return { n: (C.visB || []).length, drawn: C.drawnB || 0 };');
+  chk(ebG.n > 0 && ebH > 0 && Math.abs(ebG.n - ebH) <= Math.max(4, ebH * 0.3) && ebG.drawn > 0, 'enemy bullets show on P2’s (guest) phone over the real relay, roughly matching the host', { host: ebH, guest: ebG });
+  // t813u (2): P2 closes the cabinet -> the host removes P2's ship (bye packet, no 10 s ghost)
+  await p2.page.evaluate(() => window.__arcade.play.exit('x'));
+  const gone = await p1.page.waitForFunction(() => { const C = document.getElementById('game').contentWindow.__strikeCoop; return C && !C.p2on; }, null, { timeout: 6000 }).then(() => true).catch(() => false);
+  const lv = await G_(p1, 'return { p2on: C.p2on, left: C.left, why: C.lastLeft || null, p2alive: C.pl2.alive, d0: C.drawn.p2 };');
+  await p1.page.waitForTimeout(600);
+  const lv2 = await G_(p1, 'return { p2on: C.p2on, d1: C.drawn.p2 };');
+  chk(gone && !lv2.p2on && lv2.d1 === lv.d0, 'P2 leaves (closes the cabinet): the host removes P2’s ship and keeps it gone', { lv, lv2 });
+
   const errs = p1.errors.concat(p2.errors).filter(e => !/ERR_FAILED|Aborted/.test(e));
   chk(errs.length === 0, 'no page errors', errs.slice(0, 4));
 

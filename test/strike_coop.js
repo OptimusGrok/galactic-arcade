@@ -166,6 +166,20 @@ let ok = true; const chk = (c, m, x) => { console.log((c ? 'PASS ' : 'FAIL ') + 
   const hpB = await S(b, 'return C.hud();');
   chk(hpB.p1.shield === 1 && hpB.p2.shield === 3, 'P1 health change is synced live onto the left of P2’s HUD', hpB);
 
+  // t813u (1): enemy bullets are in the snapshot, drawn on P2's phone (glow + sprite, not 2px dots), and keep moving between updates
+  await S(a, "w.eval('enemies.clear(); ebul.clear && ebul.clear()'); for (let i = 0; i < 24; i++) w.eval('eb(' + (30 + i * 9) + ', ' + (60 + (i % 4) * 10) + ', Math.PI / 2, 0.9, ' + (i % 6) + ')'); return 1;");
+  await a.waitForTimeout(100); await S(a, 'C.sendState(); return 1;'); await a.waitForTimeout(150);
+  const hostB = await S(a, 'return S.pools.ebul.items.filter(u => u.alive && u.y > -12 && u.y < w.innerHeight + 400).length;');
+  await S(b, 'S.steps(1); S.render(); return 1;');
+  const gB = await S(b, 'return { n: (C.visB || []).length, drawn: C.drawnB, sample: (C.visB || []).slice(0, 2), hasV: (C.visB || []).every(u => Number.isFinite(u.vx) && Number.isFinite(u.vy)) };');
+  chk(gB.n > 0 && hostB > 0 && Math.abs(gB.n - hostB) <= Math.max(3, hostB * 0.25), 'enemy bullets show on P2’s (guest) screen, about as many as on the host', { host: hostB, guest: gB.n });
+  chk(gB.drawn > 0 && gB.hasV && gB.drawn >= gB.n * 0.8, 'P2’s phone draws the enemy bullets as real bullet sprites with velocity', gB);
+  const by0 = await S(b, 'const L = C.visB || []; return L.length ? L.reduce((s, u) => s + u.y, 0) / L.length : null;');
+  await S(b, 'S.steps(4); return 1;');
+  const by1 = await S(b, 'const L = C.visB || []; return L.length ? L.reduce((s, u) => s + u.y, 0) / L.length : null;');
+  chk(by0 != null && by1 > by0 + 1.5, 'enemy bullets keep moving on P2’s phone between host updates', { by0, by1 });
+  await S(a, "w.eval('ebul.clear && ebul.clear()'); return 1;");
+
   // arcade-copy tickets still award on the host cabinet
   const tix = await a.evaluate(() => {
     const t0 = window.__arcade.play.tickets.total;
@@ -177,6 +191,44 @@ let ok = true; const chk = (c, m, x) => { console.log((c ? 'PASS ' : 'FAIL ') + 
   });
   chk(tix.hook === 'function' && tix.t1 > tix.t0, 'the arcade copy still awards Strike tickets to the cabinet total', tix);
 
+  // t813u (3): a player who is OUT and watching has no ship drawn on either screen
+  const drawnN = async (p, n) => S(p, 'const d0 = { p1: C.drawn.p1, p2: C.drawn.p2 }; for (let i = 0; i < ' + n + '; i++) { S.steps(1); S.render(); } return { p1: C.drawn.p1 - d0.p1, p2: C.drawn.p2 - d0.p2 };');
+  await S(b, 'S.G.god = false; return 1;');
+  // one fatal hit (lives 0 -> -1), then let the respawn timer run out (slow-mo after a death stretches it)
+  await S(a, 'S.G.god = true; C.G2.lives = 0; C.killP2(); for (let i = 0; i < 600 && !C.p2out; i++) S.steps(1); return C.G2.lives;');
+  const outH = await S(a, 'return { p2out: !!C.p2out, lives: C.G2.lives, alive: C.pl2.alive, p2on: C.p2on };');
+  chk(outH.p2out && outH.p2on && !outH.alive, 'P2 runs out of lives and is OUT (watching), co-op continues', outH);
+  await S(a, 'S.steps(2); C.sendState(); return 1;'); await a.waitForTimeout(160); await S(b, 'S.steps(1); return 1;');
+  const dHostOut = await drawnN(a, 20);
+  await a.waitForTimeout(100); await S(a, 'C.sendState(); return 1;'); await a.waitForTimeout(150);
+  const dGuestOut = await drawnN(b, 10);
+  const gOut = await S(b, 'return { p2out: !!C.p2out, alive: C.pl2.alive };');
+  chk(dHostOut.p2 === 0 && dHostOut.p1 > 0, 'host screen: OUT player 2’s ship is not drawn (player 1 still is)', dHostOut);
+  chk(dGuestOut.p2 === 0 && gOut.p2out, 'guest screen: its own ship is not drawn while OUT and watching', { dGuestOut, gOut });
+  // P1 out too would end the game; instead check P1-out drawing with P2 still in: bring P2 back first via a fresh co-op state
+  await S(a, 'C.resetP2(); C.p2out = false; S.G.god = true; S.steps(2); return 1;');
+  await S(a, 'S.G.god = true; C.killP1(); for (let i = 0; i < 600 && !C.p1out; i++) S.steps(1); return { p1out: !!C.p1out, ended: C.ended || 0 };');
+  const p1o = await S(a, 'return { p1out: !!C.p1out, alive: S.pl.alive, p2on: C.p2on, p2alive: C.pl2.alive };');
+  await S(a, 'C.sendState(); return 1;'); await a.waitForTimeout(160); await S(b, 'S.steps(1); return 1;');
+  const dHostP1 = await drawnN(a, 20);
+  await a.waitForTimeout(100); await S(a, 'C.sendState(); return 1;'); await a.waitForTimeout(150);
+  const dGuestP1 = await drawnN(b, 10);
+  chk(p1o.p1out && p1o.p2on && dHostP1.p1 === 0 && dGuestP1.p1 === 0, 'OUT player 1’s ship is drawn on neither screen', { p1o, dHostP1, dGuestP1 });
+  await S(a, "C.p1out = false; S.G.lives = 2; w.eval('playerReset(false)'); S.G.god = true; S.steps(2); return 1;");
+
+  // t813u (2): when P2 leaves (closes the cabinet), the host removes P2’s ship straight away
+  await S(b, 'w.__gaRelease && w.__gaRelease(); return C.byeSent || 0;');
+  await a.waitForTimeout(250);
+  const lv = await S(a, 'S.steps(2); return { p2on: C.p2on, left: C.left, why: C.lastLeft, alive: C.pl2.alive };');
+  const dHostLeft = await drawnN(a, 10);
+  chk(!lv.p2on && lv.left > 0 && lv.why === 'bye' && dHostLeft.p2 === 0, 'P2 leaves: the host removes P2’s ship at once (bye packet)', { lv, dHostLeft });
+  await a.waitForTimeout(400);
+  const stay = await S(a, 'S.steps(2); return { p2on: C.p2on, ended: C.ended || 0 };');
+  chk(!stay.p2on && !stay.ended, 'the host keeps playing solo and P2 is not pulled back in by stray packets', stay);
+  // ... and when the host leaves, the guest drops the host's ship / ends at once instead of freezing
+  await S(a, 'w.__gaRelease && w.__gaRelease(); return 1;'); await a.waitForTimeout(250);
+  const gEnd = await S(b, 'S.steps(1); return { role: C.role, why: C.lastEnd || null, p2on: C.p2on };');
+  chk(gEnd.role === 'solo' && gEnd.why === 'host left', 'P1 leaves: the guest handles it at once (no ghost P1 ship)', gEnd);
   const bad = [];
   for (const o of devs) { /* collected via pages */ }
   chk(true, 'no extra page errors');

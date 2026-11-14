@@ -234,6 +234,9 @@ body.ingame #mpPill,body.ingame #mpBar,body.ingame #mpChat,body.ingame #mpTags,b
   M.strike = { peers: strikeIn,
     send(s) { const now = performance.now(); if (now - strikeAt < 70 || !s || typeof s !== 'object') return false; strikeAt = now;
       const ok = send('strike', Object.assign({ i: id }, s)); if (ok) M.strikeSent = (M.strikeSent || 0) + 1; return ok; },
+    // t813u: one-off 'bye' when a phone leaves Strike (cabinet closed / page hidden): must not be eaten by the 70 ms throttle
+    sendNow(s) { if (!s || typeof s !== 'object') return false; strikeAt = performance.now();
+      const ok = send('strike', Object.assign({ i: id }, s)); if (ok) M.strikeSent = (M.strikeSent || 0) + 1; return ok; },
     last(pid) { const r = strikeIn.get(pid); return r && performance.now() - r.at < 2500 ? r.s : null; },
     others() { const now = performance.now(), out = [];
       for (const [pid, r] of strikeIn) {
