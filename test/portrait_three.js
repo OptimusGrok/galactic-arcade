@@ -64,7 +64,7 @@ const { open } = require('./lib');
     chk(r.frame[0] === 0 && r.frame[1] === 0 && r.frame[2] === W && r.frame[3] === H && r.inner[0] === W && r.inner[1] === H, tag + ': game frame is the full screen', { frame: r.frame, inner: r.inner });
     chk(!r.rot && !r.rootRot, tag + ': nothing rotated (game is upright)', { rot: r.rot, rootRot: r.rootRot });
     chk(r.main && r.wfill >= 0.95 && r.fill >= 0.4 && r.main.box[0] >= -1 && r.main.box[0] + r.main.box[2] <= W + 1 && r.main.box[1] + r.main.box[3] <= H + 1, tag + ': game picture fills the screen width (no small box)', { main: r.main, fill: r.fill, wfill: r.wfill });
-    chk(r.X[0] <= 6 && r.X[1] <= 6 && r.X[2] >= 36 && r.gaTop === 46, tag + ': close X tight top-left (strip known to the game)', { X: r.X, gaTop: r.gaTop });
+    chk(r.X[0] <= 6 && r.X[1] <= 140 && r.X[2] >= 36 && r.gaTop === 46, tag + ': close X on the left, under the game stats (t808u phone layout; strip known to the game)', { X: r.X, gaTop: r.gaTop });
     if (paths[k] === 'Esc key') { await page.evaluate(() => { const f = document.getElementById('game'); f.focus(); f.contentWindow.focus(); }); await page.keyboard.press('Escape'); }
     else await tapX();
     await back(tag, paths[k]);

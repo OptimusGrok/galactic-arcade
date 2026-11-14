@@ -252,7 +252,7 @@ export function setupPlay(A) {
   // ---- tickets: collected inside the games (gold monkey tickets), 1 each; no time-based payout ----
   const tixN = document.getElementById('tixN'), tview = document.getElementById('tview'), tvCv = document.getElementById('tvCv'), tvCount = document.getElementById('tvCount');
   try { TicketArt.toCanvas(document.getElementById('tixIco'), 30, false); const c = TicketArt.toCanvas(document.createElement('canvas'), 80, false); document.documentElement.style.setProperty('--tkimg', 'url(' + c.toDataURL() + ')'); } catch (e) {}
-  const showTix = () => { tixN.textContent = String(T.total); if (P.mode === 'walk') refresh(); else demoRefresh(); tixEl.classList.toggle('ingame', P.mode === 'game'); document.body.classList.toggle('ingame', P.mode === 'game'); try { showVix(); } catch (e) {} };
+  const showTix = () => { tixN.textContent = String(T.total); if (P.mode === 'walk') refresh(); else demoRefresh(); tixEl.classList.toggle('ingame', P.mode === 'game'); document.body.classList.toggle('ingame', P.mode === 'game'); try { showVix(); } catch (e) {} try { window.__upLayout && window.__upLayout(); } catch (e) {} };
   // ---- enlarged ticket view: tap/click the HUD counter; tap, click, Esc or ✕ closes. Pauses the arcade / game while open ----
   const TV = { open: false, opens: 0, heldGame: false, heldArcade: false };
   function openView(kind) {
@@ -298,6 +298,32 @@ export function setupPlay(A) {
   try { V.total = Math.max(0, parseInt(localStorage.getItem(VKEY), 10) || 0); } catch (e) {}
   const showVix = () => { vixN.textContent = String(V.total); vixEl.style.display = V.total > 0 ? '' : 'none'; vixEl.classList.toggle('ingame', P.mode === 'game'); try { const r = tixEl.getBoundingClientRect(); if (r.width) { vixEl.style.left = (r.right + 6) + 'px'; vixEl.style.top = r.top + 'px'; vixEl.style.minWidth = r.width + 'px'; } } catch (e) {} };   // t796u: Viking chip sits directly to the right of the gold ticket (walk and cabinet)
   addEventListener('resize', () => setTimeout(showVix, 50));
+  // t808u: PHONE + upright cabinet: ticket chips (gold + Viking) centred at the top; close X directly under the game's left
+  // stats, the 3 option buttons (#ui) directly under its right stats, so nothing covers the game's HUD. iPad keeps its layout.
+  // Offsets are CSS px at a 390 px wide phone (scaled with the width); Strike reports its own HUD bottom (__gaHudPx).
+  const UP_HUD = { ghost: { x: 48, o: 52, t: 52 }, cyber: { x: 4, o: 4, t: 32 }, monkey: { x: 124, o: 136, t: 4 }, claw: { x: 4, o: 4, t: 4 }, strike: { x: 4, o: 4, t: 4 } };
+  const upEls = () => [document.getElementById('bExit'), tixEl, vixEl, document.getElementById('ui')];
+  let upOn = false;
+  function upLayout() {
+    const m = P.cur, on = P.mode === 'game' && !!(m && m.upright) && !window.__isIPad && document.body.classList.contains('upright') && innerHeight > innerWidth;
+    const [X, tk, vk, ui] = upEls();
+    if (!on) { if (upOn) { upOn = false; document.body.classList.remove('upPhone'); for (const e of [X, tk, ui]) if (e) { e.style.top = ''; e.style.left = ''; e.style.right = ''; } try { showVix(); } catch (e) {} } return; }
+    upOn = true; document.body.classList.add('upPhone');
+    const k = innerWidth / 390, c = UP_HUD[m.key] || { x: 4, o: 4, t: 4 }, safeT = 4;
+    let x = c.x * k, o = c.o * k, t = c.t * k;
+    try { const w = document.getElementById('game').contentWindow; if (w && typeof w.__gaHudPx === 'function') { const h = +w.__gaHudPx(); if (h > 0) { x = h + 4; o = h + 4; } } } catch (e) {}
+    x = Math.max(safeT, Math.round(x)); o = Math.max(safeT, Math.round(o)); t = Math.max(safeT, Math.round(t));
+    if (X) { X.style.top = x + 'px'; X.style.left = '4px'; }
+    if (ui) { ui.style.top = o + 'px'; ui.style.right = '4px'; }
+    if (tk) {
+      const tw = tk.getBoundingClientRect().width, vw = vk && vk.style.display !== 'none' ? vk.getBoundingClientRect().width : 0, gap = vw ? 6 : 0;
+      const left = Math.round((innerWidth - tw - gap - vw) / 2);
+      tk.style.top = t + 'px'; tk.style.left = left + 'px';
+      if (vw) { vk.style.top = t + 'px'; vk.style.left = (left + tw + gap) + 'px'; }
+    }
+  }
+  setInterval(upLayout, 200); addEventListener('resize', () => setTimeout(upLayout, 60));
+  window.__upLayout = upLayout;
   try { vikingArt(document.getElementById('vixIco'), 30); } catch (e) {}
   function vikingAward(game) {
     if (P.mode !== 'game' || P.sub !== 'play' || !P.frame || !P.cur || P.cur.key !== 'berserker' || (game && game !== 'berserker')) return false;

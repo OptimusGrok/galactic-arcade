@@ -3995,6 +3995,11 @@ window.TicketArt = (function () {
     p2: { x: +pl2.x.toFixed(2), y: +pl2.y.toFixed(2), score: G2.score, lives: G2.lives, shield: G2.shield, bombs: G2.bombs, alive: !!pl2.alive, weapon: G2.weapon, wlv: G2.wlv, beam: !!pl2.beamOn, plz: C.role === 'guest' ? (pl2.plz || []).length : (pl2.plasmaOn ? PLZ2.n : 0) }
   });
   C.endCoop = endCoop; C.endGuest = endGuest;
+  // t808u: bottom of the HUD in CSS px (frame coords) so the arcade can put its close X / buttons right under the stats
+  window.__gaHudPx = function () {
+    try { const cv = document.querySelector('canvas'), r = cv.getBoundingClientRect(); const coop = !(C.role === 'solo' && !C.p2on);
+      return r.top + (coop ? 42 : 33) * (r.width / W); } catch (e) { return 0; }
+  };
   C.killP1 = () => { const g = G.god; G.god = false; G.shield = 0; G.lives = 0; try { killPlayer('TEST'); } finally { G.god = g; } };
   C.killP2 = () => withP2(() => { const g = G.god; G.god = false; G.shield = 0; G.lives = 0; try { killPlayer('TEST'); } finally { G.god = g; } });
   C.shotCount = () => { let a = 0, b = 0; const A = pshots.items; for (let i = 0; i < A.length; i++) if (A[i].alive) { if (A[i].o) b++; else a++; } return { p1: a, p2: b }; };
