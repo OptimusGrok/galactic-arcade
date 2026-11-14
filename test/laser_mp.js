@@ -79,6 +79,31 @@ function serve() {
     return { muzzleY: +p.y.toFixed(3), feetY: +mk.position.y.toFixed(3) };
   });
 
+  // t815u: gun arm down at his side when not firing (presence sends must not raise it), on both screens
+  const armOf = (ph, pid) => ph.page.evaluate(pid => {
+    const A = window.__arcade, T = A.THREE, R = window.__roomFire;
+    const g = pid ? (window.__mp.peers.get(pid) || {}).g : A.monkey, p = pid ? window.__mp.peers.get(pid) : null; if (!g) return null;
+    g.updateMatrixWorld(true); const h = g.getObjectByName('handR'), v = new T.Vector3(), sv = new T.Vector3(); h.getWorldPosition(v); h.parent.parent.getWorldPosition(sv);
+    return { aim: pid ? +(p.gunAim || 0).toFixed(3) : +R.aim.toFixed(3), handBelowShoulder: +(sv.y - v.y).toFixed(3) };
+  }, pid);
+  await p1.page.waitForTimeout(1800);
+  const rest1 = await armOf(p1), rest2 = await armOf(p2, p1.id);
+  chk(rest1 && rest1.aim === 0 && rest1.handBelowShoulder > 0.25, 'arcade: not firing, the monkey’s gun hand hangs at his side (own screen)', rest1);
+  chk(rest2 && rest2.aim === 0 && rest2.handBelowShoulder > 0.25, 'arcade: not firing, the other player sees his gun hand at his side', rest2);
+  const up2p = p2.page.waitForFunction(pid => ((window.__mp.peers.get(pid) || {}).gunAim || 0) > 0.6, p1.id, { timeout: 8000, polling: 30 }).then(() => true).catch(() => false);
+  await p1.page.evaluate(() => { const R = window.__roomFire; R.cool = 0; R.fire({ k: 0 }); R.a0 = R.aim; });
+  const a0 = await p1.page.evaluate(() => window.__roomFire.a0);
+  await p1.page.waitForFunction(() => window.__roomFire.aim > 0.85, null, { timeout: 3000 }).catch(() => {});
+  const up1 = await armOf(p1);
+  const up2ok = await up2p;
+  const up2 = Object.assign(await armOf(p2, p1.id), await p2.page.evaluate(pid => { const p = window.__mp.peers.get(pid) || {}; return { zapRecv: window.__mp.zapRecv || 0, zapAgo: p.zapAt ? Math.round(performance.now() - p.zapAt) : null, remoteShots: window.__roomFire.remote }; }, p1.id), await p1.page.evaluate(() => ({ zapSent: window.__mp.zapSent || 0 })));
+  chk(a0 < 0.5 && up1.aim > 0.85 && up1.handBelowShoulder < rest1.handBelowShoulder - 0.2, 'arcade: firing raises the arm smoothly (not a snap) up to the aim', { atFire: a0, raised: up1 });
+  chk(up2ok, 'arcade: the other player sees his arm come up when he fires', up2);
+  await p1.page.waitForFunction(() => window.__roomFire.aim < 0.05, null, { timeout: 15000 }).catch(() => {});
+  await p2.page.waitForFunction(pid => ((window.__mp.peers.get(pid) || {}).gunAim || 0) < 0.1, p1.id, { timeout: 15000 }).catch(() => {});
+  const down1 = await armOf(p1), down2 = await armOf(p2, p1.id);
+  chk(down1.aim < 0.05 && down2.aim < 0.1, 'arcade: about 0.5 s after the shot the arm lowers again (both screens)', { down1, down2 });
+
   // Normal shot
   await p2.page.evaluate(() => { const R = window.__roomFire; R.r0 = R.remote; });
   await p1.page.evaluate(() => { const R = window.__roomFire; R.cool = 0; R.fire({ k: 0 }); });
@@ -105,10 +130,13 @@ function serve() {
   const ballOk = await p2.page.waitForFunction(() => {
     const S = window.__roomFire.remoteState && window.__roomFire.remoteState();
     return S && S.some(r => r.hasBall && r.k > 0.15 && !r.hasBeam);
-  }, null, { timeout: 8000 }).then(() => true).catch(() => false);
+  }, null, { timeout: 15000 }).then(() => true).catch(() => false);
   const ball = await p2.page.evaluate(() => (window.__roomFire.remoteState() || [])[0]);
   chk(ballOk && ball && ball.hasBall && ball.o && ball.o[1] > muzY.feetY + 0.5 && ball.h === 'cyan',
     'remote sees the charge ball at the monkey’s gun muzzle', { ball, muzY });
+  { const c1 = await armOf(p1), c2 = await armOf(p2, p1.id);
+    const mzNow = await p1.page.evaluate(() => { const A = window.__arcade, T = A.THREE, v = new T.Vector3(); A.monkey.updateMatrixWorld(true); A.monkey.getObjectByName('gaPistolMuzzle').getWorldPosition(v); const b = A.scene.getObjectByName('roomCharge'); return { d: b ? +v.distanceTo(b.position).toFixed(3) : null }; });
+    chk(c1.aim > 0.9 && c2.aim > 0.6 && mzNow.d != null && mzNow.d < 0.2, 'arcade: charging holds the arm up (both screens) and the charge ball sits on the raised muzzle', { c1, c2, mzNow }); }
 
   // 3 s beam: pump charge in case this headless pair is running well under 60 fps
   // (update() caps dt at 0.05, so a slow rAF would take many wall seconds to reach 4 s)
@@ -206,6 +234,10 @@ function serve() {
   const skyBallI = await p2.page.evaluate(() => document.getElementById('game').contentWindow.__skytower.rivals.remoteLaser());
   chk(skyBall && skyBallI.peers.some(p => p.hasBall && p.ballY != null && (skyMuz.feetY == null || p.ballY > skyMuz.feetY + 0.4)),
     'Sky Tower rival sees the charge ball at the gun muzzle', { skyBallI, skyMuz });
+  await p2.page.waitForTimeout(400);
+  const skyArm = await p2.page.evaluate(() => document.getElementById('game').contentWindow.__skytower.rivals.remoteLaser().peers.map(p => p.gunAim));
+  const skyOwn = await p1.page.evaluate(() => +document.getElementById('game').contentWindow.__skytower.G.gunAim.toFixed(3));
+  chk(skyArm.some(v => v > 0.6) && skyOwn > 0.9, 'Sky Tower: charging raises the gun arm (own screen and as the rival sees him)', { skyArm, skyOwn });
 
   const skyBeam = await p2.page.waitForFunction(() => {
     const S = document.getElementById('game').contentWindow.__skytower;
@@ -215,6 +247,11 @@ function serve() {
   const skyBeamI = await p2.page.evaluate(() => document.getElementById('game').contentWindow.__skytower.rivals.remoteLaser());
   chk(skyBeam && skyBeamI.peers.some(p => p.hasBeam), 'Sky Tower rival sees the 3 s charged beam', skyBeamI);
   await p1.page.evaluate(() => { const S = document.getElementById('game').contentWindow.__skytower; S.setFire(false); });
+  await p1.page.waitForFunction(() => { const G = document.getElementById('game').contentWindow.__skytower.G; return !G.beam && G.gunAim < 0.05; }, null, { timeout: 15000 }).catch(() => {});   // the beam runs out (3 s), then ~0.5 s and the arm lowers
+  await p2.page.waitForFunction(() => document.getElementById('game').contentWindow.__skytower.rivals.remoteLaser().peers.every(p => p.gunAim < 0.1), null, { timeout: 8000 }).catch(() => {});
+  const skyArm2 = await p2.page.evaluate(() => document.getElementById('game').contentWindow.__skytower.rivals.remoteLaser().peers.map(p => p.gunAim));
+  const skyOwn2 = await p1.page.evaluate(() => { const G = document.getElementById('game').contentWindow.__skytower.G; return { aim: +G.gunAim.toFixed(3), beam: !!G.beam }; });
+  chk(skyArm2.every(v => v < 0.1) && skyOwn2.aim < 0.05, 'Sky Tower: after firing the gun arm lowers to his side again (own screen and rival view)', { skyArm2, skyOwn2 });
 
   const errs = p1.errors.concat(p2.errors).filter(e => !/ERR_FAILED|Aborted/.test(e));
   chk(errs.length === 0, 'no page errors', errs.slice(0, 4));

@@ -10,7 +10,7 @@
 // is on. Multiplayer: own shots go out as a 'zap' broadcast (mp.js), remote ones draw here.
 (function () {
   'use strict';
-  var COOL = 0.28, AIM_T = 0.35, SPEED = 24, LIFE = 0.46, FADE = 0.16, ZAP_GAP = 0.1, MAX = 14, CHARGE_T = 4, BEAM_T = 3, BEAM_LEN = 28;
+  var COOL = 0.28, AIM_T = 0.5, RAISE_RATE = 16, LOWER_RATE = 7, SPEED = 24, LIFE = 0.46, FADE = 0.16, ZAP_GAP = 0.1, MAX = 14, CHARGE_T = 4, BEAM_T = 3, BEAM_LEN = 28;
   var REST = { shx: -0.12, shy: 0.04, shz: 0.26, elx: 0.22, elz: 0.06, gx: 0.78, gy: 0 }, AIMP = { shx: -1.40, shy: 0, shz: 0.20, elx: -0.08, elz: 0, gx: 1.48, gy: -0.25 };
   var RF = window.__roomFire = { shots: 0, remote: 0, zaps: 0, zapCyan: 0, zapRed: 0, zapMuted: 0, held: false, cool: 0, aim: 0, aimT: 0, flash: 0, lasers: [], shown: false, last: null,
     charge: 0, chargeSpent: false, beam: null, beamT: 0, CHARGE_T: CHARGE_T, BEAM_T: BEAM_T,
@@ -58,10 +58,14 @@
   function muzzlePos() {
     var a = A(); if (!a || !a.monkey) return null; var T = a.THREE, mk = a.monkey, u = mk.userData || {}, p = new T.Vector3();
     // t793u/t794u: aim the monkey's pistol first so the charge ball / bolts / beam come from the gun, not the walk pose (his feet). Alien origin is unchanged.
-    if (u.char !== 'alien') { RF.aim = 1; RF.aimT = Math.max(RF.aimT || 0, AIM_T); pose(u, 1); }
+    // t815u: read it with the arm in the aim pose, then put the arm back, so asking where the muzzle is (every presence send)
+    // no longer forces the arm up; the arm itself rises smoothly in update() only while firing / charging
+    var sv = u.char !== 'alien' ? saveArm(u) : null;
+    if (sv) pose(u, 1);
     mk.updateMatrixWorld(true);
     if (u.char === 'alien') { var eye = mk.getObjectByName('botEye') || u.bot; if (eye) eye.getWorldPosition(p); else p.set(mk.position.x, mk.position.y + 1.6, mk.position.z); }
     else { var mz = mk.getObjectByName('gaPistolMuzzle'); if (mz) mz.getWorldPosition(p); else p.set(mk.position.x, mk.position.y + 1.1, mk.position.z); }
+    if (sv) { restoreArm(u, sv); mk.updateMatrixWorld(true); }
     return p;
   }
   function updateChargeBall(k) {
@@ -179,7 +183,7 @@
     g.children.forEach(function (m) { m.rotation.x = Math.PI / 2; m.position.z = BEAM_LEN / 2; m.renderOrder = 5; });
     a.scene.add(g); RF.beam = { mesh: g, cols: col, energy: addBeamEnergy(T, g, BEAM_LEN, col) }; RF.beamT = BEAM_T; hideChargeBall(); setChg(1);
     stopChargeSnd();
-    RF.aimT = AIM_T; RF.aim = 1; if (col.char !== 'alien') { pose((a.monkey.userData || {}), 1); placeBeam(); } else RF.flash = 0.2;
+    RF.aimT = AIM_T; if (col.char !== 'alien') placeBeam(); else RF.flash = 0.2;
     zap(col.char === 'alien' ? 'red' : 'cyan');
   }
   function placeBeam() {
@@ -189,6 +193,7 @@
   function endBeam() { if (!RF.beam) return; if (RF.beam.mesh.parent) RF.beam.mesh.parent.remove(RF.beam.mesh); RF.beam = null; RF.beamT = 0; setChg(0); }
   function faceDir() { var a = A(), f = a && a.st ? a.st.face : (a && a.monkey ? a.monkey.rotation.y : 0); return [Math.sin(f), 0.02, Math.cos(f)]; }
   function laserSnap() {
+    if (!RF.beam && !(RF.held && RF.charge > 0.02 && !RF.chargeSpent)) return;   // t815u: nothing to show: do not touch the arm
     var p = muzzlePos(); if (!p) return;
     var a = A(), u = a && a.monkey && a.monkey.userData || {}, h = u.char === 'alien' ? 'red' : 'cyan';
     var o = [+p.x.toFixed(3), +p.y.toFixed(3), +p.z.toFixed(3)], d = faceDir();
@@ -254,19 +259,26 @@
     var T = a.THREE, mk = a.monkey, u = mk.userData || {}, alien = u.char === 'alien', f = a.st ? a.st.face : mk.rotation.y, d = [Math.sin(f), 0.02, Math.cos(f)], p = new T.Vector3(), hue;
     if (window.__neonPlayer && window.__neonPlayer.idle) window.__neonPlayer.idle.t = 0;   // shooting is not standing idle: no pockets / phone
     if (alien) { hue = 'red'; RF.flash = 0.16; if (u.bot) { u.bot.rotation.set(-0.18, 0, 0); } mk.updateMatrixWorld(true); var eye = mk.getObjectByName('botEye') || u.bot; if (eye) eye.getWorldPosition(p); else p.set(mk.position.x, mk.position.y + 1.6, mk.position.z); }
-    else { hue = 'cyan'; RF.aimT = AIM_T; RF.aim = 1; pose(u, 1); mk.updateMatrixWorld(true); var mz = mk.getObjectByName('gaPistolMuzzle'); if (mz) mz.getWorldPosition(p); else p.set(mk.position.x, mk.position.y + 1.1, mk.position.z); }
+    else { hue = 'cyan'; RF.aimT = AIM_T; var mp0 = muzzlePos(); if (mp0) p.copy(mp0); else p.set(mk.position.x, mk.position.y + 1.1, mk.position.z); }   // t815u: bolt from the aimed muzzle; the arm swings up to it
     p.x += d[0] * (alien ? 0.1 : 0.04); p.z += d[2] * (alien ? 0.1 : 0.04);
     var o = [p.x, p.y, p.z], k = Math.max(0, Math.min(0.999, opts.k || 0)), L = spawn(o, d, hue, false, k); RF.shots++; RF.last = { o: o, d: d, hue: hue, char: alien ? 'alien' : 'monkey', t: performance.now(), k: k }; zap(hue);
     try { if (window.__mp && window.__mp.zap) window.__mp.zap(o, d, hue, k); } catch (e) {}
     return L; }
   var L_ = function (x, y, k) { return x + (y - x) * k; };
-  function pose(u, k) { var arm = u.arms && u.arms[1]; if (!arm) return; var pg = arm.hand && arm.hand.getObjectByName('gaPistol'); if (!pg) return; k = Math.max(0, Math.min(1, k));
-    var idle = window.__neonPlayer && window.__neonPlayer.idle, w = idle ? Math.min(1, idle.wP || 0) : 0, sh = arm.sh, el = arm.el;
+  function saveArm(u) { var arm = u.arms && u.arms[1]; if (!arm) return null; var pg = arm.hand && arm.hand.getObjectByName('gaPistol'), sh = arm.sh.rotation, el = arm.el.rotation;
+    return { s: [sh.x, sh.y, sh.z], e: [el.x, el.y, el.z], g: pg ? [pg.rotation.x, pg.rotation.y] : null, hs: arm.hand.scale.clone(), hv: arm.hand.visible, hr: arm.hand.rotation.x }; }
+  function restoreArm(u, v) { var arm = u.arms[1], pg = arm.hand && arm.hand.getObjectByName('gaPistol');
+    arm.sh.rotation.set(v.s[0], v.s[1], v.s[2]); arm.el.rotation.set(v.e[0], v.e[1], v.e[2]); if (pg && v.g) { pg.rotation.x = v.g[0]; pg.rotation.y = v.g[1]; }
+    arm.hand.scale.copy(v.hs); arm.hand.visible = v.hv; arm.hand.rotation.x = v.hr; }
+  function pose(u, k, remote) { var arm = u.arms && u.arms[1]; if (!arm) return; var pg = arm.hand && arm.hand.getObjectByName('gaPistol'); if (!pg) return; k = Math.max(0, Math.min(1, k));
+    var idle = !remote && window.__neonPlayer && window.__neonPlayer.idle, w = idle ? Math.min(1, idle.wP || 0) : 0, sh = arm.sh, el = arm.el;
     // base = the walk swing (or the relaxed rest when he would put his hand in his pocket); then raise toward the aim pose
     var bx = L_(sh.rotation.x, REST.shx, w), by = L_(sh.rotation.y, REST.shy, w), bz = L_(sh.rotation.z, REST.shz, w), ex = L_(el.rotation.x, REST.elx, w), ez = L_(el.rotation.z, REST.elz, w);
     sh.rotation.x = L_(bx, AIMP.shx, k); sh.rotation.y = L_(by, AIMP.shy, k); sh.rotation.z = L_(bz, AIMP.shz, k); el.rotation.x = L_(ex, AIMP.elx, k); el.rotation.z = L_(ez, AIMP.elz, k);
     pg.rotation.x = L_(REST.gx, AIMP.gx, k); pg.rotation.y = L_(REST.gy, AIMP.gy, k);
-    arm.hand.visible = true; arm.hand.scale.set(0.8, 1.05, 1); arm.hand.rotation.x = 0; if (u.phone) u.phone.visible = false; }   // the pistol hand never goes in the pocket / holds the phone
+    arm.hand.visible = true; arm.hand.scale.set(0.8, 1.05, 1); arm.hand.rotation.x = 0; if (u.phone) u.phone.visible = false; }
+  // t815u: smooth raise / lower toward want (0 = hand down at his side, 1 = aimed)
+  function easeAim(cur, want, dt) { return cur + (want - cur) * (1 - Math.exp(-(want > cur ? RAISE_RATE : LOWER_RATE) * Math.max(0, dt))); }   // the pistol hand never goes in the pocket / holds the phone
   function update(dt) { var a = A(); if (!a || !a.monkey) return; RF.t = (RF.t || 0) + dt; var show = canShow();
     if (show !== RF.shown) { RF.shown = show; btn.classList.toggle('on', show); if (!show) { RF.held = false; btn.classList.remove('held'); stopChargeSnd(); } }
     if (RF.cool > 0) RF.cool -= dt;
@@ -276,7 +288,7 @@
       if (RF.held || RF.beam) RF.aimT = Math.max(RF.aimT || 0, AIM_T);
       if (RF.aimT > 0) RF.aimT = Math.max(0, RF.aimT - dt);
       var want = (RF.held || RF.aimT > 0 || RF.beam) ? 1 : 0;
-      if (want) RF.aim = 1; else RF.aim += (0 - RF.aim) * (1 - Math.exp(-7 * dt));
+      RF.aim = easeAim(RF.aim, want, dt); if (RF.aim < 0.002) RF.aim = 0;
       pose(u, RF.aim);
     } else RF.aim = 0;
     if (RF.beam) { RF.beamT -= dt; placeBeam(); tickBeamEnergy(RF.beam, dt); if (RF.beamT <= 0) endBeam(); }
@@ -287,5 +299,16 @@
     tickRemotes(dt); }
   addEventListener('keydown', function (e) { if (e.code === 'KeyL' && !e.repeat && RF.shown && !(e.target && /INPUT|TEXTAREA/.test(e.target.tagName))) setHeld(true); });
   addEventListener('keyup', function (e) { if (e.code === 'KeyL') setHeld(false); });
+  // t815u: other players' monkeys (mp.js) raise the pistol while they fire / charge and lower it ~0.5 s later
+  RF.poseRemote = function (u, p, dt, now) {
+    if (!u || u.char === 'alien' || !u.arms || !u.arms[1]) return;
+    var arm = u.arms[1], pg = arm.hand && arm.hand.getObjectByName('gaPistol'); if (!pg || !pg.visible) return;
+    arm.sh.rotation.y = 0; arm.sh.rotation.z = 0; arm.el.rotation.x = 0; arm.el.rotation.z = 0;   // neutral base each frame (mp.js only drives the swing)
+    // a shot always gets a full raise, then the ~0.5 s hold starts (slow / throttled frames cannot skip the raise)
+    var lz = p.lz, act = p.zapPend || (lz && (lz.b > 0 || lz.k > 0.02)) || (now - (p.zapAt || -1e9) < AIM_T * 1000);
+    p.gunAim = easeAim(p.gunAim || 0, act ? 1 : 0, dt); if (p.gunAim < 0.002) p.gunAim = 0;
+    if (p.zapPend && p.gunAim > 0.95) { p.zapPend = false; p.zapAt = now; }
+    pose(u, p.gunAim, true); return p.gunAim; };
+  RF.muzzlePos = muzzlePos;
   RF.laserSnap = laserSnap; RF.syncPeer = syncPeer; RF.clearPeer = clearPeer; RF.remoteState = remoteState;
 })();

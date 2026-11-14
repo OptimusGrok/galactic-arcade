@@ -546,7 +546,7 @@ const G = {
 };
 
 const TK = { got: 0, run: 0, fly: 0, log: [], awarded: Object.create(null) };
-const rivals = createRivals({ scene, makeMonkey, makeAlien, player, G, N, banner: t => showBanner(t), live: liveExtra, muzzle: () => muzzlePos(), playerCols });
+const rivals = createRivals({ scene, makeMonkey, makeAlien, player, G, N, banner: t => showBanner(t), live: liveExtra, muzzle: () => muzzlePos(), playerCols, poseGun: (u, k) => poseMonkeyGun(k, u), aimTime: () => GUN_AIM_TIME, rates: () => [GUN_RAISE_RATE, GUN_LOWER_RATE] });
 // t754u: what a watcher's cabinet screen in the room needs to draw this climb live (small; pads only every few packets)
 const r2l = v => Math.round(v * 100) / 100;
 function liveExtra(withPads) {
@@ -999,12 +999,15 @@ function playerCols() {
 function muzzlePos() {
   const u = player.userData, o = new V3(), dir = new V3(Math.sin(G.face), 0.02, Math.cos(G.face));
   // t793u/t794u: aim the monkey's gun first so the charge / bolts / beam come from the muzzle, not the walk pose (his feet). Do not change the alien's eye origin.
-  if (u.char !== 'alien' && u.gun) { G.gunAim = 1; G.gunAimT = Math.max(G.gunAimT || 0, GUN_AIM_TIME); poseMonkeyGun(1); }
+  // t815u: measure at the aim pose, then put the arm back; the arm itself rises smoothly in animatePlayer only while firing / charging
+  const sv = u.char !== 'alien' && u.gun ? saveGunArm(u) : null;
+  if (sv) poseMonkeyGun(1);
   player.updateMatrixWorld(true);
   if (u.char === 'alien' && u.botEye) { u.botEye.getWorldPosition(o); o.addScaledVector(dir, 0.1); }
   else if (u.muzzle) { u.muzzle.getWorldPosition(o); o.addScaledVector(dir, 0.04); }
   else if (u.gun) u.gun.getWorldPosition(o);
   else o.set(player.position.x, player.position.y + 1.2, player.position.z);
+  if (sv) { restoreGunArm(u, sv); player.updateMatrixWorld(true); }
   return { o, dir };
 }
 function setChg(k) { try { bFire.style.setProperty('--chg', (Math.max(0, Math.min(1, k)) * 100).toFixed(1)); } catch (e) {} }
@@ -1058,7 +1061,7 @@ function startChargeBeam() {
   [c, gl].forEach(m => { m.rotation.x = Math.PI / 2; m.position.z = CHARGE_BEAM_LEN / 2; m.renderOrder = 5; g.add(m); });
   scene.add(g); G.beam = { mesh: g, cols: col, lastHit: -1, energy: addBeamEnergy(g, CHARGE_BEAM_LEN, col) }; G.beamT = BEAM_T; hideChargeBall(); setChg(1);
   if (window.__skySnd && window.__skySnd.chargeStop) window.__skySnd.chargeStop();
-  if (player.userData.char === 'monkey') { G.gunAimT = GUN_AIM_TIME; G.gunAim = 1; poseMonkeyGun(1); }
+  if (player.userData.char === 'monkey') { G.gunAimT = GUN_AIM_TIME; }
   else { G.orbFlash = 0.2; }
   placeChargeBeam();   // t793u: same frame as spawn, otherwise the beam sits at the world origin (the monkey's feet)
   if (window.__skySnd) window.__skySnd.zap(col.char === 'alien' ? 'red' : 'cyan');
@@ -1099,11 +1102,7 @@ function fire(opts) {
   G.cooldown = 0.28;
   if (!opts.fromRelease) G.chargeSpent = true;
   const uPre = player.userData;
-  if (uPre.char === 'monkey') {
-    G.gunAimT = GUN_AIM_TIME;
-    G.gunAim = 1;
-    poseMonkeyGun(1);
-  }
+  if (uPre.char === 'monkey') G.gunAimT = GUN_AIM_TIME;   // t815u: the arm swings up (smoothly); the bolt leaves from the aimed muzzle
   const { o, dir } = muzzlePos();
   const u = player.userData;
   let mat = laserMat, hue = 'cyan';
@@ -1361,10 +1360,13 @@ function applyWind(dt) {
 
 const GUN_REST = { shx: -0.12, shy: 0.04, shz: 0.26, elx: 0.22, elz: 0.06, gx: 0.78, gy: 0 };
 const GUN_AIM = { shx: -1.40, shy: 0, shz: 0.20, elx: -0.08, elz: 0, gx: 1.48, gy: -0.25 };
-const GUN_AIM_TIME = 0.35;
+const GUN_AIM_TIME = 0.5;   // t815u: arm lowers ~0.5 s after the last shot
+const GUN_RAISE_RATE = 16, GUN_LOWER_RATE = 7;
+function saveGunArm(u) { const sh = u.arms[1].sh.rotation, el = u.arms[1].el.rotation; return [sh.x, sh.y, sh.z, el.x, el.y, el.z, u.gun.rotation.x, u.gun.rotation.y]; }
+function restoreGunArm(u, v) { u.arms[1].sh.rotation.set(v[0], v[1], v[2]); u.arms[1].el.rotation.set(v[3], v[4], v[5]); u.gun.rotation.x = v[6]; u.gun.rotation.y = v[7]; }
 function lerpNum(a, b, t) { return a + (b - a) * t; }
-function poseMonkeyGun(k) {
-  const u = player.userData;
+function poseMonkeyGun(k, uu) {
+  const u = uu || player.userData;
   if (!u || u.char !== 'monkey' || !u.gun || !u.arms || !u.arms[1]) return;
   k = Math.max(0, Math.min(1, k));
   const sh = u.arms[1].sh, el = u.arms[1].el;
@@ -1407,8 +1409,8 @@ function animatePlayer(dt) {
   }
   if (u.char === 'monkey' && u.gun) {
     if (G.gunAimT > 0) G.gunAimT = Math.max(0, G.gunAimT - dt);
-    const want = (G.fireHeld || G.gunAimT > 0) ? 1 : 0;
-    const rate = want ? 10 : 7;
+    const want = (G.fireHeld || G.gunAimT > 0 || G.beam) ? 1 : 0;
+    const rate = want > G.gunAim ? GUN_RAISE_RATE : GUN_LOWER_RATE;
     G.gunAim += (want - G.gunAim) * (1 - Math.exp(-rate * Math.max(0, dt)));
     poseMonkeyGun(G.gunAim);
   } else if (u.gun) {
