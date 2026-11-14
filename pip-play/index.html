@@ -2834,7 +2834,8 @@ A.newGame = function () { if (!RUN) return; _new.call(A); }; A.continueGame = fu
 A.startLevel = function (i, ck) { if (!RUN && !D.on) return; _lvl.call(A, i, ck); };
 A.toMap = function (sel) { if (OVER || D.on || !RUN) return; _map.call(A, sel); };
 A.saveGame = function () { if (D.on) return; _save.call(A); };
-A.afterDeath = function (i, ck) { if (D.on) { A.game.lives = 99; _lvl.call(A, i, ck); return; } _dead.call(A, i, ck); if (A.scene && A.scene.kind === 'gameover') { OVER = true; RUN = false; } };
+var lastDead = { i: 0, ck: false };
+A.afterDeath = function (i, ck) { lastDead = { i: i, ck: !!ck }; if (D.on) { A.game.lives = 99; _lvl.call(A, i, ck); return; } _dead.call(A, i, ck); if (A.scene && A.scene.kind === 'gameover') { OVER = true; RUN = false; } };
 A.levelCleared = function (i) { if (D.on) { A.scene.state = 'done'; D.restart(); return; } if (RUN && !TK.paid[i]) { TK.paid[i] = 1; give(TK.per(i), 'L' + (i + 1)); } _clr.call(A, i); };
 A.step = function () { if (HOLD) return; if (D.on) { if (++D.t > 60 * 50 || !A.scene || A.scene.kind !== 'level') D.restart(); } _step.call(A); };
 // demo autopilot: run right, hold RUN, jump at walls / gaps / every so often
@@ -2851,6 +2852,20 @@ window.__pip = { TK: TK, D: D, App: A, give: give,
   scene: function () { return OVER ? 'over' : RUN || D.on ? 'play' : 'title'; }, active: function () { return RUN && !!A.scene && A.scene.kind === 'level' && !A.paused; },
   get run() { return RUN; }, get over() { return OVER; }, get silent() { return quiet(); },
   hold: function () { if (!RUN || OVER) return false; HOLD = true; try { SND.stop(); } catch (e) {} return true; }, unhold: function () { HOLD = false; }, get held() { return HOLD; } };
+window.__gaContinue = {
+  can: function () { return !D.on && !window.__DEMO && (OVER || (A.scene && A.scene.kind === 'gameover')); },
+  force: function () { try { if (!A.scene || A.scene.kind === 'map') _lvl.call(A, A.game.at || 0, false); lastDead = { i: A.game.at || 0, ck: false }; A.game.lives = 0; _dead.call(A, lastDead.i, false); if (A.scene && A.scene.kind === 'gameover') { OVER = true; RUN = false; } return this.can(); } catch (e) { return false; } },
+  mark: function () { A.game.score = 12345; A.game.coins = 9; return this.snap(); },
+  go: function () {
+    if (!this.can()) return false;
+    var keep = { score: A.game.score, coins: A.game.coins, at: lastDead.i, ck: lastDead.ck };
+    OVER = false; RUN = true; A.paused = false; A.game.lives = 1;
+    _lvl.call(A, keep.at, keep.ck);
+    A.game.score = keep.score; A.game.coins = keep.coins;
+    return !!(A.scene && A.scene.kind === 'level');
+  },
+  snap: function () { return { score: A.game.score, at: A.game.at, lives: A.game.lives, coins: A.game.coins, kind: A.scene && A.scene.kind }; }
+};
 })();
 
 

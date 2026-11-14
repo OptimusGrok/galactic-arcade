@@ -55,3 +55,21 @@ setInterval(__pilot, 100);
 __D.start = function () { __D.on = true; window.__DEMO = true; __D.runs++; __bzMute(true); try { tmStop(); stopTV(); } catch (e) {} ov(null); newRun(); };
 __D.stop = function () { __D.on = false; window.__DEMO = false; J.x = J.y = 0; };
 window.__bz = { start() { __D.stop(); __bzMute(false); try { initAudio(); if (AC && AC.state != 'running') AC.resume(); } catch (e) {} ov(null); newRun(); }, TK };
+
+window.__gaContinue = {
+  can() { try { return !window.__DEMO && G.state === 'dead'; } catch (e) { return false; } },
+  force() { try { if (G.state === 'win') return false; G.conts = 0; P.lives = 0; G.state = 'dead'; try { showUI(false); music(false); ov('dead'); } catch (e) {} return G.state === 'dead'; } catch (e) { return false; } },
+  mark() { P.kills = 42; P.gold = 77; return this.snap(); },
+  go() {
+    if (!this.can()) return false;
+    try {
+      if (G.snap) { const v = JSON.parse(G.snap); SNK.forEach((k, i) => { P[k] = v[i]; }); }
+      P.lives = 5; P.hp = P.max; P.rage = 0; P.rgFade = 0; P.energy = 0;
+      G.rgT = 0; G.rgReady = 0; G.odT = 0; G.odReady = 0; G.odS = 0; ravens.length = 0; P.inv = 2.2;
+      ov(null); showUI(true); try { music(true); } catch (e) {}
+      startStage(G.stage, 1);
+      return G.state === 'play' || G.state === 'intro' || G.state === 'warp';
+    } catch (e) { return false; }
+  },
+  snap() { try { return { kills: P.kills, gold: P.gold, lvl: P.lvl, stage: G.stage, lives: P.lives, state: G.state, time: P.time }; } catch (e) { return {}; } }
+};

@@ -9,3 +9,11 @@ var _decP = decidePlayer; decidePlayer = function (e) {
 __D.start = function () { __D.on = true; window.__DEMO = true; __D.runs++; __D.hi = G.hi; startGame(); };
 __D.stop = function () { __D.on = false; window.__DEMO = false; if (__D.hi != null) G.hi = __D.hi; P.want = -1; };
 var _upd2 = update; update = function (dt) { _upd2(dt); if (__D.on && G.state === 'over') { __D.restarts++; G.hi = __D.hi; startGame(); } };
+
+window.__gaContinue = {
+  can() { return !window.__DEMO && G.state === 'over'; },
+  force() { if (G.state === 'over') return true; gameOver(); return G.state === 'over'; },
+  mark() { G.score = 12345; G.dots = Math.max(G.dots, 12); return this.snap(); },
+  go() { if (!this.can()) return false; G.lives = 1; G.overT = 0; respawn(); return G.state === 'play'; },
+  snap() { return { score: G.score, lives: G.lives, state: G.state, dots: G.dots, camX: G.camX, camY: G.camY }; }
+};

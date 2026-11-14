@@ -35,3 +35,11 @@ window.__blaster={TK:TK,D:D,S:S,K:K,pilot:pilot,step:function(n){for(var i=0;i<(
  start:function(){D.stop();userSnd=localStorage.getItem('arcade_blaster_snd')!=='0';quiet(false);TK.run=0;S.hi=+(localStorage.getItem('arcade_blaster_hi')||0);CREDIT=true;start();},
  scene:function(){return S.mode==='over'?'over':S.mode==='title'?'title':'play';},
  hold:function(){if(S.mode==='title'||S.mode==='over')return false;HOLD=true;return true;},unhold:function(){HOLD=false;},get held(){return HOLD;}};
+window.__gaContinue={
+  can:function(){return !D.on&&!window.__DEMO&&S.mode==='over';},
+  force:function(){if(S.mode==='over')return true;S.lives=0;S.mode='over';S.msgT=9999;return S.mode==='over';},
+  mark:function(){S.score=12345;S.level=3;return this.snap();},
+  go:function(){if(!this.can())return false;S.lives=1;try{newShip();}catch(e){}S.mode='play';S.msgT=0;return S.mode==='play';},
+  snap:function(){return {score:S.score,level:S.level,lives:S.lives,mode:S.mode};}
+};
+
