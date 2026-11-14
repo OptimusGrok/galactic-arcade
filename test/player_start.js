@@ -4,7 +4,7 @@ const { open } = require('./lib');
 const { execSync } = require('child_process');
 const OUT = '/workspace/galactic-shop/shots/';
 (async () => {
-  let o; for (let i = 0; ; i++) { try { o = await open({ phone: true, start: true, w: 412, h: 915 }); break; } catch (e) { if (i >= 3) throw e; console.log('retry open (slow box): ' + e.message.split('\n')[0]); } } const { page, errors } = o;
+  let o; for (let i = 0; ; i++) { try { o = await open({ phone: true, start: true, w: 844, h: 390 }); break; } catch (e) { if (i >= 3) throw e; console.log('retry open (slow box): ' + e.message.split('\n')[0]); } } const { page, errors } = o;
   let ok = true; const chk = (c, m, x) => { console.log((c ? 'PASS ' : 'FAIL ') + m + (x !== undefined ? ' ' + JSON.stringify(x) : '')); if (!c) ok = false; };
   page.on('crash', () => console.log('PAGE CRASHED')); page.on('close', () => console.log('PAGE CLOSED'));
   const cdp = await page.context().newCDPSession(page);
@@ -38,9 +38,14 @@ const OUT = '/workspace/galactic-shop/shots/';
     return { p: window.__gaPlayer.p, cols, cap: cap.visible, crown: h.crown.visible, helmet: h.helmet.visible, tag: window.__gaPlayer.tag && window.__gaPlayer.tag.visible }; });
   let L = await look();
   chk(L.p.hat === 'crown' && L.crown && !L.cap && L.cols['1d2452'] === 'd42a2a' && L.cols['4e2a14'] === 'b7862a' && L.cols['8a1e2c'] === '1f4fbf' && L.tag, 'crown/red hoodie/gold fur/blue shoes on the real monkey + name tag', L);
-  await tap('#gaGo'); await page.waitForFunction(() => window.__start.dismissed, null, { timeout: 10000 }).catch(() => {}); await page.waitForTimeout(1200); a = await st();   // PLAY beams the monkey out first (~1.7 s)
+  await tap('#gaGo'); await page.waitForFunction(() => window.__start.dismissed, null, { timeout: 10000 }).catch(() => {});
+  // v210: phones show the turn-sideways screen while upright in the room; wait out the entry beam, then play in landscape
+  await page.waitForFunction(() => { const A = window.__arcade, tp = window.__tp; return A && A.st && A.st.beamed && !(tp && tp.locked); }, null, { timeout: 15000 }).catch(() => {});
+  await page.setViewportSize({ width: 844, height: 390 }); await page.waitForTimeout(400);
+  a = await st();
   chk(a.dis, 'PLAY starts the game through their START', a.dis);
-  const q0 = a.pos; await page.keyboard.down('KeyW'); for (let i = 0; i < 40; i++) await page.evaluate(() => window.__arcade.step && window.__arcade.step(1 / 30)); await page.waitForTimeout(800); await page.keyboard.up('KeyW');
+  const q0 = a.pos;
+  await page.evaluate(() => { const A = window.__arcade; A.keys.KeyW = true; for (let i = 0; i < 90; i++) A.step(1 / 60); A.keys.KeyW = false; });
   a = await st(); chk(Math.hypot(a.pos[0] - q0[0], a.pos[1] - q0[1]) > 0.3, 'the monkey moves after starting', [q0, a.pos]);
   await page.evaluate(() => { const A = window.__arcade; A.st.yaw = A.st.face + Math.PI; A.st.dist = 3.2; A.st.pitch = 0.2; });
   await page.waitForTimeout(2500); if (!process.env.NOSHOTS) await page.screenshot({ path: OUT + 'start_ingame.png' });
