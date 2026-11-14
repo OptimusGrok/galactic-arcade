@@ -56,7 +56,7 @@ let ok = true; const chk = (c, m, x) => { console.log((c ? 'PASS ' : 'FAIL ') + 
   chk(play.frame[0] === 0 && play.frame[1] === 0 && play.frame[2] === W && play.frame[3] === H && play.inner[0] === W && play.inner[1] === H, 'game frame is the full portrait screen', play);
   chk(!play.rot && !play.rootRot, 'nothing is rotated (the game is upright, not sideways)', { rot: play.rot, rootRot: play.rootRot });
   chk(play.wfill >= 0.95 && play.fill >= 0.4, 'the game picture fills the portrait screen', { fill: play.fill, wfill: play.wfill });
-  chk(play.X[0] <= 6 && play.X[1] <= 6 && play.X[2] >= 36 && play.gaTop === 46, 'close X tight top-left', { X: play.X, gaTop: play.gaTop });
+  chk(play.X[0] <= 6 && play.X[1] <= 140 && play.X[2] >= 36 && play.gaTop === 46, 'close X on the left, under the game stats (t808u phone layout)', { X: play.X, gaTop: play.gaTop });
 
   const tix = await page.evaluate(() => {
     const t0 = window.__arcade.play.tickets.total;

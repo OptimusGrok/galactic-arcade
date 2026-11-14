@@ -1204,7 +1204,9 @@ function toggleFs() { const d = document; if (!d.fullscreenElement) d.documentEl
 function updateTurn() {
   const el = document.getElementById('turnHint'); if (!el) return;
   const portrait = MOBILE && innerHeight > innerWidth * 1.08;
-  el.classList.toggle('on', portrait && !IPAD && !document.body.classList.contains('upright'));   // t767u: never on iPad   // t765u: no 'turn sideways' over an upright (portrait) game
+  const watching = !!document.querySelector('#gvWatchOv.on');   // Grok's full-screen WATCH fills either orientation
+  el.classList.toggle('on', portrait && !IPAD && !document.body.classList.contains('upright') && !watching);   // t767u: never on iPad   // t765u: no 'turn sideways' over an upright (portrait) game
+  document.body.classList.toggle('turnPhone', el.classList.contains('on'));   // t812u: full-screen turn-sideways screen (start screen + arcade)
 }
 // t765u: Ghost 256 / Strike / Cybercity are upright games -> while one is open the phone goes back to normal portrait.
 // t766u: leaving one MUST go back to the side (landscape) view on a real phone. One owner of the lock: every request bumps
