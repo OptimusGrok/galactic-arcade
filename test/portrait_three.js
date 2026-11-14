@@ -84,7 +84,11 @@ const { open } = require('./lib');
   await page.evaluate(() => { __F.log.length = 0; document.body.classList.add('upright'); screen.orientation.lock('portrait'); });
   await back('cyber', 'stale upright state outside a game (safety net)');
   // baseline: a normal (non-upright) cabinet leaves the phone in the same side view
-  await enter('rockfall'); await tapX(); const b0 = await back('rockfall', 'close X (normal cabinet, baseline: lock untouched, stays landscape)', true);
+  await enter('rockfall');
+  // t812u: a landscape cabinet held upright shows the full-screen "Turn your phone sideways" screen over everything
+  const rfHint = await page.evaluate(() => { const h = document.getElementById('turnHint'), r = h.getBoundingClientRect(); return { on: h.classList.contains('on'), full: r.width >= innerWidth - 1 && r.height >= innerHeight - 1 }; });
+  chk(rfHint.on && rfHint.full, 'rockfall held upright: full-screen turn-sideways screen covers the landscape game (t812u)', rfHint);
+  await page.evaluate(() => document.getElementById('bExit').click()); const b0 = await back('rockfall', 'close X (normal cabinet, baseline: lock untouched, stays landscape)', true);
   // HOME from inside an upright game
   await enter('cyber'); await page.evaluate(() => window.__arcade.play.home.go()); await noStart(); await back('cyber', 'HOME button');
   const errs = o.errors.filter(e => !/net::ERR_FAILED|Failed to load resource|supabase|reading 'isReady'|AbortError|not fullscreen/i.test(e));
