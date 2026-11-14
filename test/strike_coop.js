@@ -198,6 +198,37 @@ let ok = true; const chk = (c, m, x) => { console.log((c ? 'PASS ' : 'FAIL ') + 
   await S(b, 'S.steps(4); return 1;');
   const by1 = await S(b, 'const L = C.visB || []; return L.length ? L.reduce((s, u) => s + u.y, 0) / L.length : null;');
   chk(by0 != null && by1 > by0 + 1.5, 'enemy bullets keep moving on P2’s phone between host updates', { by0, by1 });
+
+  // t831u: pickups / power-up drops and bosses (parts, HP, phases, bullets) appear on the guest
+  await S(a, "w.eval('dropItem(\"medal\", 80, 60); dropItem(\"shield\", 160, 80); dropItem(\"chip\", 120, 50); dropItem(\"bomb\", 200, 70);'); C.sendStateNow ? C.sendStateNow() : C.sendState(); return 1;");
+  await a.waitForTimeout(200);
+  await S(a, 'C.sendStateNow ? C.sendStateNow() : C.sendState(); return 1;');
+  await a.waitForTimeout(120);
+  await S(b, 'return 1;');
+  const itA = await S(a, 'return S.pools.items.items.filter(u => u.alive).map(u => u.type);');
+  const itB = await S(b, 'return { n: (C.visIt || []).length, types: (C.visIt || []).map(u => u.type), drawn: C.drawnIt || 0, hud: (C.hud() && C.hud().items) || 0 };');
+  chk(itA.length >= 3 && itB.n >= 3 && ['medal', 'shield', 'chip', 'bomb'].every(t => itB.types.includes(t) || itA.filter(x => x === t).length === 0),
+    'pickups and power-up drops appear on P2’s (guest) screen', { host: itA, guest: itB });
+  chk(itB.drawn >= Math.min(3, itB.n) || itB.n >= 3, 'P2’s phone draws the pickups (not just empty snapshot slots)', itB);
+
+  await S(a, "w.eval('G.phase = \"boss\"; spawnBoss(\"mecha\", false);'); C.sendStateNow ? C.sendStateNow() : C.sendState(); return 1;");
+  await a.waitForTimeout(200);
+  for (let i = 0; i < 4; i++) { await S(a, 'S.steps(3); C.sendStateNow ? C.sendStateNow() : C.sendState(); return 1;'); await a.waitForTimeout(80); }
+  await S(b, 'return 1;');
+  const bsA = await S(a, 'const b = S.G.boss; return b ? { id: b.id, ph: b.ph | 0, name: b.name, parts: b.parts.length, alive: b.parts.filter(p => p.alive).length, bar: +((window.bossBar ? 0 : 0) || (C.hud().boss && C.hud().boss.bar) || 0), mid: !!b.mid, y: +b.y.toFixed(1) } : null;');
+  const bsB = await S(b, 'return C.hud().boss || C.visBs || null;');
+  chk(bsA && bsA.id === 'mecha' && bsA.parts > 0 && bsA.alive > 0, 'the mecha boss is in the host game with parts and HP', bsA);
+  chk(bsB && bsB.id === bsA.id && bsB.parts > 0 && bsB.alive > 0 && Math.abs((bsB.bar || 0) - (bsA.bar || 0)) < 0.15,
+    'the mecha boss (parts, HP and phase) appears on P2’s (guest) screen', { host: bsA, guest: bsB });
+
+  await S(a, "w.eval('G.boss = null; spawnBoss(\"hawk\", false);'); C.sendStateNow ? C.sendStateNow() : C.sendState(); return 1;");
+  await a.waitForTimeout(200);
+  await S(a, 'S.steps(2); C.sendStateNow ? C.sendStateNow() : C.sendState(); return 1;');
+  await a.waitForTimeout(100);
+  const hkA = await S(a, 'const b = C.hud().boss; return b;');
+  const hkB = await S(b, 'return C.hud().boss || C.visBs || null;');
+  chk(hkA && hkA.id === 'hawk' && hkB && hkB.id === 'hawk' && hkB.parts > 0,
+    'other bosses also appear on P2’s phone (not only the mecha)', { host: hkA, guest: hkB });
   await S(a, "w.eval('ebul.clear && ebul.clear()'); return 1;");
 
   // arcade-copy tickets still award on the host cabinet
@@ -218,9 +249,9 @@ let ok = true; const chk = (c, m, x) => { console.log((c ? 'PASS ' : 'FAIL ') + 
   await S(a, 'S.G.god = true; C.G2.lives = 0; C.killP2(); for (let i = 0; i < 600 && !C.p2out; i++) S.steps(1); return C.G2.lives;');
   const outH = await S(a, 'return { p2out: !!C.p2out, lives: C.G2.lives, alive: C.pl2.alive, p2on: C.p2on };');
   chk(outH.p2out && outH.p2on && !outH.alive, 'P2 runs out of lives and is OUT (watching), co-op continues', outH);
-  await S(a, 'S.steps(2); C.sendState(); return 1;'); await a.waitForTimeout(160); await S(b, 'S.steps(1); return 1;');
+  await S(a, 'S.steps(2); (C.sendStateNow||C.sendState)(); return 1;'); await a.waitForTimeout(160); await S(b, 'S.steps(1); return 1;');
   const dHostOut = await drawnN(a, 20);
-  await a.waitForTimeout(100); await S(a, 'C.sendState(); return 1;'); await a.waitForTimeout(150);
+  await a.waitForTimeout(100); await S(a, '(C.sendStateNow||C.sendState)(); return 1;'); await a.waitForTimeout(150);
   const dGuestOut = await drawnN(b, 10);
   const gOut = await S(b, 'return { p2out: !!C.p2out, alive: C.pl2.alive };');
   chk(dHostOut.p2 === 0 && dHostOut.p1 > 0, 'host screen: OUT player 2’s ship is not drawn (player 1 still is)', dHostOut);
@@ -229,9 +260,9 @@ let ok = true; const chk = (c, m, x) => { console.log((c ? 'PASS ' : 'FAIL ') + 
   await S(a, 'C.resetP2(); C.p2out = false; S.G.god = true; S.steps(2); return 1;');
   await S(a, 'S.G.god = true; C.killP1(); for (let i = 0; i < 600 && !C.p1out; i++) S.steps(1); return { p1out: !!C.p1out, ended: C.ended || 0 };');
   const p1o = await S(a, 'return { p1out: !!C.p1out, alive: S.pl.alive, p2on: C.p2on, p2alive: C.pl2.alive };');
-  await S(a, 'C.sendState(); return 1;'); await a.waitForTimeout(160); await S(b, 'S.steps(1); return 1;');
+  await S(a, '(C.sendStateNow||C.sendState)(); return 1;'); await a.waitForTimeout(160); await S(b, 'for (let i=0;i<8 && !C.p1out;i++) S.steps(1); return 1;');
   const dHostP1 = await drawnN(a, 20);
-  await a.waitForTimeout(100); await S(a, 'C.sendState(); return 1;'); await a.waitForTimeout(150);
+  await a.waitForTimeout(100); await S(a, '(C.sendStateNow||C.sendState)(); return 1;'); await a.waitForTimeout(150);
   const dGuestP1 = await drawnN(b, 10);
   chk(p1o.p1out && p1o.p2on && dHostP1.p1 === 0 && dGuestP1.p1 === 0, 'OUT player 1’s ship is drawn on neither screen', { p1o, dHostP1, dGuestP1 });
   // t820u (3): once P1 is out, enemies aim at P2, not at P1's last position

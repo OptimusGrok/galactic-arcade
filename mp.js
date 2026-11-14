@@ -248,6 +248,31 @@ body.ingame #mpPill,body.ingame #mpBar,body.ingame #mpChat,body.ingame #mpTags,b
       }
       return out.sort((a, b) => a.slot - b.slot); } };
 
+  // t827u: Berserker 2-player online co-op relay (same 70 ms cap / unthrottled bye as Strike)
+  const bzIn = new Map(); let bzAt = 0;
+  function onBerserker(pl) {
+    if (!pl || !pl.i || pl.i === id) return;
+    M.recv++; M.bzRecv = (M.bzRecv || 0) + 1;
+    const prev = bzIn.get(pl.i);
+    bzIn.set(pl.i, { s: pl, st: pl.typ === 'st' ? pl : (prev && prev.st) || null, at: performance.now() });
+    try { if (M.berserker && M.berserker.on) M.berserker.on(pl); } catch (e) {}
+  }
+  M.berserker = { peers: bzIn,
+    send(s) { const now = performance.now(); if (now - bzAt < 70 || !s || typeof s !== 'object') return false; bzAt = now;
+      const ok = send('berserker', Object.assign({ i: id }, s)); if (ok) M.bzSent = (M.bzSent || 0) + 1; return ok; },
+    sendNow(s) { if (!s || typeof s !== 'object') return false; bzAt = performance.now();
+      const ok = send('berserker', Object.assign({ i: id }, s)); if (ok) M.bzSent = (M.bzSent || 0) + 1; return ok; },
+    last(pid) { const r = bzIn.get(pid); return r && performance.now() - r.at < 2500 ? r.s : null; },
+    others() { const now = performance.now(), out = [];
+      for (const [pid, r] of bzIn) {
+        if (now - r.at > 2500) continue;
+        const p = M.peers.get(pid);
+        if (p && p.a && p.a !== 'play:berserker') continue;
+        const sl = p ? slotOf('berserker', pid) : null;
+        out.push({ id: pid, name: (p && p.name) || 'Player', s: r.s, st: r.st || (r.s && r.s.typ === 'st' ? r.s : null), slot: sl ? sl.i : 1, at: r.at });
+      }
+      return out.sort((a, b) => a.slot - b.slot); } };
+
   // every machine: names of the other players at it (for a LIVE badge on cabinets that cannot stream their game)
   M.cabLive = (key) => { const out = []; for (const p of M.peers.values()) if (p.a === 'play:' + key) out.push(p.name || 'Player'); return out; };
   // ---------- bubbles (emotes / chat), chat log ----------
@@ -294,7 +319,7 @@ body.ingame #mpPill,body.ingame #mpBar,body.ingame #mpChat,body.ingame #mpTags,b
       M.joins = (M.joins || 0) + 1;
       ch.on('presence', { event: 'sync' }, onSync)
         .on('broadcast', { event: 'st' }, m => onState(m && m.payload)).on('broadcast', { event: 'chat' }, m => onChat(m && m.payload)).on('broadcast', { event: 'emo' }, m => onEmo(m && m.payload))
-        .on('broadcast', { event: 'look' }, m => onLook(m && m.payload)).on('broadcast', { event: 'zap' }, m => onZap(m && m.payload)).on('broadcast', { event: 'sky' }, m => onSky(m && m.payload)).on('broadcast', { event: 'strike' }, m => onStrike(m && m.payload))
+        .on('broadcast', { event: 'look' }, m => onLook(m && m.payload)).on('broadcast', { event: 'zap' }, m => onZap(m && m.payload)).on('broadcast', { event: 'sky' }, m => onSky(m && m.payload)).on('broadcast', { event: 'strike' }, m => onStrike(m && m.payload)).on('broadcast', { event: 'berserker' }, m => onBerserker(m && m.payload))
         .on('broadcast', { event: 'bye' }, m => { if (m && m.payload) drop(m.payload.i); });
       // peek at presence before taking a seat: if 10 are already in, stay solo without counting as an 11th
       ch.subscribe(async status => {

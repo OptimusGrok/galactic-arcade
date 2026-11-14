@@ -8,11 +8,13 @@
 // Cheap: 3 instanced meshes + 1 canvas panel (redrawn only when the numbers change), no lights added, all compiled by the warm-up.
 // v216: bigger/closer score panel with a live high score; line-clear beam + sound; Level 2 door opens after 3 tetrises in one game;
 // the playfield frame and the panel neon change colour every 30 s, always different colours from each other (t826u).
+// t827u: pinch-to-zoom anywhere while playing (two-finger pinch in/out, clamped; single-touch controls stay the same).
 export function setupNeonBricks({ THREE, room, HALF, getMonkey, st, canStart, onState }) {
 const HI_KEY = 'neonarcade.neonbricks.hi';
 const TETRIS_LINES = 4;          // a tetris. 5 lines at once is impossible with standard tetrominoes (the I piece spans at most 4).
 const TETRISES_TO_OPEN = 3;      // Level 2 door opens after this many tetrises in one Neon Bricks game
 const NEON_PERIOD = 30;          // seconds between frame / panel colour changes
+const ZOOM_MIN = 0, ZOOM_MAX = 1.4;  // t827u: pinch-to-zoom the playfield (0 = normal view, 1 = fills the screen, >1 = closer)
 const NEON_PALETTE = ['#3ff3ff', '#ff3fd2', '#ffe14a', '#7d5cff', '#39ff14', '#ff6a1a'];
 // ================= RULES ENGINE (verbatim from Neon Bricks 3D) =================
 const W=10,H=22,HID=2;
@@ -232,15 +234,17 @@ function joy(jx, jy, dt) {   // joystick / keys: left-right auto-repeat, down = 
   const d = jx > 0.45 ? 1 : jx < -0.45 ? -1 : 0;
   if (d !== rep.dir) { rep.dir = d; rep.t = 0; if (d) move(d); } else if (d) { rep.t += dt; while (rep.t >= DAS) { move(d); rep.t -= ARR; } }
   G.soft = jy > 0.6 && Math.abs(jy) > Math.abs(jx); }
-const api = { G, grp, panel, HEX, TETRIS_LINES, TETRISES_TO_OPEN, NEON_PERIOD, NEON_PALETTE, beams: 0,
-  get shown() { return grp.visible; }, playing: false, zoom: false, zoomK: 0, near: false, clears: 0, starts: 0, rotates: 0, moves: 0,
+const api = { G, grp, panel, HEX, TETRIS_LINES, TETRISES_TO_OPEN, NEON_PERIOD, NEON_PALETTE, ZOOM_MIN, ZOOM_MAX, beams: 0,
+  get shown() { return grp.visible; }, playing: false, zoom: false, zoomAmt: 0, zoomK: 0, pinches: 0, near: false, clears: 0, starts: 0, rotates: 0, moves: 0,
   get frameColor() { return frameHex; }, get panelColor() { return panelHex; }, get neonIndex() { return neonIdx; },
   setNeonNow(fn) { neonNow = fn; applyNeon(true); drawPanel(msg); },
   get mats() { return [brickMat, ghostMat]; },
-  start() { if (api.playing) return; hideT = 0; show(true); resetDoorForNewGame(); newGame(); api.playing = true; api.starts++; boardDirty = true; G.events.length = 0; boardDirty = true; msg = ''; drawPanel(); onState && onState(true); },
+  start() { if (api.playing) return; hideT = 0; show(true); resetDoorForNewGame(); newGame(); api.playing = true; api.zoom = false; api.zoomAmt = 0; api.starts++; boardDirty = true; G.events.length = 0; boardDirty = true; msg = ''; drawPanel(); onState && onState(true); },
   stop, rotate() { if (api.playing && rotate(1)) api.rotates++; }, hardDrop() { if (api.playing) hardDrop(); },
   move(d) { if (api.playing && move(d)) api.moves++; },
-  joy, toggleZoom() { if (api.playing) api.zoom = !api.zoom; },
+  joy, toggleZoom() { if (!api.playing) return; api.zoomAmt = api.zoomAmt >= 0.85 ? 0 : 1; api.zoom = api.zoomAmt >= 0.85; },
+  setZoomAmt(k) { if (!api.playing) return api.zoomAmt; api.zoomAmt = Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, +k || 0)); api.zoom = api.zoomAmt >= 0.85; return api.zoomAmt; },
+  pinchBy(scale) { if (!api.playing || !(scale > 0)) return api.zoomAmt; api.pinches++; return api.setZoomAmt((1 + (api.zoomAmt || 0)) * scale - 1); },
   debugClear(n) {   // test hook: fill n complete rows at the bottom and run the real clear path (beam, sound, tetris count, door)
     if (G.state !== 'play') newGame();
     const rows = []; for (let i = 0; i < n; i++) { const y = H - 1 - i; for (let x = 0; x < W; x++) G.board[y][x] = 1; rows.push(y); }
@@ -254,19 +258,20 @@ const api = { G, grp, panel, HEX, TETRIS_LINES, TETRISES_TO_OPEN, NEON_PERIOD, N
     if (api.playing) { update(Math.min(dt, 0.1)); drain(); }
     if (msgT > 0) { msgT -= dt; if (msgT <= 0) msg = ''; }
     if (hideT > 0 && !api.playing) { hideT -= dt; if (hideT <= 0) { hideT = 0; show(false); } }
-    api.zoomK += ((api.playing && api.zoom ? 1 : 0) - api.zoomK) * (1 - Math.exp(-dt * 7)); if (api.zoomK < 0.002) api.zoomK = 0;
+    const zGoal = api.playing ? api.zoomAmt : 0; api.zoomK += (zGoal - api.zoomK) * (1 - Math.exp(-dt * 10)); if (Math.abs(api.zoomK) < 0.002) api.zoomK = 0;
     applyNeon(); tickBeams(dt); sync(); drawPanel(msg); },
   // ZOOM: frame the 10 x 20 playfield so it fills the screen, eased with zoomK
   restoreCam(cam) { if (camBase.on) { cam.position.copy(camBase.p); cam.quaternion.copy(camBase.q); camBase.on = false; } },   // undo last frame's zoom before the follow camera runs
   camera(cam) { if (api.zoomK <= 0) return false;
     camBase.p.copy(cam.position); camBase.q.copy(cam.quaternion); camBase.on = true;
     const hh = VIS * CELL / 2 + 0.35, hw = W * CELL / 2 + 0.3, yc = YB + (VIS - 1) * CELL / 2, t = Math.tan(THREE.MathUtils.degToRad(cam.fov) / 2);
-    const d = Math.max(hh / t, hw / (t * cam.aspect)), zx = X0 - 0.3 - d;
-    const k = api.zoomK * api.zoomK * (3 - 2 * api.zoomK);
+    const extra = Math.max(0, api.zoomK - 1), fill = Math.min(1, api.zoomK);
+    const d = Math.max(hh / t, hw / (t * cam.aspect)) * (1 - extra * 0.4), zx = X0 - 0.3 - d;
+    const k = fill * fill * (3 - 2 * fill);
     V3.copy(cam.position); cam.position.lerp(V3.set(zx, yc, ZC), k);
     const look = new THREE.Vector3(); cam.getWorldDirection(look); look.multiplyScalar(10).add(V3.copy(cam.position));
     cam.lookAt(look.lerp(new THREE.Vector3(X0, yc, ZC), k)); return k > 0.35; } };
-function stop(why) { if (!api.playing) return; api.playing = false; api.zoom = false; rep.dir = 0; G.soft = false; if (why !== 'over') G.state = 'title'; msg = ''; panelKey = ''; closeDoorOnExit(); drawPanel(); if (why === 'over') hideT = 1.6; else show(false); onState && onState(false); }
+function stop(why) { if (!api.playing) return; api.playing = false; api.zoom = false; api.zoomAmt = 0; rep.dir = 0; G.soft = false; if (why !== 'over') G.state = 'title'; msg = ''; panelKey = ''; closeDoorOnExit(); drawPanel(); if (why === 'over') hideT = 1.6; else show(false); onState && onState(false); }
 // t781u: nothing in the window until PLAY is tapped; hidden again after game over (a short GAME OVER beat first) or exit
 let hideT = 0; function show(on) { grp.visible = panel.visible = on; } show(false);
 applyNeon(true); drawPanel(); sync();
