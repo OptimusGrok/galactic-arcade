@@ -9,7 +9,9 @@ export function lavaPaths(Z2, WX) {
   rect(0, 0, 9.9); rect(0, Z2, 9.9); rect(WX, 0, 9.9);                                   // along the cabinet fronts of each room
   S.push([0, 9.9, 0, 1.9], [0, -1.9, 0, Z2 + 2.7], [0, Z2 - 2.7, 0, Z2 - 9.9], [-9.9, Z2, -2.7, Z2], [2.7, Z2, 9.9, Z2],   // doorways, hallway centre, room 2 spokes
     [-9.9, -9.9, -10.75 + 1.2, -10.75 + 1.2], [WX - 9.9, 0, WX - 1.8, 0], [WX + 1.8, 0, WX + 9.9, 0], [WX, 1.8, WX, 9.9], [WX, -1.8, WX, -9.9],
-    [2.85, 9.9, 2.85, 6.9], [2.85, 6.9, 9.15, 6.9], [9.15, 6.9, 9.15, 9.9]);                // round the MARS ROADSTER: both seat sides + the open end
+    [2.85, 9.9, 2.85, 6.9], [2.85, 6.9, 9.15, 6.9], [9.15, 6.9, 9.15, 9.9],                // round the MARS ROADSTER: both seat sides + the open end
+    [-5.70, 0.70, -3.40, 0.70], [-3.40, 0.70, -3.40, -1.20], [-3.40, -1.20, -5.70, -1.20], [-5.70, -1.20, -5.70, 0.70],  // round the CLAW MACHINE (0.45 m outside the 2x2 base, same stand-off as the PLAY front)
+    [-3.40, -0.25, -1.90, 0]);                                                            // spur from the claw's east side into the kiosk ring
   R.push([0, 0, 1.9], [-10.75, -10.75, 1.75], [0, Z2, 2.7], [WX, 0, 1.8]);                   // round the kiosk, teleporter pads, Dead Signal station
   D.push([-10.75, -10.75, 1.3], [WX, 0, 1.3], [0, Z2, 2.4]);                               // standing on the pads / the VR platform is always safe
   // STEPPING STONES (t187, Dave: 'a small section of the path in between two paths in the middle so the player can jump onto it'):
