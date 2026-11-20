@@ -1,0 +1,27 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8">
+<title>Nebula Arcade (moved)</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex">
+<link rel="canonical" href="https://optimusgrok.github.io/nebula-arcade/">
+<noscript><meta http-equiv="refresh" content="0; url=https://optimusgrok.github.io/nebula-arcade/"></noscript>
+<script>
+/* Galactic Arcade is now Nebula Arcade. Same path, query and hash on the new link.
+   Unregister the old /galactic-arcade/ service worker and drop its old caches (galactic-arcade-v1..v259 only;
+   Nebula Arcade v260+ keeps the same cache prefix and other games' caches are left alone). */
+(function(){
+  var OLD='/galactic-arcade', NEW='https://optimusgrok.github.io/nebula-arcade';
+  var p=location.pathname; if(p.indexOf(OLD)===0)p=p.slice(OLD.length); if(!p||p.charAt(0)!=='/')p='/'+p;
+  if(/\/(index|404)\.html$/.test(p))p=p.replace(/(index|404)\.html$/,'');
+  var u=NEW+p+location.search+location.hash, gone=false;
+  function go(){if(gone)return;gone=true;location.replace(u);}
+  var jobs=[];
+  try{if('serviceWorker' in navigator)jobs.push(navigator.serviceWorker.getRegistrations().then(function(rs){
+    return Promise.all(rs.filter(function(r){return r.scope.indexOf(location.origin+OLD+'/')===0;}).map(function(r){return r.unregister();}));}));}catch(e){}
+  try{if(window.caches)jobs.push(caches.keys().then(function(ks){return Promise.all(ks.filter(function(k){
+    var m=/^galactic-arcade-v(\d+)$/.exec(k);return m&&+m[1]<260;}).map(function(k){return caches.delete(k);}));}));}catch(e){}
+  Promise.all(jobs).then(go,go); setTimeout(go,1500);
+})();
+</script></head>
+<body style="background:#07040c;color:#dffbff;font:16px monospace;text-align:center;padding-top:30vh">
+Galactic Arcade is now <a style="color:#ff3cf0" href="https://optimusgrok.github.io/nebula-arcade/">Nebula Arcade</a>.
+</body></html>
